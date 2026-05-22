@@ -1,0 +1,7 @@
+onlyBuiltDependencies:
+  - electron
+  - electron-winstaller
+  - esbuild
+electron_mirror: https://npmmirror.com/mirrors/electron/
+electron_builder_binaries_mirror: https://npmmirror.com/mirrors/electron-builder-binaries/
+shamefullyHoist: true
