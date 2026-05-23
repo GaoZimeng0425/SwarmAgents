@@ -26,6 +26,8 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.78",
+    "@earendil-works/pi-agent-core": "^0.75.4",
+    "@earendil-works/pi-ai": "^0.75.4",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "ai": "^6.0.190",

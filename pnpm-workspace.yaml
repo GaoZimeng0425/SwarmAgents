@@ -6,6 +6,8 @@ electron_mirror: https://npmmirror.com/mirrors/electron/
 electron_builder_binaries_mirror: https://npmmirror.com/mirrors/electron-builder-binaries/
 shamefullyHoist: true
 allowBuilds:
+  '@google/genai': false
   electron: true
   electron-winstaller: true
   esbuild: true
+  protobufjs: false
