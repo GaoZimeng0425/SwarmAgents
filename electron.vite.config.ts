@@ -21,14 +21,27 @@ const pkg = createRequire(import.meta.url)('./package.json') as {
   dependencies?: Record<string, string>
 }
 const runtimeDeps = Object.keys(pkg.dependencies ?? {})
+
+// @earendil-works/pi-agent-core and @earendil-works/pi-ai are ESM-only
+// (their package.json exports only have "import", no "require"). The worker
+// bundle is emitted as CJS (forced by electron-vite's single-output
+// constraint), so these packages must be inlined by Rollup rather than
+// externalized. Rollup's CJS plugin handles the ESM→CJS transpilation.
+const ESM_ONLY_BUNDLE_INLINE = new Set([
+  '@earendil-works/pi-agent-core',
+  '@earendil-works/pi-ai',
+])
+
 const mainExternal: Array<string | RegExp> = [
   'electron',
   /^electron\//,
   ...builtinModules,
   ...builtinModules.map((m) => `node:${m}`),
-  ...runtimeDeps,
-  // also externalize anything under a runtime dep's subpath
-  ...runtimeDeps.map((d) => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`)),
+  ...runtimeDeps.filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d)),
+  // also externalize anything under a runtime dep's subpath (skip ESM-only inline set)
+  ...runtimeDeps
+    .filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d))
+    .map((d) => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`)),
 ]
 
 export default defineConfig({
