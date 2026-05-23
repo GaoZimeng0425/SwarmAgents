@@ -102,8 +102,13 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
   }
 
   const replaceSlot = (slot: Slot, reason: string): void => {
+    // Mark dead synchronously so a subsequent watchdog tick (before the child's
+    // async 'exit' fires) does not re-enter replaceSlot on the same slot.
+    if (slot.state === 'dead') return
+    slot.state = 'dead'
     log.warn({ msg: 'replacing worker', workerId: slot.handle.workerId, reason })
     const orphanedTaskId = slot.currentTaskId
+    slot.currentTaskId = null
     try {
       slot.handle.kill()
     } catch (e) {
@@ -155,11 +160,20 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
         clearInterval(watchdog)
         watchdog = null
       }
+      // Drain queued-but-not-yet-dispatched tasks so callers know they were dropped.
+      while (queue.length > 0) {
+        const dropped = queue.shift() as Task
+        ee.emit('task.error', dropped.id, {
+          code: 'supervisor_shutdown',
+          message: 'supervisor shut down before task was dispatched',
+          tier: 'fatal',
+        })
+      }
       for (const s of slots) {
         if (s.state !== 'dead') s.handle.send({ type: 'shutdown' })
       }
       await Promise.all(slots.map((s) => s.handle.exited))
-      log.info('supervisor shut down')
+      log.info({ msg: 'supervisor shut down' })
     },
     on(event, cb): void {
       ee.on(event, cb as (...args: unknown[]) => void)

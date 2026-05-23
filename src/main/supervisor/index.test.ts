@@ -121,4 +121,45 @@ process.on('message', (m) => {
 
     await sup.shutdown()
   })
+
+  it('emits task.error for queued-but-undispatched tasks on shutdown', async () => {
+    // A worker that never replies: every assigned task sits forever.
+    const dir = mkdtempSync(`${tmpdir()}/swarm-blackhole-`)
+    const fixture = resolve(dir, 'blackhole.cjs')
+    writeFileSync(
+      fixture,
+      `
+process.on('message', (m) => {
+  if (m && m.type === 'shutdown') process.exit(0);
+  // Otherwise: silently absorb. The dispatched task never completes.
+});
+setInterval(() => process.send({ type: 'heartbeat', ts: Date.now() }), 50).unref();
+      `,
+    )
+
+    const sup = createSupervisor({
+      spawner: createNodeForkSpawner(),
+      workerEntry: fixture,
+      poolSize: 1,
+    })
+
+    const errors: Array<{ taskId: string; err: unknown }> = []
+    sup.on('task.error', (taskId, err) => errors.push({ taskId, err }))
+
+    await sup.start()
+    // First task is dispatched (the worker absorbs it). Second and third sit in queue.
+    sup.dispatch(mkTask('01HX0000000000000000000010', 'dispatched-and-stuck'))
+    sup.dispatch(mkTask('01HX0000000000000000000011', 'queued-1'))
+    sup.dispatch(mkTask('01HX0000000000000000000012', 'queued-2'))
+    await new Promise((r) => setTimeout(r, 100))
+
+    await sup.shutdown()
+
+    const erroredIds = errors.map((e) => e.taskId).sort()
+    expect(erroredIds).toContain('01HX0000000000000000000011')
+    expect(erroredIds).toContain('01HX0000000000000000000012')
+    // The dispatched-and-stuck task is in the worker, not in the queue —
+    // it does NOT emit task.error from the queue-drain path.
+    expect(erroredIds).not.toContain('01HX0000000000000000000010')
+  })
 })
