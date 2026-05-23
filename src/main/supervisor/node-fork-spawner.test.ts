@@ -17,13 +17,16 @@ describe('NodeForkSpawner', () => {
     const spawner = createNodeForkSpawner()
     const handle = spawner.spawn({ entry: fixture, workerId: 'w-test' })
 
-    const received: unknown[] = []
-    handle.onMessage((m) => received.push(m))
+    // Wait for the echo response by promise rather than a fixed sleep —
+    // the test runs in a parallel forks pool and timing margins shrink
+    // when several spawner tests are competing for the same CPU.
+    const firstMessage = new Promise<unknown>((resolveMsg) => {
+      handle.onMessage((m) => resolveMsg(m))
+    })
 
     handle.send('hello')
-    await new Promise((r) => setTimeout(r, 100))
-
-    expect(received).toEqual([{ echoed: 'hello' }])
+    const got = await firstMessage
+    expect(got).toEqual({ echoed: 'hello' })
 
     handle.send('bye')
     const exitCode = await handle.exited

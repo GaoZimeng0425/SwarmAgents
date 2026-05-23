@@ -8,6 +8,12 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
+        // electron must stay external. externalizeDepsPlugin only externalizes
+        // package.json `dependencies`, and electron lives in `devDependencies`.
+        // Without this, the electron-npm-package's launcher helper (with its
+        // getElectronPath/install.js plumbing) gets bundled into out/main/
+        // index.js and crashes at runtime.
+        external: ['electron', /^electron\//],
         input: {
           index: resolve('src/main/index.ts'),
           worker: resolve('src/worker/index.ts'),
