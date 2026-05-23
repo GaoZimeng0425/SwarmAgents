@@ -25,8 +25,10 @@
     "build:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.78",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "ai": "^6.0.190",
     "electron-updater": "^6.8.3",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
