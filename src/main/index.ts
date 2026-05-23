@@ -5,6 +5,7 @@ import { createLogger } from '@shared/logger'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 
 import icon from '../../resources/icon.png?asset'
+import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { createPermissionGate } from './permission/gate'
 import { createSupervisor } from './supervisor'
 import { createElectronSpawner } from './supervisor/electron-spawner'
@@ -82,10 +83,8 @@ app.whenReady().then(async () => {
   const permissionGate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
 
   await supervisor.start()
+  wireSwarmIpc({ supervisor, permissionGate })
   log.info({ msg: 'core services up', poolSize, workerEntry })
-
-  // Stash on globalThis for renderer-IPC handlers added in later plans.
-  ;(globalThis as unknown as { __swarm: unknown }).__swarm = { supervisor, permissionGate }
 
   app.on('before-quit', async () => {
     await supervisor.shutdown()

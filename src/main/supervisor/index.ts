@@ -24,14 +24,23 @@ type Slot = {
 }
 
 type SupervisorEvents = {
+  'task.dispatched': (taskId: string, workerId: string) => void
   'task.complete': (taskId: string, result: Outbound & { type: 'task.complete' }) => void
   'task.error': (taskId: string, error: unknown) => void
+  'task.handoff': (parentTaskId: string, newGoal: string, suggestedTools: string[] | undefined) => void
   progress: (taskId: string, event: Outbound & { type: 'progress' }) => void
+  'tool.call': (taskId: string, workerId: string, msg: Outbound & { type: 'tool.call' }) => void
+  'permission.request': (
+    taskId: string,
+    workerId: string,
+    msg: Outbound & { type: 'permission.request' },
+  ) => void
 }
 
 export type Supervisor = {
   start(): Promise<void>
   dispatch(task: Task): void
+  sendToWorker(workerId: string, msg: Inbound): boolean
   shutdown(): Promise<void>
   on<K extends keyof SupervisorEvents>(event: K, cb: SupervisorEvents[K]): void
 }
@@ -55,6 +64,7 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
     slot.currentTaskId = task.id
     log.info({ msg: 'dispatching', taskId: task.id, workerId: slot.handle.workerId })
     send(slot, { type: 'task.assign', task, promptContext: '' })
+    ee.emit('task.dispatched', task.id, slot.handle.workerId)
   }
 
   const handleOutbound = (slot: Slot, raw: unknown): void => {
@@ -85,8 +95,18 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
       case 'progress':
         if (slot.currentTaskId) ee.emit('progress', slot.currentTaskId, m)
         return
+      case 'tool.call':
+        if (slot.currentTaskId) ee.emit('tool.call', slot.currentTaskId, slot.handle.workerId, m)
+        return
+      case 'permission.request':
+        if (slot.currentTaskId)
+          ee.emit('permission.request', slot.currentTaskId, slot.handle.workerId, m)
+        return
+      case 'task.handoff':
+        ee.emit('task.handoff', m.parentTaskId, m.newGoal, m.suggestedTools)
+        return
       default:
-        log.debug({ msg: 'unhandled outbound (foundation plan)', type: m.type })
+        log.debug({ msg: 'unhandled outbound', type: (m as { type: string }).type })
     }
   }
 
@@ -154,6 +174,12 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
       if (shuttingDown) throw new Error('supervisor is shutting down')
       queue.push(task)
       tryDispatchNext()
+    },
+    sendToWorker(workerId, msg): boolean {
+      const slot = slots.find((s) => s.handle.workerId === workerId)
+      if (!slot || slot.state === 'dead') return false
+      send(slot, msg)
+      return true
     },
     async shutdown(): Promise<void> {
       shuttingDown = true

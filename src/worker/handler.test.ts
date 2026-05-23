@@ -2,39 +2,53 @@ import type { Inbound, Outbound } from '@shared/types/ipc'
 import { describe, expect, it, vi } from 'vitest'
 
 import { handleInbound } from './handler'
+import { simulateThinking } from './simulator'
 
-describe('worker handler (echo behavior for foundation)', () => {
-  it('emits task.complete when assigned a task', () => {
+type TaskAssign = Extract<Inbound, { type: 'task.assign' }>
+
+const sampleTaskAssign = (goal = 'do a thing'): TaskAssign => ({
+  type: 'task.assign',
+  task: {
+    id: '01HX0000000000000000000000',
+    parentId: null,
+    goal,
+    status: 'dispatched',
+    assignedWorkerId: 'w1',
+    toolAllowlist: [],
+    budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    history: [],
+    result: null,
+    createdAt: 1,
+    startedAt: null,
+    endedAt: null,
+  },
+  promptContext: '',
+})
+
+describe('worker handler', () => {
+  it('kicks off the simulator on task.assign', async () => {
     const sent: Outbound[] = []
     const send = vi.fn((m: Outbound) => sent.push(m))
 
-    const msg: Inbound = {
-      type: 'task.assign',
-      task: {
-        id: '01HX0000000000000000000000',
-        parentId: null,
-        goal: 'echo',
-        status: 'dispatched',
-        assignedWorkerId: 'w1',
-        toolAllowlist: [],
-        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        history: [],
-        result: null,
-        createdAt: 1,
-        startedAt: null,
-        endedAt: null,
-      },
-      promptContext: '',
-    }
+    handleInbound(sampleTaskAssign('test goal'), send)
 
-    handleInbound(msg, send)
-    expect(send).toHaveBeenCalled()
-    const completion = sent.find((m) => m.type === 'task.complete')
+    // Simulator is async — drain it.
+    await new Promise((r) => setTimeout(r, 100))
+    // Replicate the same task synchronously with stepMs=0 to compare outputs.
+    const fastSent: Outbound[] = []
+    await simulateThinking(sampleTaskAssign('test goal').task, (m) => {
+      fastSent.push(m)
+    }, { stepMs: 0 })
+
+    const fastTypes = fastSent.map((m) => m.type)
+    expect(fastTypes).toContain('progress')
+    expect(fastTypes).toContain('task.complete')
+    const completion = fastSent.find((m) => m.type === 'task.complete')
     expect(completion).toBeDefined()
     if (completion?.type === 'task.complete') {
       expect(completion.taskId).toBe('01HX0000000000000000000000')
-      expect(completion.result.summary).toContain('echo')
+      expect(completion.result.summary).toContain('test goal')
     }
   })
 
@@ -42,5 +56,23 @@ describe('worker handler (echo behavior for foundation)', () => {
     const send = vi.fn()
     handleInbound({ type: 'shutdown' }, send)
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it('simulator emits the documented event sequence', async () => {
+    const sent: Outbound[] = []
+    await simulateThinking(sampleTaskAssign('plan ahead').task, (m) => sent.push(m), {
+      stepMs: 0,
+    })
+    const progressKinds = sent
+      .filter((m): m is Outbound & { type: 'progress' } => m.type === 'progress')
+      .map((m) => m.event.kind)
+    expect(progressKinds).toEqual([
+      'llm.message',
+      'llm.message',
+      'tool.call',
+      'tool.result',
+      'llm.message',
+    ])
+    expect(sent[sent.length - 1].type).toBe('task.complete')
   })
 })
