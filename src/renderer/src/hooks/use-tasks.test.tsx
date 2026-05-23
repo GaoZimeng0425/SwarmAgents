@@ -23,7 +23,7 @@ describe('use-tasks + use-events-subscription', () => {
       return () => {}
     })
 
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } } })
 
     const view = renderHook(
       () => {
