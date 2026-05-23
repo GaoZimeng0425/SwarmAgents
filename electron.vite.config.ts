@@ -1,7 +1,9 @@
 import { builtinModules, createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
 // Build the externals list ourselves rather than relying solely on
@@ -65,8 +67,21 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('src/shared'),
+        '@': resolve('src/renderer/src'),
       },
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      TanStackRouterVite({
+        target: 'react',
+        autoCodeSplitting: true,
+        routesDirectory: resolve('src/renderer/src/routes'),
+        generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts'),
+      }),
+      react(),
+      babel({
+        presets: [reactCompilerPreset({ target: '19' })],
+      }),
+      tailwindcss(),
+    ],
   },
 })
