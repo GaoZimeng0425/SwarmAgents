@@ -1,9 +1,10 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
 import { cpus } from 'node:os'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { join } from 'path'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
+
+import icon from '../../resources/icon.png?asset'
 import { createPermissionGate } from './permission/gate'
 import { createSupervisor } from './supervisor'
 import { createElectronSpawner } from './supervisor/electron-spawner'
@@ -23,14 +24,14 @@ function createWindow(): void {
       ? {
           titleBarStyle: 'hiddenInset',
           vibrancy: 'sidebar',
-          visualEffectState: 'active'
+          visualEffectState: 'active',
         }
       : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
+      sandbox: false,
+    },
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -103,7 +104,7 @@ app.whenReady().then(async () => {
 
   createWindow()
 
-  app.on('activate', function () {
+  app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

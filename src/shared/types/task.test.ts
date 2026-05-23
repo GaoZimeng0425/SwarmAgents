@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { TaskSchema, emptyBudget, taskStatusValues } from './task'
+
+import { emptyBudget, TaskSchema, taskStatusValues } from './task'
 
 describe('Task types', () => {
   it('exposes the full status enum', () => {
     expect(taskStatusValues).toEqual([
-      'pending', 'planning', 'dispatched', 'running',
-      'awaiting_user', 'paused', 'completed', 'failed',
-      'cancelled', 'interrupted',
+      'pending',
+      'planning',
+      'dispatched',
+      'running',
+      'awaiting_user',
+      'paused',
+      'completed',
+      'failed',
+      'cancelled',
+      'interrupted',
     ])
   })
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { createPermissionGate } from './gate'
 
 describe('PermissionGate (skeleton — no UI yet)', () => {
@@ -43,7 +44,7 @@ describe('PermissionGate (skeleton — no UI yet)', () => {
   it('throws if prompt handler is required but unset', async () => {
     const gate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
     await expect(
-      gate.evaluate({ taskId: 't1', actionId: 'a4', risk: 'medium', summary: 's', payload: {} }),
+      gate.evaluate({ taskId: 't1', actionId: 'a4', risk: 'medium', summary: 's', payload: {} })
     ).rejects.toThrow(/no prompt handler/i)
   })
 })

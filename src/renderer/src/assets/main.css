@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import './base.css';
+@import "tailwindcss";
+@import "./base.css";
 
 /* webview-survival C.2: chrome is unselectable by default; opt back in
    only on content areas. */
@@ -10,7 +10,7 @@
 .selectable,
 input,
 textarea,
-[contenteditable='true'] {
+[contenteditable="true"] {
   user-select: text;
   -webkit-user-select: text;
 }
@@ -19,7 +19,7 @@ textarea,
    This single rule is the most common "feels web-y" tell. */
 button,
 a,
-[role='button'] {
+[role="button"] {
   cursor: default;
 }
 
@@ -46,7 +46,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background-image: url('./wavy-lines.svg');
+  background-image: url("./wavy-lines.svg");
   background-size: cover;
 }
 

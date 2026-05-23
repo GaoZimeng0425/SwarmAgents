@@ -143,7 +143,6 @@
           "level": "warn",
           "fix": "safe"
         },
-        "noSecrets": "off",
         "useExplicitType": "off",
         "useSortedClasses": {
           "fix": "safe",

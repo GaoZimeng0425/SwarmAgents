@@ -1,4 +1,5 @@
 import { z } from 'zod'
+
 import { TaskEventSchema, TaskResultSchema, TaskSchema } from './task'
 
 export const RiskSchema = z.enum(['low', 'medium', 'high'])
@@ -26,13 +27,23 @@ export const InboundSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('task.assign'), task: TaskSchema, promptContext: z.string() }),
   z.object({ type: z.literal('task.cancel'), taskId: z.string() }),
   z.object({ type: z.literal('tool.result'), callId: z.string(), result: ToolResultSchema }),
-  z.object({ type: z.literal('permission.decision'), actionId: z.string(), decision: z.enum(['grant', 'deny', 'skip']) }),
+  z.object({
+    type: z.literal('permission.decision'),
+    actionId: z.string(),
+    decision: z.enum(['grant', 'deny', 'skip']),
+  }),
   z.object({ type: z.literal('shutdown') }),
 ])
 export type Inbound = z.infer<typeof InboundSchema>
 
 export const OutboundSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('tool.call'), callId: z.string(), server: z.string(), tool: z.string(), args: z.unknown() }),
+  z.object({
+    type: z.literal('tool.call'),
+    callId: z.string(),
+    server: z.string(),
+    tool: z.string(),
+    args: z.unknown(),
+  }),
   z.object({
     type: z.literal('permission.request'),
     actionId: z.string(),

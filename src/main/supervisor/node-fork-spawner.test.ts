@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { resolve } from 'node:path'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
 import { createNodeForkSpawner } from './node-fork-spawner'
 
 describe('NodeForkSpawner', () => {
@@ -10,7 +11,7 @@ describe('NodeForkSpawner', () => {
     const fixture = resolve(dir, 'echo-worker.cjs')
     writeFileSync(
       fixture,
-      `process.on('message', (m) => { if (m === 'bye') process.exit(0); process.send({ echoed: m }); });`,
+      `process.on('message', (m) => { if (m === 'bye') process.exit(0); process.send({ echoed: m }); });`
     )
 
     const spawner = createNodeForkSpawner()

@@ -1,4 +1,5 @@
-import { utilityProcess, MessageChannelMain } from 'electron'
+import { MessageChannelMain, utilityProcess } from 'electron'
+
 import type { SpawnOptions, WorkerHandle, WorkerSpawner } from './spawner'
 
 export function createElectronSpawner(): WorkerSpawner {

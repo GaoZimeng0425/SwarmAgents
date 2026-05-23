@@ -1,5 +1,5 @@
 export type SpawnOptions = {
-  entry: string         // absolute path to worker entry file
+  entry: string // absolute path to worker entry file
   workerId: string
   env?: Record<string, string>
 }

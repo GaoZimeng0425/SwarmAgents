@@ -27,12 +27,30 @@ export type ResourceBudget = z.infer<typeof ResourceBudgetSchema>
 export const emptyBudget = (): ResourceBudget => ({ tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
 
 export const TaskEventSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('llm.message'), role: z.enum(['assistant', 'user', 'tool']), content: z.unknown(), ts: z.number() }),
+  z.object({
+    kind: z.literal('llm.message'),
+    role: z.enum(['assistant', 'user', 'tool']),
+    content: z.unknown(),
+    ts: z.number(),
+  }),
   z.object({ kind: z.literal('tool.call'), server: z.string(), tool: z.string(), args: z.unknown(), ts: z.number() }),
   z.object({ kind: z.literal('tool.result'), ok: z.boolean(), payload: z.unknown(), ts: z.number() }),
-  z.object({ kind: z.literal('permission'), actionId: z.string(), decision: z.enum(['grant', 'deny', 'skip']), ts: z.number() }),
+  z.object({
+    kind: z.literal('permission'),
+    actionId: z.string(),
+    decision: z.enum(['grant', 'deny', 'skip']),
+    ts: z.number(),
+  }),
   z.object({ kind: z.literal('handoff'), childTaskId: z.string(), ts: z.number() }),
-  z.object({ kind: z.literal('error'), error: z.object({ code: z.string(), message: z.string(), tier: z.enum(['transient', 'recoverable', 'fatal', 'gave_up']) }), ts: z.number() }),
+  z.object({
+    kind: z.literal('error'),
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      tier: z.enum(['transient', 'recoverable', 'fatal', 'gave_up']),
+    }),
+    ts: z.number(),
+  }),
 ])
 export type TaskEvent = z.infer<typeof TaskEventSchema>
 

@@ -1,4 +1,5 @@
 import { fork } from 'node:child_process'
+
 import type { SpawnOptions, WorkerHandle, WorkerSpawner } from './spawner'
 
 export function createNodeForkSpawner(): WorkerSpawner {

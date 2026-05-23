@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
-import { handleInbound } from './handler'
 import type { Inbound, Outbound } from '@shared/types/ipc'
+import { describe, expect, it, vi } from 'vitest'
+
+import { handleInbound } from './handler'
 
 describe('worker handler (echo behavior for foundation)', () => {
   it('emits task.complete when assigned a task', () => {

@@ -1,8 +1,9 @@
 import { EventEmitter } from 'node:events'
-import { ulid } from 'ulid'
 import { createLogger } from '@shared/logger'
-import { OutboundSchema, type Inbound, type Outbound } from '@shared/types/ipc'
+import { type Inbound, type Outbound, OutboundSchema } from '@shared/types/ipc'
 import type { Task } from '@shared/types/task'
+import { ulid } from 'ulid'
+
 import type { WorkerHandle, WorkerSpawner } from './spawner'
 
 export type SupervisorConfig = {
@@ -25,7 +26,7 @@ type Slot = {
 type SupervisorEvents = {
   'task.complete': (taskId: string, result: Outbound & { type: 'task.complete' }) => void
   'task.error': (taskId: string, error: unknown) => void
-  'progress': (taskId: string, event: Outbound & { type: 'progress' }) => void
+  progress: (taskId: string, event: Outbound & { type: 'progress' }) => void
 }
 
 export type Supervisor = {

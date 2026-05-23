@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { resolve } from 'node:path'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { createNodeForkSpawner } from './node-fork-spawner'
-import { createSupervisor } from './index'
+import { resolve } from 'node:path'
 import type { Task } from '@shared/types/task'
+import { describe, expect, it } from 'vitest'
+
+import { createSupervisor } from './index'
+import { createNodeForkSpawner } from './node-fork-spawner'
 
 function buildEchoFixture(): string {
   const dir = mkdtempSync(`${tmpdir()}/swarm-supervisor-`)
@@ -19,20 +20,25 @@ process.on('message', (m) => {
   if (m && m.type === 'shutdown') process.exit(0);
 });
 setInterval(() => process.send({ type: 'heartbeat', ts: Date.now() }), 1000).unref();
-    `,
+    `
   )
   return fixture
 }
 
 const mkTask = (id: string, goal: string): Task => ({
-  id, parentId: null, goal,
+  id,
+  parentId: null,
+  goal,
   status: 'dispatched',
   assignedWorkerId: null,
   toolAllowlist: [],
   budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
   used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-  history: [], result: null,
-  createdAt: Date.now(), startedAt: null, endedAt: null,
+  history: [],
+  result: null,
+  createdAt: Date.now(),
+  startedAt: null,
+  endedAt: null,
 })
 
 describe('WorkerSupervisor', () => {
@@ -95,7 +101,7 @@ process.on('message', (m) => {
   if (m && m.type === 'shutdown') process.exit(0);
 });
 // No heartbeat. Spawn-time only. Supervisor must detect via watchdog.
-      `,
+      `
     )
 
     const sup = createSupervisor({
@@ -134,7 +140,7 @@ process.on('message', (m) => {
   // Otherwise: silently absorb. The dispatched task never completes.
 });
 setInterval(() => process.send({ type: 'heartbeat', ts: Date.now() }), 50).unref();
-      `,
+      `
     )
 
     const sup = createSupervisor({

@@ -12,8 +12,6 @@ export function createLogger(bindings: LoggerBindings): Logger {
   return pino({
     level: process.env.LOG_LEVEL ?? (isDev ? 'debug' : 'info'),
     base: bindings,
-    transport: isDev
-      ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss.l' } }
-      : undefined,
+    transport: isDev ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss.l' } } : undefined,
   })
 }

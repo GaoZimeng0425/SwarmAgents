@@ -1,5 +1,5 @@
-import Versions from './components/Versions'
 import electronLogo from './assets/electron.svg'
+import Versions from './components/Versions'
 
 function App(): React.JSX.Element {
   const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
@@ -17,17 +17,17 @@ function App(): React.JSX.Element {
       </p>
       <div className="actions">
         <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
+          <a href="https://electron-vite.org/" rel="noreferrer" target="_blank">
             Documentation
           </a>
         </div>
         <div className="action">
-          <button type="button" onClick={ipcHandle}>
+          <button onClick={ipcHandle} type="button">
             Send IPC
           </button>
         </div>
       </div>
-      <Versions></Versions>
+      <Versions />
     </>
   )
 }

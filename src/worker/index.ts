@@ -1,5 +1,6 @@
-import { InboundSchema, type Outbound } from '@shared/types/ipc'
 import { createLogger } from '@shared/logger'
+import { InboundSchema, type Outbound } from '@shared/types/ipc'
+
 import { handleInbound } from './handler'
 
 const log = createLogger({ process: 'worker', workerId: process.env.SWARM_WORKER_ID ?? 'unknown' })
@@ -36,8 +37,7 @@ const onMessage = (raw: unknown): void => {
 type ParentPort = {
   on: (e: 'message', cb: (m: { data: unknown; ports?: WorkerPort[] }) => void) => void
 }
-const parentPort: ParentPort | undefined =
-  (process as unknown as { parentPort?: ParentPort }).parentPort
+const parentPort: ParentPort | undefined = (process as unknown as { parentPort?: ParentPort }).parentPort
 
 if (parentPort) {
   parentPort.on('message', (e) => {
