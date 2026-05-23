@@ -1,19 +1,40 @@
-import { resolve } from 'path'
+import { builtinModules, createRequire } from 'node:module'
+import { resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+
+// Build the externals list ourselves rather than relying solely on
+// externalizeDepsPlugin, because:
+//   1. electron lives in devDependencies (the plugin only reads
+//      dependencies), so it would get bundled — pulling in the npm
+//      launcher helper with its install.js plumbing that crashes at
+//      runtime.
+//   2. Explicit `rollupOptions.external` can shadow what the plugin
+//      contributes, so we need a single source of truth. Bundling
+//      runtime deps like pino breaks pino's worker-thread transport
+//      mechanism (it spawns a thread that needs to `require` the
+//      original module).
+const pkg = createRequire(import.meta.url)('./package.json') as {
+  dependencies?: Record<string, string>
+}
+const runtimeDeps = Object.keys(pkg.dependencies ?? {})
+const mainExternal: Array<string | RegExp> = [
+  'electron',
+  /^electron\//,
+  ...builtinModules,
+  ...builtinModules.map((m) => `node:${m}`),
+  ...runtimeDeps,
+  // also externalize anything under a runtime dep's subpath
+  ...runtimeDeps.map((d) => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`)),
+]
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        // electron must stay external. externalizeDepsPlugin only externalizes
-        // package.json `dependencies`, and electron lives in `devDependencies`.
-        // Without this, the electron-npm-package's launcher helper (with its
-        // getElectronPath/install.js plumbing) gets bundled into out/main/
-        // index.js and crashes at runtime.
-        external: ['electron', /^electron\//],
+        external: mainExternal,
         input: {
           index: resolve('src/main/index.ts'),
           worker: resolve('src/worker/index.ts'),
