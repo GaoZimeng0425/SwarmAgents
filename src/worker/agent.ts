@@ -6,6 +6,7 @@ import type { Outbound } from '@shared/types/ipc'
 import type { Task, TaskEvent } from '@shared/types/task'
 
 import type { SendFn } from './handler'
+import { runPeekaboo, summariseSeeOutput } from './tools/peekaboo'
 
 /**
  * Real agent loop. Runs Vercel AI SDK `streamText` against Anthropic with a
@@ -43,29 +44,77 @@ export async function runAgent(task: Task, send: SendFn): Promise<void> {
   }
 
   const tools = {
-    read_screen: tool({
+    see_screen: tool({
       description:
-        'Take a screenshot of the current screen and return a short textual description. ' +
-        'In this demo build the description is stubbed; in production it routes through ' +
-        'Peekaboo MCP.',
+        'Capture the current screen and return a list of detected UI elements with their ' +
+        'Peekaboo IDs, roles, and labels. Use this when you need to know what is on screen ' +
+        'before interacting with it. Requires macOS Screen Recording permission for the ' +
+        'parent Electron app.',
+      inputSchema: z.object({
+        mode: z
+          .enum(['screen', 'frontmost', 'window'])
+          .default('frontmost')
+          .describe('Capture target. Default `frontmost` captures the focused window only.'),
+      }),
+      execute: async ({ mode }) => {
+        progress({
+          kind: 'tool.call',
+          server: 'peekaboo',
+          tool: 'see',
+          args: { mode },
+          ts: Date.now(),
+        })
+        const result = await runPeekaboo(['see', '--mode', mode, '--json'])
+        if (!result.ok) {
+          progress({
+            kind: 'tool.result',
+            ok: false,
+            payload: { kind: 'text', text: result.error },
+            ts: Date.now(),
+          })
+          return `Error: ${result.error}`
+        }
+        const summary = summariseSeeOutput(result.parsed)
+        progress({
+          kind: 'tool.result',
+          ok: true,
+          payload: { kind: 'text', text: summary },
+          ts: Date.now(),
+        })
+        return summary
+      },
+    }),
+    list_apps: tool({
+      description:
+        'List the currently running applications and their open windows. Useful when the ' +
+        'user mentions an app by name and you want to confirm it is running.',
       inputSchema: z.object({}),
       execute: async () => {
         progress({
           kind: 'tool.call',
           server: 'peekaboo',
-          tool: 'see',
+          tool: 'list',
           args: {},
           ts: Date.now(),
         })
-        // Stub — Phase C wires real Peekaboo.
-        const result = '(stub) A macOS desktop with several windows open and dock visible.'
+        const result = await runPeekaboo(['list', 'apps', '--json'])
+        if (!result.ok) {
+          progress({
+            kind: 'tool.result',
+            ok: false,
+            payload: { kind: 'text', text: result.error },
+            ts: Date.now(),
+          })
+          return `Error: ${result.error}`
+        }
+        const text = result.stdout.slice(0, 4000)
         progress({
           kind: 'tool.result',
           ok: true,
-          payload: { kind: 'text', text: result },
+          payload: { kind: 'text', text },
           ts: Date.now(),
         })
-        return result
+        return text
       },
     }),
     note_finding: tool({
@@ -94,10 +143,23 @@ export async function runAgent(task: Task, send: SendFn): Promise<void> {
     }),
   }
 
-  const systemPrompt = `You are SwarmAgents, an autonomous worker agent. Your job is to take \
-a single user goal and accomplish it as far as the available tools allow. Think out loud \
-briefly between tool calls so the user can follow your reasoning. When you are done, write \
-a one-paragraph summary of what you accomplished or what blocked you, then stop.`
+  const systemPrompt = `You are SwarmAgents, an autonomous worker agent operating a user's Mac.
+
+You have these tools:
+  - see_screen({mode}): capture the screen and get a list of UI elements with Peekaboo IDs.
+  - list_apps(): enumerate running apps and their windows.
+  - note_finding({text}): record an observation for the final summary.
+
+Workflow:
+  1. Read the user's goal carefully.
+  2. If the goal requires looking at the screen, call see_screen first.
+  3. If the goal is purely informational (e.g. "what apps are running?"), use the matching tool.
+  4. Reason briefly between tool calls so the user can follow your thinking.
+  5. When you are done — or when you cannot make further progress — write a one-paragraph summary of what you observed or accomplished and stop. Do not loop indefinitely.
+
+Constraints:
+  - Do not invent screen contents. Always call see_screen if you need to know what is visible.
+  - If a tool returns an error (e.g. missing permission), explain the situation to the user in your summary rather than retrying blindly.`
 
   let summary = ''
   let textBuffer = ''
