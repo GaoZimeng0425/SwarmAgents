@@ -1,7 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+import { cpus } from 'node:os'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { createLogger } from '@shared/logger'
+import { createPermissionGate } from './permission/gate'
+import { createSupervisor } from './supervisor'
+import { createElectronSpawner } from './supervisor/electron-spawner'
 
 function createWindow(): void {
   const isMac = process.platform === 'darwin'
@@ -60,9 +65,31 @@ if (!app.requestSingleInstanceLock()) {
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+
+  const log = createLogger({ process: 'main' })
+  const poolSize = Math.min(cpus().length, 4)
+  // IMPORTANT: electron-vite emits ESM (.mjs), not .js — verify the actual filename in out/main/.
+  const workerEntry = join(__dirname, 'worker.mjs')
+
+  const supervisor = createSupervisor({
+    spawner: createElectronSpawner(),
+    workerEntry,
+    poolSize,
+  })
+  const permissionGate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
+
+  await supervisor.start()
+  log.info({ msg: 'core services up', poolSize, workerEntry })
+
+  // Stash on globalThis for renderer-IPC handlers added in later plans.
+  ;(globalThis as unknown as { __swarm: unknown }).__swarm = { supervisor, permissionGate }
+
+  app.on('before-quit', async () => {
+    await supervisor.shutdown()
+  })
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
