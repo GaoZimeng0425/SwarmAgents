@@ -12,6 +12,14 @@ export default defineConfig({
           index: resolve('src/main/index.ts'),
           worker: resolve('src/worker/index.ts'),
         },
+        output: {
+          // Force CJS + .js extension so electron-vite dev mode can find
+          // out/main/index.js. Multi-entry input defaults to ESM (.mjs)
+          // otherwise, which breaks electron-vite's entry detection.
+          format: 'cjs',
+          entryFileNames: '[name].js',
+          chunkFileNames: 'chunks/[name]-[hash].js',
+        },
       },
     },
     resolve: {

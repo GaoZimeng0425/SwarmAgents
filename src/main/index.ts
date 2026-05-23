@@ -72,8 +72,7 @@ app.whenReady().then(async () => {
 
   const log = createLogger({ process: 'main' })
   const poolSize = Math.min(cpus().length, 4)
-  // IMPORTANT: electron-vite emits ESM (.mjs), not .js — verify the actual filename in out/main/.
-  const workerEntry = join(__dirname, 'worker.mjs')
+  const workerEntry = join(__dirname, 'worker.js')
 
   const supervisor = createSupervisor({
     spawner: createElectronSpawner(),
