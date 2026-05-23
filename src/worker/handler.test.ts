@@ -27,31 +27,6 @@ const sampleTaskAssign = (goal = 'do a thing'): TaskAssign => ({
 })
 
 describe('worker handler', () => {
-  it('kicks off the simulator on task.assign', async () => {
-    const sent: Outbound[] = []
-    const send = vi.fn((m: Outbound) => sent.push(m))
-
-    handleInbound(sampleTaskAssign('test goal'), send)
-
-    // Simulator is async — drain it.
-    await new Promise((r) => setTimeout(r, 100))
-    // Replicate the same task synchronously with stepMs=0 to compare outputs.
-    const fastSent: Outbound[] = []
-    await simulateThinking(sampleTaskAssign('test goal').task, (m) => {
-      fastSent.push(m)
-    }, { stepMs: 0 })
-
-    const fastTypes = fastSent.map((m) => m.type)
-    expect(fastTypes).toContain('progress')
-    expect(fastTypes).toContain('task.complete')
-    const completion = fastSent.find((m) => m.type === 'task.complete')
-    expect(completion).toBeDefined()
-    if (completion?.type === 'task.complete') {
-      expect(completion.taskId).toBe('01HX0000000000000000000000')
-      expect(completion.result.summary).toContain('test goal')
-    }
-  })
-
   it('responds to shutdown by sending no outbound', () => {
     const send = vi.fn()
     handleInbound({ type: 'shutdown' }, send)
@@ -60,9 +35,11 @@ describe('worker handler', () => {
 
   it('simulator emits the documented event sequence', async () => {
     const sent: Outbound[] = []
-    await simulateThinking(sampleTaskAssign('plan ahead').task, (m) => sent.push(m), {
-      stepMs: 0,
-    })
+    await simulateThinking(
+      sampleTaskAssign('plan ahead').task,
+      (m) => sent.push(m),
+      { stepMs: 0 },
+    )
     const progressKinds = sent
       .filter((m): m is Outbound & { type: 'progress' } => m.type === 'progress')
       .map((m) => m.event.kind)

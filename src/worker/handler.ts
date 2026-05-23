@@ -1,8 +1,13 @@
 import type { Inbound, Outbound } from '@shared/types/ipc'
 
+import { runPiAgent } from './pi-agent'
 import { createPermissionClient, type PermissionClient } from './permission-client'
+import { simulateThinking } from './simulator'
 
 export type SendFn = (msg: Outbound) => void
+
+const useSimulator =
+  process.env.SWARM_USE_SIMULATOR === '1' || !process.env.ANTHROPIC_API_KEY
 
 let permissionClient: PermissionClient | null = null
 
@@ -14,7 +19,14 @@ function getPermissionClient(send: SendFn): PermissionClient {
 export function handleInbound(msg: Inbound, send: SendFn): void {
   switch (msg.type) {
     case 'task.assign':
-      // Stub during pi migration; Task D7 routes to runPiAgent / simulator.
+      if (useSimulator) {
+        void simulateThinking(msg.task, send)
+        return
+      }
+      void runPiAgent(msg.task, {
+        send,
+        permissionClient: getPermissionClient(send),
+      })
       return
     case 'permission.decision':
       getPermissionClient(send).resolve(msg.actionId, msg.decision)
