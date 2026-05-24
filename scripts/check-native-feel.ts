@@ -23,7 +23,7 @@ for (const rule of RULES) {
     '-n',
     rule.pattern,
     'src/renderer/src',
-    ...EXCLUDE.map((p) => [`-g`, `!${p}**`]).flat(),
+    ...EXCLUDE.flatMap((p) => ['-g', `!${p}**`]),
   ]
   const result = spawnSync('rg', args, { encoding: 'utf8' })
   if (result.error || result.status === null) {

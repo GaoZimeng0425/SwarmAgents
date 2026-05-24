@@ -1,5 +1,5 @@
 import { cpus } from 'node:os'
-import { join } from 'path'
+import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
 import { app, BrowserWindow, ipcMain } from 'electron'
