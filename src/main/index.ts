@@ -8,6 +8,7 @@ import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { createPermissionGate } from './permission/gate'
 import { createSupervisor } from './supervisor'
 import { createElectronSpawner } from './supervisor/electron-spawner'
+import { setupAutoUpdate } from './system/auto-update'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { createMainWindow } from './windows/main-window'
 
@@ -41,6 +42,7 @@ app.whenReady().then(async () => {
     // v1: just log. Routing is a v1.1 extension (e.g., swarmagents://task/<id>).
   }
   registerUrlScheme('swarmagents', handleDeepLink)
+  setupAutoUpdate()
 
   app.on('second-instance', (_e, argv) => {
     const [existing] = BrowserWindow.getAllWindows()
