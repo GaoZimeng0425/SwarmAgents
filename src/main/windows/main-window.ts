@@ -4,6 +4,7 @@ import { is } from '@electron-toolkit/utils'
 import { BrowserWindow, shell } from 'electron'
 
 import icon from '../../../resources/icon.png?asset'
+import { suppressContextMenu } from '../system/context-menu'
 
 const isMac = process.platform === 'darwin'
 const isWin = process.platform === 'win32'
@@ -52,6 +53,8 @@ export function createMainWindow(): BrowserWindow {
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  suppressContextMenu(win)
 
   return win
 }
