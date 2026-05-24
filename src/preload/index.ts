@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { PermissionDecision, SubmitGoalResult, SwarmBridge, UIEvent } from '../shared/types/ui'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
+const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
 
 const swarm: SwarmBridge = {
   submitGoal: (goal) => ipcRenderer.invoke('swarm:submitGoal', goal) as Promise<SubmitGoalResult>,
@@ -15,6 +16,15 @@ const swarm: SwarmBridge = {
     ipcRenderer.on(IPC_EVENT_CHANNEL, listener)
     return () => {
       ipcRenderer.removeListener(IPC_EVENT_CHANNEL, listener)
+    }
+  },
+  getAccent: () => ipcRenderer.invoke('system:getAccent') as Promise<string | null>,
+  onAccentChange: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: { hex: string }): void =>
+      cb(payload.hex)
+    ipcRenderer.on(ACCENT_CHANGE_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(ACCENT_CHANGE_CHANNEL, listener)
     }
   },
 }

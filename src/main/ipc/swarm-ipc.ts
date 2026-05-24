@@ -6,6 +6,7 @@ import type { Task } from '@shared/types/task'
 import type { PermissionDecision, UIEvent } from '@shared/types/ui'
 
 import type { PermissionGate, PermissionRequest } from '../permission/gate'
+import { getAccent, subscribeAccent } from '../system/accent'
 import type { Supervisor } from '../supervisor'
 
 const EVENT_CHANNEL = 'swarm:event'
@@ -170,8 +171,20 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:cancelTask', cancelTask)
   ipcMain.handle('swarm:decidePermission', decidePermission)
 
+  const handleGetAccent = (): string | null => getAccent()
+  ipcMain.handle('system:getAccent', handleGetAccent)
+
+  const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
+  const unsubscribeAccent = subscribeAccent((hex) => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send(ACCENT_CHANGE_CHANNEL, { hex })
+    }
+  })
+
   return {
     dispose(): void {
+      ipcMain.removeHandler('system:getAccent')
+      unsubscribeAccent()
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')
       ipcMain.removeHandler('swarm:decidePermission')

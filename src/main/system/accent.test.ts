@@ -11,7 +11,9 @@ vi.mock('electron', () => {
         listeners.set(evt, [...arr, cb])
       }),
       __emit(evt: string) {
-        listeners.get(evt)?.forEach((cb) => cb())
+        listeners.get(evt)?.forEach((cb) => {
+          cb()
+        })
       },
     },
     nativeTheme: {
