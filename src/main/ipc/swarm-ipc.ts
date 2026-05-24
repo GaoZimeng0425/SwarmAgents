@@ -4,10 +4,13 @@ import { ulid } from 'ulid'
 import { createLogger } from '@shared/logger'
 import type { Task } from '@shared/types/task'
 import type { PermissionDecision, UIEvent } from '@shared/types/ui'
+import { ConfirmRequestSchema, type ConfirmRequest, type ConfirmResponse } from '@shared/types/ipc'
 
 import type { PermissionGate, PermissionRequest } from '../permission/gate'
 import { getAccent, subscribeAccent } from '../system/accent'
+import { showNativeConfirm } from '../system/confirm'
 import type { Supervisor } from '../supervisor'
+import { getMainWindow } from '../windows/main-window'
 
 const EVENT_CHANNEL = 'swarm:event'
 const log = createLogger({ process: 'main' }).child({ component: 'swarm-ipc' })
@@ -181,8 +184,20 @@ export function wireSwarmIpc(args: {
     }
   })
 
+  const handleShowConfirm = async (
+    _e: Electron.IpcMainInvokeEvent,
+    raw: unknown,
+  ): Promise<ConfirmResponse> => {
+    const req: ConfirmRequest = ConfirmRequestSchema.parse(raw)
+    const parent = getMainWindow()
+    if (!parent) return 'deny'
+    return showNativeConfirm(parent, req)
+  }
+  ipcMain.handle('system:showConfirm', handleShowConfirm)
+
   return {
     dispose(): void {
+      ipcMain.removeHandler('system:showConfirm')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
       ipcMain.removeHandler('swarm:submitGoal')

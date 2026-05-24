@@ -27,6 +27,9 @@ const swarm: SwarmBridge = {
       ipcRenderer.removeListener(ACCENT_CHANGE_CHANNEL, listener)
     }
   },
+  showConfirm: (req) =>
+    ipcRenderer.invoke('system:showConfirm', req) as Promise<'grant' | 'deny' | 'skip'>,
+  openSettings: () => ipcRenderer.invoke('system:openSettings') as Promise<void>,
 }
 
 if (process.contextIsolated) {

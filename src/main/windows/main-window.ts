@@ -6,6 +6,8 @@ import { BrowserWindow, shell } from 'electron'
 import icon from '../../../resources/icon.png?asset'
 import { suppressContextMenu } from '../system/context-menu'
 
+let mainWindowRef: BrowserWindow | null = null
+
 const isMac = process.platform === 'darwin'
 const isWin = process.platform === 'win32'
 
@@ -41,6 +43,11 @@ export function createMainWindow(): BrowserWindow {
     try { win.setBackgroundMaterial('mica') } catch { /* Win 10 fallback: keep solid bg */ }
   }
 
+  mainWindowRef = win
+  win.on('closed', () => {
+    mainWindowRef = null
+  })
+
   win.on('ready-to-show', () => win.show())
 
   win.webContents.setWindowOpenHandler((details) => {
@@ -57,4 +64,8 @@ export function createMainWindow(): BrowserWindow {
   suppressContextMenu(win)
 
   return win
+}
+
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindowRef
 }
