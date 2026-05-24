@@ -16,7 +16,6 @@ import { queryClient } from '@/lib/query-client'
 
 import '../styles/globals.css'
 
-// @ts-ignore - resolved by Task 25's TanStack Router plugin
 import { routeTree } from '../routeTreeSettings.gen'
 
 const router = createRouter({

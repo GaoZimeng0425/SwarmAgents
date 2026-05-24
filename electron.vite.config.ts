@@ -83,12 +83,26 @@ export default defineConfig({
         '@': resolve('src/renderer/src'),
       },
     },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          settings: resolve('src/renderer/settings.html'),
+        },
+      },
+    },
     plugins: [
       TanStackRouterVite({
         target: 'react',
         autoCodeSplitting: true,
         routesDirectory: resolve('src/renderer/src/routes'),
         generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts'),
+      }),
+      TanStackRouterVite({
+        target: 'react',
+        autoCodeSplitting: true,
+        routesDirectory: resolve('src/renderer/src/routes-settings'),
+        generatedRouteTree: resolve('src/renderer/src/routeTreeSettings.gen.ts'),
       }),
       react(),
       babel({
