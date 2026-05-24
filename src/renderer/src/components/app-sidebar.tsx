@@ -16,7 +16,6 @@ import {
 
 const NAV = [
   { to: '/', label: 'Tasks', icon: ListChecks },
-  { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/skills', label: 'Skills', icon: Sparkles },
 ] as const
 
@@ -45,6 +44,17 @@ export function AppSidebar(): React.JSX.Element {
                   />
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Settings"
+                  onClick={() => {
+                    void window.swarm.openSettings()
+                  }}
+                >
+                  <Settings />
+                  <span>Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
