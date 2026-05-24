@@ -1,4 +1,4 @@
-import { PermissionSheet } from '@/components/permission-sheet'
+import { PermissionDrawer } from '@/components/permission-drawer'
 import { TaskInput } from '@/components/task-input'
 import { TaskList } from '@/components/task-list'
 import { TaskTimeline } from '@/components/task-timeline'
@@ -36,9 +36,9 @@ export function TasksView(): React.JSX.Element {
           <TaskTimeline task={selected} />
         </ResizablePanel>
       </ResizablePanelGroup>
-      <PermissionSheet
+      <PermissionDrawer
         prompt={queue[0] ?? null}
-        onDecide={(actionId, decision) => decide.mutate({ actionId, decision })}
+        onDecide={(actionId, decision) => { decide.mutate({ actionId, decision }) }}
       />
     </div>
   )

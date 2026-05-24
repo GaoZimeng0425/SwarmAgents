@@ -1,3 +1,10 @@
+// src/renderer/src/components/permission-drawer.tsx
+//
+// Medium-risk permission UI. Renders as a bottom drawer with no backdrop
+// (ship B.19: no modal overlays with backdrop blur for "dialogs"). Dismissible
+// by Escape. High-risk goes through native dialog.showMessageBox via
+// useNativeConfirm; low-risk is auto-granted by the main-process permission
+// gate and never reaches the renderer.
 import type { PermissionDecision } from '@shared/types/ui'
 
 import { Button } from '@/components/ui/button'
@@ -16,11 +23,16 @@ type Props = {
   onDecide: (actionId: string, decision: PermissionDecision) => void
 }
 
-export function PermissionSheet({ prompt, onDecide }: Props): React.JSX.Element {
+export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element {
   const open = prompt !== null
   return (
     <Sheet open={open}>
-      <SheetContent side="bottom" className="max-h-[70vh]">
+      <SheetContent
+        side="bottom"
+        // Override the default backdrop: shadcn Sheet renders an overlay with
+        // bg-black/10 + backdrop-blur. We don't want either for native feel.
+        className="max-h-[70vh] border-t bg-popover/95 shadow-lg [&~div[role=presentation]]:hidden"
+      >
         {prompt && (
           <>
             <SheetHeader>
@@ -34,16 +46,11 @@ export function PermissionSheet({ prompt, onDecide }: Props): React.JSX.Element 
               {JSON.stringify(prompt.payload, null, 2)}
             </pre>
             <SheetFooter className="gap-2">
-              <Button variant="secondary" onClick={() => onDecide(prompt.actionId, 'skip')}>
+              <Button variant="secondary" onClick={() => { onDecide(prompt.actionId, 'skip') }}>
                 Skip
               </Button>
-              <Button
-                variant={prompt.risk === 'high' ? 'destructive' : 'default'}
-                onClick={() => onDecide(prompt.actionId, 'grant')}
-              >
-                Allow
-              </Button>
-              <Button variant="destructive" onClick={() => onDecide(prompt.actionId, 'deny')}>
+              <Button onClick={() => { onDecide(prompt.actionId, 'grant') }}>Allow</Button>
+              <Button variant="destructive" onClick={() => { onDecide(prompt.actionId, 'deny') }}>
                 Deny
               </Button>
             </SheetFooter>
