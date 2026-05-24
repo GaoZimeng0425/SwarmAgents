@@ -1,4 +1,3 @@
-import '@fontsource-variable/geist'
 import './styles/globals.css'
 
 import { QueryClientProvider } from '@tanstack/react-query'
