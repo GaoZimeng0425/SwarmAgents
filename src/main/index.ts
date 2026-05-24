@@ -9,6 +9,7 @@ import { createPermissionGate } from './permission/gate'
 import { createSupervisor } from './supervisor'
 import { createElectronSpawner } from './supervisor/electron-spawner'
 import { setupAutoUpdate } from './system/auto-update'
+import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { createMainWindow } from './windows/main-window'
 
@@ -20,7 +21,7 @@ if (!app.requestSingleInstanceLock()) {
 
 app.whenReady().then(async () => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('dev.swarmagents.app')
 
   const log = createLogger({ process: 'main' })
   const poolSize = Math.min(cpus().length, 4)
@@ -43,6 +44,14 @@ app.whenReady().then(async () => {
   }
   registerUrlScheme('swarmagents', handleDeepLink)
   setupAutoUpdate()
+
+  // Stub opener — Task 24 replaces this with the real factory from
+  // windows/settings-window. The menu item exists and is keyboard-reachable
+  // immediately so the accelerator is registered, then begins working.
+  const openSettings = (): void => {
+    // no-op until Task 24 lands
+  }
+  setupMenu({ onOpenSettings: openSettings })
 
   app.on('second-instance', (_e, argv) => {
     const [existing] = BrowserWindow.getAllWindows()
