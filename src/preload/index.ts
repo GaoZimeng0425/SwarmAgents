@@ -32,3 +32,24 @@ if (process.contextIsolated) {
   // @ts-expect-error — populated for non-isolated contexts (dev fallback)
   window.swarm = swarm
 }
+
+// ship C.25: disable spellcheck red underlines on chrome.
+// (Per-input opt-in via `spellCheck` attribute can override.)
+window.addEventListener('DOMContentLoaded', () => {
+  document.body.spellcheck = false
+})
+
+// SKILL.md 03-webview-survival § A.9: prewarm emoji + CJK fallback fonts so
+// the first time the WebView renders a CJK glyph or emoji it doesn't stutter.
+// Placeholder text in task-input already contains 中文, so this is load-bearing
+// on the very first interaction.
+window.addEventListener('DOMContentLoaded', () => {
+  const s = document.createElement('span')
+  s.setAttribute('aria-hidden', 'true')
+  s.style.cssText =
+    'position:absolute;left:-9999px;top:0;opacity:0;pointer-events:none'
+  s.textContent = '😀🎉✨📦🚀 中文 日本語 한국어 ∑∫√ ✓✗'
+  document.body.appendChild(s)
+  void s.getBoundingClientRect()
+  requestAnimationFrame(() => requestAnimationFrame(() => s.remove()))
+})
