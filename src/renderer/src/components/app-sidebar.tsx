@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router'
 import { ListChecks, Settings, Sparkles } from 'lucide-react'
 
 import { ThemeToggle } from '@/components/theme-toggle'
-import { TitleBar } from '@/components/title-bar'
 import {
   Sidebar,
   SidebarContent,
@@ -24,9 +23,7 @@ const NAV = [
 export function AppSidebar(): React.JSX.Element {
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <TitleBar />
-      </SidebarHeader>
+      <SidebarHeader />
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>

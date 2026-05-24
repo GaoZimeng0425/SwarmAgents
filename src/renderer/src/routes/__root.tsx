@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { EventsBridge } from '@/components/events-bridge'
+import { TitleBar } from '@/components/title-bar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -17,10 +18,11 @@ export const Route = createRootRoute({ component: RootLayout })
 function RootLayout(): React.JSX.Element {
   return (
     <SidebarProvider>
+      <TitleBar />
       <EventsBridge />
       <AppSidebar />
       <SidebarInset>
-        <main className="h-full">
+        <main className="h-full pt-7">
           <Outlet />
         </main>
       </SidebarInset>
