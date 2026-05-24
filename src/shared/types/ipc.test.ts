@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { InboundSchema, OutboundSchema } from './ipc'
+import { AccentColorSchema, InboundSchema, OutboundSchema } from './ipc'
 
 describe('IPC schemas', () => {
   it('accepts a task.assign message', () => {
@@ -52,5 +52,17 @@ describe('IPC schemas', () => {
 
   it('rejects an unknown outbound type', () => {
     expect(() => OutboundSchema.parse({ type: 'bogus' })).toThrow()
+  })
+})
+
+describe('AccentColorSchema', () => {
+  it('accepts a 6-hex string', () => {
+    expect(AccentColorSchema.parse({ hex: '0080ff' })).toEqual({ hex: '0080ff' })
+  })
+  it('accepts an 8-hex string (RRGGBBAA)', () => {
+    expect(AccentColorSchema.parse({ hex: '0080ffFF' })).toEqual({ hex: '0080ffFF' })
+  })
+  it('rejects non-hex characters', () => {
+    expect(() => AccentColorSchema.parse({ hex: 'notahex' })).toThrow()
   })
 })

@@ -47,6 +47,10 @@ export type SwarmBridge = {
   cancelTask(taskId: string): Promise<void>
   decidePermission(actionId: string, decision: PermissionDecision): Promise<void>
   subscribeEvents(cb: (event: UIEvent) => void): () => void
+  /** Get the current system accent color (RRGGBBAA hex). Returns null on unsupported platforms. */
+  getAccent(): Promise<string | null>
+  /** Subscribe to accent-color changes. Returns an unsubscribe function. */
+  onAccentChange(cb: (hex: string) => void): () => void
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.

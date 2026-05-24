@@ -63,3 +63,11 @@ export const OutboundSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('heartbeat'), ts: z.number() }),
 ])
 export type Outbound = z.infer<typeof OutboundSchema>
+
+// ---- Renderer ↔ Main system bridge (added by spec §5) ----
+
+/** RRGGBBAA hex string emitted by Electron systemPreferences on macOS/Windows. */
+export const AccentColorSchema = z.object({
+  hex: z.string().regex(/^[0-9a-fA-F]{6,8}$/),
+})
+export type AccentColor = z.infer<typeof AccentColorSchema>
