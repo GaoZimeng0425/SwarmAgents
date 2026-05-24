@@ -8,20 +8,13 @@ import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { createPermissionGate } from './permission/gate'
 import { createSupervisor } from './supervisor'
 import { createElectronSpawner } from './supervisor/electron-spawner'
+import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { createMainWindow } from './windows/main-window'
 
 // ship-readiness G.64: single-instance on Windows / Linux. Second launch
 // focuses the existing window instead of spawning a new process.
 if (!app.requestSingleInstanceLock()) {
   app.quit()
-} else {
-  app.on('second-instance', () => {
-    const [existing] = BrowserWindow.getAllWindows()
-    if (existing) {
-      if (existing.isMinimized()) existing.restore()
-      existing.focus()
-    }
-  })
 }
 
 app.whenReady().then(async () => {
@@ -42,6 +35,22 @@ app.whenReady().then(async () => {
   await supervisor.start()
   wireSwarmIpc({ supervisor, permissionGate })
   log.info({ msg: 'core services up', poolSize, workerEntry })
+
+  const handleDeepLink = (url: string): void => {
+    log.info({ msg: 'deep link received', url })
+    // v1: just log. Routing is a v1.1 extension (e.g., swarmagents://task/<id>).
+  }
+  registerUrlScheme('swarmagents', handleDeepLink)
+
+  app.on('second-instance', (_e, argv) => {
+    const [existing] = BrowserWindow.getAllWindows()
+    if (existing) {
+      if (existing.isMinimized()) existing.restore()
+      existing.focus()
+    }
+    const deepLink = parseDeepLinkFromArgv(argv, 'swarmagents')
+    if (deepLink) handleDeepLink(deepLink)
+  })
 
   app.on('before-quit', async () => {
     await supervisor.shutdown()
