@@ -7,7 +7,7 @@
  * etc. Each event carries a server-side timestamp so the UI can render a
  * linear timeline without needing its own clock.
  */
-import type { Risk } from './ipc'
+import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
 import type { TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
@@ -51,6 +51,8 @@ export type SwarmBridge = {
   getAccent(): Promise<string | null>
   /** Subscribe to accent-color changes. Returns an unsubscribe function. */
   onAccentChange(cb: (hex: string) => void): () => void
+  showConfirm(req: ConfirmRequest): Promise<ConfirmResponse>
+  openSettings(): Promise<void>
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.

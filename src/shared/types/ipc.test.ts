@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AccentColorSchema, InboundSchema, OutboundSchema } from './ipc'
+import { AccentColorSchema, ConfirmRequestSchema, ConfirmResponseSchema, InboundSchema, OutboundSchema } from './ipc'
 
 describe('IPC schemas', () => {
   it('accepts a task.assign message', () => {
@@ -64,5 +64,30 @@ describe('AccentColorSchema', () => {
   })
   it('rejects non-hex characters', () => {
     expect(() => AccentColorSchema.parse({ hex: 'notahex' })).toThrow()
+  })
+})
+
+describe('ConfirmRequestSchema', () => {
+  it('accepts a minimal request', () => {
+    const req = {
+      title: 'Continue?',
+      message: 'This action will modify files.',
+      risk: 'high' as const,
+      buttons: [{ label: 'Allow', role: 'grant' as const }],
+    }
+    expect(ConfirmRequestSchema.parse(req)).toEqual(req)
+  })
+  it('rejects empty buttons array', () => {
+    expect(() => ConfirmRequestSchema.parse({
+      title: 't', message: 'm', risk: 'high', buttons: [],
+    })).toThrow()
+  })
+})
+
+describe('ConfirmResponseSchema', () => {
+  it('accepts each known role', () => {
+    for (const r of ['grant', 'deny', 'skip'] as const) {
+      expect(ConfirmResponseSchema.parse(r)).toBe(r)
+    }
   })
 })
