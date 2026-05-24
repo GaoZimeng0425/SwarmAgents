@@ -11,6 +11,7 @@ import { getAccent, subscribeAccent } from '../system/accent'
 import { showNativeConfirm } from '../system/confirm'
 import type { Supervisor } from '../supervisor'
 import { getMainWindow } from '../windows/main-window'
+import { openSettings } from '../windows/settings-window'
 
 const EVENT_CHANNEL = 'swarm:event'
 const log = createLogger({ process: 'main' }).child({ component: 'swarm-ipc' })
@@ -195,8 +196,14 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:showConfirm', handleShowConfirm)
 
+  const handleOpenSettings = (): void => {
+    openSettings()
+  }
+  ipcMain.handle('system:openSettings', handleOpenSettings)
+
   return {
     dispose(): void {
+      ipcMain.removeHandler('system:openSettings')
       ipcMain.removeHandler('system:showConfirm')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()

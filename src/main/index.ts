@@ -12,6 +12,7 @@ import { setupAutoUpdate } from './system/auto-update'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { createMainWindow } from './windows/main-window'
+import { openSettings } from './windows/settings-window'
 
 // ship-readiness G.64: single-instance on Windows / Linux. Second launch
 // focuses the existing window instead of spawning a new process.
@@ -45,12 +46,6 @@ app.whenReady().then(async () => {
   registerUrlScheme('swarmagents', handleDeepLink)
   setupAutoUpdate()
 
-  // Stub opener — Task 24 replaces this with the real factory from
-  // windows/settings-window. The menu item exists and is keyboard-reachable
-  // immediately so the accelerator is registered, then begins working.
-  const openSettings = (): void => {
-    // no-op until Task 24 lands
-  }
   setupMenu({ onOpenSettings: openSettings })
 
   app.on('second-instance', (_e, argv) => {
