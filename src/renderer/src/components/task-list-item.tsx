@@ -23,7 +23,7 @@ export function TaskListItem({ task, selected, onSelect }: Props): React.JSX.Ele
     <Card
       data-selected={selected}
       onClick={() => onSelect(task.id)}
-      className="cursor-pointer transition data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
+      className="data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
     >
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between gap-2 text-sm">
