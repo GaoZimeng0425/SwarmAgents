@@ -5,6 +5,7 @@ import { TitleBar } from '@/components/title-bar'
 export const Route = createRootRoute({ component: SettingsLayout })
 
 const TABS = [
+  { to: '/providers', label: 'Providers' },
   { to: '/', label: 'General' },
   { to: '/permissions', label: 'Permissions' },
   { to: '/about', label: 'About' },
