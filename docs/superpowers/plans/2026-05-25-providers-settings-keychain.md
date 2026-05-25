@@ -2267,10 +2267,16 @@ export async function runPiAgent(task: Task, deps: Deps): Promise<void> {
       }),
   })
 
+  // Spike (Task 1) verified: pi-ai's `getModel` is strictly 2-arity and silently
+  // ignores a 3rd arg. The apiKey lives on AgentLoopConfig via the inheritance
+  // chain AgentLoopConfig → SimpleStreamOptions → StreamOptions.apiKey, so pass
+  // it as a top-level Agent option (sibling of `initialState`), NOT as a
+  // `getModel` argument — otherwise the lib silently falls back to env vars.
   const agent = new Agent({
+    apiKey: deps.provider.apiKey,
     initialState: {
       systemPrompt: SYSTEM_PROMPT,
-      model: getModel(deps.provider.id, deps.provider.model, { apiKey: deps.provider.apiKey }),
+      model: getModel(deps.provider.id, deps.provider.model),
       tools,
       messages: [],
     },
