@@ -1,4 +1,4 @@
-import './styles/globals.css'
+import '../styles/globals.css'
 
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createHashHistory, createRouter, RouterProvider } from '@tanstack/react-router'
@@ -12,7 +12,7 @@ import { queryClient } from '@/lib/query-client'
 
 import { useAccent } from '@/hooks/use-accent'
 
-import { routeTree } from './routeTree.gen'
+import { routeTree } from '../routeTree.gen'
 
 const router = createRouter({
   routeTree,
