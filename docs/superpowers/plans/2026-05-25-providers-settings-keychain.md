@@ -2268,12 +2268,15 @@ export async function runPiAgent(task: Task, deps: Deps): Promise<void> {
   })
 
   // Spike (Task 1) verified: pi-ai's `getModel` is strictly 2-arity and silently
-  // ignores a 3rd arg. The apiKey lives on AgentLoopConfig via the inheritance
-  // chain AgentLoopConfig → SimpleStreamOptions → StreamOptions.apiKey, so pass
-  // it as a top-level Agent option (sibling of `initialState`), NOT as a
-  // `getModel` argument — otherwise the lib silently falls back to env vars.
+  // ignores a 3rd arg. The Agent constructor takes AgentOptions, which exposes
+  // a `getApiKey?(provider): string | undefined` callback — the supported,
+  // strict-typed way to inject the key per-request. A top-level `apiKey` field
+  // on the constructor is NOT accepted (the implementer of Task 14 found this
+  // when applying the plan and the .d.ts surface was different from what the
+  // spike inferred). Without `getApiKey`, the lib silently falls back to env
+  // vars.
   const agent = new Agent({
-    apiKey: deps.provider.apiKey,
+    getApiKey: () => deps.provider.apiKey,
     initialState: {
       systemPrompt: SYSTEM_PROMPT,
       model: getModel(deps.provider.id, deps.provider.model),
