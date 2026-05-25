@@ -11,17 +11,16 @@ import { safeStorage } from 'electron'
 import {
   defaultProvidersStateOnDisk,
   ProvidersStateOnDisk,
-  type ProvidersStateOnDisk as ProvidersStateOnDiskT,
 } from '@shared/types/provider'
 
 export type LoadResult =
-  | { ok: true; state: ProvidersStateOnDiskT }
+  | { ok: true; state: ProvidersStateOnDisk }
   | { ok: false; reason: 'decrypt_failed' | 'schema_invalid' }
 
 export type Store = {
-  load(): Promise<ProvidersStateOnDiskT> // forgiving — returns defaults on missing/failure
+  load(): Promise<ProvidersStateOnDisk> // forgiving — returns defaults on missing/failure
   loadOrRecover(): Promise<LoadResult> // strict — reports failure reason
-  save(state: ProvidersStateOnDiskT): Promise<void>
+  save(state: ProvidersStateOnDisk): Promise<void>
 }
 
 export function createStore(opts: { filePath: string }): Store {
@@ -55,13 +54,21 @@ export function createStore(opts: { filePath: string }): Store {
     return defaultProvidersStateOnDisk()
   }
 
-  const save: Store['save'] = async (state) => {
-    // Validate before encrypting so we never persist garbage.
-    ProvidersStateOnDisk.parse(state)
-    const ciphertext = safeStorage.encryptString(JSON.stringify(state))
-    const tmp = `${filePath}.tmp`
-    await fs.writeFile(tmp, ciphertext)
-    await fs.rename(tmp, filePath)
+  // Serialize saves so concurrent calls don't race on the shared .tmp path.
+  let saveQueue: Promise<void> = Promise.resolve()
+
+  const save: Store['save'] = (state) => {
+    const next = saveQueue.then(async () => {
+      // Validate before encrypting so we never persist garbage.
+      ProvidersStateOnDisk.parse(state)
+      const ciphertext = safeStorage.encryptString(JSON.stringify(state))
+      const tmp = `${filePath}.tmp`
+      await fs.writeFile(tmp, ciphertext)
+      await fs.rename(tmp, filePath)
+    })
+    // Swallow rejections from the queue itself, but let the caller see their own error.
+    saveQueue = next.catch(() => {})
+    return next
   }
 
   return { load, loadOrRecover, save }
