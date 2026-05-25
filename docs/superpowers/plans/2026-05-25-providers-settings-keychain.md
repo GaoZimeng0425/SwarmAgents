@@ -3000,4 +3000,15 @@ If verification surfaced minor issues that you fixed, commit them. Otherwise, no
 
 ## Spike Results
 
-_(To be filled in by Task 1)_
+**Date:** 2026-05-25
+**Decision:** [x] keep `pi-ai` / [ ] migrate to `@ai-sdk/*`
+
+**Evidence:**
+- `getModel` signature: `export declare function getModel<TProvider extends KnownProvider, TModelId extends keyof (typeof MODELS)[TProvider]>(provider: TProvider, modelId: TModelId): Model<ModelApi<TProvider, TModelId>>;`
+- Accepts apiKey option: no (the `getModel` function itself is strict 2-arity — no options parameter exists at the type level. Runtime spike `getModel('anthropic', 'claude-sonnet-4-5', { apiKey: 'test-fake-key' } as never)` silently dropped the third arg and returned a normal `Model` object with keys `[id, name, api, provider, baseUrl, reasoning, input, cost, contextWindow, maxTokens]` — no `apiKey` field is carried on the model.)
+- However, `apiKey` IS supported one layer up: `StreamOptions.apiKey?: string` (pi-ai `dist/types.d.ts:32`) is consumed by every per-request stream call, and `pi-agent-core`'s `AgentLoopConfig extends SimpleStreamOptions` (`dist/types.d.ts:113`) inherits it. So we keep `getModel('anthropic', 'claude-sonnet-4-5')` as a pure model descriptor and inject `apiKey` via the `Agent` config / per-`prompt` options at runtime instead of `process.env.ANTHROPIC_API_KEY`.
+- If no, fallback plan: use `@ai-sdk/anthropic` createAnthropic({ apiKey }) and `@ai-sdk/openai` createOpenAI({ apiKey }) per parent spec §4.3 — **not needed**; pi-ai's streaming layer accepts apiKey, so Path A is sufficient.
+
+**Implications for downstream tasks:**
+- Task 13 (worker/handler.ts): unchanged either way (just passes provider through)
+- Task 14 (worker/pi-agent/index.ts): no new deps; replace `process.env.ANTHROPIC_API_KEY` read with the injected provider's `apiKey`, and pass it through `Agent` config (which extends `SimpleStreamOptions`). Same applies for the openai provider when added — `getModel('openai', '<model-id>')` + `apiKey` in stream options.
