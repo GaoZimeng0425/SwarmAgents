@@ -2,6 +2,8 @@ import type { Inbound, Outbound } from '@shared/types/ipc'
 import { describe, expect, it, vi } from 'vitest'
 
 import { handleInbound } from './handler'
+import * as piAgent from './pi-agent'
+import * as simulator from './simulator'
 import { simulateThinking } from './simulator'
 
 type TaskAssign = Extract<Inbound, { type: 'task.assign' }>
@@ -74,53 +76,44 @@ const stubTask = {
 const stubProvider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'sk-test' }
 
 describe('handler — provider injection', () => {
-  it('routes to real agent path when SWARM_USE_SIMULATOR is not set', async () => {
+  it('routes to runPiAgent when SWARM_USE_SIMULATOR is not set', () => {
     const original = process.env.SWARM_USE_SIMULATOR
     delete process.env.SWARM_USE_SIMULATOR
-    const sent: unknown[] = []
-    handleInbound(
-      {
-        type: 'task.assign',
-        task: stubTask,
-        promptContext: '',
-        provider: stubProvider,
-      },
-      (m) => sent.push(m),
-    )
-    await new Promise((r) => setTimeout(r, 0))
-    const sim = sent.find(
-      (m) =>
-        typeof m === 'object' && m && (m as { type?: string }).type === 'progress',
-    )
-    if (sim) {
-      const text = JSON.stringify(sim)
-      expect(text).not.toContain('simulator')
+    const piSpy = vi.spyOn(piAgent, 'runPiAgent').mockResolvedValue(undefined)
+    const simSpy = vi.spyOn(simulator, 'simulateThinking').mockResolvedValue(undefined)
+    try {
+      handleInbound(
+        { type: 'task.assign', task: stubTask, promptContext: '', provider: stubProvider },
+        () => {},
+      )
+      expect(piSpy).toHaveBeenCalledTimes(1)
+      expect(simSpy).not.toHaveBeenCalled()
+      const args = piSpy.mock.calls[0]
+      expect(args[1].provider).toEqual(stubProvider)
+    } finally {
+      piSpy.mockRestore()
+      simSpy.mockRestore()
+      if (original !== undefined) process.env.SWARM_USE_SIMULATOR = original
     }
-    if (original !== undefined) process.env.SWARM_USE_SIMULATOR = original
   })
 
-  it('routes to simulator when SWARM_USE_SIMULATOR=1', async () => {
+  it('routes to simulateThinking when SWARM_USE_SIMULATOR=1', () => {
     const original = process.env.SWARM_USE_SIMULATOR
     process.env.SWARM_USE_SIMULATOR = '1'
-    const sent: unknown[] = []
-    handleInbound(
-      {
-        type: 'task.assign',
-        task: stubTask,
-        promptContext: '',
-        provider: stubProvider,
-      },
-      (m) => sent.push(m),
-    )
-    // Simulator's first emit is gated by its default stepMs (~600ms). Wait long
-    // enough for at least one progress event without flaking on slow CI.
-    await new Promise((r) => setTimeout(r, 800))
-    expect(
-      sent.some(
-        (m) => typeof m === 'object' && m && (m as { type?: string }).type === 'progress',
-      ),
-    ).toBe(true)
-    if (original !== undefined) process.env.SWARM_USE_SIMULATOR = original
-    else delete process.env.SWARM_USE_SIMULATOR
+    const piSpy = vi.spyOn(piAgent, 'runPiAgent').mockResolvedValue(undefined)
+    const simSpy = vi.spyOn(simulator, 'simulateThinking').mockResolvedValue(undefined)
+    try {
+      handleInbound(
+        { type: 'task.assign', task: stubTask, promptContext: '', provider: stubProvider },
+        () => {},
+      )
+      expect(simSpy).toHaveBeenCalledTimes(1)
+      expect(piSpy).not.toHaveBeenCalled()
+    } finally {
+      piSpy.mockRestore()
+      simSpy.mockRestore()
+      if (original !== undefined) process.env.SWARM_USE_SIMULATOR = original
+      else delete process.env.SWARM_USE_SIMULATOR
+    }
   })
 })
