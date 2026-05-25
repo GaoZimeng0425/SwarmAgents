@@ -24,6 +24,8 @@ const sampleTaskAssign = (goal = 'do a thing'): TaskAssign => ({
     endedAt: null,
   },
   promptContext: '',
+  // Real injection wired in Task 13; placeholder keeps the schema valid.
+  provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'placeholder' },
 })
 
 describe('worker handler', () => {

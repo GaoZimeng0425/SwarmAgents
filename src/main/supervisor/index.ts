@@ -63,7 +63,13 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
     slot.state = 'busy'
     slot.currentTaskId = task.id
     log.info({ msg: 'dispatching', taskId: task.id, workerId: slot.handle.workerId })
-    send(slot, { type: 'task.assign', task, promptContext: '' })
+    // Provider injection added in Task 12; placeholder keeps the schema valid.
+    send(slot, {
+      type: 'task.assign',
+      task,
+      promptContext: '',
+      provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'placeholder' },
+    })
     ee.emit('task.dispatched', task.id, slot.handle.workerId)
   }
 

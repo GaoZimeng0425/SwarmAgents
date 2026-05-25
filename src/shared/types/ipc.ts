@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { ProviderInjection } from './provider'
 import { TaskEventSchema, TaskResultSchema, TaskSchema } from './task'
 
 export const RiskSchema = z.enum(['low', 'medium', 'high'])
@@ -24,7 +25,12 @@ const ErrorRecordSchema = z.object({
 })
 
 export const InboundSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('task.assign'), task: TaskSchema, promptContext: z.string() }),
+  z.object({
+    type: z.literal('task.assign'),
+    task: TaskSchema,
+    promptContext: z.string(),
+    provider: ProviderInjection,
+  }),
   z.object({ type: z.literal('task.cancel'), taskId: z.string() }),
   z.object({ type: z.literal('tool.result'), callId: z.string(), result: ToolResultSchema }),
   z.object({

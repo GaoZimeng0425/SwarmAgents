@@ -22,6 +22,7 @@ describe('IPC schemas', () => {
         endedAt: null,
       },
       promptContext: 'hello',
+      provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
     }
     expect(() => InboundSchema.parse(msg)).not.toThrow()
   })
@@ -89,5 +90,46 @@ describe('ConfirmResponseSchema', () => {
     for (const r of ['grant', 'deny', 'skip'] as const) {
       expect(ConfirmResponseSchema.parse(r)).toBe(r)
     }
+  })
+})
+
+describe('Inbound task.assign provider field', () => {
+  it('accepts a task.assign with a provider injection', () => {
+    const msg = {
+      type: 'task.assign' as const,
+      task: {
+        id: '01HX0000000000000000000001',
+        parentId: null,
+        goal: 'do thing',
+        status: 'pending' as const,
+        assignedWorkerId: null,
+        toolAllowlist: ['peekaboo.*'],
+        budget: { tokens: 100, calls: 10, wallMs: 1000, usdCents: 10 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        result: null,
+        createdAt: 0,
+        startedAt: null,
+        endedAt: null,
+      },
+      promptContext: '',
+      provider: { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
+    }
+    const parsed = InboundSchema.parse(msg)
+    expect(parsed.type).toBe('task.assign')
+    if (parsed.type === 'task.assign') {
+      expect(parsed.provider.id).toBe('anthropic')
+      expect(parsed.provider.apiKey).toBe('sk-x')
+    }
+  })
+
+  it('rejects task.assign without a provider', () => {
+    expect(() =>
+      InboundSchema.parse({
+        type: 'task.assign',
+        task: { id: 'x' } as never,
+        promptContext: '',
+      }),
+    ).toThrow()
   })
 })
