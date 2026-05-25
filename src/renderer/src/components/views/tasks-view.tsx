@@ -7,6 +7,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
+import { useProviders } from '@/hooks/use-providers'
 import { useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { usePermissionStore } from '@/stores/permission'
 import { useUiStore } from '@/stores/ui'
@@ -18,12 +19,14 @@ export function TasksView(): React.JSX.Element {
   const selected = tasks.find((t) => t.id === selectedTaskId) ?? tasks[0]
   const submitGoal = useSubmitGoal()
   const decide = useDecidePermission()
+  const { ready } = useProviders()
 
   return (
     <div className="flex h-full flex-col">
       <TaskInput
-        disabled={submitGoal.isPending}
+        disabled={submitGoal.isPending || !ready}
         onSubmit={async (g) => {
+          if (!ready) return
           await submitGoal.mutateAsync(g)
         }}
       />
