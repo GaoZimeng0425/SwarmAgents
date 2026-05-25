@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { createLogger } from '@shared/logger'
 import { type Inbound, type Outbound, OutboundSchema } from '@shared/types/ipc'
+import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
 import { ulid } from 'ulid'
 
@@ -39,7 +40,7 @@ type SupervisorEvents = {
 
 export type Supervisor = {
   start(): Promise<void>
-  dispatch(task: Task): void
+  dispatch(task: Task, provider: ProviderInjection): void
   sendToWorker(workerId: string, msg: Inbound): boolean
   shutdown(): Promise<void>
   on<K extends keyof SupervisorEvents>(event: K, cb: SupervisorEvents[K]): void
@@ -49,7 +50,7 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
   const log = createLogger({ process: 'main' }).child({ component: 'supervisor' })
   const ee = new EventEmitter()
   const slots: Slot[] = []
-  const queue: Task[] = []
+  const queue: Array<{ task: Task; provider: ProviderInjection }> = []
   let shuttingDown = false
 
   const send = (slot: Slot, msg: Inbound): void => slot.handle.send(msg)
@@ -59,17 +60,13 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
     if (queue.length === 0) return
     const slot = slots.find((s) => s.state === 'idle')
     if (!slot) return
-    const task = queue.shift() as Task
+    const next = queue.shift()
+    if (!next) return
+    const { task, provider } = next
     slot.state = 'busy'
     slot.currentTaskId = task.id
     log.info({ msg: 'dispatching', taskId: task.id, workerId: slot.handle.workerId })
-    // Provider injection added in Task 12; placeholder keeps the schema valid.
-    send(slot, {
-      type: 'task.assign',
-      task,
-      promptContext: '',
-      provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: '__TASK_12_PLACEHOLDER__' },
-    })
+    send(slot, { type: 'task.assign', task, promptContext: '', provider })
     ee.emit('task.dispatched', task.id, slot.handle.workerId)
   }
 
@@ -176,9 +173,9 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
       watchdog.unref?.()
       log.info({ msg: 'supervisor started', poolSize: cfg.poolSize })
     },
-    dispatch(task: Task): void {
+    dispatch(task: Task, provider: ProviderInjection): void {
       if (shuttingDown) throw new Error('supervisor is shutting down')
-      queue.push(task)
+      queue.push({ task, provider })
       tryDispatchNext()
     },
     sendToWorker(workerId, msg): boolean {
@@ -195,8 +192,9 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
       }
       // Drain queued-but-not-yet-dispatched tasks so callers know they were dropped.
       while (queue.length > 0) {
-        const dropped = queue.shift() as Task
-        ee.emit('task.error', dropped.id, {
+        const dropped = queue.shift()
+        if (!dropped) continue
+        ee.emit('task.error', dropped.task.id, {
           code: 'supervisor_shutdown',
           message: 'supervisor shut down before task was dispatched',
           tier: 'fatal',

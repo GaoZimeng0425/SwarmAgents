@@ -45,7 +45,7 @@ app.whenReady().then(async () => {
   const permissionGate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
 
   await supervisor.start()
-  wireSwarmIpc({ supervisor, permissionGate })
+  wireSwarmIpc({ supervisor, permissionGate, providers: providers.service })
   log.info({ msg: 'core services up', poolSize, workerEntry })
 
   const handleDeepLink = (url: string): void => {

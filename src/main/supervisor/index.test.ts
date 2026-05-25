@@ -1,11 +1,18 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
+import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
 import { describe, expect, it } from 'vitest'
 
 import { createSupervisor } from './index'
 import { createNodeForkSpawner } from './node-fork-spawner'
+
+const TEST_PROVIDER: ProviderInjection = {
+  id: 'anthropic',
+  model: 'claude-sonnet-4-5',
+  apiKey: 'sk-test',
+}
 
 function buildEchoFixture(): string {
   const dir = mkdtempSync(`${tmpdir()}/swarm-supervisor-`)
@@ -55,7 +62,7 @@ describe('WorkerSupervisor', () => {
 
     await sup.start()
     const t = mkTask('01HX0000000000000000000001', 'hello')
-    sup.dispatch(t)
+    sup.dispatch(t, TEST_PROVIDER)
 
     await new Promise((r) => setTimeout(r, 300))
     expect(completed).toContain('01HX0000000000000000000001')
@@ -74,9 +81,9 @@ describe('WorkerSupervisor', () => {
     sup.on('task.complete', (taskId) => completed.push(taskId))
 
     await sup.start()
-    sup.dispatch(mkTask('01HX0000000000000000000001', 'a'))
-    sup.dispatch(mkTask('01HX0000000000000000000002', 'b'))
-    sup.dispatch(mkTask('01HX0000000000000000000003', 'c'))
+    sup.dispatch(mkTask('01HX0000000000000000000001', 'a'), TEST_PROVIDER)
+    sup.dispatch(mkTask('01HX0000000000000000000002', 'b'), TEST_PROVIDER)
+    sup.dispatch(mkTask('01HX0000000000000000000003', 'c'), TEST_PROVIDER)
 
     await new Promise((r) => setTimeout(r, 800))
     expect(completed.sort()).toEqual([
@@ -120,7 +127,7 @@ process.on('message', (m) => {
     await sup.start()
     await new Promise((r) => setTimeout(r, 400))
 
-    sup.dispatch(mkTask('01HX0000000000000000000099', 'after-respawn'))
+    sup.dispatch(mkTask('01HX0000000000000000000099', 'after-respawn'), TEST_PROVIDER)
     await new Promise((r) => setTimeout(r, 300))
 
     expect(completed).toContain('01HX0000000000000000000099')
@@ -154,9 +161,9 @@ setInterval(() => process.send({ type: 'heartbeat', ts: Date.now() }), 50).unref
 
     await sup.start()
     // First task is dispatched (the worker absorbs it). Second and third sit in queue.
-    sup.dispatch(mkTask('01HX0000000000000000000010', 'dispatched-and-stuck'))
-    sup.dispatch(mkTask('01HX0000000000000000000011', 'queued-1'))
-    sup.dispatch(mkTask('01HX0000000000000000000012', 'queued-2'))
+    sup.dispatch(mkTask('01HX0000000000000000000010', 'dispatched-and-stuck'), TEST_PROVIDER)
+    sup.dispatch(mkTask('01HX0000000000000000000011', 'queued-1'), TEST_PROVIDER)
+    sup.dispatch(mkTask('01HX0000000000000000000012', 'queued-2'), TEST_PROVIDER)
     await new Promise((r) => setTimeout(r, 100))
 
     await sup.shutdown()
@@ -167,5 +174,48 @@ setInterval(() => process.send({ type: 'heartbeat', ts: Date.now() }), 50).unref
     // The dispatched-and-stuck task is in the worker, not in the queue —
     // it does NOT emit task.error from the queue-drain path.
     expect(erroredIds).not.toContain('01HX0000000000000000000010')
+  })
+
+  it('dispatch forwards the provider injection on task.assign', async () => {
+    const captured: unknown[] = []
+    const sup = createSupervisor({
+      spawner: {
+        spawn: () => ({
+          workerId: 'w-test',
+          send: (m: unknown) => captured.push(m),
+          onMessage: () => {},
+          onExit: () => {},
+          kill: () => {},
+          exited: Promise.resolve(),
+        }),
+      } as never,
+      workerEntry: 'unused',
+      poolSize: 1,
+    })
+    await sup.start()
+    const inj: ProviderInjection = {
+      id: 'anthropic',
+      model: 'claude-sonnet-4-5',
+      apiKey: 'sk-test',
+    }
+    sup.dispatch(
+      {
+        id: '01HX0000000000000000000777',
+        parentId: null,
+        goal: 'do it',
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: ['*'],
+        budget: { tokens: 1, calls: 1, wallMs: 1, usdCents: 1 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        result: null,
+        createdAt: 0,
+        startedAt: null,
+        endedAt: null,
+      },
+      inj,
+    )
+    expect(captured[0]).toMatchObject({ type: 'task.assign', provider: inj })
   })
 })

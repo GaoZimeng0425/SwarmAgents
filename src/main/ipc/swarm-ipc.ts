@@ -7,6 +7,7 @@ import type { PermissionDecision, UIEvent } from '@shared/types/ui'
 import { ConfirmRequestSchema, type ConfirmRequest, type ConfirmResponse } from '@shared/types/ipc'
 
 import type { PermissionGate, PermissionRequest } from '../permission/gate'
+import type { Service as ProvidersService } from '../providers'
 import { getAccent, subscribeAccent } from '../system/accent'
 import { showNativeConfirm } from '../system/confirm'
 import type { Supervisor } from '../supervisor'
@@ -28,8 +29,9 @@ const EMPTY_USED = { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 } as const
 export function wireSwarmIpc(args: {
   supervisor: Supervisor
   permissionGate: PermissionGate
+  providers: ProvidersService
 }): { dispose: () => void } {
-  const { supervisor, permissionGate } = args
+  const { supervisor, permissionGate, providers } = args
 
   // Broadcast a UI event to every open window.
   const broadcast = (event: UIEvent): void => {
@@ -124,6 +126,11 @@ export function wireSwarmIpc(args: {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
     }
+    const injection = providers.getInjection()
+    if (!injection) {
+      // Defense-in-depth: the UI gate should make this unreachable.
+      throw new Error('no_provider: configure an API key in Settings before starting tasks')
+    }
     const taskId = ulid()
     const now = Date.now()
     const task: Task = {
@@ -142,8 +149,8 @@ export function wireSwarmIpc(args: {
       endedAt: null,
     }
     broadcast({ kind: 'task.created', taskId, goal: task.goal, ts: now })
-    supervisor.dispatch(task)
-    log.info({ msg: 'task submitted', taskId, goal: task.goal })
+    supervisor.dispatch(task, injection)
+    log.info({ msg: 'task submitted', taskId, goal: task.goal, provider: injection.id })
     return { taskId }
   }
 
