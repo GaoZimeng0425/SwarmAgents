@@ -8,6 +8,7 @@
  * linear timeline without needing its own clock.
  */
 import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
+import type { ProviderId, ProvidersStateView } from './provider'
 import type { TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
@@ -39,6 +40,29 @@ export type PermissionDecision = 'grant' | 'deny' | 'skip'
 
 export type SubmitGoalResult = { taskId: string }
 
+export type ProvidersSetResult =
+  | { ok: true }
+  | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
+
+export type ProvidersTestResult =
+  | { ok: true; latencyMs: number }
+  | {
+      ok: false
+      code: 'no_key' | 'unauthorized' | 'rate_limited' | 'network' | 'unknown'
+      message: string
+    }
+
+export type ProvidersBridge = {
+  get(): Promise<ProvidersStateView>
+  setKey(p: ProviderId, key: string): Promise<ProvidersSetResult>
+  clearKey(p: ProviderId): Promise<ProvidersSetResult>
+  setActive(p: ProviderId | null): Promise<ProvidersSetResult>
+  setModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
+  test(p: ProviderId): Promise<ProvidersTestResult>
+  onStateChanged(cb: (v: ProvidersStateView) => void): () => void
+  onDecryptFailed(cb: () => void): () => void
+}
+
 /**
  * The shape exposed to the renderer via contextBridge as `window.swarm`.
  */
@@ -52,7 +76,9 @@ export type SwarmBridge = {
   /** Subscribe to accent-color changes. Returns an unsubscribe function. */
   onAccentChange(cb: (hex: string) => void): () => void
   showConfirm(req: ConfirmRequest): Promise<ConfirmResponse>
-  openSettings(): Promise<void>
+  /** Open the Settings window. Optional initialRoute selects which tab to land on. */
+  openSettings(opts?: { initialRoute?: string }): Promise<void>
+  providers: ProvidersBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.

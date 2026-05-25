@@ -29,7 +29,10 @@ const swarm: SwarmBridge = {
   },
   showConfirm: (req) =>
     ipcRenderer.invoke('system:showConfirm', req) as Promise<'grant' | 'deny' | 'skip'>,
-  openSettings: () => ipcRenderer.invoke('system:openSettings') as Promise<void>,
+  openSettings: (opts) => ipcRenderer.invoke('system:openSettings', opts) as Promise<void>,
+  // TODO(Task 15 / P15 - Preload bridge exposes providers): replace this stub
+  // with the real IPC wiring. Cast keeps typecheck green until that lands.
+  providers: {} as SwarmBridge['providers'],
 }
 
 if (process.contextIsolated) {
