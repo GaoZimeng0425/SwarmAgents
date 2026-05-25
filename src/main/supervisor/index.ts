@@ -68,7 +68,7 @@ export function createSupervisor(cfg: SupervisorConfig): Supervisor {
       type: 'task.assign',
       task,
       promptContext: '',
-      provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'placeholder' },
+      provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: '__TASK_12_PLACEHOLDER__' },
     })
     ee.emit('task.dispatched', task.id, slot.handle.workerId)
   }
