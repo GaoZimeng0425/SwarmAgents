@@ -1,8 +1,18 @@
 import { Agent } from '@earendil-works/pi-agent-core'
 import { getModel } from '@earendil-works/pi-ai'
+import type { Api, KnownProvider, Model } from '@earendil-works/pi-ai'
 import type { Outbound } from '@shared/types/ipc'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
+
+// `getModel`'s generics demand a literal model-id key per provider. Our
+// `ProviderInjection.model` is a runtime-validated string (Zod-checked at the
+// IPC boundary), so we erase the literal constraint via a looser local
+// alias. This avoids `as any` and keeps callers strict.
+const getModelLoose = getModel as unknown as (
+  provider: KnownProvider,
+  modelId: string,
+) => Model<Api>
 
 import type { PermissionClient } from '../permission-client'
 import { createEventTranslator } from './events'
@@ -29,21 +39,6 @@ Workflow:
   6. If a tool returns an error (e.g. permission denied), explain it in the summary instead of retrying blindly.`
 
 export async function runPiAgent(task: Task, deps: Deps): Promise<void> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    deps.send({
-      type: 'task.error',
-      taskId: task.id,
-      error: {
-        code: 'missing_api_key',
-        message:
-          'ANTHROPIC_API_KEY env var not set. Set it and restart, or export SWARM_USE_SIMULATOR=1.',
-        tier: 'fatal',
-      },
-    })
-    return
-  }
-
   const tools = buildPeekabooTools({
     send: deps.send,
     requestPermission: (args) =>
@@ -56,10 +51,17 @@ export async function runPiAgent(task: Task, deps: Deps): Promise<void> {
       }),
   })
 
+  // Spike (Task 1) verified: pi-ai's `getModel` is strictly 2-arity and silently
+  // ignores a 3rd arg. The `Agent` constructor takes `AgentOptions` (not
+  // `AgentLoopConfig`), which exposes a `getApiKey(provider)` callback for
+  // explicit key injection — this is the supported path that keeps the lib
+  // from falling back to env vars. Returning the injected key for every
+  // provider is fine here because each worker is dispatched with exactly one.
   const agent = new Agent({
+    getApiKey: () => deps.provider.apiKey,
     initialState: {
       systemPrompt: SYSTEM_PROMPT,
-      model: getModel('anthropic', 'claude-sonnet-4-5'),
+      model: getModelLoose(deps.provider.id, deps.provider.model),
       tools,
       messages: [],
     },
