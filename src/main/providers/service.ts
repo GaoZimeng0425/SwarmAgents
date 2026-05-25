@@ -32,10 +32,10 @@ export type Service = {
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
 }
 
-const DEFAULT_MODEL: Record<ProviderId, string> = {
+const DEFAULT_MODEL = {
   anthropic: 'claude-sonnet-4-5',
   openai: 'gpt-4o',
-}
+} as const satisfies Record<ProviderId, string>
 
 function validateKey(key: string): SetResult | null {
   if (key.length === 0) return { ok: false, code: 'invalid', message: 'API key must not be empty' }
@@ -94,16 +94,14 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       let next: ProvidersStateOnDisk
       if (p === 'anthropic') {
         const existing = state.providers.anthropic
-        const model = existing
-          ? existing.model
-          : (DEFAULT_MODEL.anthropic as 'claude-sonnet-4-5')
+        const model = existing ? existing.model : DEFAULT_MODEL.anthropic
         next = {
           ...state,
           providers: { ...state.providers, anthropic: { model, apiKey: key } },
         }
       } else {
         const existing = state.providers.openai
-        const model = existing ? existing.model : (DEFAULT_MODEL.openai as 'gpt-4o')
+        const model = existing ? existing.model : DEFAULT_MODEL.openai
         next = {
           ...state,
           providers: { ...state.providers, openai: { model, apiKey: key } },
