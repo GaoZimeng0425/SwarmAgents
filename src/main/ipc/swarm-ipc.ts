@@ -126,17 +126,33 @@ export function wireSwarmIpc(args: {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
     }
-    const injection = providers.getInjection()
-    if (!injection) {
-      // Defense-in-depth: the UI gate should make this unreachable.
-      throw new Error('no_provider: configure an API key in Settings before starting tasks')
-    }
     const taskId = ulid()
     const now = Date.now()
+    const trimmedGoal = goal.trim()
+    const injection = providers.getInjection()
+    if (!injection) {
+      // Defense-in-depth: the main-window banner should make this unreachable,
+      // but a race between state-change and click can land here. Surface a
+      // typed task.error event so the timeline shows the failed task, instead
+      // of throwing a generic IPC rejection the renderer can't classify.
+      broadcast({ kind: 'task.created', taskId, goal: trimmedGoal, ts: now })
+      broadcast({
+        kind: 'task.error',
+        taskId,
+        error: {
+          code: 'no_provider',
+          message: 'Configure an API key in Settings before starting tasks.',
+          tier: 'fatal',
+        },
+        ts: now,
+      })
+      log.warn({ msg: 'submit rejected: no active provider', taskId })
+      return { taskId }
+    }
     const task: Task = {
       id: taskId,
       parentId: null,
-      goal: goal.trim(),
+      goal: trimmedGoal,
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: ['peekaboo.*', 'web.*', 'fs.*'],
