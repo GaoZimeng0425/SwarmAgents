@@ -1,10 +1,50 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
-import type { PermissionDecision, SubmitGoalResult, SwarmBridge, UIEvent } from '../shared/types/ui'
+import type {
+  PermissionDecision,
+  ProvidersBridge,
+  ProvidersSetResult,
+  ProvidersTestResult,
+  SubmitGoalResult,
+  SwarmBridge,
+  UIEvent,
+} from '../shared/types/ui'
+import type { ProviderId, ProvidersStateView } from '../shared/types/provider'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
 const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
+const PROVIDERS_STATE_CHANNEL = 'providers:stateChanged'
+const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
+
+const providers: ProvidersBridge = {
+  get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
+  setKey: (p: ProviderId, key: string) =>
+    ipcRenderer.invoke('providers:setKey', p, key) as Promise<ProvidersSetResult>,
+  clearKey: (p: ProviderId) =>
+    ipcRenderer.invoke('providers:clearKey', p) as Promise<ProvidersSetResult>,
+  setActive: (p: ProviderId | null) =>
+    ipcRenderer.invoke('providers:setActive', p) as Promise<ProvidersSetResult>,
+  setModel: (p: ProviderId, model: string) =>
+    ipcRenderer.invoke('providers:setModel', p, model) as Promise<ProvidersSetResult>,
+  test: (p: ProviderId) =>
+    ipcRenderer.invoke('providers:test', p) as Promise<ProvidersTestResult>,
+  onStateChanged: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: ProvidersStateView): void =>
+      cb(payload)
+    ipcRenderer.on(PROVIDERS_STATE_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(PROVIDERS_STATE_CHANNEL, listener)
+    }
+  },
+  onDecryptFailed: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on(PROVIDERS_DECRYPT_FAILED_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(PROVIDERS_DECRYPT_FAILED_CHANNEL, listener)
+    }
+  },
+}
 
 const swarm: SwarmBridge = {
   submitGoal: (goal) => ipcRenderer.invoke('swarm:submitGoal', goal) as Promise<SubmitGoalResult>,
@@ -30,9 +70,7 @@ const swarm: SwarmBridge = {
   showConfirm: (req) =>
     ipcRenderer.invoke('system:showConfirm', req) as Promise<'grant' | 'deny' | 'skip'>,
   openSettings: (opts) => ipcRenderer.invoke('system:openSettings', opts) as Promise<void>,
-  // TODO(Task 15 / P15 - Preload bridge exposes providers): replace this stub
-  // with the real IPC wiring. Cast keeps typecheck green until that lands.
-  providers: {} as SwarmBridge['providers'],
+  providers,
 }
 
 if (process.contextIsolated) {
