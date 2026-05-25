@@ -55,3 +55,72 @@ describe('worker handler', () => {
     expect(sent[sent.length - 1].type).toBe('task.complete')
   })
 })
+
+const stubTask = {
+  id: '01HX0000000000000000000001',
+  parentId: null,
+  goal: 'g',
+  status: 'pending' as const,
+  assignedWorkerId: null,
+  toolAllowlist: ['*'],
+  budget: { tokens: 1, calls: 1, wallMs: 1, usdCents: 1 },
+  used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+  history: [],
+  result: null,
+  createdAt: 0,
+  startedAt: null,
+  endedAt: null,
+}
+const stubProvider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'sk-test' }
+
+describe('handler — provider injection', () => {
+  it('routes to real agent path when SWARM_USE_SIMULATOR is not set', async () => {
+    const original = process.env.SWARM_USE_SIMULATOR
+    delete process.env.SWARM_USE_SIMULATOR
+    const sent: unknown[] = []
+    handleInbound(
+      {
+        type: 'task.assign',
+        task: stubTask,
+        promptContext: '',
+        provider: stubProvider,
+      },
+      (m) => sent.push(m),
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    const sim = sent.find(
+      (m) =>
+        typeof m === 'object' && m && (m as { type?: string }).type === 'progress',
+    )
+    if (sim) {
+      const text = JSON.stringify(sim)
+      expect(text).not.toContain('simulator')
+    }
+    if (original !== undefined) process.env.SWARM_USE_SIMULATOR = original
+  })
+
+  it('routes to simulator when SWARM_USE_SIMULATOR=1', async () => {
+    const original = process.env.SWARM_USE_SIMULATOR
+    process.env.SWARM_USE_SIMULATOR = '1'
+    const sent: unknown[] = []
+    handleInbound(
+      {
+        type: 'task.assign',
+        task: stubTask,
+        promptContext: '',
+        provider: stubProvider,
+      },
+      (m) => sent.push(m),
+    )
+    // Simulator's first emit is gated by its default stepMs (~600ms). Wait long
+    // enough for at least one progress event without flaking on slow CI.
+    await new Promise((r) => setTimeout(r, 800))
+    expect(
+      sent.some(
+        (m) => typeof m === 'object' && m && (m as { type?: string }).type === 'progress',
+      ),
+    ).toBe(true)
+    if (original !== undefined) process.env.SWARM_USE_SIMULATOR = original
+    else delete process.env.SWARM_USE_SIMULATOR
+  })
+})

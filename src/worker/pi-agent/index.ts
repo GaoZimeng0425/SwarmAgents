@@ -1,6 +1,7 @@
 import { Agent } from '@earendil-works/pi-agent-core'
 import { getModel } from '@earendil-works/pi-ai'
 import type { Outbound } from '@shared/types/ipc'
+import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
 
 import type { PermissionClient } from '../permission-client'
@@ -10,6 +11,7 @@ import { buildPeekabooTools } from './tools/peekaboo'
 type Deps = {
   send: (m: Outbound) => void
   permissionClient: PermissionClient
+  provider: ProviderInjection
 }
 
 const SYSTEM_PROMPT = `You are SwarmAgents, an autonomous worker agent operating a user's Mac.

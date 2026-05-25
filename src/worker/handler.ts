@@ -6,8 +6,7 @@ import { simulateThinking } from './simulator'
 
 export type SendFn = (msg: Outbound) => void
 
-const useSimulator =
-  process.env.SWARM_USE_SIMULATOR === '1' || !process.env.ANTHROPIC_API_KEY
+const useSimulator = (): boolean => process.env.SWARM_USE_SIMULATOR === '1'
 
 let permissionClient: PermissionClient | null = null
 
@@ -19,13 +18,14 @@ function getPermissionClient(send: SendFn): PermissionClient {
 export function handleInbound(msg: Inbound, send: SendFn): void {
   switch (msg.type) {
     case 'task.assign':
-      if (useSimulator) {
+      if (useSimulator()) {
         void simulateThinking(msg.task, send)
         return
       }
       void runPiAgent(msg.task, {
         send,
         permissionClient: getPermissionClient(send),
+        provider: msg.provider,
       })
       return
     case 'permission.decision':

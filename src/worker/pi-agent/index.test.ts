@@ -31,6 +31,7 @@ describe('runPiAgent', () => {
           sent.push(m)
         },
         permissionClient: { request: async () => 'grant', resolve: () => {} },
+        provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-test' },
       })
       const errs = sent.filter((m) => m.type === 'task.error')
       expect(errs).toHaveLength(1)
