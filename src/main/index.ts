@@ -6,6 +6,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { createPermissionGate } from './permission/gate'
+import { initProviders } from './providers'
 import { createSupervisor } from './supervisor'
 import { createElectronSpawner } from './supervisor/electron-spawner'
 import { setupAutoUpdate } from './system/auto-update'
@@ -25,6 +26,14 @@ app.whenReady().then(async () => {
   electronApp.setAppUserModelId('dev.swarmagents.app')
 
   const log = createLogger({ process: 'main' })
+
+  const providers = await initProviders()
+  log.info({ msg: 'providers initialised' })
+
+  app.on('before-quit', () => {
+    providers.dispose()
+  })
+
   const poolSize = Math.min(cpus().length, 4)
   const workerEntry = join(__dirname, 'worker.js')
 

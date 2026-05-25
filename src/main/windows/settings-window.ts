@@ -10,9 +10,17 @@ const isWin = process.platform === 'win32'
 
 let settingsWin: BrowserWindow | null = null
 
-export function openSettings(): void {
+export function openSettings(opts: { initialRoute?: string } = {}): void {
+  const hash = opts.initialRoute ? `#${opts.initialRoute}` : ''
+
   if (settingsWin && !settingsWin.isDestroyed()) {
     settingsWin.focus()
+    if (opts.initialRoute) {
+      // Navigate the existing window to the requested route via the hash history.
+      settingsWin.webContents.executeJavaScript(
+        `window.location.hash = ${JSON.stringify(`#${opts.initialRoute}`)};`,
+      )
+    }
     return
   }
 
@@ -58,9 +66,9 @@ export function openSettings(): void {
   })
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/settings.html`)
+    win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/settings.html${hash}`)
   } else {
-    win.loadFile(join(__dirname, '../renderer/settings.html'))
+    win.loadFile(join(__dirname, '../renderer/settings.html'), { hash: opts.initialRoute })
   }
 
   settingsWin = win

@@ -196,8 +196,17 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:showConfirm', handleShowConfirm)
 
-  const handleOpenSettings = (): void => {
-    openSettings()
+  const handleOpenSettings = (_: Electron.IpcMainInvokeEvent, opts?: unknown): void => {
+    let initialRoute: string | undefined
+    if (
+      opts &&
+      typeof opts === 'object' &&
+      'initialRoute' in opts &&
+      typeof (opts as { initialRoute?: unknown }).initialRoute === 'string'
+    ) {
+      initialRoute = (opts as { initialRoute: string }).initialRoute
+    }
+    openSettings(initialRoute ? { initialRoute } : {})
   }
   ipcMain.handle('system:openSettings', handleOpenSettings)
 
