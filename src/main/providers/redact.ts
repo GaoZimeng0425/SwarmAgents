@@ -1,3 +1,7 @@
+// src/main/providers/redact.ts
+//
+// Pure projection from on-disk providers state to renderer-visible view.
+// Strips apiKey, replacing it with hasKey:boolean. NEVER call from the renderer.
 import type { ProvidersStateOnDisk, ProvidersStateView } from '@shared/types/provider'
 
 export function toView(state: ProvidersStateOnDisk): ProvidersStateView {
