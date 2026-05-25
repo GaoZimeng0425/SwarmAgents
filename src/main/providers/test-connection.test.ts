@@ -76,6 +76,7 @@ describe('testConnection', () => {
     expect(headers['Authorization']).toBe('Bearer sk-openai')
     const body = JSON.parse(String((init as RequestInit).body))
     expect(body.model).toBe('gpt-4o')
-    expect(body.max_tokens).toBe(1)
+    expect(body.max_completion_tokens).toBe(1)
+    expect(body.max_tokens).toBeUndefined()
   })
 })

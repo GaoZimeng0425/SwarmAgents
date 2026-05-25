@@ -47,9 +47,13 @@ export async function testConnection(p: ProviderInjection): Promise<TestResult> 
               'content-type': 'application/json',
               Authorization: `Bearer ${p.apiKey}`,
             },
+            // OpenAI deprecated `max_tokens` in favour of `max_completion_tokens`
+            // (Oct 2024); o1/o3 reasoning models reject `max_tokens` with HTTP 400.
+            // `max_completion_tokens` works for both legacy (gpt-4o) and reasoning
+            // models, so use it uniformly.
             body: JSON.stringify({
               model: p.model,
-              max_tokens: 1,
+              max_completion_tokens: 1,
               messages: [{ role: 'user', content: 'hi' }],
             }),
           })
