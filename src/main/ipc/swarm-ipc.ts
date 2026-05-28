@@ -20,6 +20,7 @@ export function wireSwarmIpc(args: {
 
   // One global session per provider (simple initial approach); created lazily.
   let currentSessionId: string | null = null
+  let sessionCreationPromise: Promise<string> | null = null
 
   // ---- Renderer → Main RPC handlers ----
 
@@ -27,8 +28,6 @@ export function wireSwarmIpc(args: {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
     }
-    const taskId = ulid()
-    const now = Date.now()
     const trimmedGoal = goal.trim()
     const injection = providers.getInjection()
     if (!injection) {
@@ -36,12 +35,14 @@ export function wireSwarmIpc(args: {
       // but a race between state-change and click can land here. Surface a
       // typed task.error event so the timeline shows the failed task, instead
       // of throwing a generic IPC rejection the renderer can't classify.
+      const failTaskId = ulid()
+      const now = Date.now()
       for (const w of BrowserWindow.getAllWindows()) {
         if (!w.isDestroyed()) {
-          w.webContents.send('swarm:event', { kind: 'task.created', taskId, goal: trimmedGoal, ts: now })
+          w.webContents.send('swarm:event', { kind: 'task.created', taskId: failTaskId, goal: trimmedGoal, ts: now })
           w.webContents.send('swarm:event', {
             kind: 'task.error',
-            taskId,
+            taskId: failTaskId,
             error: {
               code: 'no_provider',
               message: 'Configure an API key in Settings before starting tasks.',
@@ -51,15 +52,19 @@ export function wireSwarmIpc(args: {
           })
         }
       }
-      log.warn({ msg: 'submit rejected: no active provider', taskId })
-      return { taskId }
+      log.warn({ msg: 'submit rejected: no active provider', taskId: failTaskId })
+      return { taskId: failTaskId }
     }
 
     if (!currentSessionId) {
-      const { sessionId } = await serviceClient.createSession(injection)
-      currentSessionId = sessionId
+      if (!sessionCreationPromise) {
+        sessionCreationPromise = serviceClient.createSession(injection)
+          .then(({ sessionId }) => { currentSessionId = sessionId; return sessionId })
+          .finally(() => { sessionCreationPromise = null })
+      }
+      await sessionCreationPromise
     }
-    void serviceClient.submitGoal(currentSessionId, trimmedGoal)
+    const { taskId } = await serviceClient.submitGoal(currentSessionId!, trimmedGoal)
     log.info({ msg: 'task submitted', taskId, goal: trimmedGoal, provider: injection.id })
     return { taskId }
   }
@@ -77,6 +82,7 @@ export function wireSwarmIpc(args: {
       return
     }
     void serviceClient.decidePermission(currentSessionId, actionId, decision as import('@shared/types/ui').PermissionDecision)
+      .catch((err: unknown) => log.warn({ msg: 'decidePermission failed', err: String(err) }))
     log.info({ msg: 'permission decided', actionId, decision })
   }
 

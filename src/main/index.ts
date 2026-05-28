@@ -2,7 +2,7 @@ import { fork } from 'node:child_process'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initProviders } from './providers'
@@ -42,7 +42,7 @@ app.whenReady().then(async () => {
   })
 
   const serviceEntry = join(__dirname, 'service.js')
-  const serviceProcess = fork(serviceEntry, [], {
+  let serviceProcess = fork(serviceEntry, [], {
     env: {
       ...process.env,
       SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),
@@ -50,35 +50,47 @@ app.whenReady().then(async () => {
     silent: true,
   })
 
-  const servicePort = await new Promise<number>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('service startup timeout')), 10_000)
-    serviceProcess.stdout?.on('data', (chunk: Buffer) => {
-      try {
-        const msg = JSON.parse(chunk.toString().trim()) as { type: string; port: number }
-        if (msg.type === 'service-started') {
-          clearTimeout(timeout)
-          resolve(msg.port)
+  let serviceClient: ReturnType<typeof createServiceClient>
+  try {
+    serviceProcess.stderr?.on('data', (c: Buffer) => log.warn({ msg: 'service stderr', data: c.toString().trim() }))
+
+    const servicePort = await new Promise<number>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('service startup timeout')), 10_000)
+      serviceProcess.stdout?.on('data', (chunk: Buffer) => {
+        try {
+          const msg = JSON.parse(chunk.toString().trim()) as { type: string; port: number }
+          if (msg.type === 'service-started') {
+            clearTimeout(timeout)
+            serviceProcess.stdout?.removeAllListeners('data')
+            resolve(msg.port)
+          }
+        } catch {}
+      })
+      serviceProcess.on('exit', (code) => {
+        clearTimeout(timeout)
+        reject(new Error(`service exited with code ${String(code)}`))
+      })
+    })
+
+    serviceClient = createServiceClient({
+      port: servicePort,
+      onEvent: (_event, data) => {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed()) w.webContents.send('swarm:event', data)
         }
-      } catch {}
+      },
     })
-    serviceProcess.on('exit', (code) => {
-      clearTimeout(timeout)
-      reject(new Error(`service exited with code ${String(code)}`))
-    })
-  })
+    await serviceClient.connect()
 
-  const serviceClient = createServiceClient({
-    port: servicePort,
-    onEvent: (_event, data) => {
-      for (const w of BrowserWindow.getAllWindows()) {
-        if (!w.isDestroyed()) w.webContents.send('swarm:event', data)
-      }
-    },
-  })
-  await serviceClient.connect()
-
-  wireSwarmIpc({ serviceClient, providers: providers.service })
-  log.info({ msg: 'core services up', servicePort })
+    wireSwarmIpc({ serviceClient, providers: providers.service })
+    log.info({ msg: 'core services up', servicePort })
+  } catch (err) {
+    log.error({ msg: 'Agent Service failed to start', err: String(err) })
+    serviceProcess.kill('SIGTERM')
+    dialog.showErrorBox('Agent Service failed', String(err))
+    app.quit()
+    return
+  }
 
   const handleDeepLink = (url: string): void => {
     log.info({ msg: 'deep link received', url })
