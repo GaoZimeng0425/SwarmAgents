@@ -6,7 +6,6 @@
 // useNativeConfirm; low-risk is auto-granted by the main-process permission
 // gate and never reaches the renderer.
 import { useEffect } from 'react'
-
 import type { PermissionDecision } from '@shared/types/ui'
 
 import { Button } from '@/components/ui/button'
@@ -33,14 +32,14 @@ export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element
 
   return (
     <div
-      role="dialog"
       aria-label="Action requires confirmation"
-      className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-auto border-t border-border bg-popover/95 px-6 py-4 shadow-lg"
+      className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-auto border-border border-t bg-popover/95 px-6 py-4 shadow-lg"
+      role="dialog"
     >
       <div className="flex flex-col gap-3">
         <header>
-          <h2 className="text-base font-medium">Action requires confirmation</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="font-medium text-base">Action requires confirmation</h2>
+          <p className="text-muted-foreground text-sm">
             Task {prompt.taskId} · risk: <strong>{prompt.risk}</strong>
           </p>
         </header>
@@ -49,11 +48,27 @@ export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element
           {JSON.stringify(prompt.payload, null, 2)}
         </pre>
         <footer className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => { onDecide(prompt.actionId, 'skip') }}>
+          <Button
+            onClick={() => {
+              onDecide(prompt.actionId, 'skip')
+            }}
+            variant="secondary"
+          >
             Skip
           </Button>
-          <Button onClick={() => { onDecide(prompt.actionId, 'grant') }}>Allow</Button>
-          <Button variant="destructive" onClick={() => { onDecide(prompt.actionId, 'deny') }}>
+          <Button
+            onClick={() => {
+              onDecide(prompt.actionId, 'grant')
+            }}
+          >
+            Allow
+          </Button>
+          <Button
+            onClick={() => {
+              onDecide(prompt.actionId, 'deny')
+            }}
+            variant="destructive"
+          >
             Deny
           </Button>
         </footer>

@@ -18,10 +18,12 @@ function SettingsLayout(): React.JSX.Element {
       <nav className="flex shrink-0 gap-1 border-b px-4 py-2 text-sm">
         {TABS.map((t) => (
           <Link
-            key={t.to}
-            to={t.to as any}
-            className="rounded px-3 py-1 hover:bg-accent data-[status=active]:bg-accent"
+            // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
             activeProps={{ 'data-status': 'active' } as any}
+            className="rounded px-3 py-1 hover:bg-accent data-[status=active]:bg-accent"
+            key={t.to}
+            // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over TABS const
+            to={t.to as any}
           >
             {t.label}
           </Link>

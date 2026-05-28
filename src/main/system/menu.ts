@@ -5,7 +5,7 @@
 //   - Edit menu with standard cut/copy/paste/select-all (free VoiceOver
 //     navigation, ship H.66 partial)
 //   - Window menu
-import { Menu, app } from 'electron'
+import { app, Menu } from 'electron'
 
 export function setupMenu(args: { onOpenSettings: () => void }): void {
   const isMac = process.platform === 'darwin'
@@ -36,11 +36,7 @@ export function setupMenu(args: { onOpenSettings: () => void }): void {
         ],
       }
 
-  const template: Electron.MenuItemConstructorOptions[] = [
-    appMenu,
-    { role: 'editMenu' },
-    { role: 'windowMenu' },
-  ]
+  const template: Electron.MenuItemConstructorOptions[] = [appMenu, { role: 'editMenu' }, { role: 'windowMenu' }]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }

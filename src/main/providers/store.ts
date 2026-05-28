@@ -5,13 +5,8 @@
 // and validated against the Zod schema before encryption so we never persist
 // garbage. Pure module: no logging, no globals — callers inject the filePath.
 import { existsSync, promises as fs } from 'node:fs'
-
+import { defaultProvidersStateOnDisk, ProvidersStateOnDisk } from '@shared/types/provider'
 import { safeStorage } from 'electron'
-
-import {
-  defaultProvidersStateOnDisk,
-  ProvidersStateOnDisk,
-} from '@shared/types/provider'
 
 export type LoadResult =
   | { ok: true; state: ProvidersStateOnDisk }

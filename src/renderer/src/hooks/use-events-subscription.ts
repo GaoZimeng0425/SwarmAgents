@@ -1,12 +1,11 @@
-import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-
 import type { UIEvent } from '@shared/types/ui'
+import { useQueryClient } from '@tanstack/react-query'
 
+import { TASKS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { applyEvent, type TaskRecord } from '@/lib/apply-event'
-import { TASKS_KEY } from '@/hooks/use-tasks'
-import { usePermissionStore, type PermissionPrompt } from '@/stores/permission'
+import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 
 function buildPrompt(e: Extract<UIEvent, { kind: 'task.permission_request' }>): PermissionPrompt {
   return {
@@ -19,9 +18,7 @@ function buildPrompt(e: Extract<UIEvent, { kind: 'task.permission_request' }>): 
   }
 }
 
-async function handleHighRisk(
-  e: Extract<UIEvent, { kind: 'task.permission_request' }>,
-): Promise<void> {
+async function handleHighRisk(e: Extract<UIEvent, { kind: 'task.permission_request' }>): Promise<void> {
   // SKILL.md T3 + ship B.19: high-risk actions get a blocking system dialog.
   const role = await window.swarm.showConfirm({
     title: 'Action requires confirmation',

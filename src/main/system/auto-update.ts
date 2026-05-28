@@ -5,10 +5,9 @@
 // then every 4h. Notifies the renderer via a single update-ready event when a
 // download is staged for next launch.
 import { is } from '@electron-toolkit/utils'
+import { createLogger } from '@shared/logger'
 import { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
-
-import { createLogger } from '@shared/logger'
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
 const UPDATE_READY_CHANNEL = 'system:updateReady'

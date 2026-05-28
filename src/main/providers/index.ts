@@ -4,11 +4,10 @@
 // in-memory service, and the Electron IPC layer; must run after app.whenReady()
 // and before any BrowserWindow is created so the first render sees state.
 import { join } from 'node:path'
+import { createLogger } from '@shared/logger'
 import { app, dialog } from 'electron'
 
-import { createLogger } from '@shared/logger'
-
-import { wireProvidersIpc, safeStorageAvailable } from './ipc'
+import { safeStorageAvailable, wireProvidersIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
 
@@ -28,7 +27,7 @@ export async function initProviders(): Promise<ProvidersHandle> {
   if (!safeStorageAvailable()) {
     dialog.showErrorBox(
       'Secure storage unavailable',
-      'SwarmAgents cannot start because the operating system did not provide an encrypted storage backend. On macOS this usually means the Keychain is locked or inaccessible.',
+      'SwarmAgents cannot start because the operating system did not provide an encrypted storage backend. On macOS this usually means the Keychain is locked or inaccessible.'
     )
     app.quit()
     throw new Error('safeStorage unavailable')

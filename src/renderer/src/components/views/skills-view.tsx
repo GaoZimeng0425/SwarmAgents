@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function SkillsView(): React.JSX.Element {
   return (
@@ -16,7 +10,7 @@ export function SkillsView(): React.JSX.Element {
             Skill loader (<code>.swarm/skills/&lt;name&gt;/SKILL.md</code>) lands in a later plan.
           </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">Coming soon.</CardContent>
+        <CardContent className="text-muted-foreground text-sm">Coming soon.</CardContent>
       </Card>
     </div>
   )

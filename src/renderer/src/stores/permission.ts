@@ -1,6 +1,5 @@
-import { create } from 'zustand'
-
 import type { Risk } from '@shared/types/ipc'
+import { create } from 'zustand'
 
 export type PermissionPrompt = {
   actionId: string
@@ -19,10 +18,6 @@ type PermissionStore = {
 
 export const usePermissionStore = create<PermissionStore>((set) => ({
   queue: [],
-  push: (p) =>
-    set((s) =>
-      s.queue.some((x) => x.actionId === p.actionId) ? s : { queue: [...s.queue, p] },
-    ),
-  remove: (id) =>
-    set((s) => ({ queue: s.queue.filter((x) => x.actionId !== id) })),
+  push: (p) => set((s) => (s.queue.some((x) => x.actionId === p.actionId) ? s : { queue: [...s.queue, p] })),
+  remove: (id) => set((s) => ({ queue: s.queue.filter((x) => x.actionId !== id) })),
 }))

@@ -1,11 +1,6 @@
 import type { UIEvent } from '@shared/types/ui'
 
-export type TaskStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'awaiting_user'
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user'
 
 export type TaskRecord = {
   id: string

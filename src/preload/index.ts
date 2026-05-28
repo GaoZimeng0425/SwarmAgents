@@ -1,6 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
+import type { ApiStyle, ProviderId, ProvidersStateView } from '../shared/types/provider'
 import type {
   PermissionDecision,
   ProvidersBridge,
@@ -10,7 +11,6 @@ import type {
   SwarmBridge,
   UIEvent,
 } from '../shared/types/ui'
-import type { ProviderId, ProvidersStateView } from '../shared/types/provider'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
 const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
@@ -19,19 +19,22 @@ const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
 
 const providers: ProvidersBridge = {
   get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
-  setKey: (p: ProviderId, key: string) =>
-    ipcRenderer.invoke('providers:setKey', p, key) as Promise<ProvidersSetResult>,
-  clearKey: (p: ProviderId) =>
-    ipcRenderer.invoke('providers:clearKey', p) as Promise<ProvidersSetResult>,
-  setActive: (p: ProviderId | null) =>
-    ipcRenderer.invoke('providers:setActive', p) as Promise<ProvidersSetResult>,
+  setKey: (p: ProviderId, key: string) => ipcRenderer.invoke('providers:setKey', p, key) as Promise<ProvidersSetResult>,
+  clearKey: (p: ProviderId) => ipcRenderer.invoke('providers:clearKey', p) as Promise<ProvidersSetResult>,
+  setActive: (p: ProviderId | null) => ipcRenderer.invoke('providers:setActive', p) as Promise<ProvidersSetResult>,
   setModel: (p: ProviderId, model: string) =>
     ipcRenderer.invoke('providers:setModel', p, model) as Promise<ProvidersSetResult>,
-  test: (p: ProviderId) =>
-    ipcRenderer.invoke('providers:test', p) as Promise<ProvidersTestResult>,
+  setBaseUrl: (p: ProviderId, baseUrl: string | null) =>
+    ipcRenderer.invoke('providers:setBaseUrl', p, baseUrl) as Promise<ProvidersSetResult>,
+  addCustomModel: (p: ProviderId, model: string) =>
+    ipcRenderer.invoke('providers:addCustomModel', p, model) as Promise<ProvidersSetResult>,
+  removeCustomModel: (p: ProviderId, model: string) =>
+    ipcRenderer.invoke('providers:removeCustomModel', p, model) as Promise<ProvidersSetResult>,
+  setApiStyle: (p: ProviderId, style: ApiStyle) =>
+    ipcRenderer.invoke('providers:setApiStyle', p, style) as Promise<ProvidersSetResult>,
+  test: (p: ProviderId) => ipcRenderer.invoke('providers:test', p) as Promise<ProvidersTestResult>,
   onStateChanged: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: ProvidersStateView): void =>
-      cb(payload)
+    const listener = (_: Electron.IpcRendererEvent, payload: ProvidersStateView): void => cb(payload)
     ipcRenderer.on(PROVIDERS_STATE_CHANNEL, listener)
     return () => {
       ipcRenderer.removeListener(PROVIDERS_STATE_CHANNEL, listener)
@@ -60,15 +63,13 @@ const swarm: SwarmBridge = {
   },
   getAccent: () => ipcRenderer.invoke('system:getAccent') as Promise<string | null>,
   onAccentChange: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: { hex: string }): void =>
-      cb(payload.hex)
+    const listener = (_: Electron.IpcRendererEvent, payload: { hex: string }): void => cb(payload.hex)
     ipcRenderer.on(ACCENT_CHANGE_CHANNEL, listener)
     return () => {
       ipcRenderer.removeListener(ACCENT_CHANGE_CHANNEL, listener)
     }
   },
-  showConfirm: (req) =>
-    ipcRenderer.invoke('system:showConfirm', req) as Promise<'grant' | 'deny' | 'skip'>,
+  showConfirm: (req) => ipcRenderer.invoke('system:showConfirm', req) as Promise<'grant' | 'deny' | 'skip'>,
   openSettings: (opts) => ipcRenderer.invoke('system:openSettings', opts) as Promise<void>,
   providers,
 }
@@ -100,8 +101,7 @@ window.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('DOMContentLoaded', () => {
   const s = document.createElement('span')
   s.setAttribute('aria-hidden', 'true')
-  s.style.cssText =
-    'position:absolute;left:-9999px;top:0;opacity:0;pointer-events:none'
+  s.style.cssText = 'position:absolute;left:-9999px;top:0;opacity:0;pointer-events:none'
   s.textContent = '😀🎉✨📦🚀 中文 日本語 한국어 ∑∫√ ✓✗'
   document.body.appendChild(s)
   void s.getBoundingClientRect()

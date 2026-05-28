@@ -2,14 +2,11 @@
 //
 // Replaces DOM modal overlays (ship B.19 anti-pattern) with a native
 // dialog.showMessageBox. Used by the renderer's high-risk permission flow.
-import { dialog, type BrowserWindow } from 'electron'
 
 import type { ConfirmRequest, ConfirmResponse } from '@shared/types/ipc'
+import { type BrowserWindow, dialog } from 'electron'
 
-export async function showNativeConfirm(
-  parent: BrowserWindow,
-  req: ConfirmRequest,
-): Promise<ConfirmResponse> {
+export async function showNativeConfirm(parent: BrowserWindow, req: ConfirmRequest): Promise<ConfirmResponse> {
   const grantIdx = req.buttons.findIndex((b) => b.role === 'grant')
   const denyIdx = req.buttons.findIndex((b) => b.role === 'deny')
   const { response } = await dialog.showMessageBox(parent, {

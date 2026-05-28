@@ -3,7 +3,7 @@
 // Wraps Electron's systemPreferences accent-color API. On macOS returns the
 // 8-hex RRGGBBAA from NSColor.controlAccentColor; on Windows the UISettings
 // accent. Subscribers fire on the OS event `accent-color-changed`.
-import { systemPreferences, nativeTheme } from 'electron'
+import { nativeTheme, systemPreferences } from 'electron'
 
 export function getAccent(): string | null {
   if (process.platform !== 'darwin' && process.platform !== 'win32') return null
@@ -26,10 +26,7 @@ function ensureWired(): void {
     if (hex) for (const l of listeners) l(hex)
   }
   // accent-color-changed exists on macOS + Windows in Electron.
-  ;(systemPreferences as unknown as { on: (e: string, cb: () => void) => void }).on(
-    'accent-color-changed',
-    fire,
-  )
+  ;(systemPreferences as unknown as { on: (e: string, cb: () => void) => void }).on('accent-color-changed', fire)
   // nativeTheme update also fires on appearance change, which can swap accent perception.
   nativeTheme.on('updated', fire)
 }

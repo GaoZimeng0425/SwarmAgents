@@ -31,12 +31,11 @@ describe('showNativeConfirm', () => {
   it('uses type:warning for risk=high', async () => {
     showMessageBoxMock.mockResolvedValue({ response: 0, checkboxChecked: false })
     await showNativeConfirm({} as never, {
-      title: 't', message: 'm', risk: 'high',
+      title: 't',
+      message: 'm',
+      risk: 'high',
       buttons: [{ label: 'No', role: 'deny' }],
     })
-    expect(showMessageBoxMock).toHaveBeenLastCalledWith(
-      {},
-      expect.objectContaining({ type: 'warning', noLink: true }),
-    )
+    expect(showMessageBoxMock).toHaveBeenLastCalledWith({}, expect.objectContaining({ type: 'warning', noLink: true }))
   })
 })

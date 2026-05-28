@@ -9,6 +9,7 @@ const STATUS_VARIANT: Record<TaskStatus, 'default' | 'secondary' | 'destructive'
   running: 'default',
   completed: 'secondary',
   failed: 'destructive',
+  // biome-ignore lint/style/useNamingConvention: domain TaskStatus literal
   awaiting_user: 'destructive',
 }
 
@@ -21,9 +22,9 @@ type Props = {
 export function TaskListItem({ task, selected, onSelect }: Props): React.JSX.Element {
   return (
     <Card
+      className="data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
       data-selected={selected}
       onClick={() => onSelect(task.id)}
-      className="data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
     >
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between gap-2 text-sm">
@@ -31,7 +32,7 @@ export function TaskListItem({ task, selected, onSelect }: Props): React.JSX.Ele
           <Badge variant={STATUS_VARIANT[task.status]}>{task.status}</Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="text-xs text-muted-foreground">
+      <CardContent className="text-muted-foreground text-xs">
         {task.workerId ? `worker ${task.workerId} · ` : ''}
         started {formatDistanceToNow(task.startedAt, { addSuffix: true })}
       </CardContent>

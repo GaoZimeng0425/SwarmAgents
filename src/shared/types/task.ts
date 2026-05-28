@@ -71,6 +71,7 @@ export type TaskResult = z.infer<typeof TaskResultSchema>
 export const TaskSchema = z.object({
   id: z.string().length(26),
   parentId: z.string().nullable(),
+  agentDefId: z.string().default('default'),
   goal: z.string(),
   status: TaskStatusSchema,
   assignedWorkerId: z.string().nullable(),

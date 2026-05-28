@@ -17,9 +17,7 @@ export function openSettings(opts: { initialRoute?: string } = {}): void {
     settingsWin.focus()
     if (opts.initialRoute) {
       // Navigate the existing window to the requested route via the hash history.
-      settingsWin.webContents.executeJavaScript(
-        `window.location.hash = ${JSON.stringify(`#${opts.initialRoute}`)};`,
-      )
+      settingsWin.webContents.executeJavaScript(`window.location.hash = ${JSON.stringify(`#${opts.initialRoute}`)};`)
     }
     return
   }

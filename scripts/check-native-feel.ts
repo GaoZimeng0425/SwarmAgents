@@ -9,7 +9,7 @@ type Rule = { pattern: string; message: string }
 
 const RULES: Rule[] = [
   { pattern: 'cursor-pointer|cursor:\\s*pointer', message: 'C.21: native rows do not show pointer cursor' },
-  { pattern: "behavior:\\s*['\"]smooth", message: "C.4: avoid behavior: 'smooth' (web idiom)" },
+  { pattern: 'behavior:\\s*[\'"]smooth', message: "C.4: avoid behavior: 'smooth' (web idiom)" },
   { pattern: '@fontsource', message: 'D.34: use system font cascade, not web font packages' },
   { pattern: 'animate-fade|fade-in|fade-out', message: 'D.40: no route fade transitions' },
 ]
@@ -18,13 +18,7 @@ const EXCLUDE = ['src/renderer/src/components/ui/', 'src/renderer/src/styles/glo
 
 let failed = 0
 for (const rule of RULES) {
-  const args = [
-    '--no-heading',
-    '-n',
-    rule.pattern,
-    'src/renderer/src',
-    ...EXCLUDE.flatMap((p) => ['-g', `!${p}**`]),
-  ]
+  const args = ['--no-heading', '-n', rule.pattern, 'src/renderer/src', ...EXCLUDE.flatMap((p) => ['-g', `!${p}**`])]
   const result = spawnSync('rg', args, { encoding: 'utf8' })
   if (result.error || result.status === null) {
     const reason = result.error?.message ?? 'rg exited with null status'

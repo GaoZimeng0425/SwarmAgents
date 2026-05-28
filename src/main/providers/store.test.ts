@@ -37,7 +37,7 @@ describe('store', () => {
     expect(state).toEqual({
       version: 1,
       active: null,
-      providers: { anthropic: null, openai: null },
+      providers: { anthropic: null, openai: null, custom: null },
     })
   })
 
@@ -49,6 +49,7 @@ describe('store', () => {
       providers: {
         anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-rt' },
         openai: null,
+        custom: null,
       },
     })
     expect(existsSync(path)).toBe(true)
@@ -61,7 +62,7 @@ describe('store', () => {
     await store.save({
       version: 1,
       active: null,
-      providers: { anthropic: null, openai: null },
+      providers: { anthropic: null, openai: null, custom: null },
     })
     // Atomic write should leave no tmp file behind.
     expect(existsSync(`${path}.tmp`)).toBe(false)

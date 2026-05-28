@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { AgentDefinitionSchema } from './agent'
 import { ProviderInjection } from './provider'
 import { TaskEventSchema, TaskResultSchema, TaskSchema } from './task'
 
@@ -30,6 +31,7 @@ export const InboundSchema = z.discriminatedUnion('type', [
     task: TaskSchema,
     promptContext: z.string(),
     provider: ProviderInjection,
+    agentDefinition: AgentDefinitionSchema,
   }),
   z.object({ type: z.literal('task.cancel'), taskId: z.string() }),
   z.object({ type: z.literal('tool.result'), callId: z.string(), result: ToolResultSchema }),
@@ -39,6 +41,12 @@ export const InboundSchema = z.discriminatedUnion('type', [
     decision: z.enum(['grant', 'deny', 'skip']),
   }),
   z.object({ type: z.literal('shutdown') }),
+  z.object({
+    type: z.literal('task.handoff_result'),
+    parentTaskId: z.string(),
+    childTaskId: z.string(),
+    result: TaskResultSchema,
+  }),
 ])
 export type Inbound = z.infer<typeof InboundSchema>
 
@@ -89,7 +97,7 @@ export const ConfirmRequestSchema = z.object({
         label: z.string(),
         role: z.enum(['grant', 'deny', 'skip']),
         destructive: z.boolean().optional(),
-      }),
+      })
     )
     .min(1)
     .max(4),

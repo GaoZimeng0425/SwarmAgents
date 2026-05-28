@@ -4,10 +4,11 @@
 // TanStack Router instance with the settings route tree. Re-uses
 // QueryClient + ThemeProvider but does NOT mount the EventsBridge — Settings
 // is read-light and does not subscribe to task events.
+
+import { StrictMode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createHashHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { ThemeProvider } from 'next-themes'
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -36,11 +37,11 @@ function SettingsApp(): React.JSX.Element {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
         <TooltipProvider>
           <SettingsApp />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 )

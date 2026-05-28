@@ -9,6 +9,7 @@ describe('IPC schemas', () => {
       task: {
         id: '01HX0000000000000000000000',
         parentId: null,
+        agentDefId: 'default',
         goal: 'g',
         status: 'dispatched',
         assignedWorkerId: 'w1',
@@ -23,6 +24,13 @@ describe('IPC schemas', () => {
       },
       promptContext: 'hello',
       provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
+      agentDefinition: {
+        id: 'default',
+        name: 'Default Agent',
+        systemPrompt: 'test',
+        toolScope: 'all',
+        maxIterations: 25,
+      },
     }
     expect(() => InboundSchema.parse(msg)).not.toThrow()
   })
@@ -79,9 +87,14 @@ describe('ConfirmRequestSchema', () => {
     expect(ConfirmRequestSchema.parse(req)).toEqual(req)
   })
   it('rejects empty buttons array', () => {
-    expect(() => ConfirmRequestSchema.parse({
-      title: 't', message: 'm', risk: 'high', buttons: [],
-    })).toThrow()
+    expect(() =>
+      ConfirmRequestSchema.parse({
+        title: 't',
+        message: 'm',
+        risk: 'high',
+        buttons: [],
+      })
+    ).toThrow()
   })
 })
 
@@ -100,6 +113,7 @@ describe('Inbound task.assign provider field', () => {
       task: {
         id: '01HX0000000000000000000001',
         parentId: null,
+        agentDefId: 'default',
         goal: 'do thing',
         status: 'pending' as const,
         assignedWorkerId: null,
@@ -114,6 +128,13 @@ describe('Inbound task.assign provider field', () => {
       },
       promptContext: '',
       provider: { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
+      agentDefinition: {
+        id: 'default',
+        name: 'Default Agent',
+        systemPrompt: 'test',
+        toolScope: 'all',
+        maxIterations: 25,
+      },
     }
     const parsed = InboundSchema.parse(msg)
     expect(parsed.type).toBe('task.assign')
@@ -129,7 +150,7 @@ describe('Inbound task.assign provider field', () => {
         type: 'task.assign',
         task: { id: 'x' } as never,
         promptContext: '',
-      }),
+      })
     ).toThrow()
   })
 })

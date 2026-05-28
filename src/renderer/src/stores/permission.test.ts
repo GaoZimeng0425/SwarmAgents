@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-import { usePermissionStore, type PermissionPrompt } from './permission'
+import { type PermissionPrompt, usePermissionStore } from './permission'
 
 const mk = (actionId: string): PermissionPrompt => ({
   actionId,

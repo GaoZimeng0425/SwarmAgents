@@ -7,9 +7,9 @@
 export function TitleBar(): React.JSX.Element {
   return (
     <div
+      aria-hidden="true"
       className="fixed inset-x-0 top-0 z-50 h-7"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      aria-hidden="true"
     />
   )
 }

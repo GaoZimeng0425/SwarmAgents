@@ -1,6 +1,5 @@
-import { formatDistanceToNow } from 'date-fns'
-
 import type { UIEvent } from '@shared/types/ui'
+import { formatDistanceToNow } from 'date-fns'
 
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -33,7 +32,7 @@ type Props = { task: TaskRecord | undefined }
 export function TaskTimeline({ task }: Props): React.JSX.Element {
   if (!task) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
         Select a task to see its timeline.
       </div>
     )
@@ -50,7 +49,7 @@ export function TaskTimeline({ task }: Props): React.JSX.Element {
         <ul className="space-y-2">
           {task.events.map((e, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: events are append-only
-            <li key={`${task.id}-${i}`} className="text-xs leading-relaxed">
+            <li className="text-xs leading-relaxed" key={`${task.id}-${i}`}>
               <span className="mr-2 font-mono text-muted-foreground">
                 {formatDistanceToNow(e.ts, { addSuffix: true })}
               </span>

@@ -7,6 +7,7 @@ electron_builder_binaries_mirror: https://npmmirror.com/mirrors/electron-builder
 shamefullyHoist: true
 allowBuilds:
   '@google/genai': false
+  better-sqlite3: true
   electron: true
   electron-winstaller: true
   esbuild: true

@@ -2,7 +2,15 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "root": true,
   "assist": {
-    "includes": ["**", "!**/node_modules", "!**/packages/design/src/components/ui/**", "!src/renderer/src/components/ui/**", "!**/.next", "!src/renderer/src/routeTree.gen.ts"],
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/packages/design/src/components/ui/**",
+      "!src/renderer/src/components/ui/**",
+      "!**/.next",
+      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/src/routeTreeSettings.gen.ts"
+    ],
     "actions": {
       "source": {
         "organizeImports": {
@@ -62,8 +70,9 @@
       "!**/pnpm-lock.yaml",
       "!**/node_modules",
       "!**/packages/design/src/components/ui",
-      "!src/renderer/src/components/ui/**",
-      "!src/renderer/src/routeTree.gen.ts"
+      "!src/renderer/src/components/ui",
+      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/src/routeTreeSettings.gen.ts"
     ]
   },
   "formatter": {
@@ -77,7 +86,8 @@
       "!**/node_modules",
       "!**/packages/design/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
-      "!src/renderer/src/routeTree.gen.ts"
+      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/src/routeTreeSettings.gen.ts"
     ],
     "indentStyle": "space",
     "indentWidth": 2,
@@ -107,7 +117,15 @@
     "domains": {
       "next": "recommended"
     },
-    "includes": ["**", "!**/node_modules", "!**/packages/design/src/components/ui/**", "!src/renderer/src/components/ui/**", "!**/.next", "!src/renderer/src/routeTree.gen.ts"],
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/packages/design/src/components/ui/**",
+      "!src/renderer/src/components/ui/**",
+      "!**/.next",
+      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/src/routeTreeSettings.gen.ts"
+    ],
     "rules": {
       "recommended": true,
       "a11y": {

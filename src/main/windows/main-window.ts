@@ -34,13 +34,17 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      backgroundThrottling: false,   // ship F.49 / F.51
-      spellcheck: false,             // ship C.25
+      backgroundThrottling: false, // ship F.49 / F.51
+      spellcheck: false, // ship C.25
     },
   })
 
   if (isWin) {
-    try { win.setBackgroundMaterial('mica') } catch { /* Win 10 fallback: keep solid bg */ }
+    try {
+      win.setBackgroundMaterial('mica')
+    } catch {
+      /* Win 10 fallback: keep solid bg */
+    }
   }
 
   mainWindowRef = win

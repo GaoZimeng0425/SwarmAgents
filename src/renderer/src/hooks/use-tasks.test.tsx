@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
+
+import type { UIEvent } from '@shared/types/ui'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-
-import type { UIEvent } from '@shared/types/ui'
 
 import * as api from '../lib/api'
 import { useEventsSubscription } from './use-events-subscription'
@@ -30,7 +30,7 @@ describe('use-tasks + use-events-subscription', () => {
         useEventsSubscription()
         return useTasks()
       },
-      { wrapper: makeWrapper(qc) },
+      { wrapper: makeWrapper(qc) }
     )
 
     // Wait for initial query to settle (queryFn resolves async even though sync)

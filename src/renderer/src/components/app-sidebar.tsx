@@ -30,26 +30,28 @@ export function AppSidebar(): React.JSX.Element {
               {NAV.map(({ to, label, icon: Icon }) => (
                 <SidebarMenuItem key={to}>
                   <SidebarMenuButton
-                    tooltip={label}
                     render={
                       <Link
-                        to={to as any}
-                        className="flex items-center gap-2"
+                        // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
                         activeProps={{ 'data-active': 'true' } as any}
+                        className="flex items-center gap-2"
+                        // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over NAV const
+                        to={to as any}
                       >
                         <Icon />
                         <span>{label}</span>
                       </Link>
                     }
+                    tooltip={label}
                   />
                 </SidebarMenuItem>
               ))}
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  tooltip="Settings"
                   onClick={() => {
                     void window.swarm.openSettings()
                   }}
+                  tooltip="Settings"
                 >
                   <Settings />
                   <span>Settings</span>

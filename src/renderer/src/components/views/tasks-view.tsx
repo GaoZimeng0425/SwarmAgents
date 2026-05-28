@@ -2,11 +2,7 @@ import { PermissionDrawer } from '@/components/permission-drawer'
 import { TaskInput } from '@/components/task-input'
 import { TaskList } from '@/components/task-list'
 import { TaskTimeline } from '@/components/task-timeline'
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@/components/ui/resizable'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { useProviders } from '@/hooks/use-providers'
 import { useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { usePermissionStore } from '@/stores/permission'
@@ -30,7 +26,7 @@ export function TasksView(): React.JSX.Element {
           await submitGoal.mutateAsync(g)
         }}
       />
-      <ResizablePanelGroup orientation="horizontal" className="flex-1">
+      <ResizablePanelGroup className="flex-1" orientation="horizontal">
         <ResizablePanel defaultSize={40} minSize={25}>
           <TaskList tasks={tasks} />
         </ResizablePanel>
@@ -40,8 +36,10 @@ export function TasksView(): React.JSX.Element {
         </ResizablePanel>
       </ResizablePanelGroup>
       <PermissionDrawer
+        onDecide={(actionId, decision) => {
+          decide.mutate({ actionId, decision })
+        }}
         prompt={queue[0] ?? null}
-        onDecide={(actionId, decision) => { decide.mutate({ actionId, decision }) }}
       />
     </div>
   )

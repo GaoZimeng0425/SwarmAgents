@@ -1,18 +1,16 @@
 import '../styles/globals.css'
 
+import type React from 'react'
+import { StrictMode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createHashHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { ThemeProvider } from 'next-themes'
-import type React from 'react'
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { NoProviderBanner } from '@/components/no-provider-banner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { queryClient } from '@/lib/query-client'
-
 import { useAccent } from '@/hooks/use-accent'
-
+import { queryClient } from '@/lib/query-client'
 import { routeTree } from '../routeTree.gen'
 
 const router = createRouter({
@@ -42,11 +40,11 @@ function AccentBridge(): React.JSX.Element {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
         <TooltipProvider>
           <AccentBridge />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 )

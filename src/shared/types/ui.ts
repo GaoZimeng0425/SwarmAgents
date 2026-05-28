@@ -8,7 +8,7 @@
  * linear timeline without needing its own clock.
  */
 import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
-import type { ProviderId, ProvidersStateView } from './provider'
+import type { ApiStyle, ProviderId, ProvidersStateView } from './provider'
 import type { TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
@@ -35,21 +35,28 @@ export type UIEvent =
     }
   | { kind: 'task.complete'; taskId: string; summary: string; ts: number }
   | { kind: 'task.error'; taskId: string; error: unknown; ts: number }
+  | { kind: 'task.handoff.spawned'; parentTaskId: string; childTaskId: string; ts: number }
+  | {
+      kind: 'task.handoff.completed'
+      parentTaskId: string
+      childTaskId: string
+      childSummary: string
+      ts: number
+    }
 
 export type PermissionDecision = 'grant' | 'deny' | 'skip'
 
 export type SubmitGoalResult = { taskId: string }
 
-export type ProvidersSetResult =
-  | { ok: true }
-  | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
+export type ProvidersSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
 export type ProvidersTestResult =
-  | { ok: true; latencyMs: number }
+  | { ok: true; latencyMs: number; url: string }
   | {
       ok: false
       code: 'no_key' | 'unauthorized' | 'rate_limited' | 'network' | 'unknown'
       message: string
+      url?: string
     }
 
 export type ProvidersBridge = {
@@ -58,6 +65,12 @@ export type ProvidersBridge = {
   clearKey(p: ProviderId): Promise<ProvidersSetResult>
   setActive(p: ProviderId | null): Promise<ProvidersSetResult>
   setModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
+  /** Pass empty string or null to clear. */
+  setBaseUrl(p: ProviderId, baseUrl: string | null): Promise<ProvidersSetResult>
+  addCustomModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
+  removeCustomModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
+  /** Set the wire-format style for the `custom` slot. */
+  setApiStyle(p: ProviderId, style: ApiStyle): Promise<ProvidersSetResult>
   test(p: ProviderId): Promise<ProvidersTestResult>
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
   onDecryptFailed(cb: () => void): () => void
@@ -82,4 +95,4 @@ export type SwarmBridge = {
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.
-export type { TaskResult, TaskEvent }
+export type { TaskEvent, TaskResult }

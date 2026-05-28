@@ -3,12 +3,11 @@
 // Subscribes to providers state from main and derives the `ready` flag used
 // by the main-window banner (Task 19) and any future task-creation surface.
 import { useEffect, useMemo, useState } from 'react'
-
 import type { ProvidersStateView } from '@shared/types/provider'
 
 const EMPTY: ProvidersStateView = {
   active: null,
-  providers: { anthropic: null, openai: null },
+  providers: { anthropic: null, openai: null, custom: null },
 }
 
 export type UseProviders = {

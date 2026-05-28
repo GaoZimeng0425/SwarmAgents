@@ -10,6 +10,7 @@ vi.mock('electron', () => {
         const arr = listeners.get(evt) ?? []
         listeners.set(evt, [...arr, cb])
       }),
+      // biome-ignore lint/style/useNamingConvention: test-only escape hatch on the mock
       __emit(evt: string) {
         listeners.get(evt)?.forEach((cb) => {
           cb()
@@ -23,6 +24,7 @@ vi.mock('electron', () => {
 })
 
 import { systemPreferences } from 'electron'
+
 import { getAccent, subscribeAccent } from './accent'
 
 describe('accent', () => {

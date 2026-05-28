@@ -10,7 +10,7 @@ export function NoProviderBanner(): React.JSX.Element | null {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
+    <div className="flex items-center justify-between gap-3 border-amber-500/40 border-b bg-amber-500/10 px-4 py-2 text-sm">
       <span>⚠ No API key configured.</span>
       <Button onClick={open} size="sm" variant="default">
         Open Settings

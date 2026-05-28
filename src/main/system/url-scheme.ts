@@ -4,10 +4,7 @@
 // `open-url`; on Windows the second-instance argv is parsed in main/index.ts.
 import { app } from 'electron'
 
-export function registerUrlScheme(
-  scheme: string,
-  onDeepLink: (url: string) => void,
-): void {
+export function registerUrlScheme(scheme: string, onDeepLink: (url: string) => void): void {
   app.setAsDefaultProtocolClient(scheme)
   app.on('open-url', (e, url) => {
     e.preventDefault()
