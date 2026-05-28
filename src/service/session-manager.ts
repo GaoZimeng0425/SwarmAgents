@@ -38,13 +38,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const sessions = new Map<string, Session>()
 
   // Mark any sessions left 'active' from a previous run as interrupted.
+  // Do not broadcast task.error here: at startup no renderer is connected,
+  // and s.id is a session id, not a task id, which would produce spurious events.
   for (const s of store.getInterruptedSessions()) {
     store.updateSessionStatus(s.id, 'interrupted')
-    broadcaster.broadcast('task.error', {
-      taskId: s.id,
-      error: { code: 'service_restart', message: 'Agent Service restarted; session interrupted.', tier: 'fatal' },
-      ts: Date.now(),
-    })
   }
 
   const emit = (event: string, data: unknown) => broadcaster.broadcast(event, data)
@@ -120,9 +117,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       })
 
       session.runnerActive = true
-      void runner.run().then(() => {
+      void runner.run().then((status) => {
         session.runnerActive = false
-        store.updateTaskStatus(taskId, 'completed')
+        store.updateTaskStatus(taskId, status === 'completed' ? 'completed' : 'failed')
       })
 
       return { taskId }

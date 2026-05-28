@@ -76,7 +76,7 @@ export type AgentRunnerDeps = {
 }
 
 export type AgentRunner = {
-  run(): Promise<void>
+  run(): Promise<'completed' | 'failed'>
 }
 
 /**
@@ -189,22 +189,19 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return
+        return 'failed'
       }
 
       let tools: ReturnType<typeof buildPeekabooTools>
       let model: Model<Api>
       try {
+        // Permission checking is handled centrally in `beforeToolCall`.
+        // Peekaboo tool executors must not call requestPermission directly,
+        // which would cause a double prompt. Pass a no-op here so the
+        // Deps signature is satisfied without creating a second gate.
         tools = buildPeekabooTools({
           send: () => undefined,
-          requestPermission: (args) =>
-            permissionRegistry.request({
-              taskId: task.id,
-              toolName: args.toolName,
-              risk: args.risk,
-              summary: args.summary,
-              payload: args.payload,
-            }),
+          requestPermission: () => Promise.resolve('grant' as const),
         })
 
         // Add spawn tool when spawnChild is provided
@@ -249,7 +246,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return
+        return 'failed'
       }
 
       taskLog.info({
@@ -329,6 +326,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       try {
         await agent.prompt(task.goal)
         taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0 })
+        return 'completed'
       } catch (err) {
         taskLog.error({
           msg: 'agent.prompt threw',
@@ -344,6 +342,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
+        return 'failed'
       }
     },
   }
