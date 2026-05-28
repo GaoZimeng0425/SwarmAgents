@@ -28,13 +28,20 @@ describe('ConversationStore', () => {
   it('returns interrupted sessions on restart', () => {
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const store1 = createConversationStore(dbPath)
-    store1.createSession('ses-1', provider)
-    store1.updateSessionStatus('ses-1', 'active')
+    store1.createSession('ses-active', provider)
+    const store1b = createConversationStore(dbPath)
+    store1b.createSession('ses-ended', provider)
+    store1b.updateSessionStatus('ses-ended', 'ended')
+    store1b.close()
     store1.close()
 
     const store2 = createConversationStore(dbPath)
     const interrupted = store2.getInterruptedSessions()
-    expect(interrupted.map((s) => s.id)).toContain('ses-1')
+    const ids = interrupted.map((s) => s.id)
+    expect(ids).toContain('ses-active')
+    expect(ids).not.toContain('ses-ended')
+    // Verify they are now marked interrupted in the DB
+    expect(store2.getSession('ses-active')?.status).toBe('interrupted')
     store2.close()
   })
 
@@ -57,6 +64,17 @@ describe('ConversationStore', () => {
     const tasks = store.getSessionTasks('ses-1')
     expect(tasks).toHaveLength(1)
     expect(tasks[0].id).toBe('task-1')
+    store.close()
+  })
+
+  it('saves and retrieves tool state', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+    store.saveToolState('ses-1', 'cookies', [{ name: 'sid', value: '123' }])
+    const cookies = store.getToolState('ses-1', 'cookies')
+    expect(cookies).toEqual([{ name: 'sid', value: '123' }])
+    expect(store.getToolState('ses-1', 'nonexistent')).toBeUndefined()
     store.close()
   })
 })
