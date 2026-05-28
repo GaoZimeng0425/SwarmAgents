@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { buildPeekabooTools } from './peekaboo'
 
-describe('peekaboo tools (pi)', () => {
+describe('peekaboo tools', () => {
   it('exposes see_screen and list_apps with TypeBox schemas', () => {
     const tools = buildPeekabooTools({
       send: () => {},

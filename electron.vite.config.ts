@@ -49,7 +49,6 @@ export default defineConfig({
         external: mainExternal,
         input: {
           index: resolve('src/main/index.ts'),
-          worker: resolve('src/worker/index.ts'),
           service: resolve('src/service/index.ts'),
         },
         output: {
@@ -66,7 +65,6 @@ export default defineConfig({
       alias: {
         '@shared': resolve('src/shared'),
         '@main': resolve('src/main'),
-        '@worker': resolve('src/worker'),
         '@service': resolve('src/service'),
       },
     },

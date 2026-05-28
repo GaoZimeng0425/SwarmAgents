@@ -9,7 +9,7 @@ import { ANTHROPIC_MODEL_SUGGESTIONS, type ApiStyle, OPENAI_MODEL_SUGGESTIONS } 
 import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
 
 import type { PermissionRegistry } from './permission-registry'
-import { buildPeekabooTools } from '../worker/pi-agent/tools/peekaboo'
+import { buildPeekabooTools } from './tools/peekaboo'
 
 const log = createLogger({
   process: 'service',

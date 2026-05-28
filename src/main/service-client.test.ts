@@ -45,7 +45,7 @@ function startMockService(handler: (url: string, method: string, body: unknown) 
 
 describe('ServiceClient', () => {
   let mock: Awaited<ReturnType<typeof startMockService>>
-  let handler: ReturnType<typeof vi.fn>
+  let handler: import('vitest').Mock<(url: string, method: string, body: unknown) => unknown>
 
   beforeEach(async () => {
     handler = vi.fn().mockReturnValue({ sessionId: 'ses-1' })
