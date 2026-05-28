@@ -65,7 +65,7 @@ function resolveModel(p: ProviderInjection): Model<Api> {
 
 type EmitFn = (event: string, data: unknown) => void
 
-type AgentRunnerDeps = {
+export type AgentRunnerDeps = {
   task: Task
   provider: ProviderInjection
   agentDefinition: AgentDefinition
@@ -150,7 +150,7 @@ function createEventTranslator(
       case 'agent_end': {
         flushText()
         const summary = assembledSummary.trim() || `Completed task ${taskId}.`
-        emit('task.complete', { taskId, summary, ts: Date.now() })
+        emit('task.complete', { taskId, result: { summary, artifacts: [] }, ts: Date.now() })
         return
       }
       default:

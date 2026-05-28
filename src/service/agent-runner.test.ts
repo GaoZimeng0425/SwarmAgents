@@ -25,6 +25,9 @@ describe('AgentRunner', () => {
     })
     await runner.run()
     const errEvent = emitted.find((e) => e.event === 'task.error')
-    expect(errEvent).toBeTruthy()
+    expect(errEvent).toBeDefined()
+    const errData = errEvent!.data as { taskId: string; error: { code: string } }
+    expect(errData.taskId).toBe('t-1')
+    expect(errData.error.code).toBeTruthy()
   })
 })
