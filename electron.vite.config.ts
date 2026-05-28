@@ -1,9 +1,9 @@
 import { builtinModules, createRequire } from 'node:module'
 import { resolve } from 'node:path'
-import tailwindcss from '@tailwindcss/vite'
 import babel from '@rolldown/plugin-babel'
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
 // Build the externals list ourselves rather than relying solely on
@@ -27,10 +27,7 @@ const runtimeDeps = Object.keys(pkg.dependencies ?? {})
 // bundle is emitted as CJS (forced by electron-vite's single-output
 // constraint), so these packages must be inlined by Rollup rather than
 // externalized. Rollup's CJS plugin handles the ESM→CJS transpilation.
-const ESM_ONLY_BUNDLE_INLINE = new Set([
-  '@earendil-works/pi-agent-core',
-  '@earendil-works/pi-ai',
-])
+const ESM_ONLY_BUNDLE_INLINE = new Set(['@earendil-works/pi-agent-core', '@earendil-works/pi-ai'])
 
 const mainExternal: Array<string | RegExp> = [
   'electron',
@@ -53,6 +50,7 @@ export default defineConfig({
         input: {
           index: resolve('src/main/index.ts'),
           worker: resolve('src/worker/index.ts'),
+          service: resolve('src/service/index.ts'),
         },
         output: {
           // Force CJS + .js extension so electron-vite dev mode can find
@@ -69,6 +67,7 @@ export default defineConfig({
         '@shared': resolve('src/shared'),
         '@main': resolve('src/main'),
         '@worker': resolve('src/worker'),
+        '@service': resolve('src/service'),
       },
     },
   },

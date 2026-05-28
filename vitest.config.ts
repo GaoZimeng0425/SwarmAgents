@@ -16,6 +16,7 @@ export default defineConfig({
       '@shared': resolve(__dirname, 'src/shared'),
       '@main': resolve(__dirname, 'src/main'),
       '@worker': resolve(__dirname, 'src/worker'),
+      '@service': resolve(__dirname, 'src/service'),
       '@': resolve(__dirname, 'src/renderer/src'),
     },
   },
