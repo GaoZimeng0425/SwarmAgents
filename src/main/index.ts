@@ -1,14 +1,12 @@
-import { cpus } from 'node:os'
+import { fork } from 'node:child_process'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
 import { app, BrowserWindow, ipcMain } from 'electron'
 
 import { wireSwarmIpc } from './ipc/swarm-ipc'
-import { createPermissionGate } from './permission/gate'
 import { initProviders } from './providers'
-import { createSupervisor } from './supervisor'
-import { createElectronSpawner } from './supervisor/electron-spawner'
+import { createServiceClient } from './service-client'
 import { setupAutoUpdate } from './system/auto-update'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
@@ -25,7 +23,16 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('dev.swarmagents.app')
 
+  // Tee main + worker logs to a file under userData so dev sessions persist a
+  // single inspectable JSON-lines log. Workers inherit `process.env` via
+  // electron-spawner, so setting it here covers both. MUST happen before any
+  // createLogger() call (worker fork included).
+  if (!process.env.SWARM_LOG_FILE) {
+    process.env.SWARM_LOG_FILE = join(app.getPath('userData'), 'swarm-dev.log')
+  }
+
   const log = createLogger({ process: 'main' })
+  log.info({ msg: 'log file', path: process.env.SWARM_LOG_FILE })
 
   const providers = await initProviders()
   log.info({ msg: 'providers initialised' })
@@ -34,19 +41,44 @@ app.whenReady().then(async () => {
     providers.dispose()
   })
 
-  const poolSize = Math.min(cpus().length, 4)
-  const workerEntry = join(__dirname, 'worker.js')
-
-  const supervisor = createSupervisor({
-    spawner: createElectronSpawner(),
-    workerEntry,
-    poolSize,
+  const serviceEntry = join(__dirname, 'service.js')
+  const serviceProcess = fork(serviceEntry, [], {
+    env: {
+      ...process.env,
+      SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),
+    },
+    silent: true,
   })
-  const permissionGate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
 
-  await supervisor.start()
-  wireSwarmIpc({ supervisor, permissionGate, providers: providers.service })
-  log.info({ msg: 'core services up', poolSize, workerEntry })
+  const servicePort = await new Promise<number>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('service startup timeout')), 10_000)
+    serviceProcess.stdout?.on('data', (chunk: Buffer) => {
+      try {
+        const msg = JSON.parse(chunk.toString().trim()) as { type: string; port: number }
+        if (msg.type === 'service-started') {
+          clearTimeout(timeout)
+          resolve(msg.port)
+        }
+      } catch {}
+    })
+    serviceProcess.on('exit', (code) => {
+      clearTimeout(timeout)
+      reject(new Error(`service exited with code ${String(code)}`))
+    })
+  })
+
+  const serviceClient = createServiceClient({
+    port: servicePort,
+    onEvent: (_event, data) => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send('swarm:event', data)
+      }
+    },
+  })
+  await serviceClient.connect()
+
+  wireSwarmIpc({ serviceClient, providers: providers.service })
+  log.info({ msg: 'core services up', servicePort })
 
   const handleDeepLink = (url: string): void => {
     log.info({ msg: 'deep link received', url })
@@ -67,8 +99,9 @@ app.whenReady().then(async () => {
     if (deepLink) handleDeepLink(deepLink)
   })
 
-  app.on('before-quit', async () => {
-    await supervisor.shutdown()
+  app.on('before-quit', () => {
+    serviceClient.disconnect()
+    serviceProcess.kill('SIGTERM')
   })
 
   // Default open or close DevTools by F12 in development
