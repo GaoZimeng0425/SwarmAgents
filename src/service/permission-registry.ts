@@ -32,6 +32,7 @@ export function createPermissionRegistry(
         const timer = setTimeout(() => {
           if (pending.delete(actionId)) resolve('deny')
         }, PERMISSION_TIMEOUT_MS)
+        timer.unref?.()
         pending.set(actionId, { resolve, timer })
         broadcast('task.permission_request', { actionId, ...req })
       })
