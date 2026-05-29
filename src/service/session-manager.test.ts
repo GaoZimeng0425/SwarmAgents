@@ -93,6 +93,65 @@ describe('SessionManager', () => {
 
     resolvers[1]({ status: 'completed', summary: '' })
     resolvers[2]({ status: 'completed', summary: '' })
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    store.close()
+  })
+
+  it('semaphore never exceeds maxConcurrent under contended release+acquire', async () => {
+    const resolvers: Array<(v: { status: 'completed' | 'failed'; summary: string }) => void> = []
+    mockCreate.mockImplementation(() => ({
+      run: () => new Promise<{ status: 'completed' | 'failed'; summary: string }>(
+        (resolve) => { resolvers.push(resolve) }
+      ),
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createSseBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
+    const { sessionId } = manager.createSession(provider)
+
+    // Submit 3 — two run, one queues as waiter w3.
+    manager.submitGoal(sessionId, 'g1')
+    manager.submitGoal(sessionId, 'g2')
+    manager.submitGoal(sessionId, 'g3')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(resolvers).toHaveLength(2)
+
+    // Trigger release of runner1 — this queues:
+    //   M1: runner1 await-completion -> releaseSlot (decrement to 1, resolve waiter w3, queue M3)
+    // Then on the next tick our test continuation runs as M2; we synchronously
+    // submit g4. Under the buggy semaphore, g4's acquireSlot fast-path sees
+    // activeRunners=1, increments to 2. Then M3 (waiter w3) ALSO increments to 3.
+    // Total resolvers pushed by g3 + g4 -> 2 new = 4 resolvers, exceeding cap 2.
+    resolvers[0]({ status: 'completed', summary: '' })
+    await Promise.resolve() // M1 fires here (release + queue M3)
+
+    // Now we're in M2 (test continuation). Synchronously submit g4 BEFORE M3
+    // (waiter w3's continuation) drains. acquireSlot fast-path runs sync.
+    manager.submitGoal(sessionId, 'g4')
+
+    // Drain all microtasks.
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Correct semaphore: only 3 runners total ever started (g1, g2, then
+    // either g3 or g4 — the other waits). resolvers.length === 3.
+    // Buggy semaphore: 4 runners running concurrently. resolvers.length === 4.
+    expect(resolvers.length).toBeLessThanOrEqual(3)
+
+    // Drain remaining runners.
+    resolvers[1]({ status: 'completed', summary: '' })
+    resolvers[2]?.({ status: 'completed', summary: '' })
+    resolvers[3]?.({ status: 'completed', summary: '' })
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
     store.close()
   })
 
@@ -125,7 +184,9 @@ describe('SessionManager', () => {
     expect(capturedSpawnChild).not.toBeNull()
     const childResult = await capturedSpawnChild!(parentTaskId, 'child goal')
     expect(childResult.result.summary).toBe('child result text')
-
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
     store.close()
   })
 })

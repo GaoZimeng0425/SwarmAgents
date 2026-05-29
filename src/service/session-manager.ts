@@ -42,14 +42,18 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const waitQueue: Array<() => void> = []
 
   async function acquireSlot(): Promise<void> {
-    if (activeRunners < cfg.maxConcurrent) { activeRunners++; return }
+    if (activeRunners < cfg.maxConcurrent) {
+      activeRunners++
+      return
+    }
     await new Promise<void>(resolve => waitQueue.push(resolve))
-    activeRunners++
+    // Slot was transferred to us by releaseSlot — do not increment again.
   }
 
   function releaseSlot(): void {
-    activeRunners--
-    waitQueue.shift()?.()
+    const next = waitQueue.shift()
+    if (next) next()
+    else activeRunners--
   }
 
   // Mark any sessions left 'active' from a previous run as interrupted.
