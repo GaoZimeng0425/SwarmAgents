@@ -19,6 +19,7 @@ type SessionManagerConfig = {
   store: ConversationStore
   broadcaster: SseBroadcaster
   maxConcurrent: number
+  getProvider(key: string): ProviderInjection | undefined
 }
 
 export type SessionManager = {
@@ -36,6 +37,20 @@ const DEFAULT_AGENT_DEF: AgentDefinition = {
 export function createSessionManager(cfg: SessionManagerConfig): SessionManager {
   const { store, broadcaster } = cfg
   const sessions = new Map<string, Session>()
+
+  let activeRunners = 0
+  const waitQueue: Array<() => void> = []
+
+  async function acquireSlot(): Promise<void> {
+    if (activeRunners < cfg.maxConcurrent) { activeRunners++; return }
+    await new Promise<void>(resolve => waitQueue.push(resolve))
+    activeRunners++
+  }
+
+  function releaseSlot(): void {
+    activeRunners--
+    waitQueue.shift()?.()
+  }
 
   // Mark any sessions left 'active' from a previous run as interrupted.
   // Do not broadcast task.error here: at startup no renderer is connected,
@@ -70,15 +85,22 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     broadcaster.broadcast('task.handoff.spawned', { parentTaskId, childTaskId, ts: now })
 
     return new Promise<{ childTaskId: string; result: TaskResult }>((resolve) => {
-      const runner = createAgentRunner({
-        task: childTask, provider: session.provider,
-        agentDefinition: DEFAULT_AGENT_DEF, sessionId,
-        emit, permissionRegistry: session.permissionRegistry,
-        spawnChild: (pt, ng, st) => spawnChild(sessionId, pt, ng, st),
-      })
-      void runner.run().then(() => {
-        resolve({ childTaskId, result: { summary: '', artifacts: [] } })
-      })
+      const startChild = async (): Promise<void> => {
+        await acquireSlot()
+        const runner = createAgentRunner({
+          task: childTask, provider: session.provider,
+          agentDefinition: DEFAULT_AGENT_DEF, sessionId,
+          emit, permissionRegistry: session.permissionRegistry,
+          spawnChild: (pt, ng, st) => spawnChild(sessionId, pt, ng, st),
+        })
+        try {
+          const { summary } = await runner.run()
+          resolve({ childTaskId, result: { summary, artifacts: [] } })
+        } finally {
+          releaseSlot()
+        }
+      }
+      void startChild()
     })
   }
 
@@ -110,17 +132,23 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       broadcaster.broadcast('task.created', { taskId, goal, ts: now })
       store.updateSessionLastActive(sessionId)
 
-      const runner = createAgentRunner({
-        task, provider: session.provider, agentDefinition: agentDef,
-        sessionId, emit, permissionRegistry: session.permissionRegistry,
-        spawnChild: (pt, ng, st) => spawnChild(sessionId, pt, ng, st),
-      })
-
-      session.runnerActive = true
-      void runner.run().then((status) => {
-        session.runnerActive = false
-        store.updateTaskStatus(taskId, status === 'completed' ? 'completed' : 'failed')
-      })
+      const startRunner = async (): Promise<void> => {
+        await acquireSlot()
+        const runner = createAgentRunner({
+          task, provider: session.provider, agentDefinition: agentDef,
+          sessionId, emit, permissionRegistry: session.permissionRegistry,
+          spawnChild: (pt, ng, st) => spawnChild(sessionId, pt, ng, st),
+        })
+        session.runnerActive = true
+        try {
+          const { status } = await runner.run()
+          session.runnerActive = false
+          store.updateTaskStatus(taskId, status === 'completed' ? 'completed' : 'failed')
+        } finally {
+          releaseSlot()
+        }
+      }
+      void startRunner()
 
       return { taskId }
     },

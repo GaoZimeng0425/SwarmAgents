@@ -12,7 +12,10 @@ const dbPath = process.env.SWARM_SERVICE_DB_PATH ?? join(tmpdir(), 'swarm-agent-
 
 const store = createConversationStore(dbPath)
 const broadcaster = createSseBroadcaster()
-const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4 })
+const manager = createSessionManager({
+  store, broadcaster, maxConcurrent: 4,
+  getProvider: () => undefined,
+})
 const server = createServer({ manager, broadcaster })
 
 server.listen(0, '127.0.0.1', () => {
