@@ -72,7 +72,12 @@ export type AgentRunnerDeps = {
   sessionId: string
   emit: EmitFn
   permissionRegistry: PermissionRegistry
-  spawnChild(parentTaskId: string, newGoal: string, suggestedTools?: string[]): Promise<{ childTaskId: string; result: TaskResult }>
+  spawnChild(
+    parentTaskId: string,
+    newGoal: string,
+    suggestedTools?: string[],
+    providerKey?: string,
+  ): Promise<{ childTaskId: string; result: TaskResult }>
 }
 
 export type AgentRunner = {
@@ -211,6 +216,9 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           suggestedTools: Type.Optional(
             Type.Array(Type.String(), { description: 'Tool scopes to make available (e.g. ["peekaboo"]).' })
           ),
+          providerKey: Type.Optional(
+            Type.String({ description: 'Key of a configured provider to use for this sub-agent. Defaults to current session provider.' })
+          ),
         })
         tools = [
           ...tools,
@@ -221,8 +229,8 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
               'Delegate a sub-task to a specialized agent. Use for research, analysis, or actions that benefit from a focused context. The sub-agent runs independently and returns its result.',
             parameters: SpawnParams,
             execute: async (_toolCallId: string, params: unknown) => {
-              const p = params as { goal: string; suggestedTools?: string[] }
-              const { childTaskId, result } = await spawnChild(task.id, p.goal, p.suggestedTools)
+              const p = params as { goal: string; suggestedTools?: string[]; providerKey?: string }
+              const { childTaskId, result } = await spawnChild(task.id, p.goal, p.suggestedTools, p.providerKey)
               return {
                 content: [{ type: 'text', text: result.summary }],
                 details: { childTaskId, summary: result.summary },

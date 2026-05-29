@@ -189,4 +189,74 @@ describe('SessionManager', () => {
     await Promise.resolve()
     store.close()
   })
+
+  it('uses session provider when providerKey is not given', async () => {
+    const sessionProvider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'session-key' }
+    let capturedSpawnChild: ((parentTaskId: string, goal: string, suggestedTools?: string[], providerKey?: string) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>) | null = null
+    let childProvider: { id: string; model: string; apiKey: string } | null = null
+
+    mockCreate.mockImplementationOnce((deps) => {
+      capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
+      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+    })
+    mockCreate.mockImplementationOnce((deps) => {
+      childProvider = deps.provider as typeof childProvider
+      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createSseBroadcaster()
+    const altProvider = { id: 'openai' as const, model: 'gpt-4o', apiKey: 'alt-key' }
+    const manager = createSessionManager({
+      store, broadcaster, maxConcurrent: 4,
+      getProvider: (key) => (key === 'openai' ? altProvider : undefined),
+    })
+
+    const { sessionId } = manager.createSession(sessionProvider)
+    manager.submitGoal(sessionId, 'parent goal')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    await capturedSpawnChild!('parent-task', 'child goal')
+    expect(childProvider?.apiKey).toBe('session-key')
+
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    store.close()
+  })
+
+  it('uses the looked-up provider when providerKey matches', async () => {
+    const sessionProvider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'session-key' }
+    const altProvider = { id: 'openai' as const, model: 'gpt-4o', apiKey: 'alt-key' }
+    let capturedSpawnChild: ((parentTaskId: string, goal: string, suggestedTools?: string[], providerKey?: string) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>) | null = null
+    let childProvider: { id: string; model: string; apiKey: string } | null = null
+
+    mockCreate.mockImplementationOnce((deps) => {
+      capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
+      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+    })
+    mockCreate.mockImplementationOnce((deps) => {
+      childProvider = deps.provider as typeof childProvider
+      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createSseBroadcaster()
+    const manager = createSessionManager({
+      store, broadcaster, maxConcurrent: 4,
+      getProvider: (key) => (key === 'openai' ? altProvider : undefined),
+    })
+
+    const { sessionId } = manager.createSession(sessionProvider)
+    manager.submitGoal(sessionId, 'parent goal')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    await capturedSpawnChild!('parent-task', 'child goal', undefined, 'openai')
+    expect(childProvider?.apiKey).toBe('alt-key')
+
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    store.close()
+  })
 })

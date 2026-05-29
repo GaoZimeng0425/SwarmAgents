@@ -1,6 +1,7 @@
 import { createLogger } from '@shared/logger'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { ProviderInjection } from '@shared/types/provider'
 import { createConversationStore } from './conversation-store'
 import { createSseBroadcaster } from './sse'
 import { createSessionManager } from './session-manager'
@@ -12,11 +13,21 @@ const dbPath = process.env.SWARM_SERVICE_DB_PATH ?? join(tmpdir(), 'swarm-agent-
 
 const store = createConversationStore(dbPath)
 const broadcaster = createSseBroadcaster()
+
+const providerRegistry = new Map<string, ProviderInjection>()
+
 const manager = createSessionManager({
-  store, broadcaster, maxConcurrent: 4,
-  getProvider: () => undefined,
+  store,
+  broadcaster,
+  maxConcurrent: 4,
+  getProvider: (key) => providerRegistry.get(key),
 })
-const server = createServer({ manager, broadcaster })
+
+const server = createServer({
+  manager,
+  broadcaster,
+  registerProvider: (provider) => { providerRegistry.set(provider.id, provider) },
+})
 
 server.listen(0, '127.0.0.1', () => {
   const addr = server.address() as { port: number }

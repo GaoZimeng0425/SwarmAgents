@@ -6,6 +6,7 @@ import { createSseClient } from './sse'
 type ServerConfig = {
   manager: SessionManager
   broadcaster: SseBroadcaster
+  registerProvider(provider: import('@shared/types/provider').ProviderInjection): void
 }
 
 function readBody(req: import('node:http').IncomingMessage): Promise<unknown> {
@@ -51,6 +52,7 @@ export function createServer(cfg: ServerConfig): Server {
 
       if (method === 'POST' && url === '/sessions') {
         const body = (await readBody(req)) as { provider: import('@shared/types/provider').ProviderInjection }
+        cfg.registerProvider(body.provider)
         const result = manager.createSession(body.provider)
         json(res, 200, result)
         return

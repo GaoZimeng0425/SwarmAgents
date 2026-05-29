@@ -39,7 +39,7 @@ describe('Service HTTP server', () => {
   beforeEach(async () => {
     manager = mockManager()
     broadcaster = createSseBroadcaster()
-    const server = createServer({ manager, broadcaster })
+    const server = createServer({ manager, broadcaster, registerProvider: vi.fn() })
     port = await new Promise<number>((resolve) => {
       server.listen(0, '127.0.0.1', () => {
         resolve((server.address() as { port: number }).port)

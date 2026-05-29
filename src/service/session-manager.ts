@@ -1,4 +1,5 @@
 import { ulid } from 'ulid'
+import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { AgentDefinition } from '@shared/types/agent'
 import type { PermissionDecision } from '@shared/types/ui'
@@ -7,6 +8,8 @@ import { createAgentRunner } from './agent-runner'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
 import type { SseBroadcaster } from './sse'
+
+const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
 type Session = {
   id: string
@@ -70,9 +73,16 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     parentTaskId: string,
     newGoal: string,
     suggestedTools?: string[],
+    providerKey?: string,
   ): Promise<{ childTaskId: string; result: TaskResult }> => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
+
+    const lookedUp = providerKey ? cfg.getProvider(providerKey) : undefined
+    if (providerKey && !lookedUp) {
+      log.warn({ msg: 'providerKey not found, falling back to session provider', providerKey })
+    }
+    const resolvedProvider = lookedUp ?? session.provider
 
     const childTaskId = ulid()
     const now = Date.now()
@@ -92,10 +102,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const startChild = async (): Promise<void> => {
         await acquireSlot()
         const runner = createAgentRunner({
-          task: childTask, provider: session.provider,
+          task: childTask, provider: resolvedProvider,
           agentDefinition: DEFAULT_AGENT_DEF, sessionId,
           emit, permissionRegistry: session.permissionRegistry,
-          spawnChild: (pt, ng, st) => spawnChild(sessionId, pt, ng, st),
+          spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
         try {
           const { summary } = await runner.run()
@@ -141,7 +151,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const runner = createAgentRunner({
           task, provider: session.provider, agentDefinition: agentDef,
           sessionId, emit, permissionRegistry: session.permissionRegistry,
-          spawnChild: (pt, ng, st) => spawnChild(sessionId, pt, ng, st),
+          spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
         session.runnerActive = true
         try {
