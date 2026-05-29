@@ -76,7 +76,7 @@ export type AgentRunnerDeps = {
 }
 
 export type AgentRunner = {
-  run(): Promise<'completed' | 'failed'>
+  run(): Promise<{ status: 'completed' | 'failed'; summary: string }>
 }
 
 /**
@@ -165,7 +165,7 @@ function createEventTranslator(
 
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
-    async run(): Promise<void> {
+    async run(): Promise<{ status: 'completed' | 'failed'; summary: string }> {
       const { task, provider, agentDefinition, sessionId, emit, permissionRegistry, spawnChild } = deps
       const taskLog = log.child({ taskId: task.id })
       taskLog.info({
@@ -189,7 +189,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return 'failed'
+        return { status: 'failed', summary: '' }
       }
 
       let tools: ReturnType<typeof buildPeekabooTools>
@@ -246,7 +246,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return 'failed'
+        return { status: 'failed', summary: '' }
       }
 
       taskLog.info({
@@ -326,7 +326,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       try {
         await agent.prompt(task.goal)
         taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0 })
-        return 'completed'
+        return { status: 'completed', summary: translator.getFinalSummary() }
       } catch (err) {
         taskLog.error({
           msg: 'agent.prompt threw',
@@ -342,7 +342,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return 'failed'
+        return { status: 'failed', summary: '' }
       }
     },
   }

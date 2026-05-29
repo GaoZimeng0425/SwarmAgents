@@ -12,7 +12,7 @@ const mkTask = (id: string): Task => ({
 })
 
 describe('AgentRunner', () => {
-  it('emits task.error when setup fails (bad provider)', async () => {
+  it('emits task.error and returns { status: failed, summary: "" } when apiKey is empty', async () => {
     const emitted: Array<{ event: string; data: unknown }> = []
     const runner = createAgentRunner({
       task: mkTask('t-1'),
@@ -23,7 +23,9 @@ describe('AgentRunner', () => {
       spawnChild: vi.fn(),
       sessionId: 'ses-1',
     })
-    await runner.run()
+    const result = await runner.run()
+    expect(result.status).toBe('failed')
+    expect(result.summary).toBe('')
     const errEvent = emitted.find((e) => e.event === 'task.error')
     expect(errEvent).toBeDefined()
     const errData = errEvent!.data as { taskId: string; error: { code: string } }
