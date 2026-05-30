@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAgentRunner } from './agent-runner'
 import type { Task } from '@shared/types/task'
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
 
 const MockAgent = vi.hoisted(() => vi.fn())
 
@@ -38,6 +39,10 @@ const mkTask = (id: string): Task => ({
 })
 
 describe('AgentRunner', () => {
+  beforeEach(() => {
+    MockAgent.mockReset()
+  })
+
   it('emits task.error and returns { status: failed, summary: "" } when apiKey is empty', async () => {
     const emitted: Array<{ event: string; data: unknown }> = []
     const runner = createAgentRunner({
@@ -61,7 +66,7 @@ describe('AgentRunner', () => {
   })
 
   it('seeds the agent with initialMessages and returns final messages', async () => {
-    const seed = [{ role: 'user', content: 'earlier turn' }] as unknown as never[]
+    const seed = [{ role: 'user', content: 'earlier turn' }] as unknown as AgentMessage[]
     let capturedInitial: unknown
 
     MockAgent.mockImplementation(function (this: unknown, opts: { initialState?: { messages?: unknown } }) {
@@ -80,7 +85,7 @@ describe('AgentRunner', () => {
       agentDefinition: { id: 'default', name: 'd', systemPrompt: '', toolScope: 'all', maxIterations: 25 },
       sessionId: 'ses-1',
       emit: () => undefined,
-      permissionRegistry: { request: async () => 'grant', resolve: () => undefined } as never,
+      permissionRegistry: { request: vi.fn(async () => 'grant' as const), resolve: vi.fn() },
       spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
       initialMessages: seed,
     })
