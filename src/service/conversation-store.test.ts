@@ -77,4 +77,80 @@ describe('ConversationStore', () => {
     expect(store.getToolState('ses-1', 'nonexistent')).toBeUndefined()
     store.close()
   })
+
+  it('stores and updates a session title', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-t', provider)
+    expect(store.getSession('ses-t')?.title).toBeNull()
+    store.setSessionTitle('ses-t', 'Tidy the desktop')
+    expect(store.getSession('ses-t')?.title).toBe('Tidy the desktop')
+    store.close()
+  })
+
+  it('round-trips an agent message snapshot', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-s', provider)
+    expect(store.getAgentSnapshot('ses-s')).toEqual([])
+    const messages = [{ role: 'user', content: 'hi' }] as unknown as Parameters<typeof store.saveAgentSnapshot>[1]
+    store.saveAgentSnapshot('ses-s', messages)
+    expect(store.getAgentSnapshot('ses-s')).toEqual(messages)
+    store.close()
+  })
+
+  it('lists non-ended sessions newest-first with task counts', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-a', provider)
+    store.updateSessionLastActive('ses-a')
+    store.createSession('ses-b', provider)
+    store.updateSessionLastActive('ses-b')
+    store.createSession('ses-gone', provider)
+    store.updateSessionStatus('ses-gone', 'ended')
+
+    const now = Date.now()
+    store.saveTask(
+      {
+        id: '01HRX0000000000000000000A1', parentId: null, agentDefId: 'default', goal: 'g',
+        status: 'completed', assignedWorkerId: null, toolAllowlist: [],
+        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
+      },
+      'ses-b',
+    )
+
+    const list = store.listSessions()
+    const ids = list.map((s) => s.id)
+    expect(ids).not.toContain('ses-gone')
+    expect(ids).toContain('ses-a')
+    expect(ids).toContain('ses-b')
+    expect(list.find((s) => s.id === 'ses-b')?.taskCount).toBe(1)
+    expect(list.find((s) => s.id === 'ses-a')?.taskCount).toBe(0)
+    store.close()
+  })
+
+  it('persists and reloads task history', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-h', provider)
+    const now = Date.now()
+    store.saveTask(
+      {
+        id: '01HRX0000000000000000000H1', parentId: null, agentDefId: 'default', goal: 'g',
+        status: 'running', assignedWorkerId: null, toolAllowlist: [],
+        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
+      },
+      'ses-h',
+    )
+    store.saveTaskHistory('01HRX0000000000000000000H1', [
+      { kind: 'llm.message', role: 'assistant', content: 'done', ts: now },
+    ])
+    const tasks = store.getSessionTasks('ses-h')
+    expect(tasks[0].history).toEqual([{ kind: 'llm.message', role: 'assistant', content: 'done', ts: now }])
+    store.close()
+  })
 })

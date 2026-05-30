@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
 
 export type StoredSession = {
   id: string
@@ -8,6 +9,8 @@ export type StoredSession = {
   lastActiveAt: number
   status: 'active' | 'interrupted' | 'ended'
   providerSnapshot: ProviderInjection
+  title: string | null
+  agentSnapshot: AgentMessage[]
 }
 
 export type ConversationStore = {
@@ -16,6 +19,11 @@ export type ConversationStore = {
   updateSessionStatus(id: string, status: StoredSession['status']): void
   updateSessionLastActive(id: string): void
   getInterruptedSessions(): StoredSession[]
+  listSessions(): import('@shared/types/ui').SessionSummary[]
+  setSessionTitle(id: string, title: string): void
+  saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
+  getAgentSnapshot(sessionId: string): AgentMessage[]
+  saveTaskHistory(taskId: string, history: import('@shared/types/task').TaskEvent[]): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
   getSessionTasks(sessionId: string): Task[]
@@ -35,7 +43,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
       created_at      INTEGER NOT NULL,
       last_active_at  INTEGER NOT NULL,
       status          TEXT NOT NULL,
-      provider_snapshot TEXT NOT NULL
+      provider_snapshot TEXT NOT NULL,
+      title             TEXT,
+      agent_snapshot    TEXT NOT NULL DEFAULT '[]'
     );
     CREATE TABLE IF NOT EXISTS tasks (
       id                  TEXT PRIMARY KEY,
@@ -64,12 +74,25 @@ export function createConversationStore(dbPath: string): ConversationStore {
     );
   `)
 
+  for (const stmt of [
+    `ALTER TABLE sessions ADD COLUMN title TEXT`,
+    `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,
+  ]) {
+    try {
+      db.exec(stmt)
+    } catch {
+      // Column already exists — fresh DBs get it from CREATE TABLE above.
+    }
+  }
+
   const rowToSession = (row: Record<string, unknown>): StoredSession => ({
     id: row.id as string,
     createdAt: row.created_at as number,
     lastActiveAt: row.last_active_at as number,
     status: row.status as StoredSession['status'],
     providerSnapshot: JSON.parse(row.provider_snapshot as string) as ProviderInjection,
+    title: (row.title as string | null) ?? null,
+    agentSnapshot: JSON.parse((row.agent_snapshot as string) ?? '[]') as AgentMessage[],
   })
 
   const rowToTask = (row: Record<string, unknown>): Task => ({
@@ -90,8 +113,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
   })
 
   const stmtInsertSession = db.prepare(
-    `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot)
-     VALUES (?, ?, ?, 'active', ?)`,
+    `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot)
+     VALUES (?, ?, ?, 'active', ?, NULL, '[]')`,
   )
   const stmtGetSession = db.prepare(`SELECT * FROM sessions WHERE id = ?`)
   const stmtUpdateStatus = db.prepare(`UPDATE sessions SET status = ? WHERE id = ?`)
@@ -122,11 +145,26 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `SELECT value FROM tool_state_snapshots WHERE session_id = ? AND key = ?`,
   )
 
+  const stmtSetTitle = db.prepare(`UPDATE sessions SET title = ? WHERE id = ?`)
+  const stmtSetSnapshot = db.prepare(`UPDATE sessions SET agent_snapshot = ? WHERE id = ?`)
+  const stmtGetSnapshot = db.prepare(`SELECT agent_snapshot FROM sessions WHERE id = ?`)
+  const stmtSetTaskHistory = db.prepare(`UPDATE tasks SET history = ? WHERE id = ?`)
+  const stmtListSessions = db.prepare(
+    `SELECT s.id, s.title, s.status, s.last_active_at AS lastActiveAt,
+            (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
+     FROM sessions s
+     WHERE s.status != 'ended'
+     ORDER BY s.last_active_at DESC`,
+  )
+
   return {
     createSession(id, provider) {
       const now = Date.now()
       stmtInsertSession.run(id, now, now, JSON.stringify(provider))
-      return { id, createdAt: now, lastActiveAt: now, status: 'active', providerSnapshot: provider }
+      return {
+        id, createdAt: now, lastActiveAt: now, status: 'active',
+        providerSnapshot: provider, title: null, agentSnapshot: [],
+      }
     },
     getSession(id) {
       const row = stmtGetSession.get(id) as Record<string, unknown> | undefined
@@ -140,6 +178,28 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     getInterruptedSessions() {
       return markAndGetInterrupted()
+    },
+    listSessions() {
+      return (stmtListSessions.all() as Record<string, unknown>[]).map((r) => ({
+        id: r.id as string,
+        title: (r.title as string | null) ?? null,
+        status: r.status as 'active' | 'interrupted' | 'ended',
+        lastActiveAt: r.lastActiveAt as number,
+        taskCount: r.taskCount as number,
+      }))
+    },
+    setSessionTitle(id, title) {
+      stmtSetTitle.run(title, id)
+    },
+    saveAgentSnapshot(sessionId, messages) {
+      stmtSetSnapshot.run(JSON.stringify(messages), sessionId)
+    },
+    getAgentSnapshot(sessionId) {
+      const row = stmtGetSnapshot.get(sessionId) as { agent_snapshot: string } | undefined
+      return row ? (JSON.parse(row.agent_snapshot) as AgentMessage[]) : []
+    },
+    saveTaskHistory(taskId, history) {
+      stmtSetTaskHistory.run(JSON.stringify(history), taskId)
     },
     saveTask(task, sessionId) {
       stmtInsertTask.run(
