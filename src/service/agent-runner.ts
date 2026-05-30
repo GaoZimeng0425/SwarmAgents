@@ -1,5 +1,5 @@
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { AgentEvent } from '@earendil-works/pi-agent-core'
+import type { AgentEvent, AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Api, KnownProvider, Model } from '@earendil-works/pi-ai'
 import { getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
@@ -72,6 +72,7 @@ export type AgentRunnerDeps = {
   sessionId: string
   emit: EmitFn
   permissionRegistry: PermissionRegistry
+  initialMessages: AgentMessage[]
   spawnChild(
     parentTaskId: string,
     newGoal: string,
@@ -81,7 +82,7 @@ export type AgentRunnerDeps = {
 }
 
 export type AgentRunner = {
-  run(): Promise<{ status: 'completed' | 'failed'; summary: string }>
+  run(): Promise<{ status: 'completed' | 'failed'; summary: string; messages: AgentMessage[] }>
 }
 
 /**
@@ -170,8 +171,8 @@ function createEventTranslator(
 
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
-    async run(): Promise<{ status: 'completed' | 'failed'; summary: string }> {
-      const { task, provider, agentDefinition, sessionId, emit, permissionRegistry, spawnChild } = deps
+    async run(): Promise<{ status: 'completed' | 'failed'; summary: string; messages: AgentMessage[] }> {
+      const { task, provider, agentDefinition, sessionId, emit, permissionRegistry, spawnChild, initialMessages } = deps
       const taskLog = log.child({ taskId: task.id })
       taskLog.info({
         msg: 'createAgentRunner.run entered',
@@ -194,7 +195,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '' }
+        return { status: 'failed', summary: '', messages: initialMessages }
       }
 
       let tools: ReturnType<typeof buildPeekabooTools>
@@ -254,7 +255,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '' }
+        return { status: 'failed', summary: '', messages: initialMessages }
       }
 
       taskLog.info({
@@ -295,7 +296,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           systemPrompt: agentDefinition.systemPrompt,
           model,
           tools,
-          messages: [],
+          messages: initialMessages,
         },
         beforeToolCall: async ({ toolCall, args }) => {
           const risk: 'low' | 'medium' | 'high' =
@@ -334,7 +335,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       try {
         await agent.prompt(task.goal)
         taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0 })
-        return { status: 'completed', summary: translator.getFinalSummary() }
+        return { status: 'completed', summary: translator.getFinalSummary(), messages: agent.state.messages }
       } catch (err) {
         taskLog.error({
           msg: 'agent.prompt threw',
@@ -350,7 +351,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '' }
+        return { status: 'failed', summary: '', messages: agent.state.messages }
       }
     },
   }
