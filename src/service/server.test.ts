@@ -10,6 +10,8 @@ function mockManager(): SessionManager {
     submitGoal: vi.fn().mockReturnValue({ taskId: 'task-1' }),
     resolvePermission: vi.fn(),
     endSession: vi.fn(),
+    listSessions: vi.fn().mockReturnValue([{ id: 'ses-1' }]),
+    getSessionTasks: vi.fn().mockReturnValue([]),
   }
 }
 
@@ -79,5 +81,22 @@ describe('Service HTTP server', () => {
   it('GET /health returns 200', async () => {
     const res = await request(port, 'GET', '/health')
     expect(res.status).toBe(200)
+  })
+
+  it('GET /sessions returns the session list', async () => {
+    await request(port, 'POST', '/sessions', { provider: { id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' } })
+    const res = await request(port, 'GET', '/sessions')
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body)).toBe(true)
+    expect((res.body as unknown[]).length).toBeGreaterThanOrEqual(1)
+    expect(typeof (res.body as { id: string }[])[0].id).toBe('string')
+  })
+
+  it('GET /sessions/:id/tasks returns tasks for the session', async () => {
+    const created = await request(port, 'POST', '/sessions', { provider: { id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' } })
+    const sessionId = (created.body as { sessionId: string }).sessionId
+    const res = await request(port, 'GET', `/sessions/${sessionId}/tasks`)
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body)).toBe(true)
   })
 })

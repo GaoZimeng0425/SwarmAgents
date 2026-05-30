@@ -92,6 +92,17 @@ export function createServer(cfg: ServerConfig): Server {
         return
       }
 
+      if (method === 'GET' && url === '/sessions') {
+        json(res, 200, manager.listSessions())
+        return
+      }
+
+      const tasksMatch = /^\/sessions\/([^/]+)\/tasks$/.exec(url)
+      if (method === 'GET' && tasksMatch) {
+        json(res, 200, manager.getSessionTasks(tasksMatch[1]))
+        return
+      }
+
       json(res, 404, { error: 'not found' })
     } catch (err) {
       json(res, 500, { error: String(err) })
