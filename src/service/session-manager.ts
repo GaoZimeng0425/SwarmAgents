@@ -3,7 +3,8 @@ import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { AgentDefinition } from '@shared/types/agent'
 import type { PermissionDecision } from '@shared/types/ui'
-import type { Task, TaskResult } from '@shared/types/task'
+import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createAgentRunner } from './agent-runner'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
@@ -15,7 +16,8 @@ type Session = {
   id: string
   provider: ProviderInjection
   permissionRegistry: PermissionRegistry
-  runnerActive: boolean
+  messages: AgentMessage[]
+  queue: Promise<void>
 }
 
 type SessionManagerConfig = {
@@ -30,6 +32,8 @@ export type SessionManager = {
   submitGoal(sessionId: string, goal: string, agentDef?: AgentDefinition): { taskId: string }
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   endSession(sessionId: string): void
+  listSessions(): import('@shared/types/ui').SessionSummary[]
+  getSessionTasks(sessionId: string): Task[]
 }
 
 const DEFAULT_AGENT_DEF: AgentDefinition = {
@@ -66,7 +70,24 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(s.id, 'interrupted')
   }
 
-  const emit = (event: string, data: unknown) => broadcaster.broadcast(event, data)
+  const historyByTask = new Map<string, TaskEvent[]>()
+
+  const makeEmit = (sessionId: string) => (event: string, data: unknown): void => {
+    const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
+    const payload = obj ? { sessionId, ...obj } : data
+
+    const taskId = obj?.taskId as string | undefined
+    if (event === 'task.progress' && taskId && obj?.event) {
+      const buf = historyByTask.get(taskId) ?? []
+      buf.push(obj.event as TaskEvent)
+      historyByTask.set(taskId, buf)
+    }
+    if ((event === 'task.complete' || event === 'task.error') && taskId) {
+      store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
+      historyByTask.delete(taskId)
+    }
+    broadcaster.broadcast(event, payload)
+  }
 
   const spawnChild = async (
     sessionId: string,
@@ -96,7 +117,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     store.saveTask(childTask, sessionId)
 
-    broadcaster.broadcast('task.handoff.spawned', { parentTaskId, childTaskId, ts: now })
+    broadcaster.broadcast('task.handoff.spawned', { sessionId, parentTaskId, childTaskId, ts: now })
 
     return new Promise<{ childTaskId: string; result: TaskResult }>((resolve) => {
       const startChild = async (): Promise<void> => {
@@ -104,7 +125,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const runner = createAgentRunner({
           task: childTask, provider: resolvedProvider,
           agentDefinition: DEFAULT_AGENT_DEF, sessionId,
-          emit, permissionRegistry: session.permissionRegistry,
+          emit: makeEmit(sessionId), permissionRegistry: session.permissionRegistry,
+          initialMessages: [],
           spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
         try {
@@ -118,21 +140,42 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     })
   }
 
+  const getOrRehydrate = (sessionId: string): Session | undefined => {
+    const live = sessions.get(sessionId)
+    if (live) return live
+    const stored = store.getSession(sessionId)
+    if (!stored) return undefined
+    const rehydrated: Session = {
+      id: sessionId,
+      provider: stored.providerSnapshot,
+      permissionRegistry: createPermissionRegistry(makeEmit(sessionId)),
+      messages: store.getAgentSnapshot(sessionId),
+      queue: Promise.resolve(),
+    }
+    store.updateSessionStatus(sessionId, 'active')
+    sessions.set(sessionId, rehydrated)
+    return rehydrated
+  }
+
   return {
     createSession(provider) {
       const sessionId = ulid()
       store.createSession(sessionId, provider)
-      const permissionRegistry = createPermissionRegistry(emit)
-      sessions.set(sessionId, { id: sessionId, provider, permissionRegistry, runnerActive: false })
+      const permissionRegistry = createPermissionRegistry(makeEmit(sessionId))
+      sessions.set(sessionId, {
+        id: sessionId, provider, permissionRegistry, messages: [], queue: Promise.resolve(),
+      })
+      broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
       return { sessionId }
     },
 
     submitGoal(sessionId, goal, agentDef = DEFAULT_AGENT_DEF) {
-      const session = sessions.get(sessionId)
+      const session = getOrRehydrate(sessionId)
       if (!session) throw new Error(`session ${sessionId} not found`)
 
       const taskId = ulid()
       const now = Date.now()
+      const isFirst = store.getSessionTasks(sessionId).length === 0
       const task: Task = {
         id: taskId, parentId: null, agentDefId: agentDef.id,
         goal, status: 'pending', assignedWorkerId: null,
@@ -141,29 +184,39 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
         history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
       }
-
       store.saveTask(task, sessionId)
-      broadcaster.broadcast('task.created', { taskId, goal, ts: now })
+      broadcaster.broadcast('task.created', { sessionId, taskId, goal, ts: now })
       store.updateSessionLastActive(sessionId)
 
-      const startRunner = async (): Promise<void> => {
+      if (isFirst) {
+        const title = goal.slice(0, 60)
+        store.setSessionTitle(sessionId, title)
+        broadcaster.broadcast('session.updated', { sessionId, title, lastActiveAt: now, ts: now })
+      }
+
+      const runTurn = async (): Promise<void> => {
         await acquireSlot()
         const runner = createAgentRunner({
           task, provider: session.provider, agentDefinition: agentDef,
-          sessionId, emit, permissionRegistry: session.permissionRegistry,
+          sessionId, emit: makeEmit(sessionId), permissionRegistry: session.permissionRegistry,
+          initialMessages: session.messages,
           spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
-        session.runnerActive = true
         try {
-          const { status } = await runner.run()
-          session.runnerActive = false
+          const { status, messages } = await runner.run()
+          if (messages) {
+            session.messages = messages
+            store.saveAgentSnapshot(sessionId, messages)
+          }
           store.updateTaskStatus(taskId, status === 'completed' ? 'completed' : 'failed')
+        } catch (err) {
+          log.error({ msg: 'runTurn error', err })
         } finally {
           releaseSlot()
         }
       }
-      void startRunner()
 
+      session.queue = session.queue.then(runTurn, runTurn)
       return { taskId }
     },
 
@@ -174,6 +227,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     endSession(sessionId) {
       store.updateSessionStatus(sessionId, 'ended')
       sessions.delete(sessionId)
+    },
+
+    listSessions() {
+      return store.listSessions()
+    },
+
+    getSessionTasks(sessionId) {
+      return store.getSessionTasks(sessionId)
     },
   }
 }

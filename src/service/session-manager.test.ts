@@ -62,6 +62,8 @@ describe('SessionManager', () => {
   })
 
   it('limits concurrent runners to maxConcurrent', async () => {
+    // Goals submitted to DIFFERENT sessions run concurrently (cross-session),
+    // bounded by the semaphore. Goals in the same session are serialized.
     const resolvers: Array<(v: { status: 'completed' | 'failed'; summary: string }) => void> = []
     mockCreate.mockImplementation(() => ({
       run: () => new Promise<{ status: 'completed' | 'failed'; summary: string }>(
@@ -73,13 +75,15 @@ describe('SessionManager', () => {
     const broadcaster = createSseBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
     const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
-    const { sessionId } = manager.createSession(provider)
+    const { sessionId: s1 } = manager.createSession(provider)
+    const { sessionId: s2 } = manager.createSession(provider)
+    const { sessionId: s3 } = manager.createSession(provider)
 
-    manager.submitGoal(sessionId, 'goal 1')
-    manager.submitGoal(sessionId, 'goal 2')
-    manager.submitGoal(sessionId, 'goal 3')
+    manager.submitGoal(s1, 'goal 1')
+    manager.submitGoal(s2, 'goal 2')
+    manager.submitGoal(s3, 'goal 3')
 
-    // Flush promise queue: two slots fill immediately
+    // Flush promise queue: two slots fill immediately (maxConcurrent = 2)
     await Promise.resolve()
     await Promise.resolve()
     expect(resolvers).toHaveLength(2)
@@ -100,6 +104,8 @@ describe('SessionManager', () => {
   })
 
   it('semaphore never exceeds maxConcurrent under contended release+acquire', async () => {
+    // Goals submitted to DIFFERENT sessions run concurrently (cross-session),
+    // bounded by the semaphore. This exercises the waiter-transfer path.
     const resolvers: Array<(v: { status: 'completed' | 'failed'; summary: string }) => void> = []
     mockCreate.mockImplementation(() => ({
       run: () => new Promise<{ status: 'completed' | 'failed'; summary: string }>(
@@ -111,12 +117,14 @@ describe('SessionManager', () => {
     const broadcaster = createSseBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
     const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
-    const { sessionId } = manager.createSession(provider)
+    const { sessionId: s1 } = manager.createSession(provider)
+    const { sessionId: s2 } = manager.createSession(provider)
+    const { sessionId: s3 } = manager.createSession(provider)
 
-    // Submit 3 — two run, one queues as waiter w3.
-    manager.submitGoal(sessionId, 'g1')
-    manager.submitGoal(sessionId, 'g2')
-    manager.submitGoal(sessionId, 'g3')
+    // Submit 3 goals across 3 sessions — two run, one queues as waiter w3.
+    manager.submitGoal(s1, 'g1')
+    manager.submitGoal(s2, 'g2')
+    manager.submitGoal(s3, 'g3')
     await Promise.resolve()
     await Promise.resolve()
     expect(resolvers).toHaveLength(2)
@@ -130,9 +138,10 @@ describe('SessionManager', () => {
     resolvers[0]({ status: 'completed', summary: '' })
     await Promise.resolve() // M1 fires here (release + queue M3)
 
-    // Now we're in M2 (test continuation). Synchronously submit g4 BEFORE M3
-    // (waiter w3's continuation) drains. acquireSlot fast-path runs sync.
-    manager.submitGoal(sessionId, 'g4')
+    // Now we're in M2 (test continuation). Synchronously submit g4 on a new session
+    // BEFORE M3 (waiter w3's continuation) drains. acquireSlot fast-path runs sync.
+    const { sessionId: s4 } = manager.createSession(provider)
+    manager.submitGoal(s4, 'g4')
 
     // Drain all microtasks.
     await Promise.resolve()
@@ -257,6 +266,104 @@ describe('SessionManager', () => {
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
+    store.close()
+  })
+
+  it('injects sessionId into broadcasts and persists task history on completion', async () => {
+    const events: Array<{ name: string; data: Record<string, unknown> }> = []
+    const broadcaster = {
+      broadcast: (name: string, data: unknown) => events.push({ name, data: data as Record<string, unknown> }),
+      addClient: () => undefined,
+      removeClient: () => undefined,
+    } as never
+
+    mockCreate.mockImplementation((deps: { task: { id: string }; emit: (n: string, d: unknown) => void }) => ({
+      run: async () => {
+        deps.emit('task.progress', {
+          taskId: deps.task.id,
+          event: { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 },
+          ts: 1,
+        })
+        deps.emit('task.complete', { taskId: deps.task.id, result: { summary: 'hi', artifacts: [] }, ts: 2 })
+        return { status: 'completed' as const, summary: 'hi', messages: [] }
+      },
+    }))
+
+    const store = createConversationStore(dbPath)
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { taskId } = manager.submitGoal(sessionId, 'say hi')
+
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(events.every((e) => typeof e.data.sessionId === 'string')).toBe(true)
+    expect(events.find((e) => e.name === 'task.created')?.data.sessionId).toBe(sessionId)
+    const history = store.getSessionTasks(sessionId).find((t) => t.id === taskId)?.history
+    expect(history).toEqual([{ kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 }])
+    store.close()
+  })
+
+  it('seeds each turn from the previous turn messages (continuity) and serializes per session', async () => {
+    const seeds: unknown[] = []
+    let resolveFirst: (() => void) | null = null
+    let firstStarted = false
+    mockCreate.mockImplementation((deps: { initialMessages: unknown }) => ({
+      run: async () => {
+        seeds.push(deps.initialMessages)
+        if (!firstStarted) {
+          firstStarted = true
+          await new Promise<void>((r) => { resolveFirst = r })
+          return { status: 'completed' as const, summary: 'a', messages: [{ role: 'assistant', content: 'a' }] as never }
+        }
+        return { status: 'completed' as const, summary: 'b', messages: [{ role: 'assistant', content: 'b' }] as never }
+      },
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createSseBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+
+    manager.submitGoal(sessionId, 'first')
+    manager.submitGoal(sessionId, 'second')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(seeds).toHaveLength(1)
+    expect(seeds[0]).toEqual([])
+
+    resolveFirst!()
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(seeds).toHaveLength(2)
+    expect(seeds[1]).toEqual([{ role: 'assistant', content: 'a' }])
+    expect(store.getAgentSnapshot(sessionId)).toEqual([{ role: 'assistant', content: 'b' }])
+    store.close()
+  })
+
+  it('sets the session title from the first goal', async () => {
+    mockCreate.mockImplementation(() => ({
+      run: async () => ({ status: 'completed' as const, summary: '', messages: [] }),
+    }))
+    const store = createConversationStore(dbPath)
+    const broadcaster = createSseBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    manager.submitGoal(sessionId, 'Organize my downloads folder')
+    expect(store.getSession(sessionId)?.title).toBe('Organize my downloads folder')
+    store.close()
+  })
+
+  it('lists sessions and returns a session tasks via the manager', () => {
+    mockCreate.mockImplementation(() => ({ run: async () => ({ status: 'completed' as const, summary: '', messages: [] }) }))
+    const store = createConversationStore(dbPath)
+    const broadcaster = createSseBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    manager.submitGoal(sessionId, 'g')
+    expect(manager.listSessions().map((s) => s.id)).toContain(sessionId)
+    expect(manager.getSessionTasks(sessionId).length).toBeGreaterThanOrEqual(1)
     store.close()
   })
 })
