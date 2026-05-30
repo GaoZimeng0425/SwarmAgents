@@ -2,7 +2,7 @@ import type { Task } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
 import type { TaskRecord, TaskStatus } from './apply-event'
 
-const STORED_TO_UI_STATUS: Record<string, TaskStatus> = {
+const STORED_TO_UI_STATUS: Partial<Record<Task['status'], TaskStatus>> = {
   pending: 'pending',
   planning: 'running',
   dispatched: 'running',
@@ -29,7 +29,7 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       id: t.id,
       sessionId,
       goal: t.goal,
-      status: STORED_TO_UI_STATUS[t.status] ?? 'completed',
+      status: STORED_TO_UI_STATUS[t.status] ?? 'failed',
       workerId: t.assignedWorkerId,
       summary: t.result?.summary ?? null,
       startedAt: t.createdAt,

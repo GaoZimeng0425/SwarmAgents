@@ -23,6 +23,13 @@ describe('sessions store', () => {
     expect(list[0].title).toBe('Renamed')
   })
 
+  it('upsert keeps two distinct sessions sorted newest-first', () => {
+    const { upsert } = useSessionsStore.getState()
+    upsert({ id: 'old', title: null, status: 'active', lastActiveAt: 1, taskCount: 0 })
+    upsert({ id: 'new', title: null, status: 'active', lastActiveAt: 9, taskCount: 0 })
+    expect(useSessionsStore.getState().sessions.map((s) => s.id)).toEqual(['new', 'old'])
+  })
+
   it('selects a session', () => {
     useSessionsStore.getState().select('x')
     expect(useSessionsStore.getState().selectedSessionId).toBe('x')
