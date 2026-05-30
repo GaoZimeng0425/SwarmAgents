@@ -25,9 +25,11 @@ export function AppSidebar(): React.JSX.Element {
               render={
                 // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
                 <Link
+                  // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
+                  activeProps={{ 'data-active': 'true' } as any}
+                  className="flex items-center gap-2"
                   // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over route const
                   to={'/skills' as any}
-                  className="flex items-center gap-2"
                 >
                   <Sparkles />
                   <span>Skills</span>
