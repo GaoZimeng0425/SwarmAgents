@@ -210,7 +210,12 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           }
           store.updateTaskStatus(taskId, status === 'completed' ? 'completed' : 'failed')
         } catch (err) {
-          log.error({ msg: 'runTurn error', err })
+          log.error({ msg: 'runTurn failed', taskId, err: err instanceof Error ? err.message : String(err) })
+          try {
+            store.updateTaskStatus(taskId, 'failed')
+          } catch (statusErr) {
+            log.error({ msg: 'failed to mark task failed', taskId, err: String(statusErr) })
+          }
         } finally {
           releaseSlot()
         }
