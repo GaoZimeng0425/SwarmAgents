@@ -42,11 +42,11 @@ export function useLoadSessions() {
       useSessionsStore.getState().setSessions(sessions)
       return sessions
     },
-    onSuccess: (sessions) => {
+    onSuccess: async (sessions) => {
       const current = useSessionsStore.getState().selectedSessionId
       if (!current && sessions[0]) {
         useSessionsStore.getState().select(sessions[0].id)
-        void hydrateSession(qc, sessions[0].id)
+        await hydrateSession(qc, sessions[0].id)
       }
     },
   })

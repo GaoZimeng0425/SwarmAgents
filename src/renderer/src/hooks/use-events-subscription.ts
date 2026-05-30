@@ -44,12 +44,13 @@ export function useEventsSubscription(): void {
     return swarmApi.subscribeEvents((e) => {
       qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => applyEvent(prev, e))
       if (e.kind === 'session.created' || e.kind === 'session.updated') {
+        const existing = useSessionsStore.getState().sessions.find((s) => s.id === e.sessionId)
         useSessionsStore.getState().upsert({
           id: e.sessionId,
           title: e.title,
           status: 'active',
           lastActiveAt: 'lastActiveAt' in e ? e.lastActiveAt : e.ts,
-          taskCount: 0,
+          taskCount: existing?.taskCount ?? 0,
         })
       }
       if (e.kind === 'task.permission_request') {
