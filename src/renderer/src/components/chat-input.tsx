@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProviderId, ProvidersStateView } from '@shared/types/provider'
 
 import { Button } from '@/components/ui/button'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { useProviders } from '@/hooks/use-providers'
 
@@ -62,18 +63,17 @@ export function ChatInput({ onSubmit, disabled }: Props): React.JSX.Element {
     <div className="shrink-0 border-t p-3">
       <div className="mx-auto flex max-w-3xl items-end gap-2">
         {options.length > 0 && (
-          <select
-            className="h-9 rounded border border-input bg-background px-2 text-sm"
+          <NativeSelect
             onChange={(e) => void onPickModel(e)}
             title="Active model"
             value={currentKey}
           >
             {options.map((o) => (
-              <option key={o.key} value={o.key}>
+              <NativeSelectOption key={o.key} value={o.key}>
                 {o.modelId}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         )}
         <Textarea
           className="max-h-40 min-h-9 flex-1 resize-none"

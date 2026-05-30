@@ -109,6 +109,17 @@ function summariseSeeOutput(stdout: string): SeeSummary {
   }
 }
 
+// peekaboo fails with a permission error when macOS Screen Recording /
+// Accessibility hasn't been granted. Surface an actionable hint so the agent
+// (and the user reading the transcript) knows where to fix it.
+const PERMISSION_RE = /screen[\s-]?record|screencapture|not authorized|accessibility|permission|tcc|cgpreflight/i
+
+function withPermissionHint(stderr: string, fallback: string): string {
+  const msg = stderr.trim() || fallback
+  if (!PERMISSION_RE.test(msg)) return msg
+  return `${msg}\n\nThis usually means a macOS permission is missing. Grant Screen Recording and Accessibility to SwarmAgents in System Settings → Privacy & Security (Settings → Permissions has status + shortcuts), then retry. Screen Recording changes may require relaunching the app.`
+}
+
 type ListAppsDetails = { length: number }
 
 // `deps.requestPermission` is unused for these read-only tools but kept so
@@ -132,7 +143,7 @@ export function buildPeekabooTools(_deps: Deps): AgentTool[] {
       const mode = (params as { mode?: 'screen' | 'frontmost' | 'window' }).mode ?? 'frontmost'
       const result = await runCli(['see', '--mode', mode, '--json'])
       if (!result.ok) {
-        throw new Error(result.stderr.trim() || 'peekaboo see failed')
+        throw new Error(withPermissionHint(result.stderr, 'peekaboo see failed'))
       }
       const { text, details } = summariseSeeOutput(result.stdout)
       return {
@@ -150,7 +161,7 @@ export function buildPeekabooTools(_deps: Deps): AgentTool[] {
     execute: async (): Promise<AgentToolResult<ListAppsDetails>> => {
       const result = await runCli(['list', 'apps', '--json'])
       if (!result.ok) {
-        throw new Error(result.stderr.trim() || 'peekaboo list failed')
+        throw new Error(withPermissionHint(result.stderr, 'peekaboo list failed'))
       }
       const text = result.stdout.slice(0, 4000)
       return {

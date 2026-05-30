@@ -1,8 +1,10 @@
+import { useEffect, useRef } from 'react'
+import { MessagesSquare } from 'lucide-react'
 import type { UIEvent } from '@shared/types/ui'
 import type { TaskEvent } from '@shared/types/task'
 
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import type { TaskRecord } from '@/lib/apply-event'
 
@@ -53,15 +55,28 @@ function bubblesFor(task: TaskRecord): Bubble[] {
 type Props = { tasks: TaskRecord[] }
 
 export function ConversationThread({ tasks }: Props): React.JSX.Element {
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
+  // Stick to the bottom as new bubbles arrive. Instant (block: 'end' / 'auto'),
+  // not smooth — 03 § C.4: smooth-scroll polyfills feel web-y, not native.
+  const tail = ordered.map((t) => `${t.id}:${t.events.length}:${t.status}`).join('|')
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `tail` is a change-signal — re-scroll whenever the thread grows
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end' })
+  }, [tail])
+
   if (tasks.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-        Send a message to start the conversation.
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+        <MessagesSquare aria-hidden="true" className="size-6 opacity-60" />
+        <p className="text-sm">Send a message to start the conversation.</p>
       </div>
     )
   }
 
-  const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
+  const last = ordered[ordered.length - 1]
+  const busy = last.status === 'running' || last.status === 'pending'
 
   return (
     <ScrollArea className="h-full">
@@ -88,7 +103,7 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
             }
             return (
               <details className={cn('rounded-lg border bg-background/50 px-3 py-1.5 text-xs')} key={b.key}>
-                <summary className="cursor-pointer select-none text-muted-foreground">{b.label}</summary>
+                <summary className="select-none text-muted-foreground">{b.label}</summary>
                 <pre className="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-all text-[11px] leading-relaxed">
                   {b.detail}
                 </pre>
@@ -96,9 +111,13 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
             )
           }),
         )}
-        <div className="flex justify-center pt-1">
-          <Badge variant="outline">{ordered[ordered.length - 1].status}</Badge>
-        </div>
+        {busy && (
+          <div className="flex items-center gap-2 px-1 text-muted-foreground text-sm">
+            <Spinner className="size-3.5" />
+            <span>{last.status === 'pending' ? 'Queued…' : 'Working…'}</span>
+          </div>
+        )}
+        <div ref={bottomRef} />
       </div>
     </ScrollArea>
   )

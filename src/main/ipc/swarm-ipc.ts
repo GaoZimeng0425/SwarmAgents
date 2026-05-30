@@ -6,6 +6,7 @@ import type { ServiceClient } from '../service-client'
 import type { Service as ProvidersService } from '../providers'
 import { getAccent, subscribeAccent } from '../system/accent'
 import { showNativeConfirm } from '../system/confirm'
+import { getMacPermissions, openPrivacySettings } from '../system/permissions'
 import { getMainWindow } from '../windows/main-window'
 import { openSettings } from '../windows/settings-window'
 
@@ -106,8 +107,15 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:openSettings', handleOpenSettings)
 
+  ipcMain.handle('system:getMacPermissions', () => getMacPermissions())
+  const handleOpenPrivacySettings = (_e: Electron.IpcMainInvokeEvent, pane: unknown): Promise<void> =>
+    openPrivacySettings(pane === 'accessibility' ? 'accessibility' : 'screen')
+  ipcMain.handle('system:openPrivacySettings', handleOpenPrivacySettings)
+
   return {
     dispose(): void {
+      ipcMain.removeHandler('system:openPrivacySettings')
+      ipcMain.removeHandler('system:getMacPermissions')
       ipcMain.removeHandler('system:openSettings')
       ipcMain.removeHandler('system:showConfirm')
       ipcMain.removeHandler('system:getAccent')

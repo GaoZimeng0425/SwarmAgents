@@ -89,6 +89,15 @@ export type ProvidersBridge = {
   onDecryptFailed(cb: () => void): () => void
 }
 
+/** Status of a macOS TCC permission. 'unsupported' on non-macOS platforms. */
+export type MacPermissionState = 'granted' | 'denied' | 'not-determined' | 'unsupported'
+
+/** macOS permissions the peekaboo screen tools depend on. */
+export type MacPermissions = {
+  screenRecording: MacPermissionState
+  accessibility: MacPermissionState
+}
+
 /**
  * The shape exposed to the renderer via contextBridge as `window.swarm`.
  */
@@ -109,6 +118,10 @@ export type SwarmBridge = {
   showConfirm(req: ConfirmRequest): Promise<ConfirmResponse>
   /** Open the Settings window. Optional initialRoute selects which tab to land on. */
   openSettings(opts?: { initialRoute?: string }): Promise<void>
+  /** Current macOS screen-recording / accessibility permission status. */
+  getMacPermissions(): Promise<MacPermissions>
+  /** Open the relevant macOS Privacy & Security settings pane. No-op off macOS. */
+  openPrivacySettings(pane: 'screen' | 'accessibility'): Promise<void>
   providers: ProvidersBridge
 }
 

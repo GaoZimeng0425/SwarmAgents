@@ -7,7 +7,11 @@ import { TitleBar } from '@/components/title-bar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 
-const RouterDevtools = import.meta.env.DEV
+// Opt-in only — devtools overlap the UI and interfere with manual/automated UI
+// testing. Enable with `VITE_ROUTER_DEVTOOLS=true pnpm dev`.
+const SHOW_ROUTER_DEVTOOLS = import.meta.env.DEV && import.meta.env.VITE_ROUTER_DEVTOOLS === 'true'
+
+const RouterDevtools = SHOW_ROUTER_DEVTOOLS
   ? lazy(() => import('@tanstack/react-router-devtools').then((m) => ({ default: m.TanStackRouterDevtools })))
   : (): null => null
 
@@ -20,12 +24,14 @@ function RootLayout(): React.JSX.Element {
       <EventsBridge />
       <AppSidebar />
       <SidebarInset>
-        <main className="h-full pt-7">
+        {/* 06 § Materials: content pane reads as more opaque than the
+            translucent vibrancy sidebar. --window-content is the material hook. */}
+        <main className="h-full bg-[var(--window-content)] pt-7">
           <Outlet />
         </main>
       </SidebarInset>
       <Toaster />
-      {import.meta.env.DEV && (
+      {SHOW_ROUTER_DEVTOOLS && (
         <Suspense fallback={null}>
           <RouterDevtools position="bottom-right" />
         </Suspense>

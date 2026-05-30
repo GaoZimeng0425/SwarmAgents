@@ -23,11 +23,10 @@ mac:
   category: public.app-category.productivity
   icon: resources/icon.icns
   entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  # Screen Recording + Accessibility (used by the peekaboo screen tools) are
+  # TCC permissions granted at runtime in System Settings — they have no
+  # Info.plist usage-description keys, so nothing to declare here. If click/type
+  # automation is added later, add NSAppleEventsUsageDescription.
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
