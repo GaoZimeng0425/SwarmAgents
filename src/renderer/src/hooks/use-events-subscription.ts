@@ -6,10 +6,12 @@ import { TASKS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { applyEvent, type TaskRecord } from '@/lib/apply-event'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
+import { useSessionsStore } from '@/stores/sessions'
 
 function buildPrompt(e: Extract<UIEvent, { kind: 'task.permission_request' }>): PermissionPrompt {
   return {
     actionId: e.actionId,
+    sessionId: e.sessionId,
     taskId: e.taskId,
     workerId: e.workerId,
     risk: e.risk,
@@ -31,7 +33,7 @@ async function handleHighRisk(e: Extract<UIEvent, { kind: 'task.permission_reque
       { label: 'Allow', role: 'grant' },
     ],
   })
-  await window.swarm.decidePermission(e.actionId, role)
+  await window.swarm.decidePermission(e.sessionId, e.actionId, role)
 }
 
 export function useEventsSubscription(): void {
@@ -41,6 +43,15 @@ export function useEventsSubscription(): void {
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
       qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => applyEvent(prev, e))
+      if (e.kind === 'session.created' || e.kind === 'session.updated') {
+        useSessionsStore.getState().upsert({
+          id: e.sessionId,
+          title: e.title,
+          status: 'active',
+          lastActiveAt: 'lastActiveAt' in e ? e.lastActiveAt : e.ts,
+          taskCount: 0,
+        })
+      }
       if (e.kind === 'task.permission_request') {
         if (e.risk === 'high') {
           // Native dialog; do NOT push into the drawer queue.

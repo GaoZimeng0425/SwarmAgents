@@ -3,6 +3,7 @@ import { create } from 'zustand'
 
 export type PermissionPrompt = {
   actionId: string
+  sessionId: string
   taskId: string
   workerId: string | null
   risk: Risk

@@ -4,6 +4,7 @@ import { type PermissionPrompt, usePermissionStore } from './permission'
 
 const mk = (actionId: string): PermissionPrompt => ({
   actionId,
+  sessionId: 'ses-1',
   taskId: 't1',
   workerId: 'w1',
   risk: 'medium',
