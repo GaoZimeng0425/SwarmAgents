@@ -23,7 +23,6 @@ export function AppSidebar(): React.JSX.Element {
           <SidebarMenuItem>
             <SidebarMenuButton
               render={
-                // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
                 <Link
                   // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
                   activeProps={{ 'data-active': 'true' } as any}

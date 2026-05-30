@@ -2,6 +2,8 @@ import type { Task } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
 import type { TaskRecord, TaskStatus } from './apply-event'
 
+// Keys are the persisted Task['status'] string values, so snake_case is required here.
+// biome-ignore lint/style/useNamingConvention: keys mirror stored status values verbatim
 const STORED_TO_UI_STATUS: Partial<Record<Task['status'], TaskStatus>> = {
   pending: 'pending',
   planning: 'running',

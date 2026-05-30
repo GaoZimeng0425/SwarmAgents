@@ -18,9 +18,9 @@ export function TasksView(): React.JSX.Element {
   const { ready } = useProviders()
 
   // Load the session list once on mount.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
   useEffect(() => {
     loadSessions.mutate()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
