@@ -42,7 +42,7 @@ app.whenReady().then(async () => {
   })
 
   const serviceEntry = join(__dirname, 'service.js')
-  let serviceProcess = fork(serviceEntry, [], {
+  const serviceProcess = fork(serviceEntry, [], {
     env: {
       ...process.env,
       SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),

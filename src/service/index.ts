@@ -32,7 +32,7 @@ const server = createServer({
 server.listen(0, '127.0.0.1', () => {
   const addr = server.address() as { port: number }
   const out = JSON.stringify({ type: 'service-started', port: addr.port })
-  process.stdout.write(out + '\n')
+  process.stdout.write(`${out}\n`)
   log.info({ msg: 'service started', port: addr.port, dbPath })
 })
 

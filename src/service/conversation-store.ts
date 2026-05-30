@@ -75,7 +75,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   `)
 
   for (const stmt of [
-    `ALTER TABLE sessions ADD COLUMN title TEXT`,
+    'ALTER TABLE sessions ADD COLUMN title TEXT',
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,
   ]) {
     try {
@@ -116,9 +116,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot)
      VALUES (?, ?, ?, 'active', ?, NULL, '[]')`,
   )
-  const stmtGetSession = db.prepare(`SELECT * FROM sessions WHERE id = ?`)
-  const stmtUpdateStatus = db.prepare(`UPDATE sessions SET status = ? WHERE id = ?`)
-  const stmtUpdateLastActive = db.prepare(`UPDATE sessions SET last_active_at = ? WHERE id = ?`)
+  const stmtGetSession = db.prepare('SELECT * FROM sessions WHERE id = ?')
+  const stmtUpdateStatus = db.prepare('UPDATE sessions SET status = ? WHERE id = ?')
+  const stmtUpdateLastActive = db.prepare('UPDATE sessions SET last_active_at = ? WHERE id = ?')
 
   const markAndGetInterrupted = db.transaction((): StoredSession[] => {
     const active = db.prepare(`SELECT * FROM sessions WHERE status = 'active'`).all() as Record<string, unknown>[]
@@ -134,21 +134,21 @@ export function createConversationStore(dbPath: string): ConversationStore {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   const stmtUpdateTask = db.prepare(
-    `UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?`,
+    'UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?',
   )
-  const stmtGetTasks = db.prepare(`SELECT * FROM tasks WHERE session_id = ?`)
+  const stmtGetTasks = db.prepare('SELECT * FROM tasks WHERE session_id = ?')
   const stmtUpsertToolState = db.prepare(
     `INSERT OR REPLACE INTO tool_state_snapshots (session_id, key, value, updated_at)
      VALUES (?, ?, ?, ?)`,
   )
   const stmtGetToolState = db.prepare(
-    `SELECT value FROM tool_state_snapshots WHERE session_id = ? AND key = ?`,
+    'SELECT value FROM tool_state_snapshots WHERE session_id = ? AND key = ?',
   )
 
-  const stmtSetTitle = db.prepare(`UPDATE sessions SET title = ? WHERE id = ?`)
-  const stmtSetSnapshot = db.prepare(`UPDATE sessions SET agent_snapshot = ? WHERE id = ?`)
-  const stmtGetSnapshot = db.prepare(`SELECT agent_snapshot FROM sessions WHERE id = ?`)
-  const stmtSetTaskHistory = db.prepare(`UPDATE tasks SET history = ? WHERE id = ?`)
+  const stmtSetTitle = db.prepare('UPDATE sessions SET title = ? WHERE id = ?')
+  const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
+  const stmtGetSnapshot = db.prepare('SELECT agent_snapshot FROM sessions WHERE id = ?')
+  const stmtSetTaskHistory = db.prepare('UPDATE tasks SET history = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
     `SELECT s.id, s.title, s.status, s.last_active_at AS lastActiveAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
