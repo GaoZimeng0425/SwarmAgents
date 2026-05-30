@@ -1,7 +1,6 @@
 import { createLogger } from '@shared/logger'
 import { type ConfirmRequest, ConfirmRequestSchema, type ConfirmResponse } from '@shared/types/ipc'
 import { BrowserWindow, ipcMain } from 'electron'
-import { ulid } from 'ulid'
 
 import type { ServiceClient } from '../service-client'
 import type { Service as ProvidersService } from '../providers'
@@ -18,74 +17,55 @@ export function wireSwarmIpc(args: {
 }): { dispose: () => void } {
   const { serviceClient, providers } = args
 
-  // One global session per provider (simple initial approach); created lazily.
-  let currentSessionId: string | null = null
-  let sessionCreationPromise: Promise<string> | null = null
-
   // ---- Renderer → Main RPC handlers ----
 
-  const submitGoal = async (_e: Electron.IpcMainInvokeEvent, goal: string): Promise<{ taskId: string }> => {
+  const createSession = async (): Promise<{ sessionId: string }> => {
+    const injection = providers.getInjection()
+    if (!injection) throw new Error('Configure an API key in Settings before starting a chat.')
+    const { sessionId } = await serviceClient.createSession(injection)
+    log.info({ msg: 'session created', sessionId, provider: injection.id })
+    return { sessionId }
+  }
+
+  const listSessions = (): Promise<import('@shared/types/ui').SessionSummary[]> => serviceClient.listSessions()
+
+  const getSessionTasks = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
+    serviceClient.getSessionTasks(sessionId)
+
+  const submitGoal = async (
+    _e: Electron.IpcMainInvokeEvent,
+    sessionId: string,
+    goal: string,
+  ): Promise<{ taskId: string }> => {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
     }
     const trimmedGoal = goal.trim()
-    const injection = providers.getInjection()
-    if (!injection) {
-      // Defense-in-depth: the main-window banner should make this unreachable,
-      // but a race between state-change and click can land here. Surface a
-      // typed task.error event so the timeline shows the failed task, instead
-      // of throwing a generic IPC rejection the renderer can't classify.
-      const failTaskId = ulid()
-      const now = Date.now()
-      for (const w of BrowserWindow.getAllWindows()) {
-        if (!w.isDestroyed()) {
-          w.webContents.send('swarm:event', { kind: 'task.created', taskId: failTaskId, goal: trimmedGoal, ts: now })
-          w.webContents.send('swarm:event', {
-            kind: 'task.error',
-            taskId: failTaskId,
-            error: {
-              code: 'no_provider',
-              message: 'Configure an API key in Settings before starting tasks.',
-              tier: 'fatal',
-            },
-            ts: now,
-          })
-        }
-      }
-      log.warn({ msg: 'submit rejected: no active provider', taskId: failTaskId })
-      return { taskId: failTaskId }
-    }
-
-    if (!currentSessionId) {
-      if (!sessionCreationPromise) {
-        sessionCreationPromise = serviceClient.createSession(injection)
-          .then(({ sessionId }) => { currentSessionId = sessionId; return sessionId })
-          .finally(() => { sessionCreationPromise = null })
-      }
-      await sessionCreationPromise
-    }
-    const { taskId } = await serviceClient.submitGoal(currentSessionId!, trimmedGoal)
-    log.info({ msg: 'task submitted', taskId, goal: trimmedGoal, provider: injection.id })
+    const { taskId } = await serviceClient.submitGoal(sessionId, trimmedGoal)
+    log.info({ msg: 'task submitted', sessionId, taskId })
     return { taskId }
   }
 
-  const cancelTask = async (_e: Electron.IpcMainInvokeEvent, taskId: string): Promise<void> => {
-    if (currentSessionId) {
-      await serviceClient.cancelTask(currentSessionId, taskId)
-    }
-    log.info({ msg: 'cancelTask requested', taskId })
+  const cancelTask = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, taskId: string): Promise<void> => {
+    await serviceClient.cancelTask(sessionId, taskId)
+    log.info({ msg: 'cancelTask requested', sessionId, taskId })
   }
 
-  const decidePermission = (_e: Electron.IpcMainInvokeEvent, actionId: string, decision: string): void => {
-    if (!currentSessionId) {
-      log.warn({ msg: 'no active session for decidePermission', actionId })
-      return
-    }
-    void serviceClient.decidePermission(currentSessionId, actionId, decision as import('@shared/types/ui').PermissionDecision)
+  const decidePermission = (
+    _e: Electron.IpcMainInvokeEvent,
+    sessionId: string,
+    actionId: string,
+    decision: string,
+  ): void => {
+    void serviceClient
+      .decidePermission(sessionId, actionId, decision as import('@shared/types/ui').PermissionDecision)
       .catch((err: unknown) => log.warn({ msg: 'decidePermission failed', err: String(err) }))
-    log.info({ msg: 'permission decided', actionId, decision })
+    log.info({ msg: 'permission decided', sessionId, actionId, decision })
   }
 
+  ipcMain.handle('swarm:createSession', () => createSession())
+  ipcMain.handle('swarm:listSessions', () => listSessions())
+  ipcMain.handle('swarm:getSessionTasks', getSessionTasks)
   ipcMain.handle('swarm:submitGoal', submitGoal)
   ipcMain.handle('swarm:cancelTask', cancelTask)
   ipcMain.handle('swarm:decidePermission', decidePermission)
@@ -128,6 +108,9 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:showConfirm')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
+      ipcMain.removeHandler('swarm:createSession')
+      ipcMain.removeHandler('swarm:listSessions')
+      ipcMain.removeHandler('swarm:getSessionTasks')
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')
       ipcMain.removeHandler('swarm:decidePermission')

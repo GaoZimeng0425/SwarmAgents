@@ -50,10 +50,16 @@ const providers: ProvidersBridge = {
 }
 
 const swarm: SwarmBridge = {
-  submitGoal: (goal) => ipcRenderer.invoke('swarm:submitGoal', goal) as Promise<SubmitGoalResult>,
-  cancelTask: (taskId) => ipcRenderer.invoke('swarm:cancelTask', taskId) as Promise<void>,
-  decidePermission: (actionId, decision: PermissionDecision) =>
-    ipcRenderer.invoke('swarm:decidePermission', actionId, decision) as Promise<void>,
+  submitGoal: (sessionId, goal) => ipcRenderer.invoke('swarm:submitGoal', sessionId, goal) as Promise<SubmitGoalResult>,
+  cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
+  decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
+    ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
+  sessions: {
+    list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('../shared/types/ui').SessionSummary[]>,
+    create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
+    getTasks: (sessionId: string) =>
+      ipcRenderer.invoke('swarm:getSessionTasks', sessionId) as Promise<import('../shared/types/task').Task[]>,
+  },
   subscribeEvents: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: UIEvent): void => cb(payload)
     ipcRenderer.on(IPC_EVENT_CHANNEL, listener)

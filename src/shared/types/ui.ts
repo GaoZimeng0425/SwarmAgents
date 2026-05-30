@@ -93,9 +93,14 @@ export type ProvidersBridge = {
  * The shape exposed to the renderer via contextBridge as `window.swarm`.
  */
 export type SwarmBridge = {
-  submitGoal(goal: string): Promise<SubmitGoalResult>
-  cancelTask(taskId: string): Promise<void>
-  decidePermission(actionId: string, decision: PermissionDecision): Promise<void>
+  submitGoal(sessionId: string, goal: string): Promise<SubmitGoalResult>
+  cancelTask(sessionId: string, taskId: string): Promise<void>
+  decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
+  sessions: {
+    list(): Promise<SessionSummary[]>
+    create(): Promise<{ sessionId: string }>
+    getTasks(sessionId: string): Promise<import('./task').Task[]>
+  }
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** Get the current system accent color (RRGGBBAA hex). Returns null on unsupported platforms. */
   getAccent(): Promise<string | null>
