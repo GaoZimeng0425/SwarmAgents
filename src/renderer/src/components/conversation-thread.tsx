@@ -23,6 +23,7 @@ function bubblesFor(task: TaskRecord): Bubble[] {
     const key = `${task.id}-${i}`
     if (e.kind === 'task.progress') {
       const ev = e.event
+      // user/tool-role messages are internal context, not shown as chat bubbles
       if (ev.kind === 'llm.message' && ev.role === 'assistant') {
         out.push({
           kind: 'assistant',
@@ -33,6 +34,8 @@ function bubblesFor(task: TaskRecord): Bubble[] {
         out.push({ kind: 'event', label: `tool · ${ev.tool}`, detail: JSON.stringify(ev.args ?? {}, null, 2), key })
       } else if (ev.kind === 'tool.result') {
         out.push({ kind: 'event', label: ev.ok ? 'tool result' : 'tool error', detail: toolDetail(ev), key })
+      } else if (ev.kind === 'error') {
+        out.push({ kind: 'event', label: 'error', detail: ev.error.message ?? 'error', key })
       }
     } else if (e.kind === 'task.permission_request') {
       out.push({ kind: 'event', label: `permission (${e.risk})`, detail: e.summary, key })

@@ -80,7 +80,7 @@ export function ChatInput({ onSubmit, disabled }: Props): React.JSX.Element {
           disabled={disabled}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
               void submit()
             }
