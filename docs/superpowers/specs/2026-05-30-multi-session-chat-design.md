@@ -48,28 +48,37 @@ rail (`app-sidebar.tsx`) is icon-only nav (Tasks / Skills / Settings).
 
 ## Key Architectural Decision: conversation continuity
 
-**Chosen: Approach A — live `Agent` cache + message snapshot.**
+**Chosen: message-reseed continuity — the store's `agent_snapshot` is the single
+source of truth, reseeded into the runner each turn.**
 
-Each session holds an optional long-lived pi `Agent` in memory. Follow-up goals
-call `agent.prompt(goal)` on the same instance, so context continues naturally
-(pi's `Agent` accumulates messages internally and natively supports follow-up
-prompts). After each turn completes, `agent.state.messages` is snapshotted to the
-store. On restart — or the first goal to a session whose live agent is absent — the
-`Agent` is recreated with `initialState.messages` seeded from the stored snapshot.
+The agent-runner already owns the pi `Agent` lifecycle (it constructs a fresh
+`Agent` per `run()`). Rather than hoisting a long-lived `Agent` up to the session
+(a sizable refactor for no behavior gain), each turn:
 
-The store snapshot is the source of truth; the live `Agent` is a cache of it. This
-collapses "live continuity" and "restart recovery" into a single `messages`
-snapshot path.
+1. session-manager reads the session's current `AgentMessage[]` (in-memory cache,
+   loaded from `agent_snapshot` if cold) and passes it to the runner as
+   `initialMessages`.
+2. the runner constructs the `Agent` with `initialState.messages = initialMessages`,
+   calls `agent.prompt(goal)`, and returns the post-turn `agent.state.messages`.
+3. session-manager writes those messages back to the session cache **and**
+   `store.saveAgentSnapshot(sessionId, messages)`.
 
-Verified API support (`@earendil-works/pi-agent-core/dist/agent.d.ts`):
-`agent.state.messages` is readable (assigning it copies the array), `prompt()`
-supports follow-up calls, and `initialState.messages` is writable.
+A **per-session serial queue** guarantees one turn at a time per session, so the
+snapshot never races; cross-session parallelism is unchanged.
+
+This delivers identical user-facing behavior to a live-Agent cache (follow-ups see
+prior turns; context survives restart) while keeping the `Agent` inside the runner —
+simpler and unit-testable by mocking the runner's returned messages.
+
+Verified API support (`@earendil-works/pi-agent-core` root exports):
+`agent.state.messages` is readable (assigning copies the array), `initialState.messages`
+is writable, and `AgentMessage`/`AgentState` are exported from the package root.
 
 Rejected alternatives:
-- **B. Stateless re-seed each turn** — rebuild the `Agent` from stored messages
-  every turn. Conceptually clean but rebuilds per turn and forgoes pi's internal
-  follow-up queue. Kept as a fallback if live-agent lifecycle proves troublesome.
-- **C. In-memory only, no context persistence** — context lost on restart. Rejected
+- **Live `Agent` per session** — reuse one `Agent` instance across turns. Requires
+  moving `Agent` ownership out of the runner; identical behavior, more lifecycle
+  code, harder to unit-test. Not worth it.
+- **In-memory only, no context persistence** — context lost on restart. Rejected
   because persistence was required and it would desync agent context from the
   replayed UI thread.
 
@@ -92,13 +101,13 @@ Rejected alternatives:
 - `GET /sessions/:id/tasks` → that session's tasks each with their `history`
   (for replay on switch/restart).
 - `session-manager`:
-  - Each session holds an optional live `Agent`.
-  - **Per-session serial queue:** within one session only one `prompt` runs at a
-    time; cross-session parallelism is preserved via the existing `maxConcurrent`
-    semaphore.
-  - First goal to a session with no live agent → create the `Agent` seeded with
-    `initialState.messages` from `agent_snapshot` (empty for brand-new sessions).
-  - After each turn → write the `agent_snapshot`.
+  - Each session caches its `AgentMessage[]` in memory (loaded from `agent_snapshot`
+    when cold).
+  - **Per-session serial queue:** within one session only one turn runs at a time;
+    cross-session parallelism is preserved via the existing `maxConcurrent` semaphore.
+  - Each turn passes the cached messages to the runner as `initialMessages`; the
+    runner returns post-turn `agent.state.messages`.
+  - After each turn → update the cache and write `store.saveAgentSnapshot`.
 
 ### Event protocol — `shared/types/ui.ts`
 
