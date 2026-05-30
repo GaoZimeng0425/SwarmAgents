@@ -47,8 +47,12 @@ export function wireSwarmIpc(args: {
   }
 
   const cancelTask = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, taskId: string): Promise<void> => {
-    await serviceClient.cancelTask(sessionId, taskId)
-    log.info({ msg: 'cancelTask requested', sessionId, taskId })
+    try {
+      await serviceClient.cancelTask(sessionId, taskId)
+      log.info({ msg: 'cancelTask requested', sessionId, taskId })
+    } catch (err) {
+      log.warn({ msg: 'cancelTask failed', sessionId, taskId, err: String(err) })
+    }
   }
 
   const decidePermission = (
