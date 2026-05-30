@@ -12,11 +12,12 @@ import type { ApiStyle, ProviderId, ProvidersStateView } from './provider'
 import type { TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
-  | { kind: 'task.created'; taskId: string; goal: string; ts: number }
-  | { kind: 'task.dispatched'; taskId: string; workerId: string; ts: number }
-  | { kind: 'task.progress'; taskId: string; event: TaskEvent; ts: number }
+  | { kind: 'task.created'; sessionId: string; taskId: string; goal: string; ts: number }
+  | { kind: 'task.dispatched'; sessionId: string; taskId: string; workerId: string; ts: number }
+  | { kind: 'task.progress'; sessionId: string; taskId: string; event: TaskEvent; ts: number }
   | {
       kind: 'task.tool_call'
+      sessionId: string
       taskId: string
       workerId: string
       tool: string
@@ -25,6 +26,7 @@ export type UIEvent =
     }
   | {
       kind: 'task.permission_request'
+      sessionId: string
       taskId: string
       workerId: string
       actionId: string
@@ -33,16 +35,27 @@ export type UIEvent =
       payload: unknown
       ts: number
     }
-  | { kind: 'task.complete'; taskId: string; summary: string; ts: number }
-  | { kind: 'task.error'; taskId: string; error: unknown; ts: number }
-  | { kind: 'task.handoff.spawned'; parentTaskId: string; childTaskId: string; ts: number }
+  | { kind: 'task.complete'; sessionId: string; taskId: string; summary: string; ts: number }
+  | { kind: 'task.error'; sessionId: string; taskId: string; error: unknown; ts: number }
+  | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number }
   | {
       kind: 'task.handoff.completed'
+      sessionId: string
       parentTaskId: string
       childTaskId: string
       childSummary: string
       ts: number
     }
+  | { kind: 'session.created'; sessionId: string; title: string | null; ts: number }
+  | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number }
+
+export type SessionSummary = {
+  id: string
+  title: string | null
+  status: 'active' | 'interrupted' | 'ended'
+  lastActiveAt: number
+  taskCount: number
+}
 
 export type PermissionDecision = 'grant' | 'deny' | 'skip'
 
