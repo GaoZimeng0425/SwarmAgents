@@ -4,6 +4,7 @@ export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'await
 
 export type TaskRecord = {
   id: string
+  sessionId: string
   goal: string
   status: TaskStatus
   workerId: string | null
@@ -23,6 +24,7 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
   if (e.kind === 'task.created') {
     const created: TaskRecord = {
       id: e.taskId,
+      sessionId: e.sessionId,
       goal: e.goal,
       status: 'pending',
       workerId: null,
@@ -38,6 +40,7 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
   if (idx === -1) {
     const stub: TaskRecord = {
       id: taskId,
+      sessionId: 'sessionId' in e ? (e.sessionId as string) : '',
       goal: '(unknown task)',
       status: 'running',
       workerId: null,

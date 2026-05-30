@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { applyEvent, type TaskRecord } from './apply-event'
 
-const baseEvent = { ts: 1, taskId: 't1' as const }
+const baseEvent = { ts: 1, taskId: 't1' as const, sessionId: 'ses-1' }
 
 describe('applyEvent', () => {
   it('creates a task on task.created', () => {
@@ -15,6 +15,7 @@ describe('applyEvent', () => {
     const seed: TaskRecord[] = [
       {
         id: 't1',
+        sessionId: 'ses-1',
         goal: 'do x',
         status: 'pending',
         workerId: null,
@@ -32,6 +33,7 @@ describe('applyEvent', () => {
     const seed: TaskRecord[] = [
       {
         id: 't1',
+        sessionId: 'ses-1',
         goal: 'g',
         status: 'running',
         workerId: 'w1',
@@ -49,6 +51,7 @@ describe('applyEvent', () => {
     const seed: TaskRecord[] = [
       {
         id: 't1',
+        sessionId: 'ses-1',
         goal: 'g',
         status: 'running',
         workerId: 'w1',
@@ -69,6 +72,7 @@ describe('applyEvent', () => {
     const seed: TaskRecord[] = [
       {
         id: 't1',
+        sessionId: 'ses-1',
         goal: 'g',
         status: 'running',
         workerId: 'w1',
@@ -93,5 +97,12 @@ describe('applyEvent', () => {
     const next = applyEvent([], { kind: 'task.dispatched', ...baseEvent, workerId: 'w1' })
     expect(next).toHaveLength(1)
     expect(next[0].id).toBe('t1')
+  })
+
+  it('stamps sessionId onto the created record', () => {
+    const out = applyEvent([], {
+      kind: 'task.created', sessionId: 'ses-1', taskId: 't1', goal: 'g', ts: 1,
+    })
+    expect(out[0].sessionId).toBe('ses-1')
   })
 })
