@@ -12,3 +12,5 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   protobufjs: false
+patchedDependencies:
+  better-sqlite3@12.10.0: patches/better-sqlite3@12.10.0.patch
