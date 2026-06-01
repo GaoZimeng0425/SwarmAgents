@@ -8,6 +8,7 @@ export type ToolSource = 'builtin' | 'mcp'
 
 export interface ToolRunContext {
   taskId: string
+  // parentTaskId is bound externally when constructing the context (see agent-runner runCtx).
   spawnChild(
     goal: string,
     suggestedTools?: string[],

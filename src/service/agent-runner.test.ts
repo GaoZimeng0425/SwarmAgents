@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createAgentRunner } from './agent-runner'
-import type { Task } from '@shared/types/task'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { Task } from '@shared/types/task'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createAgentRunner } from './agent-runner'
+import { createToolRegistry } from './tools/registry'
 
 const MockAgent = vi.hoisted(() => vi.fn())
 
@@ -31,11 +33,20 @@ vi.mock('@earendil-works/pi-ai', () => ({
 }))
 
 const mkTask = (id: string): Task => ({
-  id, parentId: null, agentDefId: 'default', goal: 'test goal',
-  status: 'pending', assignedWorkerId: null, toolAllowlist: [],
+  id,
+  parentId: null,
+  agentDefId: 'default',
+  goal: 'test goal',
+  status: 'pending',
+  assignedWorkerId: null,
+  toolAllowlist: [],
   budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
   used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-  history: [], result: null, createdAt: Date.now(), startedAt: null, endedAt: null,
+  history: [],
+  result: null,
+  createdAt: Date.now(),
+  startedAt: null,
+  endedAt: null,
 })
 
 describe('AgentRunner', () => {
@@ -54,6 +65,7 @@ describe('AgentRunner', () => {
       spawnChild: vi.fn(),
       sessionId: 'ses-1',
       initialMessages: [],
+      toolRegistry: createToolRegistry(),
     })
     const result = await runner.run()
     expect(result.status).toBe('failed')
@@ -72,7 +84,9 @@ describe('AgentRunner', () => {
     MockAgent.mockImplementation(function (this: unknown, opts: { initialState?: { messages?: unknown } }) {
       capturedInitial = opts.initialState?.messages
       Object.defineProperty(this, 'state', {
-        get() { return { messages: [{ role: 'assistant', content: 'reply' }] } },
+        get() {
+          return { messages: [{ role: 'assistant', content: 'reply' }] }
+        },
         configurable: true,
       })
       ;(this as Record<string, unknown>).subscribe = () => undefined
@@ -88,6 +102,7 @@ describe('AgentRunner', () => {
       permissionRegistry: { request: vi.fn(async () => 'grant' as const), resolve: vi.fn() },
       spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
       initialMessages: seed,
+      toolRegistry: createToolRegistry(),
     })
 
     const out = await runner.run()

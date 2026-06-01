@@ -1,5 +1,5 @@
+import type { AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { AgentEvent, AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Api, KnownProvider, Model } from '@earendil-works/pi-ai'
 import { getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
@@ -9,7 +9,7 @@ import { ANTHROPIC_MODEL_SUGGESTIONS, type ApiStyle, OPENAI_MODEL_SUGGESTIONS } 
 import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
 
 import type { PermissionRegistry } from './permission-registry'
-import { buildPeekabooTools } from './tools/peekaboo'
+import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
 
 const log = createLogger({
   process: 'service',
@@ -72,12 +72,13 @@ export type AgentRunnerDeps = {
   sessionId: string
   emit: EmitFn
   permissionRegistry: PermissionRegistry
+  toolRegistry: ToolRegistry
   initialMessages: AgentMessage[]
   spawnChild(
     parentTaskId: string,
     newGoal: string,
     suggestedTools?: string[],
-    providerKey?: string,
+    providerKey?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
 }
 
@@ -96,7 +97,7 @@ export type AgentRunner = {
  */
 function createEventTranslator(
   taskId: string,
-  emit: EmitFn,
+  emit: EmitFn
 ): {
   handle: (e: AgentEvent) => void
   getFinalSummary: () => string
@@ -172,7 +173,17 @@ function createEventTranslator(
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
     async run(): Promise<{ status: 'completed' | 'failed'; summary: string; messages: AgentMessage[] }> {
-      const { task, provider, agentDefinition, sessionId, emit, permissionRegistry, spawnChild, initialMessages } = deps
+      const {
+        task,
+        provider,
+        agentDefinition,
+        sessionId,
+        emit,
+        permissionRegistry,
+        spawnChild,
+        initialMessages,
+        toolRegistry,
+      } = deps
       const taskLog = log.child({ taskId: task.id })
       taskLog.info({
         msg: 'createAgentRunner.run entered',
@@ -198,48 +209,19 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         return { status: 'failed', summary: '', messages: initialMessages }
       }
 
-      let tools: ReturnType<typeof buildPeekabooTools>
+      let tools: AgentTool[]
+      let riskOf: (name: string) => ToolRisk
       let model: Model<Api>
       try {
-        // Permission checking is handled centrally in `beforeToolCall`.
-        // Peekaboo tool executors must not call requestPermission directly,
-        // which would cause a double prompt. Pass a no-op here so the
-        // Deps signature is satisfied without creating a second gate.
-        tools = buildPeekabooTools({
+        const runCtx: ToolRunContext = {
+          taskId: task.id,
+          spawnChild: (goal, suggestedTools, providerKey) => spawnChild(task.id, goal, suggestedTools, providerKey),
           send: () => undefined,
           requestPermission: () => Promise.resolve('grant' as const),
-        })
-
-        // Add spawn tool when spawnChild is provided
-        const { Type } = await import('@earendil-works/pi-ai')
-        const SpawnParams = Type.Object({
-          goal: Type.String({ description: 'The goal for the sub-agent to accomplish.' }),
-          suggestedTools: Type.Optional(
-            Type.Array(Type.String(), { description: 'Tool scopes to make available (e.g. ["peekaboo"]).' })
-          ),
-          providerKey: Type.Optional(
-            Type.String({ description: 'Key of a configured provider to use for this sub-agent. Defaults to current session provider.' })
-          ),
-        })
-        tools = [
-          ...tools,
-          {
-            name: 'spawn_sub_agent',
-            label: 'Spawn sub-agent',
-            description:
-              'Delegate a sub-task to a specialized agent. Use for research, analysis, or actions that benefit from a focused context. The sub-agent runs independently and returns its result.',
-            parameters: SpawnParams,
-            execute: async (_toolCallId: string, params: unknown) => {
-              const p = params as { goal: string; suggestedTools?: string[]; providerKey?: string }
-              const { childTaskId, result } = await spawnChild(task.id, p.goal, p.suggestedTools, p.providerKey)
-              return {
-                content: [{ type: 'text', text: result.summary }],
-                details: { childTaskId, summary: result.summary },
-              }
-            },
-          },
-        ]
-
+        }
+        const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
+        tools = resolved.tools
+        riskOf = resolved.riskOf
         model = resolveModel(provider)
       } catch (err) {
         taskLog.error({
@@ -299,8 +281,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           messages: initialMessages,
         },
         beforeToolCall: async ({ toolCall, args }) => {
-          const risk: 'low' | 'medium' | 'high' =
-            toolCall.name === 'see_screen' || toolCall.name === 'list_apps' ? 'low' : 'medium'
+          const risk = riskOf(toolCall.name)
 
           if (risk === 'low') return undefined
 
