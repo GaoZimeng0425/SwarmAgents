@@ -18,3 +18,21 @@ export const AgentDefinitionSchema = z.object({
   modelHint: ModelHintSchema.optional(),
 })
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
+
+/**
+ * Default tool allowlist generated from an agent's coarse `toolScope`.
+ * Used when a task is created without an explicit allowlist. `toolAllowlist`
+ * remains the authoritative runtime filter; this only seeds its default.
+ */
+export function deriveAllowlist(scope: ToolScope): string[] {
+  switch (scope) {
+    case 'all':
+      return ['*']
+    case 'peekaboo':
+      return ['peekaboo.*']
+    case 'web':
+      return ['web.*', 'agent.*']
+    case 'fs':
+      return ['fs.*', 'agent.*']
+  }
+}
