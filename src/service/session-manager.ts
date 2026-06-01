@@ -1,14 +1,18 @@
-import { ulid } from 'ulid'
-import { createLogger } from '@shared/logger'
-import type { ProviderInjection } from '@shared/types/provider'
-import type { AgentDefinition } from '@shared/types/agent'
-import type { PermissionDecision } from '@shared/types/ui'
-import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { createLogger } from '@shared/logger'
+import type { AgentDefinition } from '@shared/types/agent'
+import { deriveAllowlist } from '@shared/types/agent'
+import type { ProviderInjection } from '@shared/types/provider'
+import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
+import type { PermissionDecision } from '@shared/types/ui'
+import { ulid } from 'ulid'
+
 import { createAgentRunner } from './agent-runner'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
 import type { SseBroadcaster } from './sse'
+import { registerBuiltinTools } from './tools/builtins'
+import { createToolRegistry, type ToolRegistry } from './tools/registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
@@ -25,6 +29,7 @@ type SessionManagerConfig = {
   broadcaster: SseBroadcaster
   maxConcurrent: number
   getProvider(key: string): ProviderInjection | undefined
+  toolRegistry?: ToolRegistry
 }
 
 export type SessionManager = {
@@ -37,12 +42,25 @@ export type SessionManager = {
 }
 
 const DEFAULT_AGENT_DEF: AgentDefinition = {
-  id: 'default', name: 'Default Agent', systemPrompt: '',
-  toolScope: 'all', maxIterations: 25,
+  id: 'default',
+  name: 'Default Agent',
+  systemPrompt: '',
+  toolScope: 'all',
+  maxIterations: 25,
+}
+
+// session-manager owns sensible defaults for the agent-execution subsystem
+// (cf. DEFAULT_AGENT_DEF). In production index.ts injects a shared registry;
+// this default keeps createSessionManager usable for tests/scripts that omit it.
+function buildDefaultRegistry(): ToolRegistry {
+  const r = createToolRegistry()
+  registerBuiltinTools(r)
+  return r
 }
 
 export function createSessionManager(cfg: SessionManagerConfig): SessionManager {
   const { store, broadcaster } = cfg
+  const toolRegistry = cfg.toolRegistry ?? buildDefaultRegistry()
   const sessions = new Map<string, Session>()
 
   let activeRunners = 0
@@ -53,7 +71,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       activeRunners++
       return
     }
-    await new Promise<void>(resolve => waitQueue.push(resolve))
+    await new Promise<void>((resolve) => waitQueue.push(resolve))
     // Slot was transferred to us by releaseSlot — do not increment again.
   }
 
@@ -72,29 +90,31 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   const historyByTask = new Map<string, TaskEvent[]>()
 
-  const makeEmit = (sessionId: string) => (event: string, data: unknown): void => {
-    const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
-    const payload = obj ? { sessionId, ...obj } : data
+  const makeEmit =
+    (sessionId: string) =>
+    (event: string, data: unknown): void => {
+      const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
+      const payload = obj ? { sessionId, ...obj } : data
 
-    const taskId = obj?.taskId as string | undefined
-    if (event === 'task.progress' && taskId && obj?.event) {
-      const buf = historyByTask.get(taskId) ?? []
-      buf.push(obj.event as TaskEvent)
-      historyByTask.set(taskId, buf)
+      const taskId = obj?.taskId as string | undefined
+      if (event === 'task.progress' && taskId && obj?.event) {
+        const buf = historyByTask.get(taskId) ?? []
+        buf.push(obj.event as TaskEvent)
+        historyByTask.set(taskId, buf)
+      }
+      if ((event === 'task.complete' || event === 'task.error') && taskId) {
+        store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
+        historyByTask.delete(taskId)
+      }
+      broadcaster.broadcast(event, payload)
     }
-    if ((event === 'task.complete' || event === 'task.error') && taskId) {
-      store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
-      historyByTask.delete(taskId)
-    }
-    broadcaster.broadcast(event, payload)
-  }
 
   const spawnChild = async (
     sessionId: string,
     parentTaskId: string,
     newGoal: string,
     suggestedTools?: string[],
-    providerKey?: string,
+    providerKey?: string
   ): Promise<{ childTaskId: string; result: TaskResult }> => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
@@ -108,12 +128,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const childTaskId = ulid()
     const now = Date.now()
     const childTask: Task = {
-      id: childTaskId, parentId: parentTaskId, agentDefId: 'default',
-      goal: newGoal, status: 'pending', assignedWorkerId: null,
-      toolAllowlist: suggestedTools ?? ['peekaboo.*', 'web.*', 'fs.*'],
+      id: childTaskId,
+      parentId: parentTaskId,
+      agentDefId: 'default',
+      goal: newGoal,
+      status: 'pending',
+      assignedWorkerId: null,
+      toolAllowlist: suggestedTools ?? ['peekaboo.*', 'agent.*'],
       budget: { tokens: 50_000, calls: 25, wallMs: 300_000, usdCents: 100 },
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-      history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
+      history: [],
+      result: null,
+      createdAt: now,
+      startedAt: null,
+      endedAt: null,
     }
     store.saveTask(childTask, sessionId)
 
@@ -123,9 +151,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const startChild = async (): Promise<void> => {
         await acquireSlot()
         const runner = createAgentRunner({
-          task: childTask, provider: resolvedProvider,
-          agentDefinition: DEFAULT_AGENT_DEF, sessionId,
-          emit: makeEmit(sessionId), permissionRegistry: session.permissionRegistry,
+          task: childTask,
+          provider: resolvedProvider,
+          agentDefinition: DEFAULT_AGENT_DEF,
+          sessionId,
+          emit: makeEmit(sessionId),
+          permissionRegistry: session.permissionRegistry,
+          toolRegistry,
           initialMessages: [],
           spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
@@ -163,7 +195,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       store.createSession(sessionId, provider)
       const permissionRegistry = createPermissionRegistry(makeEmit(sessionId))
       sessions.set(sessionId, {
-        id: sessionId, provider, permissionRegistry, messages: [], queue: Promise.resolve(),
+        id: sessionId,
+        provider,
+        permissionRegistry,
+        messages: [],
+        queue: Promise.resolve(),
       })
       broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
       return { sessionId }
@@ -177,12 +213,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const now = Date.now()
       const isFirst = store.getSessionTasks(sessionId).length === 0
       const task: Task = {
-        id: taskId, parentId: null, agentDefId: agentDef.id,
-        goal, status: 'pending', assignedWorkerId: null,
-        toolAllowlist: ['peekaboo.*', 'web.*', 'fs.*'],
+        id: taskId,
+        parentId: null,
+        agentDefId: agentDef.id,
+        goal,
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: deriveAllowlist(agentDef.toolScope),
         budget: { tokens: 100_000, calls: 50, wallMs: 600_000, usdCents: 200 },
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
+        history: [],
+        result: null,
+        createdAt: now,
+        startedAt: null,
+        endedAt: null,
       }
       store.saveTask(task, sessionId)
       broadcaster.broadcast('task.created', { sessionId, taskId, goal, ts: now })
@@ -197,8 +241,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const runTurn = async (): Promise<void> => {
         await acquireSlot()
         const runner = createAgentRunner({
-          task, provider: session.provider, agentDefinition: agentDef,
-          sessionId, emit: makeEmit(sessionId), permissionRegistry: session.permissionRegistry,
+          task,
+          provider: session.provider,
+          agentDefinition: agentDef,
+          sessionId,
+          emit: makeEmit(sessionId),
+          permissionRegistry: session.permissionRegistry,
+          toolRegistry,
           initialMessages: session.messages,
           spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })

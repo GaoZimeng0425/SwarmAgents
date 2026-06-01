@@ -1,11 +1,14 @@
-import { createLogger } from '@shared/logger'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
+
 import { createConversationStore } from './conversation-store'
-import { createSseBroadcaster } from './sse'
-import { createSessionManager } from './session-manager'
 import { createServer } from './server'
+import { createSessionManager } from './session-manager'
+import { createSseBroadcaster } from './sse'
+import { registerBuiltinTools } from './tools/builtins'
+import { createToolRegistry } from './tools/registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'index' })
 
@@ -14,6 +17,9 @@ const dbPath = process.env.SWARM_SERVICE_DB_PATH ?? join(tmpdir(), 'swarm-agent-
 const store = createConversationStore(dbPath)
 const broadcaster = createSseBroadcaster()
 
+const toolRegistry = createToolRegistry()
+registerBuiltinTools(toolRegistry)
+
 const providerRegistry = new Map<string, ProviderInjection>()
 
 const manager = createSessionManager({
@@ -21,12 +27,15 @@ const manager = createSessionManager({
   broadcaster,
   maxConcurrent: 4,
   getProvider: (key) => providerRegistry.get(key),
+  toolRegistry,
 })
 
 const server = createServer({
   manager,
   broadcaster,
-  registerProvider: (provider) => { providerRegistry.set(provider.id, provider) },
+  registerProvider: (provider) => {
+    providerRegistry.set(provider.id, provider)
+  },
 })
 
 server.listen(0, '127.0.0.1', () => {
