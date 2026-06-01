@@ -217,11 +217,16 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           taskId: task.id,
           spawnChild: (goal, suggestedTools, providerKey) => spawnChild(task.id, goal, suggestedTools, providerKey),
           send: () => undefined,
+          // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
+          // This stub satisfies the ToolRunContext type without creating a second gate.
           requestPermission: () => Promise.resolve('grant' as const),
         }
         const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
         tools = resolved.tools
         riskOf = resolved.riskOf
+        if (tools.length === 0) {
+          taskLog.warn({ msg: 'no tools resolved for task', toolAllowlist: task.toolAllowlist })
+        }
         model = resolveModel(provider)
       } catch (err) {
         taskLog.error({
