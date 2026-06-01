@@ -4,6 +4,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 
+import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initProviders } from './providers'
 import { createServiceClient } from './service-client'
@@ -74,9 +75,10 @@ app.whenReady().then(async () => {
 
     serviceClient = createServiceClient({
       port: servicePort,
-      onEvent: (_event, data) => {
+      onEvent: (event, data) => {
+        const payload = toRendererEvent(event, data)
         for (const w of BrowserWindow.getAllWindows()) {
-          if (!w.isDestroyed()) w.webContents.send('swarm:event', data)
+          if (!w.isDestroyed()) w.webContents.send('swarm:event', payload)
         }
       },
     })
