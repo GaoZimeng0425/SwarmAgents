@@ -1,5 +1,6 @@
 import { buildPeekabooTools } from './peekaboo'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
+import { shellSpec } from './shell'
 import { spawnAgentSpec } from './spawn'
 
 const PEEKABOO_RISK: Record<string, ToolRisk> = {
@@ -27,4 +28,5 @@ export function peekabooSpecs(): ToolSpec[] {
 export function registerBuiltinTools(registry: ToolRegistry): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
+  registry.register(shellSpec())
 }

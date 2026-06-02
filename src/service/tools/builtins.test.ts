@@ -22,7 +22,12 @@ describe('registerBuiltinTools', () => {
       .list()
       .map((s) => `${s.group}.${s.name}`)
       .sort()
-    expect(ids).toEqual(['agent.spawn_sub_agent', 'peekaboo.list_apps', 'peekaboo.see_screen'])
+    expect(ids).toEqual([
+      'agent.spawn_sub_agent',
+      'peekaboo.list_apps',
+      'peekaboo.see_screen',
+      'shell.run_shell',
+    ])
   })
 
   it('peekaboo.* excludes the spawn tool', () => {
@@ -37,5 +42,12 @@ describe('registerBuiltinTools', () => {
     expect(spawn).toBeDefined()
     const result = await spawn!.execute('call-1', { goal: 'do a thing' })
     expect(result.content[0]).toEqual({ type: 'text', text: 'done' })
+  })
+
+  it('resolves the shell tool and gates dangerous commands dynamically', () => {
+    const { tools, riskOf } = make().resolve(['shell.*'], ctx)
+    expect(tools.map((t) => t.name)).toEqual(['run_shell'])
+    expect(riskOf('run_shell', { command: 'rm -rf /' })).toBe('high')
+    expect(riskOf('run_shell', { command: 'ls ~/Desktop' })).toBe('low')
   })
 })
