@@ -210,7 +210,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       }
 
       let tools: AgentTool[]
-      let riskOf: (name: string) => ToolRisk
+      let riskOf: (name: string, args?: unknown) => ToolRisk
       let model: Model<Api>
       try {
         const runCtx: ToolRunContext = {
@@ -286,7 +286,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           messages: initialMessages,
         },
         beforeToolCall: async ({ toolCall, args }) => {
-          const risk = riskOf(toolCall.name)
+          const risk = riskOf(toolCall.name, args)
 
           if (risk === 'low') return undefined
 

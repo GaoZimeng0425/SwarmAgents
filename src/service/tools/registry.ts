@@ -29,6 +29,8 @@ export interface ToolSpec {
   /** Bare, model-facing tool name, e.g. 'see_screen'. */
   name: string
   risk: ToolRisk
+  /** Optional per-call risk override based on the tool's arguments. Invoked only when args are provided; otherwise falls back to `risk`. */
+  riskFor?: (args: unknown) => ToolRisk
   source: ToolSource
   /** Factory that produces the concrete pi AgentTool with run context injected. */
   build(ctx: ToolRunContext): AgentTool
@@ -37,7 +39,10 @@ export interface ToolSpec {
 export interface ToolRegistry {
   register(spec: ToolSpec): void
   list(): ToolSpec[]
-  resolve(allowlist: string[], ctx: ToolRunContext): { tools: AgentTool[]; riskOf: (name: string) => ToolRisk }
+  resolve(
+    allowlist: string[],
+    ctx: ToolRunContext
+  ): { tools: AgentTool[]; riskOf: (name: string, args?: unknown) => ToolRisk }
 }
 
 // Patterns that don't conform (e.g. 'group.' with no star) simply match nothing.
@@ -61,9 +66,14 @@ export function createToolRegistry(): ToolRegistry {
     resolve(allowlist, ctx) {
       const selected = specs.filter((s) => specMatches(s, allowlist))
       const tools = selected.map((s) => s.build(ctx))
-      const riskByName = new Map(selected.map((s) => [s.name, s.risk]))
-      // last-registered wins on a cross-group name collision (none in P0); unknown -> medium (fail safe)
-      return { tools, riskOf: (name) => riskByName.get(name) ?? 'medium' }
+      const specByName = new Map(selected.map((s) => [s.name, s] as const))
+      // unknown -> medium (fail safe); riskFor overrides static risk per call.
+      const riskOf = (name: string, args?: unknown): ToolRisk => {
+        const spec = specByName.get(name)
+        if (!spec) return 'medium'
+        return spec.riskFor && args !== undefined ? spec.riskFor(args) : spec.risk
+      }
+      return { tools, riskOf }
     },
   }
 }
