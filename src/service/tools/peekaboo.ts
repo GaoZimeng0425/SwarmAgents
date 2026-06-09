@@ -120,6 +120,51 @@ function withPermissionHint(stderr: string, fallback: string): string {
   return `${msg}\n\nThis usually means a macOS permission is missing. Grant Screen Recording and Accessibility to SwarmAgents in System Settings → Privacy & Security (Settings → Permissions has status + shortcuts), then retry. Screen Recording changes may require relaunching the app.`
 }
 
+// --- Interaction verbs -----------------------------------------------------
+// Pure argv builders: param → peekaboo CLI args. Kept separate from the tool
+// wiring so the mapping/validation is unit-testable without spawning the binary.
+
+export function clickArgs(p: { id?: string; coords?: string; query?: string; double?: boolean; right?: boolean }): string[] {
+  const args = ['click']
+  if (p.id) args.push('--on', p.id)
+  else if (p.coords) args.push('--coords', p.coords)
+  else if (p.query) args.push(p.query)
+  else throw new Error('click requires one of: id, coords, or query')
+  if (p.double) args.push('--double')
+  if (p.right) args.push('--right')
+  return args
+}
+
+export function typeArgs(p: { text: string; clear?: boolean; pressReturn?: boolean }): string[] {
+  if (!p.text) throw new Error('type requires non-empty text')
+  const args = ['type', p.text]
+  if (p.clear) args.push('--clear')
+  if (p.pressReturn) args.push('--return')
+  return args
+}
+
+const SCROLL_DIRECTIONS = ['up', 'down', 'left', 'right'] as const
+export function scrollArgs(p: { direction: (typeof SCROLL_DIRECTIONS)[number]; amount?: number; id?: string }): string[] {
+  if (!SCROLL_DIRECTIONS.includes(p.direction)) throw new Error(`invalid scroll direction: ${p.direction}`)
+  const args = ['scroll', '--direction', p.direction, '--amount', String(p.amount ?? 3)]
+  if (p.id) args.push('--on', p.id)
+  return args
+}
+
+export function hotkeyArgs(p: { keys: string }): string[] {
+  if (!p.keys) throw new Error('hotkey requires keys, e.g. "cmd,c"')
+  return ['hotkey', '--keys', p.keys]
+}
+
+type ActionDetails = { verb: string; args: string[] }
+
+async function runAction(args: string[]): Promise<AgentToolResult<ActionDetails>> {
+  const result = await runCli(args)
+  if (!result.ok) throw new Error(withPermissionHint(result.stderr, `peekaboo ${args[0]} failed`))
+  const text = result.stdout.trim() || `${args[0]} ok`
+  return { content: [{ type: 'text', text }], details: { verb: args[0], args } }
+}
+
 type ListAppsDetails = { length: number }
 
 // `deps.requestPermission` is unused for these read-only tools but kept so
@@ -171,5 +216,57 @@ export function buildPeekabooTools(_deps: Deps): AgentTool[] {
     },
   }
 
-  return [seeScreen, listApps]
+  const click: AgentTool<ReturnType<typeof Type.Object>, ActionDetails> = {
+    name: 'click',
+    label: 'Click',
+    description:
+      'Click a UI element or coordinates. Prefer `id` (a Peekaboo element ID from see_screen, e.g. "B1"); ' +
+      'or pass `coords` ("x,y") or a text `query`. Call see_screen first to obtain element IDs.',
+    parameters: Type.Object({
+      id: Type.Optional(Type.String({ description: 'Element ID from see_screen, e.g. "B1".' })),
+      coords: Type.Optional(Type.String({ description: 'Click at "x,y".' })),
+      query: Type.Optional(Type.String({ description: 'Element text to match.' })),
+      double: Type.Optional(Type.Boolean({ description: 'Double-click instead of single.' })),
+      right: Type.Optional(Type.Boolean({ description: 'Right-click (secondary click).' })),
+    }),
+    execute: async (_id, params) => runAction(clickArgs(params as Parameters<typeof clickArgs>[0])),
+  }
+
+  const type: AgentTool<ReturnType<typeof Type.Object>, ActionDetails> = {
+    name: 'type',
+    label: 'Type Text',
+    description: 'Type text into the focused element. Optionally clear the field first or press return afterwards.',
+    parameters: Type.Object({
+      text: Type.String({ description: 'The text to type.' }),
+      clear: Type.Optional(Type.Boolean({ description: 'Clear the field (Cmd+A, Delete) before typing.' })),
+      pressReturn: Type.Optional(Type.Boolean({ description: 'Press return/enter after typing.' })),
+    }),
+    execute: async (_id, params) => runAction(typeArgs(params as Parameters<typeof typeArgs>[0])),
+  }
+
+  const scroll: AgentTool<ReturnType<typeof Type.Object>, ActionDetails> = {
+    name: 'scroll',
+    label: 'Scroll',
+    description: 'Scroll the mouse wheel in a direction by a number of ticks, optionally over a specific element.',
+    parameters: Type.Object({
+      direction: Type.Union([Type.Literal('up'), Type.Literal('down'), Type.Literal('left'), Type.Literal('right')], {
+        description: 'Scroll direction.',
+      }),
+      amount: Type.Optional(Type.Number({ description: 'Number of scroll ticks (default 3).' })),
+      id: Type.Optional(Type.String({ description: 'Element ID to scroll over (from see_screen).' })),
+    }),
+    execute: async (_id, params) => runAction(scrollArgs(params as Parameters<typeof scrollArgs>[0])),
+  }
+
+  const hotkey: AgentTool<ReturnType<typeof Type.Object>, ActionDetails> = {
+    name: 'hotkey',
+    label: 'Press Hotkey',
+    description: 'Press a keyboard shortcut, e.g. "cmd,c" to copy or "cmd,shift,t". Modifiers: cmd, shift, alt, ctrl, fn.',
+    parameters: Type.Object({
+      keys: Type.String({ description: 'Comma/plus/space-separated keys, e.g. "cmd,c".' }),
+    }),
+    execute: async (_id, params) => runAction(hotkeyArgs(params as Parameters<typeof hotkeyArgs>[0])),
+  }
+
+  return [seeScreen, listApps, click, type, scroll, hotkey]
 }
