@@ -5,6 +5,7 @@ import { buildPeekabooTools } from './peekaboo'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { shellSpec } from './shell'
 import { spawnAgentSpec } from './spawn'
+import { webFetchSpec } from './web'
 
 const PEEKABOO_RISK: Record<string, ToolRisk> = {
   // Read-only observation and the reversible scroll auto-run; consequential
@@ -38,6 +39,7 @@ export function registerBuiltinTools(registry: ToolRegistry, deps?: { memoryStor
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
   registry.register(shellSpec())
+  registry.register(webFetchSpec())
   for (const spec of fsSpecs()) registry.register(spec)
   // Memory tools need a backing store; registered only when one is injected.
   if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)

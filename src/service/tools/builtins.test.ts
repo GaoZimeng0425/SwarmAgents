@@ -44,6 +44,7 @@ describe('registerBuiltinTools', () => {
       'peekaboo.see_screen',
       'peekaboo.type',
       'shell.run_shell',
+      'web.fetch',
     ])
   })
 
@@ -82,6 +83,13 @@ describe('registerBuiltinTools', () => {
     const { tools, riskOf } = withStore.resolve(['memory.*'], ctx)
     expect(tools.map((t) => t.name).sort()).toEqual(['forget', 'recall', 'remember'])
     expect(riskOf('remember')).toBe('low')
+  })
+
+  it('resolves the web fetch tool and gates private/non-http URLs dynamically', () => {
+    const { tools, riskOf } = make().resolve(['web.*'], ctx)
+    expect(tools.map((t) => t.name)).toEqual(['fetch'])
+    expect(riskOf('fetch', { url: 'https://example.com' })).toBe('low')
+    expect(riskOf('fetch', { url: 'http://localhost:8080' })).toBe('high')
   })
 
   it('resolves the fs tools and gates writes to sensitive paths dynamically', () => {
