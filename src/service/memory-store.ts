@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createLogger } from '@shared/logger'
 
-const log = createLogger({ process: 'main' }).child({ component: 'memory' })
+const log = createLogger({ process: 'service' }).child({ component: 'memory' })
 
 export interface MemoryEntry {
   id: string

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { createMemoryStore, type MemoryStore } from './store'
+import { createMemoryStore, type MemoryStore } from './memory-store'
 
 function makeStore(): { store: MemoryStore; cleanup: () => void } {
   const dir = mkdtempSync(`${tmpdir()}/swarm-memory-test-`)
