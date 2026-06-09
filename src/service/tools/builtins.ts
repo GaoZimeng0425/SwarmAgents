@@ -1,11 +1,18 @@
+import { fsSpecs } from './fs'
 import { buildPeekabooTools } from './peekaboo'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { shellSpec } from './shell'
 import { spawnAgentSpec } from './spawn'
 
 const PEEKABOO_RISK: Record<string, ToolRisk> = {
+  // Read-only observation and the reversible scroll auto-run; consequential
+  // interactions (click/type/hotkey) escalate to the permission prompt.
   see_screen: 'low',
   list_apps: 'low',
+  scroll: 'low',
+  click: 'high',
+  type: 'high',
+  hotkey: 'high',
 }
 
 export function peekabooSpecs(): ToolSpec[] {
@@ -29,4 +36,5 @@ export function registerBuiltinTools(registry: ToolRegistry): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
   registry.register(shellSpec())
+  for (const spec of fsSpecs()) registry.register(spec)
 }

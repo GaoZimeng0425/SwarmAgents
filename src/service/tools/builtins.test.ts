@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 
 import { registerBuiltinTools } from './builtins'
@@ -24,16 +25,28 @@ describe('registerBuiltinTools', () => {
       .sort()
     expect(ids).toEqual([
       'agent.spawn_sub_agent',
+      'fs.edit_file',
+      'fs.list_dir',
+      'fs.read_file',
+      'fs.write_file',
+      'peekaboo.click',
+      'peekaboo.hotkey',
       'peekaboo.list_apps',
+      'peekaboo.scroll',
       'peekaboo.see_screen',
+      'peekaboo.type',
       'shell.run_shell',
     ])
   })
 
-  it('peekaboo.* excludes the spawn tool', () => {
+  it('peekaboo.* resolves observation + interaction tools with proportional risk', () => {
     const { tools, riskOf } = make().resolve(['peekaboo.*'], ctx)
-    expect(tools.map((t) => t.name).sort()).toEqual(['list_apps', 'see_screen'])
+    expect(tools.map((t) => t.name).sort()).toEqual(['click', 'hotkey', 'list_apps', 'scroll', 'see_screen', 'type'])
     expect(riskOf('see_screen')).toBe('low')
+    expect(riskOf('scroll')).toBe('low')
+    expect(riskOf('click')).toBe('high')
+    expect(riskOf('type')).toBe('high')
+    expect(riskOf('hotkey')).toBe('high')
   })
 
   it('spawn tool delegates to ctx.spawnChild and returns its summary', async () => {
@@ -49,5 +62,13 @@ describe('registerBuiltinTools', () => {
     expect(tools.map((t) => t.name)).toEqual(['run_shell'])
     expect(riskOf('run_shell', { command: 'rm -rf /' })).toBe('high')
     expect(riskOf('run_shell', { command: 'ls ~/Desktop' })).toBe('low')
+  })
+
+  it('resolves the fs tools and gates writes to sensitive paths dynamically', () => {
+    const { tools, riskOf } = make().resolve(['fs.*'], ctx)
+    expect(tools.map((t) => t.name).sort()).toEqual(['edit_file', 'list_dir', 'read_file', 'write_file'])
+    expect(riskOf('read_file')).toBe('low')
+    expect(riskOf('write_file', { path: '/etc/hosts' })).toBe('high')
+    expect(riskOf('write_file', { path: `${homedir()}/notes.txt` })).toBe('low')
   })
 })

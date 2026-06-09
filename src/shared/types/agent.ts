@@ -29,7 +29,10 @@ export function deriveAllowlist(scope: ToolScope): string[] {
     case 'all':
       return ['*']
     case 'peekaboo':
-      return ['peekaboo.*']
+      // Observation only — interaction tools (click/type/scroll/hotkey) live in
+      // the same group but must not leak into read-only agents. The allowlist,
+      // not the system prompt, is the capability boundary.
+      return ['peekaboo.see_screen', 'peekaboo.list_apps']
     case 'web':
       return ['web.*', 'agent.*']
     case 'fs':

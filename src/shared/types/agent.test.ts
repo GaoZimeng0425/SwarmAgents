@@ -6,8 +6,8 @@ describe('deriveAllowlist', () => {
   it('all -> wildcard', () => {
     expect(deriveAllowlist('all')).toEqual(['*'])
   })
-  it('peekaboo -> peekaboo group only', () => {
-    expect(deriveAllowlist('peekaboo')).toEqual(['peekaboo.*'])
+  it('peekaboo -> observation tools only (no interaction)', () => {
+    expect(deriveAllowlist('peekaboo')).toEqual(['peekaboo.see_screen', 'peekaboo.list_apps'])
   })
   it('web -> web + agent', () => {
     expect(deriveAllowlist('web')).toEqual(['web.*', 'agent.*'])
