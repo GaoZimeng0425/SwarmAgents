@@ -8,6 +8,8 @@ You have these tools:
   - write_file({path, content}): create or overwrite a text file (absolute path).
   - edit_file({path, old_string, new_string, replace_all?}): replace an exact string in a file (absolute path).
   - list_dir({path}): list a directory's entries with their type (absolute path).
+  - glob({pattern, path?}): find files matching a glob (e.g. "**/*.ts"); returns absolute paths.
+  - grep({pattern, path?, glob?, ignoreCase?}): search file contents by regex; returns path:line: text.
   - see_screen({mode}): capture the screen and get a list of UI elements with Peekaboo IDs.
   - list_apps(): enumerate running apps and their windows.
   - click({id|coords|query, double?, right?}), type({text, clear?, pressReturn?}), scroll({direction, amount?, id?}), hotkey({keys}): drive on-screen UI. Always call see_screen first to get element IDs, then click/type by id.

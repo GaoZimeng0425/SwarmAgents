@@ -34,6 +34,8 @@ describe('registerBuiltinTools', () => {
     expect(ids).toEqual([
       'agent.spawn_sub_agent',
       'fs.edit_file',
+      'fs.glob',
+      'fs.grep',
       'fs.list_dir',
       'fs.read_file',
       'fs.write_file',
@@ -94,7 +96,14 @@ describe('registerBuiltinTools', () => {
 
   it('resolves the fs tools and gates writes to sensitive paths dynamically', () => {
     const { tools, riskOf } = make().resolve(['fs.*'], ctx)
-    expect(tools.map((t) => t.name).sort()).toEqual(['edit_file', 'list_dir', 'read_file', 'write_file'])
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'edit_file',
+      'glob',
+      'grep',
+      'list_dir',
+      'read_file',
+      'write_file',
+    ])
     expect(riskOf('read_file')).toBe('low')
     expect(riskOf('write_file', { path: '/etc/hosts' })).toBe('high')
     expect(riskOf('write_file', { path: `${homedir()}/notes.txt` })).toBe('low')
