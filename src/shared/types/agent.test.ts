@@ -15,4 +15,7 @@ describe('deriveAllowlist', () => {
   it('fs -> fs + agent', () => {
     expect(deriveAllowlist('fs')).toEqual(['fs.*', 'agent.*'])
   })
+  it('memory -> memory + agent', () => {
+    expect(deriveAllowlist('memory')).toEqual(['memory.*', 'agent.*'])
+  })
 })

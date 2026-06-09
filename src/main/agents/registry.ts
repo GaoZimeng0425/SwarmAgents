@@ -11,6 +11,7 @@ You have these tools:
   - see_screen({mode}): capture the screen and get a list of UI elements with Peekaboo IDs.
   - list_apps(): enumerate running apps and their windows.
   - click({id|coords|query, double?, right?}), type({text, clear?, pressReturn?}), scroll({direction, amount?, id?}), hotkey({keys}): drive on-screen UI. Always call see_screen first to get element IDs, then click/type by id.
+  - remember({key, content, category?}), recall({query, limit?}), forget({key}): long-term memory that persists across tasks.
 
 Choosing a tool:
   - Reading or changing file contents → use the fs tools (read_file / write_file / edit_file / list_dir). They take absolute paths and are safer than shell redirection or heredocs for writes/edits.

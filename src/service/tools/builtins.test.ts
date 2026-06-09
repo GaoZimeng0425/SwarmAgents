@@ -1,8 +1,16 @@
 import { homedir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 
+import type { MemoryStore } from '../memory-store'
 import { registerBuiltinTools } from './builtins'
 import { createToolRegistry, type ToolRunContext } from './registry'
+
+const fakeMemoryStore: MemoryStore = {
+  store: () => undefined,
+  recall: () => [],
+  forget: () => false,
+  close: () => undefined,
+}
 
 const ctx: ToolRunContext = {
   taskId: 't',
@@ -62,6 +70,18 @@ describe('registerBuiltinTools', () => {
     expect(tools.map((t) => t.name)).toEqual(['run_shell'])
     expect(riskOf('run_shell', { command: 'rm -rf /' })).toBe('high')
     expect(riskOf('run_shell', { command: 'ls ~/Desktop' })).toBe('low')
+  })
+
+  it('registers memory tools only when a store is provided', () => {
+    const without = createToolRegistry()
+    registerBuiltinTools(without)
+    expect(without.list().some((s) => s.group === 'memory')).toBe(false)
+
+    const withStore = createToolRegistry()
+    registerBuiltinTools(withStore, { memoryStore: fakeMemoryStore })
+    const { tools, riskOf } = withStore.resolve(['memory.*'], ctx)
+    expect(tools.map((t) => t.name).sort()).toEqual(['forget', 'recall', 'remember'])
+    expect(riskOf('remember')).toBe('low')
   })
 
   it('resolves the fs tools and gates writes to sensitive paths dynamically', () => {

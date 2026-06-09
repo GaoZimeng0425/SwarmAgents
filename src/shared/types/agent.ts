@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'all'])
+export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'all'])
 export type ToolScope = z.infer<typeof ToolScopeSchema>
 
 export const ModelHintSchema = z.enum(['inherit', 'fast', 'reasoning', 'coding'])
@@ -37,5 +37,7 @@ export function deriveAllowlist(scope: ToolScope): string[] {
       return ['web.*', 'agent.*']
     case 'fs':
       return ['fs.*', 'agent.*']
+    case 'memory':
+      return ['memory.*', 'agent.*']
   }
 }

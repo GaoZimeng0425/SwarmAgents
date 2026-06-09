@@ -4,6 +4,7 @@ import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
 
 import { createConversationStore } from './conversation-store'
+import { createMemoryStore } from './memory-store'
 import { createServer } from './server'
 import { createSessionManager } from './session-manager'
 import { createSseBroadcaster } from './sse'
@@ -13,12 +14,14 @@ import { createToolRegistry } from './tools/registry'
 const log = createLogger({ process: 'service' }).child({ component: 'index' })
 
 const dbPath = process.env.SWARM_SERVICE_DB_PATH ?? join(tmpdir(), 'swarm-agent-service.db')
+const memoryPath = process.env.SWARM_SERVICE_MEMORY_PATH ?? join(tmpdir(), 'swarm-agent-memory.json')
 
 const store = createConversationStore(dbPath)
+const memoryStore = createMemoryStore(memoryPath)
 const broadcaster = createSseBroadcaster()
 
 const toolRegistry = createToolRegistry()
-registerBuiltinTools(toolRegistry)
+registerBuiltinTools(toolRegistry, { memoryStore })
 
 const providerRegistry = new Map<string, ProviderInjection>()
 

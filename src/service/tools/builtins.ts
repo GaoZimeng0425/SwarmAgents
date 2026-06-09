@@ -1,4 +1,6 @@
+import type { MemoryStore } from '../memory-store'
 import { fsSpecs } from './fs'
+import { memorySpecs } from './memory'
 import { buildPeekabooTools } from './peekaboo'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { shellSpec } from './shell'
@@ -32,9 +34,11 @@ export function peekabooSpecs(): ToolSpec[] {
   }))
 }
 
-export function registerBuiltinTools(registry: ToolRegistry): void {
+export function registerBuiltinTools(registry: ToolRegistry, deps?: { memoryStore?: MemoryStore }): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
   registry.register(shellSpec())
   for (const spec of fsSpecs()) registry.register(spec)
+  // Memory tools need a backing store; registered only when one is injected.
+  if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)
 }

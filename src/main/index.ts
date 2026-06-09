@@ -47,6 +47,7 @@ app.whenReady().then(async () => {
     env: {
       ...process.env,
       SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),
+      SWARM_SERVICE_MEMORY_PATH: join(app.getPath('userData'), 'agent-memory.json'),
     },
     silent: true,
   })
