@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { glob, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, resolve, sep } from 'node:path'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
@@ -188,6 +188,123 @@ function listSpec(): ToolSpec {
   }
 }
 
+const MAX_GLOB = 1000
+
+const GlobParams = Type.Object({
+  pattern: Type.String({ description: 'Glob pattern relative to `path`, e.g. "**/*.ts".' }),
+  path: Type.Optional(Type.String({ description: 'Absolute base directory to search (default: home directory).' })),
+})
+
+function globSpec(): ToolSpec {
+  return {
+    group: 'fs',
+    name: 'glob',
+    risk: 'low',
+    source: 'builtin',
+    build: (_ctx: ToolRunContext): AgentTool => ({
+      name: 'glob',
+      label: 'Find files',
+      description:
+        'Find files matching a glob pattern under a base directory. Returns absolute paths. Use a specific pattern to keep results focused.',
+      parameters: GlobParams,
+      execute: async (_id: string, params: unknown) => {
+        const p = params as { pattern: string; path?: string }
+        const base = p.path ?? homedir()
+        if (!isAbsolute(base)) return err(`path must be absolute: ${base}`)
+        const matches: string[] = []
+        try {
+          for await (const m of glob(p.pattern, { cwd: base })) {
+            matches.push(resolve(base, m))
+            if (matches.length >= MAX_GLOB) break
+          }
+        } catch (e) {
+          return err(e instanceof Error ? e.message : String(e))
+        }
+        matches.sort()
+        const text = matches.join('\n')
+        return ok(truncate(text) || '(no matches)', { count: matches.length, truncated: matches.length >= MAX_GLOB })
+      },
+    }),
+  }
+}
+
+const MAX_GREP_MATCHES = 200
+const MAX_GREP_FILES = 2000
+const MAX_GREP_FILE_BYTES = 2_000_000
+
+const GrepParams = Type.Object({
+  pattern: Type.String({ description: 'Regular expression to search for, tested per line.' }),
+  path: Type.Optional(Type.String({ description: 'Absolute base directory to search (default: home directory).' })),
+  glob: Type.Optional(Type.String({ description: 'Glob to restrict which files are searched (default "**/*").' })),
+  ignoreCase: Type.Optional(Type.Boolean({ description: 'Case-insensitive matching.' })),
+})
+
+function grepSpec(): ToolSpec {
+  return {
+    group: 'fs',
+    name: 'grep',
+    risk: 'low',
+    source: 'builtin',
+    build: (_ctx: ToolRunContext): AgentTool => ({
+      name: 'grep',
+      label: 'Search file contents',
+      description:
+        'Search file contents by regular expression and return matching `path:line: text`. Binary and oversized files are skipped.',
+      parameters: GrepParams,
+      execute: async (_id: string, params: unknown) => {
+        const p = params as { pattern: string; path?: string; glob?: string; ignoreCase?: boolean }
+        const base = p.path ?? homedir()
+        if (!isAbsolute(base)) return err(`path must be absolute: ${base}`)
+        let re: RegExp
+        try {
+          re = new RegExp(p.pattern, p.ignoreCase ? 'i' : '')
+        } catch (e) {
+          return err(`invalid regex: ${e instanceof Error ? e.message : String(e)}`)
+        }
+
+        const matches: Array<{ file: string; line: number; text: string }> = []
+        let scanned = 0
+        try {
+          for await (const rel of glob(p.glob ?? '**/*', { cwd: base })) {
+            if (matches.length >= MAX_GREP_MATCHES || scanned >= MAX_GREP_FILES) break
+            const abs = resolve(base, rel)
+            let info: Awaited<ReturnType<typeof stat>>
+            try {
+              info = await stat(abs)
+            } catch {
+              continue
+            }
+            if (!info.isFile() || info.size > MAX_GREP_FILE_BYTES) continue
+            let content: string
+            try {
+              content = await readFile(abs, 'utf8')
+            } catch {
+              continue
+            }
+            if (content.includes(String.fromCharCode(0))) continue // skip binary files
+            scanned++
+            const lines = content.split('\n')
+            for (let i = 0; i < lines.length; i++) {
+              if (re.test(lines[i])) {
+                matches.push({ file: abs, line: i + 1, text: lines[i].slice(0, 400) })
+                if (matches.length >= MAX_GREP_MATCHES) break
+              }
+            }
+          }
+        } catch (e) {
+          return err(e instanceof Error ? e.message : String(e))
+        }
+
+        const text = matches.map((m) => `${m.file}:${m.line}: ${m.text}`).join('\n')
+        return ok(truncate(text) || '(no matches)', {
+          count: matches.length,
+          truncated: matches.length >= MAX_GREP_MATCHES,
+        })
+      },
+    }),
+  }
+}
+
 export function fsSpecs(): ToolSpec[] {
-  return [readSpec(), writeSpec(), editSpec(), listSpec()]
+  return [readSpec(), writeSpec(), editSpec(), listSpec(), globSpec(), grepSpec()]
 }

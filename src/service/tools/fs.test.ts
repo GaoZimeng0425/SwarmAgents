@@ -38,19 +38,23 @@ describe('isSensitivePath', () => {
 })
 
 describe('fsSpecs', () => {
-  it('exposes read/list/write/edit under the fs group', () => {
+  it('exposes read/list/write/edit/glob/grep under the fs group', () => {
     expect(specs.map((s) => `${s.group}.${s.name}`).sort()).toEqual([
       'fs.edit_file',
+      'fs.glob',
+      'fs.grep',
       'fs.list_dir',
       'fs.read_file',
       'fs.write_file',
     ])
   })
 
-  it('reads and lists are statically low; writes escalate on sensitive paths', () => {
+  it('reads, lists and searches are statically low; writes escalate on sensitive paths', () => {
     const risk = (name: string) => specs.find((s) => s.name === name)!
     expect(risk('read_file').risk).toBe('low')
     expect(risk('list_dir').risk).toBe('low')
+    expect(risk('glob').risk).toBe('low')
+    expect(risk('grep').risk).toBe('low')
     const write = risk('write_file')
     expect(write.riskFor!({ path: join(homedir(), 'a.txt') })).toBe('low')
     expect(write.riskFor!({ path: '/etc/hosts' })).toBe('high')
@@ -162,5 +166,74 @@ describe('list_dir', () => {
   it('reports a missing directory as an error result', async () => {
     const res = await tool('list_dir').execute('c', { path: join(dir, 'ghost') })
     expect((res.details as { error?: string }).error).toBeTruthy()
+  })
+})
+
+describe('glob', () => {
+  let gdir: string
+  beforeAll(() => {
+    gdir = join(dir, 'gtree')
+    mkdirSync(join(gdir, 'sub'), { recursive: true })
+    writeFileSync(join(gdir, 'a.ts'), '')
+    writeFileSync(join(gdir, 'b.md'), '')
+    writeFileSync(join(gdir, 'sub', 'c.ts'), '')
+  })
+
+  it('matches files by pattern and returns absolute paths', async () => {
+    const res = await tool('glob').execute('c', { pattern: '**/*.ts', path: gdir })
+    const det = res.details as { count: number }
+    expect(det.count).toBe(2)
+    expect(res.content[0].text).toContain(join(gdir, 'a.ts'))
+    expect(res.content[0].text).toContain(join(gdir, 'sub', 'c.ts'))
+    expect(res.content[0].text).not.toContain('b.md')
+  })
+
+  it('reports zero matches cleanly', async () => {
+    const res = await tool('glob').execute('c', { pattern: '**/*.zzz', path: gdir })
+    expect((res.details as { count: number }).count).toBe(0)
+    expect(res.content[0].text).toMatch(/no match/i)
+  })
+
+  it('rejects a relative base path', async () => {
+    const res = await tool('glob').execute('c', { pattern: '*', path: 'rel' })
+    expect((res.details as { error?: string }).error).toMatch(/absolute/i)
+  })
+})
+
+describe('grep', () => {
+  let rdir: string
+  beforeAll(() => {
+    rdir = join(dir, 'rtree')
+    mkdirSync(rdir, { recursive: true })
+    writeFileSync(join(rdir, 'one.ts'), 'const x = 1\n// TODO: fix this\nconst y = 2')
+    writeFileSync(join(rdir, 'two.md'), 'nothing to see\nTODO here too')
+    // Contains TODO but a NUL byte makes it binary, so grep must skip it.
+    writeFileSync(join(rdir, 'bin.dat'), Buffer.from([0x54, 0x4f, 0x44, 0x4f, 0x00, 0x78]))
+  })
+
+  it('returns file:line matches across files', async () => {
+    const res = await tool('grep').execute('c', { pattern: 'TODO', path: rdir })
+    expect((res.details as { count: number }).count).toBe(2) // one.ts + two.md; binary skipped
+    expect(res.content[0].text).toContain(`${join(rdir, 'one.ts')}:2:`)
+  })
+
+  it('restricts files with the glob filter', async () => {
+    const res = await tool('grep').execute('c', { pattern: 'TODO', path: rdir, glob: '**/*.ts' })
+    expect((res.details as { count: number }).count).toBe(1)
+  })
+
+  it('supports case-insensitive matching', async () => {
+    const res = await tool('grep').execute('c', { pattern: 'todo', path: rdir, glob: '**/*.ts', ignoreCase: true })
+    expect((res.details as { count: number }).count).toBe(1)
+  })
+
+  it('errors on an invalid regex', async () => {
+    const res = await tool('grep').execute('c', { pattern: '(', path: rdir })
+    expect((res.details as { error?: string }).error).toMatch(/regex|invalid/i)
+  })
+
+  it('rejects a relative base path', async () => {
+    const res = await tool('grep').execute('c', { pattern: 'x', path: 'rel' })
+    expect((res.details as { error?: string }).error).toMatch(/absolute/i)
   })
 })
