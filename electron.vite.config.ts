@@ -29,21 +29,11 @@ const runtimeDeps = Object.keys(pkg.dependencies ?? {})
 // externalized. Rollup's CJS plugin handles the ESM→CJS transpilation.
 const ESM_ONLY_BUNDLE_INLINE = new Set(['@earendil-works/pi-agent-core', '@earendil-works/pi-ai'])
 
-// Transitive deps that MUST stay external even though they're not listed in
-// package.json `dependencies` (so the runtimeDeps scan misses them). jsdom is
-// imported by src/service/tools/web.ts; bundling it breaks its runtime
-// `readFileSync(resolve(__dirname, "../../../browser/default-stylesheet.css"))`
-// because the bundle's __dirname is out/main, not node_modules/jsdom. Keep it
-// external so it loads from node_modules where that relative path resolves.
-const EXTRA_EXTERNALS = ['jsdom']
-
 const mainExternal: Array<string | RegExp> = [
   'electron',
   /^electron\//,
   ...builtinModules,
   ...builtinModules.map((m) => `node:${m}`),
-  ...EXTRA_EXTERNALS,
-  ...EXTRA_EXTERNALS.map((d) => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`)),
   ...runtimeDeps.filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d)),
   // also externalize anything under a runtime dep's subpath (skip ESM-only inline set)
   ...runtimeDeps
