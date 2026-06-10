@@ -1,85 +1,65 @@
-import { createServer as createHttpServer } from 'node:http'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createServiceClient } from './service-client'
+import { describe, it, expect } from 'vitest'
+import { createServiceClient, type ServiceTransport } from './service-client'
 
-function startMockService(handler: (url: string, method: string, body: unknown) => unknown) {
-  const emitCallbacks: Array<(event: string, data: unknown) => void> = []
-  const sockets = new Set<import('node:net').Socket>()
-  const server = createHttpServer(async (req, res) => {
-    if (req.url === '/events') {
-      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' })
-      res.flushHeaders()
-      emitCallbacks.push((event, data) => {
-        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-      })
-      return
-    }
-    const chunks: Buffer[] = []
-    req.on('data', (c: Buffer) => chunks.push(c))
-    await new Promise((r) => req.on('end', r))
-    const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : undefined
-    const result = handler(req.url ?? '/', req.method ?? 'GET', body)
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify(result))
-  })
-  server.on('connection', (socket) => {
-    sockets.add(socket)
-    socket.on('close', () => sockets.delete(socket))
-  })
-  return new Promise<{ port: number; emit: (event: string, data: unknown) => void; close: () => Promise<void> }>(
-    (resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const port = (server.address() as { port: number }).port
-        resolve({
-          port,
-          emit: (event, data) => { for (const cb of emitCallbacks) cb(event, data) },
-          close: () => {
-            for (const s of sockets) s.destroy()
-            return new Promise((r) => server.close(() => r()))
-          },
-        })
-      })
+function mockTransport() {
+  const listeners = new Set<(m: unknown) => void>()
+  const posted: Array<{ kind: string; id: number; method: string; args: unknown[] }> = []
+  const t = {
+    posted,
+    postMessage(m: unknown) {
+      posted.push(m as (typeof posted)[number])
     },
-  )
+    on(_c: 'message', l: (m: unknown) => void) {
+      listeners.add(l)
+    },
+    off(_c: 'message', l: (m: unknown) => void) {
+      listeners.delete(l)
+    },
+    fire(m: unknown) {
+      for (const l of listeners) l(m)
+    },
+  }
+  return t as ServiceTransport & typeof t
 }
 
 describe('ServiceClient', () => {
-  let mock: Awaited<ReturnType<typeof startMockService>>
-  let handler: import('vitest').Mock<(url: string, method: string, body: unknown) => unknown>
-
-  beforeEach(async () => {
-    handler = vi.fn().mockReturnValue({ sessionId: 'ses-1' })
-    mock = await startMockService((url, method, body) => handler(url, method, body))
-  })
-  afterEach(() => mock.close())
-
-  it('createSession POSTs to /sessions', async () => {
-    const client = createServiceClient({ port: mock.port })
+  it('createSession posts a request and resolves with the response result', async () => {
+    const t = mockTransport()
+    const client = createServiceClient({ transport: t })
     await client.connect()
-    handler.mockReturnValue({ sessionId: 'ses-42' })
-    const result = await client.createSession({ id: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' })
-    expect(result.sessionId).toBe('ses-42')
-    expect(handler).toHaveBeenCalledWith('/sessions', 'POST', expect.objectContaining({ provider: expect.any(Object) }))
-    await client.disconnect()
+    const p = client.createSession({ id: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' })
+    const req = t.posted.at(-1)!
+    expect(req).toMatchObject({ kind: 'request', method: 'createSession' })
+    t.fire({ kind: 'response', id: req.id, ok: true, result: { sessionId: 'ses-42' } })
+    expect((await p).sessionId).toBe('ses-42')
   })
 
-  it('submitGoal POSTs to /sessions/:id/goal', async () => {
-    const client = createServiceClient({ port: mock.port })
+  it('rejects when the service returns ok:false', async () => {
+    const t = mockTransport()
+    const client = createServiceClient({ transport: t })
     await client.connect()
-    handler.mockReturnValue({ taskId: 'task-99' })
-    const result = await client.submitGoal('ses-1', 'hello world')
-    expect(result.taskId).toBe('task-99')
-    await client.disconnect()
+    const p = client.submitGoal('ses-1', 'go')
+    const req = t.posted.at(-1)!
+    t.fire({ kind: 'response', id: req.id, ok: false, error: 'boom' })
+    await expect(p).rejects.toThrow('boom')
   })
 
-  it('forwards SSE events via onEvent callback', async () => {
+  it('forwards events to onEvent', async () => {
+    const received: Array<{ e: string; d: unknown }> = []
+    const t = mockTransport()
+    const client = createServiceClient({ transport: t, onEvent: (e, d) => received.push({ e, d }) })
+    await client.connect()
+    t.fire({ kind: 'event', event: 'task.complete', data: { taskId: 'x' } })
+    expect(received).toEqual([{ e: 'task.complete', d: { taskId: 'x' } }])
+  })
+
+  it('stops forwarding after disconnect', async () => {
     const received: unknown[] = []
-    const client = createServiceClient({ port: mock.port, onEvent: (e, d) => received.push({ e, d }) })
+    const t = mockTransport()
+    const client = createServiceClient({ transport: t, onEvent: (e, d) => received.push({ e, d }) })
     await client.connect()
-    await new Promise((r) => setTimeout(r, 50)) // let SSE handshake settle
-    mock.emit('task.complete', { taskId: 'x', summary: 'done', ts: 1 })
-    await new Promise((r) => setTimeout(r, 50))
-    expect(received.length).toBeGreaterThan(0)
-    await client.disconnect()
+    client.disconnect()
+    t.fire({ kind: 'event', event: 'task.progress', data: {} })
+    expect(received).toHaveLength(0)
   })
 })

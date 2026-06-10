@@ -1,12 +1,20 @@
-import { request as httpRequest } from 'node:http'
 import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
+import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
 import type { PermissionDecision } from '@shared/types/ui'
 
 const log = createLogger({ process: 'main' }).child({ component: 'service-client' })
 
+// Minimal duplex channel the client needs. Electron's UtilityProcess satisfies
+// this structurally (postMessage + EventEmitter on/off); tests pass a fake.
+export type ServiceTransport = {
+  postMessage(message: unknown): void
+  on(channel: 'message', listener: (message: unknown) => void): void
+  off(channel: 'message', listener: (message: unknown) => void): void
+}
+
 type ServiceClientConfig = {
-  port: number
+  transport: ServiceTransport
   onEvent?: (event: string, data: unknown) => void
 }
 
@@ -21,114 +29,63 @@ export type ServiceClient = {
   cancelTask(sessionId: string, taskId: string): Promise<void>
 }
 
-function get<T>(port: number, path: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const req = httpRequest({ hostname: '127.0.0.1', port, path, method: 'GET' }, (res) => {
-      const chunks: Buffer[] = []
-      res.on('data', (c: Buffer) => chunks.push(c))
-      res.on('end', () => {
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString()) as T) }
-        catch (e) { reject(e) }
-      })
-    })
-    req.on('error', reject)
-    req.end()
-  })
-}
-
-function post<T>(port: number, path: string, body: unknown): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify(body)
-    const req = httpRequest(
-      {
-        hostname: '127.0.0.1', port, path, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
-      },
-      (res) => {
-        const chunks: Buffer[] = []
-        res.on('data', (c: Buffer) => chunks.push(c))
-        res.on('end', () => {
-          try { resolve(JSON.parse(Buffer.concat(chunks).toString()) as T) }
-          catch (e) { reject(e) }
-        })
-      },
-    )
-    req.on('error', reject)
-    req.write(payload)
-    req.end()
-  })
-}
-
 export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
-  const { port, onEvent } = cfg
-  let sseReq: import('node:http').ClientRequest | null = null
+  const { transport, onEvent } = cfg
+  let nextId = 1
+  const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>()
+  let listener: ((message: unknown) => void) | null = null
+
+  const handle = (message: unknown): void => {
+    const msg = message as ServiceToMain
+    if (msg.kind === 'response') {
+      const p = pending.get(msg.id)
+      if (!p) {
+        log.warn({ msg: 'response for unknown request id', id: msg.id })
+        return
+      }
+      pending.delete(msg.id)
+      if (msg.ok) p.resolve(msg.result)
+      else p.reject(new Error(msg.error))
+    } else if (msg.kind === 'event') {
+      if (onEvent) onEvent(msg.event, msg.data)
+    }
+  }
+
+  function call<T>(method: ServiceMethod, args: unknown[]): Promise<T> {
+    const id = nextId++
+    return new Promise<T>((resolve, reject) => {
+      pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
+      transport.postMessage({ kind: 'request', id, method, args })
+    })
+  }
 
   return {
     connect() {
-      return new Promise((resolve) => {
-        sseReq = httpRequest(
-          {
-            hostname: '127.0.0.1', port, path: '/events', method: 'GET',
-            headers: { Accept: 'text/event-stream' },
-          },
-          (res) => {
-            let eventName = ''
-            let buffer = ''
-            res.setEncoding('utf8')
-            res.on('data', (chunk: string) => {
-              buffer += chunk
-              const lines = buffer.split('\n')
-              buffer = lines.pop() ?? ''
-              for (const line of lines) {
-                if (line.startsWith('event: ')) {
-                  eventName = line.slice(7).trim()
-                } else if (line.startsWith('data: ')) {
-                  const raw = line.slice(6)
-                  try {
-                    const data = JSON.parse(raw) as unknown
-                    if (onEvent && eventName) onEvent(eventName, data)
-                  } catch {
-                    log.warn({ msg: 'SSE parse error', raw })
-                  }
-                  eventName = ''
-                }
-              }
-            })
-            resolve()
-          },
-        )
-        sseReq.on('error', (err) => log.warn({ msg: 'SSE connection error', err: String(err) }))
-        sseReq.end()
-      })
+      listener = handle
+      transport.on('message', listener)
+      return Promise.resolve()
     },
-
     disconnect() {
-      sseReq?.destroy()
-      sseReq = null
+      if (listener) transport.off('message', listener)
+      listener = null
     },
-
     createSession(provider) {
-      return post(port, '/sessions', { provider })
+      return call('createSession', [provider])
     },
-
     submitGoal(sessionId, goal) {
-      return post(port, `/sessions/${sessionId}/goal`, { goal })
+      return call('submitGoal', [sessionId, goal])
     },
-
     listSessions() {
-      return get(port, '/sessions')
+      return call('listSessions', [])
     },
-
     getSessionTasks(sessionId) {
-      return get(port, `/sessions/${sessionId}/tasks`)
+      return call('getSessionTasks', [sessionId])
     },
-
     async decidePermission(sessionId, actionId, decision) {
-      await post(port, `/sessions/${sessionId}/permission`, { actionId, decision })
+      await call('decidePermission', [sessionId, actionId, decision])
     },
-
     async cancelTask(sessionId, taskId) {
-      await post(port, `/sessions/${sessionId}/cancel`, { taskId })
+      await call('cancelTask', [sessionId, taskId])
     },
   }
 }
