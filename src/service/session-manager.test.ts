@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createSessionManager } from './session-manager'
 import { createConversationStore } from './conversation-store'
-import { createSseBroadcaster } from './sse'
+import { createBroadcaster } from './broadcaster'
 
 vi.mock('./agent-runner', () => ({
   createAgentRunner: vi.fn(),
@@ -26,7 +26,7 @@ describe('SessionManager', () => {
 
   it('creates a session and returns sessionId', () => {
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
     const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
 
@@ -43,7 +43,7 @@ describe('SessionManager', () => {
     store.close()
 
     const store2 = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     createSessionManager({ store: store2, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
 
     expect(store2.getSession('old-ses')?.status).toBe('interrupted')
@@ -52,7 +52,7 @@ describe('SessionManager', () => {
 
   it('resolves permission by forwarding to registry', () => {
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
     const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
     const { sessionId } = manager.createSession(provider)
@@ -72,7 +72,7 @@ describe('SessionManager', () => {
     }))
 
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
     const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
     const { sessionId: s1 } = manager.createSession(provider)
@@ -114,7 +114,7 @@ describe('SessionManager', () => {
     }))
 
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
     const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
     const { sessionId: s1 } = manager.createSession(provider)
@@ -180,7 +180,7 @@ describe('SessionManager', () => {
     })
 
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
     const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
     const { sessionId } = manager.createSession(provider)
@@ -214,7 +214,7 @@ describe('SessionManager', () => {
     })
 
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const altProvider = { id: 'openai' as const, model: 'gpt-4o', apiKey: 'alt-key' }
     const manager = createSessionManager({
       store, broadcaster, maxConcurrent: 4,
@@ -250,7 +250,7 @@ describe('SessionManager', () => {
     })
 
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({
       store, broadcaster, maxConcurrent: 4,
       getProvider: (key) => (key === 'openai' ? altProvider : undefined),
@@ -321,7 +321,7 @@ describe('SessionManager', () => {
     }))
 
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
     const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
 
@@ -347,7 +347,7 @@ describe('SessionManager', () => {
       run: async () => ({ status: 'completed' as const, summary: '', messages: [] }),
     }))
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
     const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
     manager.submitGoal(sessionId, 'Organize my downloads folder')
@@ -358,7 +358,7 @@ describe('SessionManager', () => {
   it('lists sessions and returns a session tasks via the manager', () => {
     mockCreate.mockImplementation(() => ({ run: async () => ({ status: 'completed' as const, summary: '', messages: [] }) }))
     const store = createConversationStore(dbPath)
-    const broadcaster = createSseBroadcaster()
+    const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
     const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
     manager.submitGoal(sessionId, 'g')

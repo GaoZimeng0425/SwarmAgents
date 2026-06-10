@@ -10,7 +10,7 @@ import { ulid } from 'ulid'
 import { createAgentRunner } from './agent-runner'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
-import type { SseBroadcaster } from './sse'
+import type { Broadcaster } from './broadcaster'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry, type ToolRegistry } from './tools/registry'
 
@@ -26,7 +26,7 @@ type Session = {
 
 type SessionManagerConfig = {
   store: ConversationStore
-  broadcaster: SseBroadcaster
+  broadcaster: Broadcaster
   maxConcurrent: number
   getProvider(key: string): ProviderInjection | undefined
   toolRegistry?: ToolRegistry
