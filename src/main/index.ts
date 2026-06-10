@@ -1,13 +1,12 @@
-import { fork } from 'node:child_process'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initProviders } from './providers'
-import { createServiceClient } from './service-client'
+import { createServiceClient, type ServiceTransport } from './service-client'
 import { setupAutoUpdate } from './system/auto-update'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
@@ -43,39 +42,37 @@ app.whenReady().then(async () => {
   })
 
   const serviceEntry = join(__dirname, 'service.js')
-  const serviceProcess = fork(serviceEntry, [], {
+  const serviceProcess = utilityProcess.fork(serviceEntry, [], {
+    stdio: ['ignore', 'inherit', 'pipe'],
     env: {
       ...process.env,
       SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),
       SWARM_SERVICE_MEMORY_PATH: join(app.getPath('userData'), 'agent-memory.json'),
     },
-    silent: true,
   })
 
   let serviceClient: ReturnType<typeof createServiceClient>
   try {
     serviceProcess.stderr?.on('data', (c: Buffer) => log.warn({ msg: 'service stderr', data: c.toString().trim() }))
 
-    const servicePort = await new Promise<number>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('service startup timeout')), 10_000)
-      serviceProcess.stdout?.on('data', (chunk: Buffer) => {
-        try {
-          const msg = JSON.parse(chunk.toString().trim()) as { type: string; port: number }
-          if (msg.type === 'service-started') {
-            clearTimeout(timeout)
-            serviceProcess.stdout?.removeAllListeners('data')
-            resolve(msg.port)
-          }
-        } catch {}
-      })
-      serviceProcess.on('exit', (code) => {
+      const onReady = (message: unknown): void => {
+        if ((message as { kind?: string })?.kind === 'ready') {
+          clearTimeout(timeout)
+          serviceProcess.off('message', onReady)
+          resolve()
+        }
+      }
+      serviceProcess.on('message', onReady)
+      serviceProcess.once('exit', (code) => {
         clearTimeout(timeout)
         reject(new Error(`service exited with code ${String(code)}`))
       })
     })
 
     serviceClient = createServiceClient({
-      port: servicePort,
+      transport: serviceProcess as unknown as ServiceTransport,
       onEvent: (event, data) => {
         const payload = toRendererEvent(event, data)
         for (const w of BrowserWindow.getAllWindows()) {
@@ -86,10 +83,10 @@ app.whenReady().then(async () => {
     await serviceClient.connect()
 
     wireSwarmIpc({ serviceClient, providers: providers.service })
-    log.info({ msg: 'core services up', servicePort })
+    log.info({ msg: 'core services up' })
   } catch (err) {
     log.error({ msg: 'Agent Service failed to start', err: String(err) })
-    serviceProcess.kill('SIGTERM')
+    serviceProcess.kill()
     dialog.showErrorBox('Agent Service failed', String(err))
     app.quit()
     return
@@ -116,7 +113,7 @@ app.whenReady().then(async () => {
 
   app.on('before-quit', () => {
     serviceClient.disconnect()
-    serviceProcess.kill('SIGTERM')
+    serviceProcess.kill()
   })
 
   // Default open or close DevTools by F12 in development
