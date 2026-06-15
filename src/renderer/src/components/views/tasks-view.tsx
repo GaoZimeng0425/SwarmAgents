@@ -59,7 +59,7 @@ export function TasksView(): React.JSX.Element {
             if (!ready) return
             await submitGoal.mutateAsync(g)
           }}
-          running={!!activeTask}
+          status={activeTask ? (activeTask.status === 'pending' ? 'submitted' : 'streaming') : 'ready'}
         />
       </div>
       {activePlan && <PlanPanel todos={activePlan} />}
