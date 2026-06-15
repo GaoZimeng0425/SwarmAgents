@@ -10,6 +10,7 @@ const STATUS_VARIANT: Record<TaskStatus, 'default' | 'secondary' | 'destructive'
   running: 'default',
   completed: 'secondary',
   failed: 'destructive',
+  cancelled: 'outline',
   // biome-ignore lint/style/useNamingConvention: domain TaskStatus literal
   awaiting_user: 'destructive',
 }

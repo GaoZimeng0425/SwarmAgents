@@ -13,7 +13,7 @@ const STORED_TO_UI_STATUS: Partial<Record<Task['status'], TaskStatus>> = {
   paused: 'running',
   completed: 'completed',
   failed: 'failed',
-  cancelled: 'failed',
+  cancelled: 'cancelled',
   interrupted: 'failed',
 }
 
