@@ -81,3 +81,11 @@ export function useDecidePermission() {
     onSuccess: (_, { actionId }) => remove(actionId),
   })
 }
+
+/** Cancel an in-flight task (aborts the agent run server-side). */
+export function useCancelTask() {
+  return useMutation({
+    mutationFn: ({ sessionId, taskId }: { sessionId: string; taskId: string }) =>
+      swarmApi.cancelTask(sessionId, taskId),
+  })
+}
