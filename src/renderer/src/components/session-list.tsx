@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -17,6 +18,7 @@ export function SessionList(): React.JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const selected = useSessionsStore((s) => s.selectedSessionId)
   const select = useSessionsStore((s) => s.select)
+  const navigate = useNavigate()
   const tasks = useTasks()
 
   // Derive a live run-status per session so parallel work is visible while you
@@ -37,6 +39,8 @@ export function SessionList(): React.JSX.Element {
     try {
       const { sessionId } = await swarmApi.createSession()
       select(sessionId)
+      // Return to the conversation pane in case we're on Skills or another route.
+      void navigate({ to: '/' })
     } catch (err) {
       toast.error('Could not start a new chat. Configure an API key in Settings.')
       console.error(err)
@@ -46,6 +50,8 @@ export function SessionList(): React.JSX.Element {
   const onSelect = (id: string): void => {
     select(id)
     void hydrateSession(qc, id)
+    // Return to the conversation pane in case we're on Skills or another route.
+    void navigate({ to: '/' })
   }
 
   return (
