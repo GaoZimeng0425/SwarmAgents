@@ -68,6 +68,48 @@ describe('applyEvent', () => {
     expect(next[0].status).toBe('failed')
   })
 
+  it('flips to cancelled on task.error with code "cancelled"', () => {
+    const seed: TaskRecord[] = [
+      {
+        id: 't1',
+        sessionId: 'ses-1',
+        goal: 'g',
+        status: 'running',
+        workerId: 'w1',
+        summary: null,
+        startedAt: 1,
+        events: [],
+      },
+    ]
+    const next = applyEvent(seed, {
+      kind: 'task.error',
+      ...baseEvent,
+      error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
+    })
+    expect(next[0].status).toBe('cancelled')
+  })
+
+  it('stays failed on task.error with a non-cancelled code', () => {
+    const seed: TaskRecord[] = [
+      {
+        id: 't1',
+        sessionId: 'ses-1',
+        goal: 'g',
+        status: 'running',
+        workerId: 'w1',
+        summary: null,
+        startedAt: 1,
+        events: [],
+      },
+    ]
+    const next = applyEvent(seed, {
+      kind: 'task.error',
+      ...baseEvent,
+      error: { code: 'budget_exhausted', message: 'm', tier: 'gave_up' },
+    })
+    expect(next[0].status).toBe('failed')
+  })
+
   it('flips to awaiting_user on task.permission_request', () => {
     const seed: TaskRecord[] = [
       {
