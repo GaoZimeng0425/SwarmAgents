@@ -28,7 +28,11 @@ export function TasksView(): React.JSX.Element {
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
   // Runs are sequential per session, so at most one task is in flight; the
   // event reducer prepends newest-first, so find() yields the active run.
-  const activeTask = sessionTasks.find((t) => t.status === 'running' || t.status === 'pending')
+  // 'awaiting_user' counts as in-flight: the run is blocked on a permission
+  // prompt but still cancellable, and no event resets it back to 'running'.
+  const activeTask = sessionTasks.find(
+    (t) => t.status === 'running' || t.status === 'pending' || t.status === 'awaiting_user'
+  )
   const currentPrompt = queue.find((p) => p.sessionId === selectedSessionId) ?? null
   // Most recent plan in the session (the agent replaces it wholesale).
   const activePlan = [...sessionTasks]
