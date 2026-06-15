@@ -4,7 +4,6 @@ import type { UIEvent } from '@shared/types/ui'
 import { ChevronRight, MessagesSquare } from 'lucide-react'
 
 import { Markdown } from '@/components/markdown'
-import { PlanPanel } from '@/components/plan-panel'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import type { TaskRecord } from '@/lib/apply-event'
@@ -98,17 +97,10 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
   const last = ordered[ordered.length - 1]
   const busy = last.status === 'running' || last.status === 'pending'
   const usage = last.used
-  // Show the most recent plan in the session (the agent replaces it wholesale).
-  const activePlan = [...ordered].reverse().find((t) => t.plan && t.plan.length > 0)?.plan
 
   return (
     <ScrollArea className="min-h-0 flex-1">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
-        {activePlan && (
-          <div className="sticky top-0 z-10 -mx-1 bg-background/95 pb-1 backdrop-blur">
-            <PlanPanel todos={activePlan} />
-          </div>
-        )}
         {ordered.flatMap((t) =>
           bubblesFor(t).map((b) => {
             if (b.kind === 'user') {

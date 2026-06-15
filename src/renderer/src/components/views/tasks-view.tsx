@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { ChatInput } from '@/components/chat-input'
 import { ConversationThread } from '@/components/conversation-thread'
 import { PermissionDrawer } from '@/components/permission-drawer'
+import { PlanPanel } from '@/components/plan-panel'
 import { useProviders } from '@/hooks/use-providers'
 import { useDecidePermission, useLoadSessions, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { usePermissionStore } from '@/stores/permission'
@@ -25,24 +26,31 @@ export function TasksView(): React.JSX.Element {
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
   const currentPrompt = queue.find((p) => p.sessionId === selectedSessionId) ?? null
+  // Most recent plan in the session (the agent replaces it wholesale).
+  const activePlan = [...sessionTasks]
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .find((t) => t.plan && t.plan.length > 0)?.plan
 
   return (
-    <div className="flex h-full flex-col">
-      <ConversationThread tasks={sessionTasks} />
-      <PermissionDrawer
-        onDecide={(actionId, decision) => {
-          if (!currentPrompt) return
-          decide.mutate({ sessionId: currentPrompt.sessionId, actionId, decision })
-        }}
-        prompt={currentPrompt}
-      />
-      <ChatInput
-        disabled={submitGoal.isPending || !ready}
-        onSubmit={async (g) => {
-          if (!ready) return
-          await submitGoal.mutateAsync(g)
-        }}
-      />
+    <div className="flex h-full">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <ConversationThread tasks={sessionTasks} />
+        <PermissionDrawer
+          onDecide={(actionId, decision) => {
+            if (!currentPrompt) return
+            decide.mutate({ sessionId: currentPrompt.sessionId, actionId, decision })
+          }}
+          prompt={currentPrompt}
+        />
+        <ChatInput
+          disabled={submitGoal.isPending || !ready}
+          onSubmit={async (g) => {
+            if (!ready) return
+            await submitGoal.mutateAsync(g)
+          }}
+        />
+      </div>
+      {activePlan && <PlanPanel todos={activePlan} />}
     </div>
   )
 }
