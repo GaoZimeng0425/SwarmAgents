@@ -5,7 +5,7 @@ import { ConversationThread } from '@/components/conversation-thread'
 import { PermissionDrawer } from '@/components/permission-drawer'
 import { PlanPanel } from '@/components/plan-panel'
 import { useProviders } from '@/hooks/use-providers'
-import { useDecidePermission, useLoadSessions, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
+import { useCancelTask, useDecidePermission, useLoadSessions, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -14,6 +14,7 @@ export function TasksView(): React.JSX.Element {
   const queue = usePermissionStore((s) => s.queue)
   const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
   const submitGoal = useSubmitGoal()
+  const cancelTask = useCancelTask()
   const decide = useDecidePermission()
   const loadSessions = useLoadSessions()
   const { ready } = useProviders()
@@ -25,6 +26,9 @@ export function TasksView(): React.JSX.Element {
   }, [])
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
+  // Runs are sequential per session, so at most one task is in flight; the
+  // event reducer prepends newest-first, so find() yields the active run.
+  const activeTask = sessionTasks.find((t) => t.status === 'running' || t.status === 'pending')
   const currentPrompt = queue.find((p) => p.sessionId === selectedSessionId) ?? null
   // Most recent plan in the session (the agent replaces it wholesale).
   const activePlan = [...sessionTasks]
@@ -43,11 +47,15 @@ export function TasksView(): React.JSX.Element {
           prompt={currentPrompt}
         />
         <ChatInput
-          disabled={submitGoal.isPending || !ready}
+          disabled={!ready}
+          onStop={() => {
+            if (activeTask) cancelTask.mutate({ sessionId: activeTask.sessionId, taskId: activeTask.id })
+          }}
           onSubmit={async (g) => {
             if (!ready) return
             await submitGoal.mutateAsync(g)
           }}
+          running={!!activeTask}
         />
       </div>
       {activePlan && <PlanPanel todos={activePlan} />}
