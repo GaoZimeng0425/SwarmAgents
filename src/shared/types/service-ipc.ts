@@ -9,6 +9,11 @@ export type ServiceMethod =
   | 'getSessionTasks'
   | 'decidePermission'
   | 'cancelTask'
+  | 'setMcpServers'
+  | 'getMcpStatus'
+  | 'listSkills'
+  | 'saveSkill'
+  | 'deleteSkill'
 
 export type ServiceRequest = {
   kind: 'request'

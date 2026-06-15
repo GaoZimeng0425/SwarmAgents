@@ -5,6 +5,7 @@ import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
+import { initMcpServers } from './mcp-servers'
 import { initProviders } from './providers'
 import { createServiceClient, type ServiceTransport } from './service-client'
 import { setupAutoUpdate } from './system/auto-update'
@@ -37,8 +38,12 @@ app.whenReady().then(async () => {
   const providers = await initProviders()
   log.info({ msg: 'providers initialised' })
 
+  const mcpServers = await initMcpServers()
+  log.info({ msg: 'mcp servers initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
+    mcpServers.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')
@@ -48,6 +53,7 @@ app.whenReady().then(async () => {
       ...process.env,
       SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),
       SWARM_SERVICE_MEMORY_PATH: join(app.getPath('userData'), 'agent-memory.json'),
+      SWARM_SERVICE_SKILLS_PATH: join(app.getPath('userData'), 'skills'),
     },
   })
 
@@ -74,15 +80,18 @@ app.whenReady().then(async () => {
     serviceClient = createServiceClient({
       transport: serviceProcess as unknown as ServiceTransport,
       onEvent: (event, data) => {
-        const payload = toRendererEvent(event, data)
+        // MCP status rides a dedicated channel — it isn't a task UIEvent and
+        // must not reach applyEvent (which would create a phantom task stub).
+        const channel = event.startsWith('mcp.') ? 'mcp:status' : 'swarm:event'
+        const payload = channel === 'mcp:status' ? data : toRendererEvent(event, data)
         for (const w of BrowserWindow.getAllWindows()) {
-          if (!w.isDestroyed()) w.webContents.send('swarm:event', payload)
+          if (!w.isDestroyed()) w.webContents.send(channel, payload)
         }
       },
     })
     await serviceClient.connect()
 
-    wireSwarmIpc({ serviceClient, providers: providers.service })
+    wireSwarmIpc({ serviceClient, providers: providers.service, mcpServers: mcpServers.service })
     log.info({ msg: 'core services up' })
   } catch (err) {
     log.error({ msg: 'Agent Service failed to start', err: String(err) })

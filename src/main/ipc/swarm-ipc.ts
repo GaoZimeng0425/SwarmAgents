@@ -2,8 +2,9 @@ import { createLogger } from '@shared/logger'
 import { type ConfirmRequest, ConfirmRequestSchema, type ConfirmResponse } from '@shared/types/ipc'
 import { BrowserWindow, ipcMain } from 'electron'
 
-import type { ServiceClient } from '../service-client'
+import type { Service as McpService } from '../mcp-servers'
 import type { Service as ProvidersService } from '../providers'
+import type { ServiceClient } from '../service-client'
 import { getAccent, subscribeAccent } from '../system/accent'
 import { showNativeConfirm } from '../system/confirm'
 import { getMacPermissions, openPrivacySettings } from '../system/permissions'
@@ -15,8 +16,29 @@ const log = createLogger({ process: 'main' }).child({ component: 'swarm-ipc' })
 export function wireSwarmIpc(args: {
   serviceClient: ServiceClient
   providers: ProvidersService
+  mcpServers: McpService
 }): { dispose: () => void } {
-  const { serviceClient, providers } = args
+  const { serviceClient, providers, mcpServers } = args
+
+  // ---- MCP config ↔ service bridge ----
+  // Push the persisted config to the service now, and on every change. The
+  // service connects/disconnects servers and registers their tools.
+  void serviceClient.setMcpServers(mcpServers.list()).catch((err: unknown) => {
+    log.warn({ msg: 'initial setMcpServers failed', err: String(err) })
+  })
+  const offMcpChange = mcpServers.onChange((configs) => {
+    void serviceClient.setMcpServers(configs).catch((err: unknown) => {
+      log.warn({ msg: 'setMcpServers failed', err: String(err) })
+    })
+  })
+  ipcMain.handle('mcp:getStatus', () => serviceClient.getMcpStatus())
+
+  // ---- Skills (service owns the files; main is a thin passthrough) ----
+  ipcMain.handle('skills:list', () => serviceClient.listSkills())
+  ipcMain.handle('skills:save', (_e: Electron.IpcMainInvokeEvent, skill: import('@shared/types/skill').Skill) =>
+    serviceClient.saveSkill(skill)
+  )
+  ipcMain.handle('skills:delete', (_e: Electron.IpcMainInvokeEvent, name: string) => serviceClient.deleteSkill(name))
 
   // ---- Renderer → Main RPC handlers ----
 
@@ -36,7 +58,7 @@ export function wireSwarmIpc(args: {
   const submitGoal = async (
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
-    goal: string,
+    goal: string
   ): Promise<{ taskId: string }> => {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
@@ -60,7 +82,7 @@ export function wireSwarmIpc(args: {
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
     actionId: string,
-    decision: string,
+    decision: string
   ): void => {
     void serviceClient
       .decidePermission(sessionId, actionId, decision as import('@shared/types/ui').PermissionDecision)
@@ -114,6 +136,11 @@ export function wireSwarmIpc(args: {
 
   return {
     dispose(): void {
+      offMcpChange()
+      ipcMain.removeHandler('mcp:getStatus')
+      ipcMain.removeHandler('skills:list')
+      ipcMain.removeHandler('skills:save')
+      ipcMain.removeHandler('skills:delete')
       ipcMain.removeHandler('system:openPrivacySettings')
       ipcMain.removeHandler('system:getMacPermissions')
       ipcMain.removeHandler('system:openSettings')

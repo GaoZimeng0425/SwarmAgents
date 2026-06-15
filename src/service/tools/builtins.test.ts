@@ -33,6 +33,7 @@ describe('registerBuiltinTools', () => {
       .sort()
     expect(ids).toEqual([
       'agent.spawn_sub_agent',
+      'agent.update_plan',
       'fs.edit_file',
       'fs.glob',
       'fs.grep',

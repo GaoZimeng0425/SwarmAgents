@@ -1,3 +1,4 @@
+import type { PlanTodo, ResourceBudget } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user'
@@ -10,6 +11,8 @@ export type TaskRecord = {
   workerId: string | null
   summary: string | null
   startedAt: number
+  used?: ResourceBudget
+  plan?: PlanTodo[]
   events: UIEvent[]
 }
 
@@ -62,6 +65,12 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       break
     case 'task.error':
       updated = setStatus(updated, 'failed')
+      break
+    case 'task.usage':
+      updated = { ...updated, used: e.used }
+      break
+    case 'task.plan':
+      updated = { ...updated, plan: e.todos }
       break
     case 'task.permission_request':
       updated = setStatus(updated, 'awaiting_user')

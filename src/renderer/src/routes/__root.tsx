@@ -26,7 +26,7 @@ function RootLayout(): React.JSX.Element {
       <SidebarInset>
         {/* 06 § Materials: content pane reads as more opaque than the
             translucent vibrancy sidebar. --window-content is the material hook. */}
-        <main className="h-full bg-[var(--window-content)] pt-7">
+        <main className="h-svh overflow-hidden bg-[var(--window-content)] pt-7">
           <Outlet />
         </main>
       </SidebarInset>

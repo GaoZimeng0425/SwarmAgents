@@ -1,9 +1,12 @@
 import type { MemoryStore } from '../memory-store'
+import type { SkillStore } from '../skills/store'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
 import { buildPeekabooTools } from './peekaboo'
+import { updatePlanSpec } from './plan'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { shellSpec } from './shell'
+import { useSkillSpec } from './skill'
 import { spawnAgentSpec } from './spawn'
 import { webFetchSpec } from './web'
 
@@ -35,12 +38,18 @@ export function peekabooSpecs(): ToolSpec[] {
   }))
 }
 
-export function registerBuiltinTools(registry: ToolRegistry, deps?: { memoryStore?: MemoryStore }): void {
+export function registerBuiltinTools(
+  registry: ToolRegistry,
+  deps?: { memoryStore?: MemoryStore; skillStore?: SkillStore }
+): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
+  registry.register(updatePlanSpec())
   registry.register(shellSpec())
   registry.register(webFetchSpec())
   for (const spec of fsSpecs()) registry.register(spec)
   // Memory tools need a backing store; registered only when one is injected.
   if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)
+  // use_skill needs the skill store; registered only when one is injected.
+  if (deps?.skillStore) registry.register(useSkillSpec(deps.skillStore))
 }

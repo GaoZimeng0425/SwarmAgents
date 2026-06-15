@@ -1,7 +1,8 @@
+import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { rmSync } from 'node:fs'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import { createConversationStore } from './conversation-store'
 
 const tmpDb = () => join(tmpdir(), `swarm-test-${Date.now()}-${Math.random()}.db`)
@@ -9,8 +10,14 @@ const tmpDb = () => join(tmpdir(), `swarm-test-${Date.now()}-${Math.random()}.db
 describe('ConversationStore', () => {
   let dbPath: string
 
-  beforeEach(() => { dbPath = tmpDb() })
-  afterEach(() => { try { rmSync(dbPath) } catch {} })
+  beforeEach(() => {
+    dbPath = tmpDb()
+  })
+  afterEach(() => {
+    try {
+      rmSync(dbPath)
+    } catch {}
+  })
 
   it('creates and retrieves a session', () => {
     const store = createConversationStore(dbPath)
@@ -53,13 +60,22 @@ describe('ConversationStore', () => {
     const now = Date.now()
     store.saveTask(
       {
-        id: 'task-1', parentId: null, agentDefId: 'default', goal: 'hello',
-        status: 'pending', assignedWorkerId: null,
-        toolAllowlist: [], budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
+        id: 'task-1',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'hello',
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
+        history: [],
+        result: null,
+        createdAt: now,
+        startedAt: null,
+        endedAt: null,
       },
-      'ses-1',
+      'ses-1'
     )
     const tasks = store.getSessionTasks('ses-1')
     expect(tasks).toHaveLength(1)
@@ -112,13 +128,22 @@ describe('ConversationStore', () => {
     const now = Date.now()
     store.saveTask(
       {
-        id: '01HRX0000000000000000000A1', parentId: null, agentDefId: 'default', goal: 'g',
-        status: 'completed', assignedWorkerId: null, toolAllowlist: [],
+        id: '01HRX0000000000000000000A1',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'completed',
+        assignedWorkerId: null,
+        toolAllowlist: [],
         budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
+        history: [],
+        result: null,
+        createdAt: now,
+        startedAt: null,
+        endedAt: null,
       },
-      'ses-b',
+      'ses-b'
     )
 
     const list = store.listSessions()
@@ -138,19 +163,57 @@ describe('ConversationStore', () => {
     const now = Date.now()
     store.saveTask(
       {
-        id: '01HRX0000000000000000000H1', parentId: null, agentDefId: 'default', goal: 'g',
-        status: 'running', assignedWorkerId: null, toolAllowlist: [],
+        id: '01HRX0000000000000000000H1',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'running',
+        assignedWorkerId: null,
+        toolAllowlist: [],
         budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        history: [], result: null, createdAt: now, startedAt: null, endedAt: null,
+        history: [],
+        result: null,
+        createdAt: now,
+        startedAt: null,
+        endedAt: null,
       },
-      'ses-h',
+      'ses-h'
     )
     store.saveTaskHistory('01HRX0000000000000000000H1', [
       { kind: 'llm.message', role: 'assistant', content: 'done', ts: now },
     ])
     const tasks = store.getSessionTasks('ses-h')
     expect(tasks[0].history).toEqual([{ kind: 'llm.message', role: 'assistant', content: 'done', ts: now }])
+    store.close()
+  })
+
+  it('saveTaskUsage writes used back to the task row', () => {
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const store = createConversationStore(dbPath)
+    store.createSession('ses-u', provider)
+    store.saveTask(
+      {
+        id: '01HRX0000000000000000000U1',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'running',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 100, calls: 5, wallMs: 1000, usdCents: 10 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        result: null,
+        createdAt: 1,
+        startedAt: null,
+        endedAt: null,
+      },
+      'ses-u'
+    )
+    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 })
+    const task = store.getSessionTasks('ses-u').find((t) => t.id === '01HRX0000000000000000000U1')
+    expect(task?.used).toEqual({ tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 })
     store.close()
   })
 })

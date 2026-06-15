@@ -1,6 +1,8 @@
 import { createLogger } from '@shared/logger'
+import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
+import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { PermissionDecision } from '@shared/types/ui'
 
 const log = createLogger({ process: 'main' }).child({ component: 'service-client' })
@@ -27,6 +29,11 @@ export type ServiceClient = {
   getSessionTasks(sessionId: string): Promise<import('@shared/types/task').Task[]>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   cancelTask(sessionId: string, taskId: string): Promise<void>
+  setMcpServers(configs: McpServerConfig[]): Promise<void>
+  getMcpStatus(): Promise<McpServerStatus[]>
+  listSkills(): Promise<Skill[]>
+  saveSkill(skill: Skill): Promise<SkillMutationResult>
+  deleteSkill(name: string): Promise<SkillMutationResult>
 }
 
 export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
@@ -86,6 +93,21 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     async cancelTask(sessionId, taskId) {
       await call('cancelTask', [sessionId, taskId])
+    },
+    async setMcpServers(configs) {
+      await call('setMcpServers', [configs])
+    },
+    getMcpStatus() {
+      return call('getMcpStatus', [])
+    },
+    listSkills() {
+      return call('listSkills', [])
+    },
+    saveSkill(skill) {
+      return call('saveSkill', [skill])
+    },
+    deleteSkill(name) {
+      return call('deleteSkill', [name])
     },
   }
 }

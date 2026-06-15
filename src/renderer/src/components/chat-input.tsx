@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProviderId, ProvidersStateView } from '@shared/types/provider'
+import { ArrowUp } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -60,39 +61,45 @@ export function ChatInput({ onSubmit, disabled }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="shrink-0 border-t p-3">
-      <div className="mx-auto flex max-w-3xl items-end gap-2">
-        {options.length > 0 && (
-          <NativeSelect
-            onChange={(e) => void onPickModel(e)}
-            title="Active model"
-            value={currentKey}
+    <div className="shrink-0 px-3 pt-1 pb-3">
+      <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
+        <div className="flex items-end gap-2 rounded-2xl border bg-card px-3 py-2 shadow-sm transition-colors focus-within:border-ring/60">
+          <Textarea
+            className="max-h-40 min-h-6 flex-1 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
+            disabled={disabled}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                void submit()
+              }
+            }}
+            placeholder="Message the swarm — Enter to send, Shift+Enter for newline"
+            ref={ref}
+            rows={1}
+            value={value}
+          />
+          <Button
+            aria-label="Send"
+            className="size-8 shrink-0 rounded-full"
+            disabled={disabled || value.trim().length === 0}
+            onClick={() => void submit()}
+            size="icon"
           >
-            {options.map((o) => (
-              <NativeSelectOption key={o.key} value={o.key}>
-                {o.modelId}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+            <ArrowUp className="size-4" />
+          </Button>
+        </div>
+        {options.length > 0 && (
+          <div className="flex justify-end px-1">
+            <NativeSelect onChange={(e) => void onPickModel(e)} size="sm" title="Active model" value={currentKey}>
+              {options.map((o) => (
+                <NativeSelectOption key={o.key} value={o.key}>
+                  {o.modelId}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
         )}
-        <Textarea
-          className="max-h-40 min-h-9 flex-1 resize-none"
-          disabled={disabled}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              void submit()
-            }
-          }}
-          placeholder="Message the swarm — Enter to send, Shift+Enter for newline"
-          ref={ref}
-          rows={1}
-          value={value}
-        />
-        <Button disabled={disabled || value.trim().length === 0} onClick={() => void submit()}>
-          Send
-        </Button>
       </div>
     </div>
   )

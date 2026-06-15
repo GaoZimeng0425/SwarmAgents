@@ -1,13 +1,17 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
+import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ProviderId, ProvidersStateView } from '../shared/types/provider'
+import type { Skill, SkillMutationResult } from '../shared/types/skill'
 import type {
   MacPermissions,
+  McpBridge,
   PermissionDecision,
   ProvidersBridge,
   ProvidersSetResult,
   ProvidersTestResult,
+  SkillBridge,
   SubmitGoalResult,
   SwarmBridge,
   UIEvent,
@@ -17,6 +21,8 @@ const IPC_EVENT_CHANNEL = 'swarm:event'
 const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
 const PROVIDERS_STATE_CHANNEL = 'providers:stateChanged'
 const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
+const MCP_CONFIG_CHANGED_CHANNEL = 'mcp:configChanged'
+const MCP_STATUS_CHANNEL = 'mcp:status'
 
 const providers: ProvidersBridge = {
   get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
@@ -50,6 +56,37 @@ const providers: ProvidersBridge = {
   },
 }
 
+const mcp: McpBridge = {
+  list: () => ipcRenderer.invoke('mcp:list') as Promise<McpServerConfig[]>,
+  add: (input) => ipcRenderer.invoke('mcp:add', input) as Promise<McpMutationResult & { id?: string }>,
+  update: (id, patch) => ipcRenderer.invoke('mcp:update', id, patch) as Promise<McpMutationResult>,
+  remove: (id) => ipcRenderer.invoke('mcp:remove', id) as Promise<McpMutationResult>,
+  setEnabled: (id, enabled) => ipcRenderer.invoke('mcp:setEnabled', id, enabled) as Promise<McpMutationResult>,
+  setToolOverride: (id: string, toolName: string, override: McpToolOverride | null) =>
+    ipcRenderer.invoke('mcp:setToolOverride', id, toolName, override) as Promise<McpMutationResult>,
+  getStatus: () => ipcRenderer.invoke('mcp:getStatus') as Promise<McpServerStatus[]>,
+  onConfigChanged: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: McpServerConfig[]): void => cb(payload)
+    ipcRenderer.on(MCP_CONFIG_CHANGED_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(MCP_CONFIG_CHANGED_CHANNEL, listener)
+    }
+  },
+  onStatus: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: McpServerStatus[]): void => cb(payload)
+    ipcRenderer.on(MCP_STATUS_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(MCP_STATUS_CHANNEL, listener)
+    }
+  },
+}
+
+const skills: SkillBridge = {
+  list: () => ipcRenderer.invoke('skills:list') as Promise<Skill[]>,
+  save: (skill: Skill) => ipcRenderer.invoke('skills:save', skill) as Promise<SkillMutationResult>,
+  remove: (name: string) => ipcRenderer.invoke('skills:delete', name) as Promise<SkillMutationResult>,
+}
+
 const swarm: SwarmBridge = {
   submitGoal: (sessionId, goal) => ipcRenderer.invoke('swarm:submitGoal', sessionId, goal) as Promise<SubmitGoalResult>,
   cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
@@ -81,6 +118,8 @@ const swarm: SwarmBridge = {
   getMacPermissions: () => ipcRenderer.invoke('system:getMacPermissions') as Promise<MacPermissions>,
   openPrivacySettings: (pane) => ipcRenderer.invoke('system:openPrivacySettings', pane) as Promise<void>,
   providers,
+  mcp,
+  skills,
 }
 
 if (process.contextIsolated) {

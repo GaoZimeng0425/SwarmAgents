@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
 import { createDispatcher } from './dispatcher'
 import type { SessionManager } from './session-manager'
 
@@ -7,17 +8,26 @@ function mockManager(): SessionManager {
     createSession: vi.fn().mockReturnValue({ sessionId: 'ses-1' }),
     submitGoal: vi.fn().mockReturnValue({ taskId: 'task-1' }),
     resolvePermission: vi.fn(),
+    cancelTask: vi.fn(),
     endSession: vi.fn(),
     listSessions: vi.fn().mockReturnValue([{ id: 'ses-1' }]),
     getSessionTasks: vi.fn().mockReturnValue([]),
   } as unknown as SessionManager
 }
 
+const mcpDeps = () => ({
+  setMcpServers: vi.fn().mockResolvedValue(undefined),
+  getMcpStatus: vi.fn().mockReturnValue([]),
+  listSkills: vi.fn().mockReturnValue([]),
+  saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
+  deleteSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
+})
+
 describe('dispatcher', () => {
   it('createSession registers the provider then creates a session', () => {
     const manager = mockManager()
     const registerProvider = vi.fn()
-    const dispatch = createDispatcher({ manager, registerProvider })
+    const dispatch = createDispatcher({ manager, registerProvider, ...mcpDeps() })
     const provider = { id: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' }
     const result = dispatch('createSession', [provider])
     expect(registerProvider).toHaveBeenCalledWith(provider)
@@ -26,7 +36,7 @@ describe('dispatcher', () => {
 
   it('submitGoal forwards to the manager', () => {
     const manager = mockManager()
-    const dispatch = createDispatcher({ manager, registerProvider: vi.fn() })
+    const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
     const result = dispatch('submitGoal', ['ses-1', 'do it'])
     expect(manager.submitGoal).toHaveBeenCalledWith('ses-1', 'do it')
     expect(result).toEqual({ taskId: 'task-1' })
@@ -34,7 +44,7 @@ describe('dispatcher', () => {
 
   it('decidePermission routes to resolvePermission and returns ok', () => {
     const manager = mockManager()
-    const dispatch = createDispatcher({ manager, registerProvider: vi.fn() })
+    const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
     const result = dispatch('decidePermission', ['ses-1', 'act-1', 'grant'])
     expect(manager.resolvePermission).toHaveBeenCalledWith('ses-1', 'act-1', 'grant')
     expect(result).toEqual({ ok: true })
@@ -42,18 +52,37 @@ describe('dispatcher', () => {
 
   it('listSessions / getSessionTasks read through to the manager', () => {
     const manager = mockManager()
-    const dispatch = createDispatcher({ manager, registerProvider: vi.fn() })
+    const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
     expect(dispatch('listSessions', [])).toEqual([{ id: 'ses-1' }])
     expect(dispatch('getSessionTasks', ['ses-1'])).toEqual([])
   })
 
-  it('cancelTask is a no-op returning ok', () => {
-    const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn() })
-    expect(dispatch('cancelTask', ['ses-1', 'task-1'])).toEqual({ ok: true })
+  it('cancelTask routes to manager.cancelTask and returns ok', () => {
+    const manager = mockManager()
+    const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
+    const result = dispatch('cancelTask', ['ses-1', 'task-1'])
+    expect(manager.cancelTask).toHaveBeenCalledWith('ses-1', 'task-1')
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('setMcpServers forwards configs and resolves ok', async () => {
+    const mcp = mcpDeps()
+    const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn(), ...mcp })
+    const configs = [{ id: 's1', name: 'fs', transport: 'stdio', enabled: true }]
+    const result = await dispatch('setMcpServers', [configs])
+    expect(mcp.setMcpServers).toHaveBeenCalledWith(configs)
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('getMcpStatus reads through to the manager', () => {
+    const mcp = mcpDeps()
+    mcp.getMcpStatus.mockReturnValue([{ id: 's1', state: 'connected', tools: [] }])
+    const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn(), ...mcp })
+    expect(dispatch('getMcpStatus', [])).toEqual([{ id: 's1', state: 'connected', tools: [] }])
   })
 
   it('throws on an unknown method', () => {
-    const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn() })
+    const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn(), ...mcpDeps() })
     expect(() => dispatch('nope' as never, [])).toThrow(/unknown method/)
   })
 })

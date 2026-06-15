@@ -1,16 +1,18 @@
+import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { rmSync } from 'node:fs'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createSessionManager } from './session-manager'
-import { createConversationStore } from './conversation-store'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createBroadcaster } from './broadcaster'
+import { createConversationStore } from './conversation-store'
+import { createSessionManager } from './session-manager'
 
 vi.mock('./agent-runner', () => ({
   createAgentRunner: vi.fn(),
 }))
 
 import { createAgentRunner } from './agent-runner'
+
 const mockCreate = vi.mocked(createAgentRunner)
 
 const tmpDb = () => join(tmpdir(), `swarm-ses-test-${Date.now()}.db`)
@@ -22,7 +24,11 @@ describe('SessionManager', () => {
     dbPath = tmpDb()
     mockCreate.mockReset()
   })
-  afterEach(() => { try { rmSync(dbPath) } catch {} })
+  afterEach(() => {
+    try {
+      rmSync(dbPath)
+    } catch {}
+  })
 
   it('creates a session and returns sessionId', () => {
     const store = createConversationStore(dbPath)
@@ -66,9 +72,10 @@ describe('SessionManager', () => {
     // bounded by the semaphore. Goals in the same session are serialized.
     const resolvers: Array<(v: { status: 'completed' | 'failed'; summary: string }) => void> = []
     mockCreate.mockImplementation(() => ({
-      run: () => new Promise<{ status: 'completed' | 'failed'; summary: string }>(
-        (resolve) => { resolvers.push(resolve) }
-      ),
+      run: () =>
+        new Promise<{ status: 'completed' | 'failed'; summary: string }>((resolve) => {
+          resolvers.push(resolve)
+        }),
     }))
 
     const store = createConversationStore(dbPath)
@@ -108,9 +115,10 @@ describe('SessionManager', () => {
     // bounded by the semaphore. This exercises the waiter-transfer path.
     const resolvers: Array<(v: { status: 'completed' | 'failed'; summary: string }) => void> = []
     mockCreate.mockImplementation(() => ({
-      run: () => new Promise<{ status: 'completed' | 'failed'; summary: string }>(
-        (resolve) => { resolvers.push(resolve) }
-      ),
+      run: () =>
+        new Promise<{ status: 'completed' | 'failed'; summary: string }>((resolve) => {
+          resolvers.push(resolve)
+        }),
     }))
 
     const store = createConversationStore(dbPath)
@@ -166,7 +174,9 @@ describe('SessionManager', () => {
 
   it('propagates child runner summary through spawnChild', async () => {
     let callCount = 0
-    let capturedSpawnChild: ((...args: unknown[]) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>) | null = null
+    let capturedSpawnChild:
+      | ((...args: unknown[]) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>)
+      | null = null
 
     mockCreate.mockImplementation((deps) => {
       callCount++
@@ -188,7 +198,7 @@ describe('SessionManager', () => {
     const { taskId: parentTaskId } = manager.submitGoal(sessionId, 'parent goal')
 
     // Wait for the async startRunner to reach createAgentRunner
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(capturedSpawnChild).not.toBeNull()
     const childResult = await capturedSpawnChild!(parentTaskId, 'child goal')
@@ -201,7 +211,14 @@ describe('SessionManager', () => {
 
   it('uses session provider when providerKey is not given', async () => {
     const sessionProvider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'session-key' }
-    let capturedSpawnChild: ((parentTaskId: string, goal: string, suggestedTools?: string[], providerKey?: string) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>) | null = null
+    let capturedSpawnChild:
+      | ((
+          parentTaskId: string,
+          goal: string,
+          suggestedTools?: string[],
+          providerKey?: string
+        ) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>)
+      | null = null
     let childProvider: { id: string; model: string; apiKey: string } | null = null
 
     mockCreate.mockImplementationOnce((deps) => {
@@ -217,7 +234,9 @@ describe('SessionManager', () => {
     const broadcaster = createBroadcaster()
     const altProvider = { id: 'openai' as const, model: 'gpt-4o', apiKey: 'alt-key' }
     const manager = createSessionManager({
-      store, broadcaster, maxConcurrent: 4,
+      store,
+      broadcaster,
+      maxConcurrent: 4,
       getProvider: (key) => (key === 'openai' ? altProvider : undefined),
     })
 
@@ -237,7 +256,14 @@ describe('SessionManager', () => {
   it('uses the looked-up provider when providerKey matches', async () => {
     const sessionProvider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'session-key' }
     const altProvider = { id: 'openai' as const, model: 'gpt-4o', apiKey: 'alt-key' }
-    let capturedSpawnChild: ((parentTaskId: string, goal: string, suggestedTools?: string[], providerKey?: string) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>) | null = null
+    let capturedSpawnChild:
+      | ((
+          parentTaskId: string,
+          goal: string,
+          suggestedTools?: string[],
+          providerKey?: string
+        ) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>)
+      | null = null
     let childProvider: { id: string; model: string; apiKey: string } | null = null
 
     mockCreate.mockImplementationOnce((deps) => {
@@ -252,7 +278,9 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({
-      store, broadcaster, maxConcurrent: 4,
+      store,
+      broadcaster,
+      maxConcurrent: 4,
       getProvider: (key) => (key === 'openai' ? altProvider : undefined),
     })
 
@@ -313,8 +341,14 @@ describe('SessionManager', () => {
         seeds.push(deps.initialMessages)
         if (!firstStarted) {
           firstStarted = true
-          await new Promise<void>((r) => { resolveFirst = r })
-          return { status: 'completed' as const, summary: 'a', messages: [{ role: 'assistant', content: 'a' }] as never }
+          await new Promise<void>((r) => {
+            resolveFirst = r
+          })
+          return {
+            status: 'completed' as const,
+            summary: 'a',
+            messages: [{ role: 'assistant', content: 'a' }] as never,
+          }
         }
         return { status: 'completed' as const, summary: 'b', messages: [{ role: 'assistant', content: 'b' }] as never }
       },
@@ -355,8 +389,55 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('cancelTask aborts the running task signal', async () => {
+    let capturedSignal: AbortSignal | undefined
+    mockCreate.mockImplementation((deps: { signal?: AbortSignal }) => {
+      capturedSignal = deps.signal
+      return { run: () => new Promise<never>(() => {}) } // stays running
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { taskId } = manager.submitGoal(sessionId, 'long running goal')
+
+    await new Promise((r) => setTimeout(r, 0))
+    expect(capturedSignal).toBeInstanceOf(AbortSignal)
+    expect(capturedSignal?.aborted).toBe(false)
+
+    manager.cancelTask(sessionId, taskId)
+    expect(capturedSignal?.aborted).toBe(true)
+    store.close()
+  })
+
+  it('persists the used returned by the runner to the task row', async () => {
+    mockCreate.mockImplementation(() => ({
+      run: async () => ({
+        status: 'completed' as const,
+        summary: '',
+        messages: [],
+        used: { tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6 },
+      }),
+    }))
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { taskId } = manager.submitGoal(sessionId, 'g')
+
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    const task = store.getSessionTasks(sessionId).find((t) => t.id === taskId)
+    expect(task?.used).toEqual({ tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6 })
+    store.close()
+  })
+
   it('lists sessions and returns a session tasks via the manager', () => {
-    mockCreate.mockImplementation(() => ({ run: async () => ({ status: 'completed' as const, summary: '', messages: [] }) }))
+    mockCreate.mockImplementation(() => ({
+      run: async () => ({ status: 'completed' as const, summary: '', messages: [] }),
+    }))
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })

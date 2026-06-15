@@ -8,8 +8,10 @@
  * linear timeline without needing its own clock.
  */
 import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
+import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { ApiStyle, ProviderId, ProvidersStateView } from './provider'
-import type { TaskEvent, TaskResult } from './task'
+import type { Skill, SkillMutationResult } from './skill'
+import type { PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
   | { kind: 'task.created'; sessionId: string; taskId: string; goal: string; ts: number }
@@ -37,6 +39,8 @@ export type UIEvent =
     }
   | { kind: 'task.complete'; sessionId: string; taskId: string; summary: string; ts: number }
   | { kind: 'task.error'; sessionId: string; taskId: string; error: unknown; ts: number }
+  | { kind: 'task.usage'; sessionId: string; taskId: string; used: ResourceBudget; ts: number }
+  | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number }
   | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number }
   | {
       kind: 'task.handoff.completed'
@@ -89,6 +93,24 @@ export type ProvidersBridge = {
   onDecryptFailed(cb: () => void): () => void
 }
 
+export type McpBridge = {
+  list(): Promise<McpServerConfig[]>
+  add(input: Omit<McpServerConfig, 'id'>): Promise<McpMutationResult & { id?: string }>
+  update(id: string, patch: Partial<Omit<McpServerConfig, 'id'>>): Promise<McpMutationResult>
+  remove(id: string): Promise<McpMutationResult>
+  setEnabled(id: string, enabled: boolean): Promise<McpMutationResult>
+  setToolOverride(id: string, toolName: string, override: McpToolOverride | null): Promise<McpMutationResult>
+  getStatus(): Promise<McpServerStatus[]>
+  onConfigChanged(cb: (configs: McpServerConfig[]) => void): () => void
+  onStatus(cb: (statuses: McpServerStatus[]) => void): () => void
+}
+
+export type SkillBridge = {
+  list(): Promise<Skill[]>
+  save(skill: Skill): Promise<SkillMutationResult>
+  remove(name: string): Promise<SkillMutationResult>
+}
+
 /** Status of a macOS TCC permission. 'unsupported' on non-macOS platforms. */
 export type MacPermissionState = 'granted' | 'denied' | 'not-determined' | 'unsupported'
 
@@ -123,6 +145,8 @@ export type SwarmBridge = {
   /** Open the relevant macOS Privacy & Security settings pane. No-op off macOS. */
   openPrivacySettings(pane: 'screen' | 'accessibility'): Promise<void>
   providers: ProvidersBridge
+  mcp: McpBridge
+  skills: SkillBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.

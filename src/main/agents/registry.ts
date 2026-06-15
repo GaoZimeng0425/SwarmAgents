@@ -15,6 +15,7 @@ You have these tools:
   - click({id|coords|query, double?, right?}), type({text, clear?, pressReturn?}), scroll({direction, amount?, id?}), hotkey({keys}): drive on-screen UI. Always call see_screen first to get element IDs, then click/type by id.
   - remember({key, content, category?}), recall({query, limit?}), forget({key}): long-term memory that persists across tasks.
   - fetch({url, raw?}): fetch an http(s) URL and get the page as clean Markdown (or the raw body).
+  - update_plan({todos}): record/update your step-by-step plan; each todo is {content, status: pending|in_progress|completed}. Pass the whole list each call.
 
 Choosing a tool:
   - Reading or changing file contents → use the fs tools (read_file / write_file / edit_file / list_dir). They take absolute paths and are safer than shell redirection or heredocs for writes/edits.
@@ -23,9 +24,10 @@ Choosing a tool:
 
 Workflow:
   1. Read the goal carefully and pick the right tool per the guidance above.
-  2. Think out loud briefly between tool calls.
-  3. Write a one-paragraph summary at the end. Do not loop indefinitely.
-  4. If a tool returns an error (e.g. permission denied), explain it in the summary instead of retrying blindly.`
+  2. For any multi-step task, call update_plan first to lay out the steps, then keep it current — mark one step in_progress as you work and flip it to completed when done.
+  3. Think out loud briefly between tool calls.
+  4. Write a one-paragraph summary at the end. Do not loop indefinitely.
+  5. If a tool returns an error (e.g. permission denied), explain it in the summary instead of retrying blindly.`
 
 const RESEARCHER_SYSTEM_PROMPT = `You are a research agent. Your job is to gather information and report findings.
 

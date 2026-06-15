@@ -1,7 +1,7 @@
-import Database from 'better-sqlite3'
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
-import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import Database from 'better-sqlite3'
 
 export type StoredSession = {
   id: string
@@ -26,6 +26,7 @@ export type ConversationStore = {
   saveTaskHistory(taskId: string, history: import('@shared/types/task').TaskEvent[]): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
+  saveTaskUsage(taskId: string, used: Task['used']): void
   getSessionTasks(sessionId: string): Task[]
   saveToolState(sessionId: string, key: string, value: unknown): void
   getToolState(sessionId: string, key: string): unknown
@@ -114,7 +115,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
 
   const stmtInsertSession = db.prepare(
     `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot)
-     VALUES (?, ?, ?, 'active', ?, NULL, '[]')`,
+     VALUES (?, ?, ?, 'active', ?, NULL, '[]')`
   )
   const stmtGetSession = db.prepare('SELECT * FROM sessions WHERE id = ?')
   const stmtUpdateStatus = db.prepare('UPDATE sessions SET status = ? WHERE id = ?')
@@ -123,7 +124,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const markAndGetInterrupted = db.transaction((): StoredSession[] => {
     const active = db.prepare(`SELECT * FROM sessions WHERE status = 'active'`).all() as Record<string, unknown>[]
     db.prepare(`UPDATE sessions SET status = 'interrupted' WHERE status = 'active'`).run()
-    return active.map(rowToSession).map(s => ({ ...s, status: 'interrupted' as const }))
+    return active.map(rowToSession).map((s) => ({ ...s, status: 'interrupted' as const }))
   })
 
   const stmtInsertTask = db.prepare(
@@ -131,19 +132,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
      (id, session_id, parent_id, goal, status, result, budget, used,
       agent_def_id, assigned_worker_id, tool_allowlist, history,
       created_at, started_at, ended_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
-  const stmtUpdateTask = db.prepare(
-    'UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?',
-  )
+  const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
+  const stmtUpdateTaskUsage = db.prepare('UPDATE tasks SET used = ? WHERE id = ?')
   const stmtGetTasks = db.prepare('SELECT * FROM tasks WHERE session_id = ?')
   const stmtUpsertToolState = db.prepare(
     `INSERT OR REPLACE INTO tool_state_snapshots (session_id, key, value, updated_at)
-     VALUES (?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?)`
   )
-  const stmtGetToolState = db.prepare(
-    'SELECT value FROM tool_state_snapshots WHERE session_id = ? AND key = ?',
-  )
+  const stmtGetToolState = db.prepare('SELECT value FROM tool_state_snapshots WHERE session_id = ? AND key = ?')
 
   const stmtSetTitle = db.prepare('UPDATE sessions SET title = ? WHERE id = ?')
   const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
@@ -154,7 +152,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
      FROM sessions s
      WHERE s.status != 'ended'
-     ORDER BY s.last_active_at DESC`,
+     ORDER BY s.last_active_at DESC`
   )
 
   return {
@@ -162,8 +160,13 @@ export function createConversationStore(dbPath: string): ConversationStore {
       const now = Date.now()
       stmtInsertSession.run(id, now, now, JSON.stringify(provider))
       return {
-        id, createdAt: now, lastActiveAt: now, status: 'active',
-        providerSnapshot: provider, title: null, agentSnapshot: [],
+        id,
+        createdAt: now,
+        lastActiveAt: now,
+        status: 'active',
+        providerSnapshot: provider,
+        title: null,
+        agentSnapshot: [],
       }
     },
     getSession(id) {
@@ -203,18 +206,30 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     saveTask(task, sessionId) {
       stmtInsertTask.run(
-        task.id, sessionId, task.parentId ?? null, task.goal, task.status,
+        task.id,
+        sessionId,
+        task.parentId ?? null,
+        task.goal,
+        task.status,
         task.result ? JSON.stringify(task.result) : null,
-        JSON.stringify(task.budget), JSON.stringify(task.used),
-        task.agentDefId, task.assignedWorkerId ?? null,
-        JSON.stringify(task.toolAllowlist), JSON.stringify(task.history),
-        task.createdAt, task.startedAt ?? null, task.endedAt ?? null,
+        JSON.stringify(task.budget),
+        JSON.stringify(task.used),
+        task.agentDefId,
+        task.assignedWorkerId ?? null,
+        JSON.stringify(task.toolAllowlist),
+        JSON.stringify(task.history),
+        task.createdAt,
+        task.startedAt ?? null,
+        task.endedAt ?? null
       )
     },
     updateTaskStatus(taskId, status, result) {
       const terminalStatuses = new Set(['completed', 'failed', 'interrupted', 'cancelled'])
       const endedAt = terminalStatuses.has(status) ? Date.now() : null
       stmtUpdateTask.run(status, result ? JSON.stringify(result) : null, endedAt, taskId)
+    },
+    saveTaskUsage(taskId, used) {
+      stmtUpdateTaskUsage.run(JSON.stringify(used), taskId)
     },
     getSessionTasks(sessionId) {
       return (stmtGetTasks.all(sessionId) as Record<string, unknown>[]).map(rowToTask)

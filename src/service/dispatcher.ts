@@ -3,14 +3,22 @@
 // matching that lived in the HTTP server. No transport, no I/O — trivially
 // unit-testable.
 
+import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod } from '@shared/types/service-ipc'
+import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { PermissionDecision } from '@shared/types/ui'
+
 import type { SessionManager } from './session-manager'
 
 type DispatcherConfig = {
   manager: SessionManager
   registerProvider(provider: ProviderInjection): void
+  setMcpServers(configs: McpServerConfig[]): Promise<void>
+  getMcpStatus(): McpServerStatus[]
+  listSkills(): Skill[]
+  saveSkill(skill: Skill): SkillMutationResult
+  deleteSkill(name: string): SkillMutationResult
 }
 
 export type Dispatcher = (method: ServiceMethod, args: unknown[]) => unknown
@@ -39,10 +47,27 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         manager.resolvePermission(sessionId, actionId, decision)
         return { ok: true }
       }
-      case 'cancelTask':
-        // Parity with the old HTTP route: acknowledged, not yet wired to a
-        // real cancellation path in SessionManager.
+      case 'cancelTask': {
+        const [sessionId, taskId] = args as [string, string]
+        manager.cancelTask(sessionId, taskId)
         return { ok: true }
+      }
+      case 'setMcpServers': {
+        const [configs] = args as [McpServerConfig[]]
+        return cfg.setMcpServers(configs).then(() => ({ ok: true }))
+      }
+      case 'getMcpStatus':
+        return cfg.getMcpStatus()
+      case 'listSkills':
+        return cfg.listSkills()
+      case 'saveSkill': {
+        const [skill] = args as [Skill]
+        return cfg.saveSkill(skill)
+      }
+      case 'deleteSkill': {
+        const [name] = args as [string]
+        return cfg.deleteSkill(name)
+      }
       default:
         throw new Error(`unknown method: ${String(method)}`)
     }

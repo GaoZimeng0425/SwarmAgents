@@ -1,12 +1,12 @@
 import type { AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { Api, KnownProvider, Model } from '@earendil-works/pi-ai'
+import type { Api, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type { AgentDefinition } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import { ANTHROPIC_MODEL_SUGGESTIONS, type ApiStyle, OPENAI_MODEL_SUGGESTIONS } from '@shared/types/provider'
-import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
+import { emptyBudget, type ResourceBudget, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
 import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
@@ -74,6 +74,8 @@ export type AgentRunnerDeps = {
   permissionRegistry: PermissionRegistry
   toolRegistry: ToolRegistry
   initialMessages: AgentMessage[]
+  /** Aborts the run when fired. The manager wires this to cancelTask. */
+  signal?: AbortSignal
   spawnChild(
     parentTaskId: string,
     newGoal: string,
@@ -83,7 +85,12 @@ export type AgentRunnerDeps = {
 }
 
 export type AgentRunner = {
-  run(): Promise<{ status: 'completed' | 'failed'; summary: string; messages: AgentMessage[] }>
+  run(): Promise<{
+    status: 'completed' | 'failed' | 'cancelled'
+    summary: string
+    messages: AgentMessage[]
+    used: ResourceBudget
+  }>
 }
 
 /**
@@ -143,7 +150,15 @@ function createEventTranslator(
       case 'tool_execution_end': {
         flushText()
         const ok = !e.isError
-        const result = e.result as { content?: Array<{ type: string; text?: string }> } | undefined
+        const result = e.result as
+          | { content?: Array<{ type: string; text?: string }>; details?: { todos?: unknown } }
+          | undefined
+        // The update_plan tool returns its checklist as structured `details.todos`.
+        // Surface it as a dedicated task.plan event so the UI can render a panel
+        // instead of a raw text blob.
+        if (e.toolName === 'update_plan' && Array.isArray(result?.details?.todos)) {
+          emit('task.plan', { taskId, todos: result.details.todos, ts: Date.now() })
+        }
         const payloadText = result?.content?.map((c) => (c.type === 'text' ? (c.text ?? '') : '')).join('') ?? ''
         const event: TaskEvent = {
           kind: 'tool.result',
@@ -206,7 +221,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '', messages: initialMessages }
+        return { status: 'failed', summary: '', messages: initialMessages, used: emptyBudget() }
       }
 
       let tools: AgentTool[]
@@ -242,7 +257,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '', messages: initialMessages }
+        return { status: 'failed', summary: '', messages: initialMessages, used: emptyBudget() }
       }
 
       taskLog.info({
@@ -254,6 +269,29 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           api: model.api,
           baseUrl: model.baseUrl,
         },
+      })
+
+      const budget = task.budget
+      const startedAt = Date.now()
+      const used = { calls: 0, tokens: 0, usdCents: 0 }
+      // Why a run is ending early. Both causes call agent.abort(); we record
+      // which one so the terminal handler reports the right outcome.
+      let stopCause: 'cancelled' | 'budget' | null = null
+      let budgetDim = ''
+
+      const overBudget = (): string | null => {
+        if (used.calls > budget.calls) return 'calls'
+        if (Date.now() - startedAt > budget.wallMs) return 'wallMs'
+        if (used.tokens > budget.tokens) return 'tokens'
+        if (used.usdCents > budget.usdCents) return 'usdCents'
+        return null
+      }
+
+      const snapshotUsed = (): ResourceBudget => ({
+        tokens: used.tokens,
+        calls: used.calls,
+        wallMs: Date.now() - startedAt,
+        usdCents: used.usdCents,
       })
 
       const agent = new Agent({
@@ -286,6 +324,20 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           messages: initialMessages,
         },
         beforeToolCall: async ({ toolCall, args }) => {
+          if (deps.signal?.aborted) {
+            stopCause = 'cancelled'
+            return { block: true, reason: 'Cancelled by user.' }
+          }
+
+          used.calls += 1
+          const dim = overBudget()
+          if (dim) {
+            stopCause = 'budget'
+            budgetDim = dim
+            agent.abort()
+            return { block: true, reason: `Budget exhausted (${dim}).` }
+          }
+
           const risk = riskOf(toolCall.name, args)
 
           if (risk === 'low') return undefined
@@ -303,8 +355,32 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         },
       })
 
+      if (deps.signal) {
+        if (deps.signal.aborted) {
+          stopCause = 'cancelled'
+          agent.abort()
+        } else {
+          deps.signal.addEventListener(
+            'abort',
+            () => {
+              if (!stopCause) stopCause = 'cancelled'
+              agent.abort()
+            },
+            { once: true }
+          )
+        }
+      }
+
       const translator = createEventTranslator(task.id, emit)
       agent.subscribe((e) => {
+        if (e.type === 'turn_end') {
+          const usage = (e as { message?: { usage?: Usage } }).message?.usage
+          if (usage) {
+            used.tokens += usage.totalTokens
+            used.usdCents += Math.round(usage.cost.total * 100)
+          }
+          emit('task.usage', { taskId: task.id, used: snapshotUsed(), ts: Date.now() })
+        }
         const summary: Record<string, unknown> = { type: e.type }
         if ('toolName' in e) summary.toolName = (e as { toolName?: string }).toolName
         if ('isError' in e) summary.isError = (e as { isError?: boolean }).isError
@@ -318,26 +394,72 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
 
       taskLog.info({ msg: 'agent.prompt starting', sessionId })
       const t0 = Date.now()
+      let promptError: unknown = null
       try {
         await agent.prompt(task.goal)
         taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0 })
-        return { status: 'completed', summary: translator.getFinalSummary(), messages: agent.state.messages }
       } catch (err) {
+        // An abort (cancel/budget) may surface here; stopCause disambiguates it
+        // from a genuine failure below.
+        promptError = err
+      }
+
+      if (stopCause === 'cancelled') {
+        taskLog.info({ msg: 'task cancelled', durationMs: Date.now() - t0 })
+        emit('task.error', {
+          taskId: task.id,
+          error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
+          ts: Date.now(),
+        })
+        return {
+          status: 'cancelled',
+          summary: translator.getFinalSummary(),
+          messages: agent.state.messages,
+          used: snapshotUsed(),
+        }
+      }
+
+      if (stopCause === 'budget') {
+        taskLog.warn({ msg: 'task budget exhausted', dim: budgetDim, used, durationMs: Date.now() - t0 })
+        emit('task.error', {
+          taskId: task.id,
+          error: { code: 'budget_exhausted', message: `Budget exhausted (${budgetDim}).`, tier: 'gave_up' },
+          ts: Date.now(),
+        })
+        return {
+          status: 'failed',
+          summary: translator.getFinalSummary(),
+          messages: agent.state.messages,
+          used: snapshotUsed(),
+        }
+      }
+
+      if (promptError) {
         taskLog.error({
           msg: 'agent.prompt threw',
           durationMs: Date.now() - t0,
-          err: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : String(err),
+          err:
+            promptError instanceof Error
+              ? { name: promptError.name, message: promptError.message, stack: promptError.stack }
+              : String(promptError),
         })
         emit('task.error', {
           taskId: task.id,
           error: {
             code: 'agent_exception',
-            message: err instanceof Error ? err.message : String(err),
+            message: promptError instanceof Error ? promptError.message : String(promptError),
             tier: 'fatal',
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '', messages: agent.state.messages }
+        return { status: 'failed', summary: '', messages: agent.state.messages, used: snapshotUsed() }
+      }
+
+      return {
+        status: 'completed',
+        summary: translator.getFinalSummary(),
+        messages: agent.state.messages,
+        used: snapshotUsed(),
       }
     },
   }

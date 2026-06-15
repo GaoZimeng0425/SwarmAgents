@@ -1,4 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { DEFAULT_SYSTEM_PROMPT } from '@shared/agents/default-prompt'
 import { createLogger } from '@shared/logger'
 import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
@@ -8,9 +9,11 @@ import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
 import { createAgentRunner } from './agent-runner'
+import type { Broadcaster } from './broadcaster'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
-import type { Broadcaster } from './broadcaster'
+import { withSkills } from './skills/prompt'
+import type { SkillStore } from './skills/store'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry, type ToolRegistry } from './tools/registry'
 
@@ -30,12 +33,14 @@ type SessionManagerConfig = {
   maxConcurrent: number
   getProvider(key: string): ProviderInjection | undefined
   toolRegistry?: ToolRegistry
+  skillStore?: SkillStore
 }
 
 export type SessionManager = {
   createSession(provider: ProviderInjection): { sessionId: string }
   submitGoal(sessionId: string, goal: string, agentDef?: AgentDefinition): { taskId: string }
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
+  cancelTask(sessionId: string, taskId: string): void
   endSession(sessionId: string): void
   listSessions(): import('@shared/types/ui').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
@@ -44,7 +49,7 @@ export type SessionManager = {
 const DEFAULT_AGENT_DEF: AgentDefinition = {
   id: 'default',
   name: 'Default Agent',
-  systemPrompt: '',
+  systemPrompt: DEFAULT_SYSTEM_PROMPT,
   toolScope: 'all',
   maxIterations: 25,
 }
@@ -63,8 +68,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const toolRegistry = cfg.toolRegistry ?? buildDefaultRegistry()
   const sessions = new Map<string, Session>()
 
+  // Inject the available-skills list into the agent's system prompt at task
+  // time, so newly-added skills appear without restarting.
+  const withSkillPrompt = (def: AgentDefinition): AgentDefinition =>
+    cfg.skillStore ? { ...def, systemPrompt: withSkills(def.systemPrompt, cfg.skillStore.list()) } : def
+
   let activeRunners = 0
   const waitQueue: Array<() => void> = []
+  // Live runs, keyed by taskId, so cancelTask can abort a specific in-flight run.
+  const runHandles = new Map<string, AbortController>()
 
   async function acquireSlot(): Promise<void> {
     if (activeRunners < cfg.maxConcurrent) {
@@ -150,21 +162,25 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     return new Promise<{ childTaskId: string; result: TaskResult }>((resolve) => {
       const startChild = async (): Promise<void> => {
         await acquireSlot()
+        const abort = new AbortController()
+        runHandles.set(childTaskId, abort)
         const runner = createAgentRunner({
           task: childTask,
           provider: resolvedProvider,
-          agentDefinition: DEFAULT_AGENT_DEF,
+          agentDefinition: withSkillPrompt(DEFAULT_AGENT_DEF),
           sessionId,
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
           initialMessages: [],
+          signal: abort.signal,
           spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
         try {
           const { summary } = await runner.run()
           resolve({ childTaskId, result: { summary, artifacts: [] } })
         } finally {
+          runHandles.delete(childTaskId)
           releaseSlot()
         }
       }
@@ -240,24 +256,28 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
       const runTurn = async (): Promise<void> => {
         await acquireSlot()
+        const abort = new AbortController()
+        runHandles.set(taskId, abort)
         const runner = createAgentRunner({
           task,
           provider: session.provider,
-          agentDefinition: agentDef,
+          agentDefinition: withSkillPrompt(agentDef),
           sessionId,
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
           initialMessages: session.messages,
+          signal: abort.signal,
           spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
         try {
-          const { status, messages } = await runner.run()
+          const { status, messages, used } = await runner.run()
           if (messages) {
             session.messages = messages
             store.saveAgentSnapshot(sessionId, messages)
           }
-          store.updateTaskStatus(taskId, status === 'completed' ? 'completed' : 'failed')
+          if (used) store.saveTaskUsage(taskId, used)
+          store.updateTaskStatus(taskId, status)
         } catch (err) {
           log.error({ msg: 'runTurn failed', taskId, err: err instanceof Error ? err.message : String(err) })
           try {
@@ -266,6 +286,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             log.error({ msg: 'failed to mark task failed', taskId, err: String(statusErr) })
           }
         } finally {
+          runHandles.delete(taskId)
           releaseSlot()
         }
       }
@@ -276,6 +297,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     resolvePermission(sessionId, actionId, decision) {
       sessions.get(sessionId)?.permissionRegistry.resolve(actionId, decision)
+    },
+
+    cancelTask(_sessionId, taskId) {
+      runHandles.get(taskId)?.abort()
     },
 
     endSession(sessionId) {

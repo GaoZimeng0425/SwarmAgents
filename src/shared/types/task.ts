@@ -26,6 +26,14 @@ export type ResourceBudget = z.infer<typeof ResourceBudgetSchema>
 
 export const emptyBudget = (): ResourceBudget => ({ tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
 
+export const planStatusValues = ['pending', 'in_progress', 'completed'] as const
+export const PlanTodoSchema = z.object({
+  content: z.string(),
+  status: z.enum(planStatusValues),
+})
+export type PlanTodo = z.infer<typeof PlanTodoSchema>
+export type PlanStatus = (typeof planStatusValues)[number]
+
 export const TaskEventSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('llm.message'),

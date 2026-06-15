@@ -7,8 +7,10 @@ import type { ServiceRequest } from '@shared/types/service-ipc'
 import { createBroadcaster } from './broadcaster'
 import { createConversationStore } from './conversation-store'
 import { createDispatcher } from './dispatcher'
+import { createMcpManager } from './mcp/manager'
 import { createMemoryStore } from './memory-store'
 import { createSessionManager } from './session-manager'
+import { createSkillStore } from './skills/store'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry } from './tools/registry'
 
@@ -29,13 +31,15 @@ if (!parentPort) {
 
 const dbPath = process.env.SWARM_SERVICE_DB_PATH ?? join(tmpdir(), 'swarm-agent-service.db')
 const memoryPath = process.env.SWARM_SERVICE_MEMORY_PATH ?? join(tmpdir(), 'swarm-agent-memory.json')
+const skillsPath = process.env.SWARM_SERVICE_SKILLS_PATH ?? join(tmpdir(), 'swarm-agent-skills')
 
 const store = createConversationStore(dbPath)
 const memoryStore = createMemoryStore(memoryPath)
+const skillStore = createSkillStore({ dir: skillsPath })
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
 
 const toolRegistry = createToolRegistry()
-registerBuiltinTools(toolRegistry, { memoryStore })
+registerBuiltinTools(toolRegistry, { memoryStore, skillStore })
 
 const providerRegistry = new Map<string, ProviderInjection>()
 
@@ -45,6 +49,12 @@ const manager = createSessionManager({
   maxConcurrent: 4,
   getProvider: (key) => providerRegistry.get(key),
   toolRegistry,
+  skillStore,
+})
+
+const mcpManager = createMcpManager({
+  toolRegistry,
+  emitStatus: (statuses) => broadcaster.broadcast('mcp.status', statuses),
 })
 
 const dispatch = createDispatcher({
@@ -52,6 +62,11 @@ const dispatch = createDispatcher({
   registerProvider: (provider) => {
     providerRegistry.set(provider.id, provider)
   },
+  setMcpServers: (configs) => mcpManager.setServers(configs),
+  getMcpStatus: () => mcpManager.getStatus(),
+  listSkills: () => skillStore.list(),
+  saveSkill: (skill) => skillStore.save(skill),
+  deleteSkill: (name) => skillStore.remove(name),
 })
 
 parentPort.on('message', async (e) => {
@@ -68,4 +83,7 @@ parentPort.on('message', async (e) => {
 parentPort.postMessage({ kind: 'ready' })
 log.info({ msg: 'service started', dbPath })
 
-process.on('exit', () => store.close())
+process.on('exit', () => {
+  void mcpManager.dispose()
+  store.close()
+})

@@ -38,6 +38,8 @@ export interface ToolSpec {
 
 export interface ToolRegistry {
   register(spec: ToolSpec): void
+  /** Remove every spec in a group. Used to swap a server's dynamic (MCP) tool set. */
+  unregister(group: string): void
   list(): ToolSpec[]
   resolve(
     allowlist: string[],
@@ -59,6 +61,11 @@ export function createToolRegistry(): ToolRegistry {
   return {
     register(spec) {
       specs.push(spec)
+    },
+    unregister(group) {
+      for (let i = specs.length - 1; i >= 0; i--) {
+        if (specs[i].group === group) specs.splice(i, 1)
+      }
     },
     list() {
       return [...specs]

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes-settings/__root'
 import { Route as ProvidersRouteImport } from './routes-settings/providers'
 import { Route as PermissionsRouteImport } from './routes-settings/permissions'
+import { Route as McpRouteImport } from './routes-settings/mcp'
 import { Route as AboutRouteImport } from './routes-settings/about'
 import { Route as IndexRouteImport } from './routes-settings/index'
 
@@ -22,6 +23,11 @@ const ProvidersRoute = ProvidersRouteImport.update({
 const PermissionsRoute = PermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/permissions' | '/providers'
+  fullPaths: '/' | '/about' | '/mcp' | '/permissions' | '/providers'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/permissions' | '/providers'
-  id: '__root__' | '/' | '/about' | '/permissions' | '/providers'
+  to: '/' | '/about' | '/mcp' | '/permissions' | '/providers'
+  id: '__root__' | '/' | '/about' | '/mcp' | '/permissions' | '/providers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  McpRoute: typeof McpRoute
   PermissionsRoute: typeof PermissionsRoute
   ProvidersRoute: typeof ProvidersRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/permissions'
       fullPath: '/permissions'
       preLoaderRoute: typeof PermissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  McpRoute: McpRoute,
   PermissionsRoute: PermissionsRoute,
   ProvidersRoute: ProvidersRoute,
 }
