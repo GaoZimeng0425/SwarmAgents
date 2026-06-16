@@ -4,6 +4,7 @@
 // and api keys at runtime. Wraps the encrypted Store with input validation,
 // model defaulting/preservation, and a state-change broadcast for the IPC layer.
 // Failures during persistence do NOT advance the in-memory state.
+import { createLogger } from '@shared/logger'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
@@ -18,6 +19,8 @@ import {
 
 import { toView } from './redact'
 import type { Store } from './store'
+
+const log = createLogger({ process: 'main' }).child({ component: 'providers-service' })
 
 export type SetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
@@ -117,6 +120,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
     try {
       await opts.store.save(next)
     } catch (e) {
+      log.error({ msg: 'failed to persist providers', err: e instanceof Error ? e.message : String(e) })
       return {
         ok: false,
         code: 'persist_failed',

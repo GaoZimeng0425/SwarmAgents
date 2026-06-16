@@ -61,6 +61,33 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Log Every Business Path
+
+**Every business implementation gets logs, so failures are locatable from the log file alone.**
+
+This project uses structured logging via `pino` (`src/shared/logger.ts`). Logs tee to
+`userData/swarm-dev.log` (`SWARM_LOG_FILE`). When you add or change business logic, the
+log file — not a debugger — must be enough to answer "what happened and where did it fail."
+
+Setup per module:
+- `const log = createLogger({ process }).child({ component: '<module>' })` — one child per module.
+- Derive per-request/task children for correlation: `const taskLog = log.child({ taskId })`.
+
+What to log (the required paths):
+- **Entry points** of a business action at `info` — request dispatched, task started, tool invoked — with the IDs needed to correlate (`sessionId`, `taskId`, `method`).
+- **Outcomes** at `info` — completion with `durationMs`; include the key result shape, not full payloads.
+- **Every `catch`** at `error` — never swallow. Log `{ msg, err: err instanceof Error ? err.message : String(err), ...context }` before rethrowing/returning. A silent `catch` is a bug.
+- **Branch surprises** at `warn` — fallbacks, empty results, budget/limit hits, "not found" recoveries.
+- **Verbose detail** at `debug` — payload-level tracing kept out of `info`.
+
+Rules:
+- Structured first arg: `log.info({ msg: 'task started', sessionId })`, not string interpolation.
+- Never log secrets — rely on the logger's `redact` config; don't dump raw provider/api objects.
+- Match existing call sites (`agent-runner.ts`, `swarm-ipc.ts`) for shape and level.
+- Don't over-log hot loops at `info` — use `debug` for per-iteration noise.
+
+The test: pick any business path you touched; reading only the log lines, you can tell it ran, with what inputs, and exactly where it broke.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

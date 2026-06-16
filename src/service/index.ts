@@ -81,10 +81,20 @@ const dispatch = createDispatcher({
 parentPort.on('message', async (e) => {
   const msg = e.data as ServiceRequest
   if (msg?.kind !== 'request') return
+  const t0 = Date.now()
+  log.debug({ msg: 'request', method: msg.method, id: msg.id })
   try {
     const result = await dispatch(msg.method, msg.args)
     parentPort.postMessage({ kind: 'response', id: msg.id, ok: true, result })
+    log.debug({ msg: 'request ok', method: msg.method, id: msg.id, durationMs: Date.now() - t0 })
   } catch (err) {
+    log.error({
+      msg: 'request failed',
+      method: msg.method,
+      id: msg.id,
+      durationMs: Date.now() - t0,
+      err: err instanceof Error ? err.message : String(err),
+    })
     parentPort.postMessage({ kind: 'response', id: msg.id, ok: false, error: String(err) })
   }
 })

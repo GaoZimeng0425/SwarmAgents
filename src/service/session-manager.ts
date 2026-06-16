@@ -234,6 +234,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         queue: Promise.resolve(),
       })
       broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
+      log.info({ msg: 'session created', sessionId })
       return { sessionId }
     },
 
@@ -264,6 +265,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       store.saveTask(task, sessionId)
       broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
       store.updateSessionLastActive(sessionId)
+      log.info({ msg: 'goal submitted', sessionId, taskId, agentDefId: agentDef.id })
 
       if (isFirst) {
         const title = goal.slice(0, 60)
@@ -322,17 +324,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     },
 
     cancelTask(sessionId, taskId) {
+      log.info({ msg: 'task cancel requested', sessionId, taskId })
       runHandles.get(taskId)?.abort()
       // Unblock any tool waiting on a human choice so the aborted run can settle.
       sessions.get(sessionId)?.askRegistry.cancelAll('Cancelled by user.')
     },
 
     endSession(sessionId) {
+      log.info({ msg: 'session ended', sessionId })
       store.updateSessionStatus(sessionId, 'ended')
       sessions.delete(sessionId)
     },
 
     deleteSession(sessionId) {
+      log.info({ msg: 'session deleted', sessionId })
       // Abort any in-flight runs for this session before dropping its rows.
       for (const t of store.getSessionTasks(sessionId)) runHandles.get(t.id)?.abort()
       sessions.delete(sessionId)

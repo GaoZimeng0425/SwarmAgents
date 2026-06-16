@@ -1,7 +1,10 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
+import { createLogger } from '@shared/logger'
 import type { Outbound } from '@shared/types/ipc'
 import type { TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
+
+const log = createLogger({ process: 'service' }).child({ component: 'tools' })
 
 export type ToolRisk = 'low' | 'medium' | 'high'
 export type ToolSource = 'builtin' | 'mcp'
@@ -55,6 +58,40 @@ export interface ToolRegistry {
   ): { tools: AgentTool[]; riskOf: (name: string, args?: unknown) => ToolRisk }
 }
 
+// Single instrumentation point for every tool call (builtin + MCP): logs start,
+// outcome and duration so any tool failure is locatable from the log file. Tool
+// args are intentionally omitted — they can carry file contents / secrets.
+function withLogging(spec: ToolSpec, tool: AgentTool, ctx: ToolRunContext): AgentTool {
+  const toolLog = log.child({ sessionId: ctx.sessionId, taskId: ctx.taskId })
+  const name = `${spec.group}.${spec.name}`
+  const inner = tool.execute
+  return {
+    ...tool,
+    execute: async (id: string, params: unknown) => {
+      const t0 = Date.now()
+      toolLog.debug({ msg: 'tool start', tool: name })
+      try {
+        const result = await inner(id, params)
+        const error = (result as { details?: { error?: unknown } })?.details?.error
+        if (error) {
+          toolLog.warn({ msg: 'tool error', tool: name, durationMs: Date.now() - t0, err: String(error) })
+        } else {
+          toolLog.debug({ msg: 'tool ok', tool: name, durationMs: Date.now() - t0 })
+        }
+        return result
+      } catch (err) {
+        toolLog.error({
+          msg: 'tool threw',
+          tool: name,
+          durationMs: Date.now() - t0,
+          err: err instanceof Error ? err.message : String(err),
+        })
+        throw err
+      }
+    },
+  }
+}
+
 // Patterns that don't conform (e.g. 'group.' with no star) simply match nothing.
 function specMatches(spec: ToolSpec, allowlist: string[]): boolean {
   return allowlist.some((pattern) => {
@@ -80,7 +117,7 @@ export function createToolRegistry(): ToolRegistry {
     },
     resolve(allowlist, ctx) {
       const selected = specs.filter((s) => specMatches(s, allowlist))
-      const tools = selected.map((s) => s.build(ctx))
+      const tools = selected.map((s) => withLogging(s, s.build(ctx), ctx))
       const specByName = new Map(selected.map((s) => [s.name, s] as const))
       // unknown -> medium (fail safe); riskFor overrides static risk per call.
       const riskOf = (name: string, args?: unknown): ToolRisk => {

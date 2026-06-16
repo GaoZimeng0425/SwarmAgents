@@ -1,6 +1,7 @@
 // In-memory MCP config state machine over the encrypted store. CRUD setters
 // validate + persist, then notify listeners (main wiring pushes the new list to
 // the service process and broadcasts to renderer windows). Mirrors providers.
+import { createLogger } from '@shared/logger'
 import {
   type McpMutationResult,
   type McpServerConfig,
@@ -10,6 +11,8 @@ import {
 import { ulid } from 'ulid'
 
 import type { Store } from './store'
+
+const log = createLogger({ process: 'main' }).child({ component: 'mcp-servers-service' })
 
 export type Service = {
   list(): McpServerConfig[]
@@ -38,6 +41,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
     try {
       await opts.store.save(next)
     } catch (err) {
+      log.error({ msg: 'failed to persist mcp servers', err: err instanceof Error ? err.message : String(err) })
       return { ok: false, code: 'persist_failed', message: String(err) }
     }
     state = next
