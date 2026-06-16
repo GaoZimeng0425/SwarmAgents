@@ -156,38 +156,6 @@ describe('ConversationStore', () => {
     store.close()
   })
 
-  it('persists and reloads task history', () => {
-    const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
-    store.createSession('ses-h', provider)
-    const now = Date.now()
-    store.saveTask(
-      {
-        id: '01HRX0000000000000000000H1',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'running',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        history: [],
-        result: null,
-        createdAt: now,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-h'
-    )
-    store.saveTaskHistory('01HRX0000000000000000000H1', [
-      { kind: 'llm.message', role: 'assistant', content: 'done', ts: now },
-    ])
-    const tasks = store.getSessionTasks('ses-h')
-    expect(tasks[0].history).toEqual([{ kind: 'llm.message', role: 'assistant', content: 'done', ts: now }])
-    store.close()
-  })
-
   const taskLiteral = (id: string, history: import('@shared/types/task').TaskEvent[] = []) => ({
     id,
     parentId: null,

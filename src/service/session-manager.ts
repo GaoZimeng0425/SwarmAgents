@@ -111,32 +111,22 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(s.id, 'interrupted')
   }
 
-  const historyByTask = new Map<string, TaskEvent[]>()
-
-  const appendError = (taskId: string, error: unknown): void => {
-    const buf = historyByTask.get(taskId) ?? []
-    buf.push({ kind: 'error', error: error as Extract<TaskEvent, { kind: 'error' }>['error'], ts: Date.now() })
-    historyByTask.set(taskId, buf)
-  }
-
   const makeEmit =
     (sessionId: string) =>
     (event: string, data: unknown): void => {
       const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
       const payload = obj ? { sessionId, ...obj } : data
-
       const taskId = obj?.taskId as string | undefined
+
       if (event === 'task.progress' && taskId && obj?.event) {
-        const buf = historyByTask.get(taskId) ?? []
-        buf.push(obj.event as TaskEvent)
-        historyByTask.set(taskId, buf)
+        store.appendTaskEvent(taskId, obj.event as TaskEvent)
       }
       if (event === 'task.error' && taskId && obj?.error) {
-        appendError(taskId, obj.error)
-      }
-      if ((event === 'task.complete' || event === 'task.error') && taskId) {
-        store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
-        historyByTask.delete(taskId)
+        store.appendTaskEvent(taskId, {
+          kind: 'error',
+          error: obj.error as Extract<TaskEvent, { kind: 'error' }>['error'],
+          ts: Date.now(),
+        })
       }
       if (event === 'task.plan' && taskId && Array.isArray(obj?.todos)) {
         const todos = obj.todos as import('@shared/types/task').PlanTodo[]
@@ -314,16 +304,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           store.updateTaskStatus(taskId, status)
         } catch (err) {
           log.error({ msg: 'runTurn failed', taskId, err: err instanceof Error ? err.message : String(err) })
-          appendError(taskId, {
-            code: 'run_failed',
-            message: err instanceof Error ? err.message : String(err),
-            tier: 'fatal',
-          })
           try {
-            store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
-            historyByTask.delete(taskId)
-          } catch (histErr) {
-            log.error({ msg: 'failed to persist history on failure', taskId, err: String(histErr) })
+            store.appendTaskEvent(taskId, {
+              kind: 'error',
+              error: { code: 'run_failed', message: err instanceof Error ? err.message : String(err), tier: 'fatal' },
+              ts: Date.now(),
+            })
+          } catch (appendErr) {
+            log.error({ msg: 'failed to persist error event', taskId, err: String(appendErr) })
           }
           try {
             store.updateTaskStatus(taskId, 'failed')

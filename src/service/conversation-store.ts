@@ -35,7 +35,6 @@ export type ConversationStore = {
   deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
-  saveTaskHistory(taskId: string, history: import('@shared/types/task').TaskEvent[]): void
   appendTaskEvent(taskId: string, event: import('@shared/types/task').TaskEvent): void
   saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTask(task: Task, sessionId: string): void
@@ -148,7 +147,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     toolAllowlist: JSON.parse((row.tool_allowlist as string) ?? '[]') as string[],
     budget: JSON.parse(row.budget as string) as Task['budget'],
     used: JSON.parse(row.used as string) as Task['used'],
-    history: (stmtGetTaskEvents.all(row.id as string) as { event: string }[]).map((r) => JSON.parse(r.event)) as Task['history'],
+    history: (stmtGetTaskEvents.all(row.id as string) as { event: string }[]).map((r) =>
+      JSON.parse(r.event)
+    ) as Task['history'],
     attachments: JSON.parse((row.attachments as string) ?? '[]') as Task['attachments'],
     plan: JSON.parse((row.plan as string) ?? '[]') as Task['plan'],
     result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
@@ -213,7 +214,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtInsertTaskEvent = db.prepare('INSERT INTO task_events (task_id, event, ts) VALUES (?, ?, ?)')
   const stmtGetTaskEvents = db.prepare('SELECT event FROM task_events WHERE task_id = ? ORDER BY id')
   const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
-  const stmtDeleteTaskEvents = db.prepare('DELETE FROM task_events WHERE task_id = ?')
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
     `SELECT s.id, s.title, s.status, s.pinned, s.last_active_at AS lastActiveAt,
@@ -237,9 +237,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
   // tasks.history column into task_events. Idempotent — skips any task that
   // already has events. New tasks never populate the column, so they're skipped.
   const backfillTaskEvents = db.transaction(() => {
-    const rows = db
-      .prepare("SELECT id, history FROM tasks WHERE history IS NOT NULL AND history != '[]'")
-      .all() as { id: string; history: string }[]
+    const rows = db.prepare("SELECT id, history FROM tasks WHERE history IS NOT NULL AND history != '[]'").all() as {
+      id: string
+      history: string
+    }[]
     for (const r of rows) {
       if ((stmtCountTaskEvents.get(r.id) as { n: number }).n > 0) continue
       let events: unknown
@@ -310,15 +311,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
       const row = stmtGetSnapshot.get(sessionId) as { agent_snapshot: string } | undefined
       return row ? (JSON.parse(row.agent_snapshot) as AgentMessage[]) : []
     },
-    saveTaskHistory(taskId, history) {
-      // Transitional: route the legacy whole-array save through task_events so
-      // the existing caller keeps working until it switches to appendTaskEvent.
-      const replace = db.transaction(() => {
-        stmtDeleteTaskEvents.run(taskId)
-        for (const ev of history) stmtInsertTaskEvent.run(taskId, JSON.stringify(ev), ev.ts)
-      })
-      replace()
-    },
     appendTaskEvent(taskId, event) {
       stmtInsertTaskEvent.run(taskId, JSON.stringify(event), event.ts)
     },
@@ -366,7 +358,13 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     saveCronJob(job) {
       stmtInsertCronJob.run(
-        job.id, job.sessionId, job.name ?? null, job.cron, job.goal, job.createdAt, job.lastRunAt ?? null
+        job.id,
+        job.sessionId,
+        job.name ?? null,
+        job.cron,
+        job.goal,
+        job.createdAt,
+        job.lastRunAt ?? null
       )
     },
     listCronJobs() {
