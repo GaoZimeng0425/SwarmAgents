@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { ModelThinkingLevel, ProviderId, ProvidersStateView } from '@shared/types/provider'
 import type { Attachment } from '@shared/types/task'
 import type { ChatStatus } from 'ai'
-import { Paperclip, X } from 'lucide-react'
+import { FileText, Paperclip, X } from 'lucide-react'
 
 import {
   PromptInput,
@@ -20,9 +20,11 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
+import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
+import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'
 
 type Props = {
   onSubmit: (goal: string, attachments?: Attachment[]) => void | Promise<void>
@@ -40,7 +42,7 @@ type ModelOption = { providerId: ProviderId; modelId: string; key: string }
 
 const PROVIDER_IDS: readonly ProviderId[] = ['anthropic', 'openai', 'custom'] as const
 const MAX_FILES = 4
-const MAX_FILE_SIZE = 5 * 1024 * 1024
+const MAX_FILE_SIZE = 25 * 1024 * 1024
 
 const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
   off: 'No thinking',
@@ -67,31 +69,55 @@ function buildModelOptions(state: ProvidersStateView): ModelOption[] {
 }
 
 // Thumbnail strip + attach button; must be a child of PromptInput (uses its attachments context).
-function AttachBar({ supportsImages }: { supportsImages: boolean }): React.JSX.Element {
+function AttachBar({
+  supportsImages,
+  onOpenFile,
+}: {
+  supportsImages: boolean
+  onOpenFile: (file: ViewerFile) => void
+}): React.JSX.Element {
   const attachments = usePromptInputAttachments()
   return (
     <>
       {attachments.files.length > 0 && (
         <div className="flex flex-wrap gap-2 px-1 pb-1">
-          {attachments.files.map((f) => (
-            <div className="relative" key={f.id}>
-              <img alt={f.filename ?? 'attachment'} className="size-14 rounded-md border object-cover" src={f.url} />
-              <button
-                aria-label="Remove attachment"
-                className="absolute -top-1.5 -right-1.5 rounded-full bg-background p-0.5 text-muted-foreground shadow hover:text-foreground"
-                onClick={() => attachments.remove(f.id)}
-                type="button"
-              >
-                <X className="size-3" />
-              </button>
-            </div>
-          ))}
+          {attachments.files.map((f) => {
+            const kind = fileKind(f.mediaType)
+            return (
+              <div className="relative" key={f.id}>
+                {kind === 'image' ? (
+                  <img
+                    alt={f.filename ?? 'attachment'}
+                    className="size-14 rounded-md border object-cover"
+                    src={f.url}
+                  />
+                ) : (
+                  <button
+                    className="flex h-14 max-w-40 items-center gap-2 rounded-md border bg-muted/40 px-2.5 text-left hover:bg-muted"
+                    onClick={() => onOpenFile({ url: f.url, mediaType: f.mediaType, filename: f.filename })}
+                    title={f.filename ?? 'attachment'}
+                    type="button"
+                  >
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate text-xs">{f.filename ?? kind.toUpperCase()}</span>
+                  </button>
+                )}
+                <button
+                  aria-label="Remove attachment"
+                  className="absolute -top-1.5 -right-1.5 rounded-full bg-background p-0.5 text-muted-foreground shadow hover:text-foreground"
+                  onClick={() => attachments.remove(f.id)}
+                  type="button"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
       <PromptInputButton
-        disabled={!supportsImages}
         onClick={() => attachments.openFileDialog()}
-        tooltip={supportsImages ? 'Attach images' : "This model can't read images"}
+        tooltip={supportsImages ? 'Attach files' : 'Attach documents (images need a vision model)'}
       >
         <Paperclip className="size-4" />
       </PromptInputButton>
@@ -111,6 +137,7 @@ export function ChatInput({
   placeholder,
 }: Props): React.JSX.Element {
   const { state } = useProviders()
+  const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
   const options = useMemo(() => buildModelOptions(state), [state])
   const currentKey =
     state.active && state.providers[state.active] ? `${state.active}::${state.providers[state.active]!.model}` : ''
@@ -145,7 +172,7 @@ export function ChatInput({
   return (
     <div className="shrink-0 px-4 pt-2 pb-4">
       <PromptInput
-        accept="image/*"
+        accept={supportsImages ? ATTACHMENT_ACCEPT : DOCUMENT_ACCEPT}
         className="mx-auto max-w-3xl"
         maxFileSize={MAX_FILE_SIZE}
         maxFiles={MAX_FILES}
@@ -156,7 +183,7 @@ export function ChatInput({
         </PromptInputBody>
         <PromptInputFooter>
           <PromptInputTools>
-            <AttachBar supportsImages={supportsImages} />
+            <AttachBar onOpenFile={setViewerFile} supportsImages={supportsImages} />
             {options.length > 0 && (
               <PromptInputSelect onValueChange={(v) => void onPickModel(String(v))} value={currentKey}>
                 <PromptInputSelectTrigger>
@@ -194,6 +221,7 @@ export function ChatInput({
           </div>
         </PromptInputFooter>
       </PromptInput>
+      <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
     </div>
   )
 }

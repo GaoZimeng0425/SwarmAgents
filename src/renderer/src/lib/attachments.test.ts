@@ -19,4 +19,24 @@ describe('imageAttachmentsFrom', () => {
     const out = imageAttachmentsFrom([{ type: 'file', mediaType: 'image/png', url: 'https://example.com/a.png' }])
     expect(out).toEqual([])
   })
+
+  it('never carries document attachments to the agent (view-only)', () => {
+    const docs = [
+      { type: 'file', mediaType: 'application/pdf', filename: 'a.pdf', url: 'data:application/pdf;base64,AAAB' },
+      {
+        type: 'file',
+        mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        filename: 'a.xlsx',
+        url: 'data:application/octet-stream;base64,AAAB',
+      },
+      {
+        type: 'file',
+        mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        filename: 'a.docx',
+        url: 'data:application/octet-stream;base64,AAAB',
+      },
+      { type: 'file', mediaType: 'text/csv', filename: 'a.csv', url: 'data:text/csv;base64,AAAB' },
+    ]
+    expect(imageAttachmentsFrom(docs)).toEqual([])
+  })
 })
