@@ -21,6 +21,7 @@ const mcpDeps = () => ({
   listSkills: vi.fn().mockReturnValue([]),
   saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   deleteSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
+  listMemory: vi.fn().mockReturnValue([]),
 })
 
 describe('dispatcher', () => {
@@ -84,5 +85,14 @@ describe('dispatcher', () => {
   it('throws on an unknown method', () => {
     const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn(), ...mcpDeps() })
     expect(() => dispatch('nope' as never, [])).toThrow(/unknown method/)
+  })
+
+  it('listMemory reads through with the namespace arg', () => {
+    const deps = mcpDeps()
+    deps.listMemory.mockReturnValue([{ id: 'ns:k', namespace: 'ns', key: 'k', content: 'c', category: 'note', timestamp: 1 }])
+    const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn(), ...deps })
+    const result = dispatch('listMemory', ['ns'])
+    expect(deps.listMemory).toHaveBeenCalledWith('ns')
+    expect(result).toEqual([{ id: 'ns:k', namespace: 'ns', key: 'k', content: 'c', category: 'note', timestamp: 1 }])
   })
 })
