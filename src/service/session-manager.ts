@@ -38,7 +38,12 @@ type SessionManagerConfig = {
 
 export type SessionManager = {
   createSession(provider: ProviderInjection): { sessionId: string }
-  submitGoal(sessionId: string, goal: string, agentDef?: AgentDefinition): { taskId: string }
+  submitGoal(
+    sessionId: string,
+    goal: string,
+    attachments?: import('@shared/types/task').Attachment[],
+    agentDef?: AgentDefinition
+  ): { taskId: string }
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
   endSession(sessionId: string): void
@@ -225,7 +230,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       return { sessionId }
     },
 
-    submitGoal(sessionId, goal, agentDef = DEFAULT_AGENT_DEF) {
+    submitGoal(sessionId, goal, attachments = [], agentDef = DEFAULT_AGENT_DEF) {
       const session = getOrRehydrate(sessionId)
       if (!session) throw new Error(`session ${sessionId} not found`)
 
@@ -243,14 +248,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         budget: { tokens: 100_000, calls: 50, wallMs: 600_000, usdCents: 200 },
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
         history: [],
-        attachments: [],
+        attachments,
         result: null,
         createdAt: now,
         startedAt: null,
         endedAt: null,
       }
       store.saveTask(task, sessionId)
-      broadcaster.broadcast('task.created', { sessionId, taskId, goal, ts: now })
+      broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
       store.updateSessionLastActive(sessionId)
 
       if (isFirst) {

@@ -33,14 +33,33 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         return manager.createSession(provider)
       }
       case 'submitGoal': {
-        const [sessionId, goal] = args as [string, string]
-        return manager.submitGoal(sessionId, goal)
+        const [sessionId, goal, attachments] = args as [
+          string,
+          string,
+          import('@shared/types/task').Attachment[] | undefined,
+        ]
+        return manager.submitGoal(sessionId, goal, attachments)
       }
       case 'listSessions':
         return manager.listSessions()
       case 'getSessionTasks': {
         const [sessionId] = args as [string]
         return manager.getSessionTasks(sessionId)
+      }
+      case 'deleteSession': {
+        const [sessionId] = args as [string]
+        manager.deleteSession(sessionId)
+        return { ok: true }
+      }
+      case 'renameSession': {
+        const [sessionId, title] = args as [string, string]
+        manager.renameSession(sessionId, title)
+        return { ok: true }
+      }
+      case 'setSessionPinned': {
+        const [sessionId, pinned] = args as [string, boolean]
+        manager.setSessionPinned(sessionId, pinned)
+        return { ok: true }
       }
       case 'decidePermission': {
         const [sessionId, actionId, decision] = args as [string, string, PermissionDecision]

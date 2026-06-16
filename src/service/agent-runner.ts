@@ -1,6 +1,6 @@
 import type { AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
-import type { Api, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
+import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type { AgentDefinition } from '@shared/types/agent'
@@ -396,7 +396,12 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       const t0 = Date.now()
       let promptError: unknown = null
       try {
-        await agent.prompt(task.goal)
+        const images: ImageContent[] = task.attachments.map((a) => ({
+          type: 'image',
+          data: a.data,
+          mimeType: a.mimeType,
+        }))
+        await agent.prompt(task.goal, images.length > 0 ? images : undefined)
         taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0 })
       } catch (err) {
         // An abort (cancel/budget) may surface here; stopCause disambiguates it
