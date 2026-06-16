@@ -125,6 +125,18 @@ describe('taskSegments', () => {
     expect(failed.find((s) => s.kind === 'error')).toMatchObject({ label: 'error', detail: 'nope' })
   })
 
+  it('renders a persisted kind:error progress event like a live task.error', () => {
+    const failed = taskSegments(
+      rec([prog({ kind: 'error', error: { code: 'boom', message: 'nope', tier: 'fatal' }, ts: 1 })])
+    )
+    expect(failed.find((s) => s.kind === 'error')).toMatchObject({ label: 'error', detail: 'nope' })
+
+    const stopped = taskSegments(
+      rec([prog({ kind: 'error', error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' }, ts: 1 })])
+    )
+    expect(stopped.find((s) => s.kind === 'error')).toMatchObject({ label: 'stopped', detail: 'Stopped by user.' })
+  })
+
   it('renders a permission_request as an event segment', () => {
     const segs = taskSegments(
       rec([
