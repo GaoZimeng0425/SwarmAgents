@@ -253,6 +253,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       let model: Model<Api>
       try {
         const runCtx: ToolRunContext = {
+          sessionId,
           taskId: task.id,
           spawnChild: (goal, suggestedTools, providerKey) => spawnChild(task.id, goal, suggestedTools, providerKey),
           send: () => undefined,

@@ -13,6 +13,7 @@ const fakeMemoryStore: MemoryStore = {
 }
 
 const ctx: ToolRunContext = {
+  sessionId: 's',
   taskId: 't',
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }),
   send: () => undefined,

@@ -7,6 +7,8 @@ export type ToolRisk = 'low' | 'medium' | 'high'
 export type ToolSource = 'builtin' | 'mcp'
 
 export interface ToolRunContext {
+  /** The session this task runs in. Tools that create session-scoped state (e.g. cron) bind to it. */
+  sessionId: string
   taskId: string
   // parentTaskId is bound externally when constructing the context (see agent-runner runCtx).
   spawnChild(

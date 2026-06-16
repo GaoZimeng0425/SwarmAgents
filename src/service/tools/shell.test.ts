@@ -4,6 +4,7 @@ import type { ToolRunContext } from './registry'
 import { isDangerousCommand, shellSpec } from './shell'
 
 const ctx: ToolRunContext = {
+  sessionId: 's',
   taskId: 't',
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,

@@ -21,6 +21,7 @@ const spec = (group: string, name: string, risk: 'low' | 'medium' | 'high'): Too
 })
 
 const ctx: ToolRunContext = {
+  sessionId: 's',
   taskId: 't',
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
