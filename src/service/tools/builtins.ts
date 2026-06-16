@@ -1,6 +1,8 @@
+import type { CronScheduler } from '../cron-scheduler'
 import type { MemoryStore } from '../memory-store'
 import type { SkillStore } from '../skills/store'
 import { askUserSpec } from './ask'
+import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
 import { buildPeekabooTools } from './peekaboo'
@@ -41,7 +43,7 @@ export function peekabooSpecs(): ToolSpec[] {
 
 export function registerBuiltinTools(
   registry: ToolRegistry,
-  deps?: { memoryStore?: MemoryStore; skillStore?: SkillStore }
+  deps?: { memoryStore?: MemoryStore; skillStore?: SkillStore; scheduler?: CronScheduler }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
@@ -54,4 +56,6 @@ export function registerBuiltinTools(
   if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)
   // use_skill needs the skill store; registered only when one is injected.
   if (deps?.skillStore) registry.register(useSkillSpec(deps.skillStore))
+  // Cron tools need the scheduler; registered only when one is injected.
+  if (deps?.scheduler) for (const spec of cronSpecs(deps.scheduler)) registry.register(spec)
 }

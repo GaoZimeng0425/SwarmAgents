@@ -6,6 +6,7 @@ import type { ServiceRequest } from '@shared/types/service-ipc'
 
 import { createBroadcaster } from './broadcaster'
 import { createConversationStore } from './conversation-store'
+import { createCronScheduler } from './cron-scheduler'
 import { createDispatcher } from './dispatcher'
 import { createMcpManager } from './mcp/manager'
 import { createMemoryStore } from './memory-store'
@@ -39,7 +40,6 @@ const skillStore = createSkillStore({ dir: skillsPath })
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
 
 const toolRegistry = createToolRegistry()
-registerBuiltinTools(toolRegistry, { memoryStore, skillStore })
 
 const providerRegistry = new Map<string, ProviderInjection>()
 
@@ -51,6 +51,15 @@ const manager = createSessionManager({
   toolRegistry,
   skillStore,
 })
+
+const scheduler = createCronScheduler({
+  store,
+  fire: (sessionId, goal) => {
+    manager.submitGoal(sessionId, goal)
+  },
+})
+registerBuiltinTools(toolRegistry, { memoryStore, skillStore, scheduler })
+scheduler.start()
 
 const mcpManager = createMcpManager({
   toolRegistry,
@@ -84,6 +93,7 @@ parentPort.postMessage({ kind: 'ready' })
 log.info({ msg: 'service started', dbPath })
 
 process.on('exit', () => {
+  scheduler.dispose()
   void mcpManager.dispose()
   store.close()
 })

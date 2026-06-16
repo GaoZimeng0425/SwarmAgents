@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 
+import type { CronScheduler } from '../cron-scheduler'
 import type { MemoryStore } from '../memory-store'
 import { registerBuiltinTools } from './builtins'
 import { createToolRegistry, type ToolRunContext } from './registry'
@@ -111,5 +112,31 @@ describe('registerBuiltinTools', () => {
     expect(riskOf('read_file')).toBe('low')
     expect(riskOf('write_file', { path: '/etc/hosts' })).toBe('high')
     expect(riskOf('write_file', { path: `${homedir()}/notes.txt` })).toBe('low')
+  })
+})
+
+const fakeScheduler = {
+  add: () => ({ id: 'x', nextRun: 0 }),
+  remove: () => true,
+  listForSession: () => [],
+  start: () => undefined,
+  runJobNow: () => undefined,
+  dispose: () => undefined,
+} as CronScheduler
+
+describe('registerBuiltinTools with a scheduler', () => {
+  it('registers the cron tools when a scheduler is injected', () => {
+    const r = createToolRegistry()
+    registerBuiltinTools(r, { scheduler: fakeScheduler })
+    const ids = r.list().map((s) => `${s.group}.${s.name}`)
+    expect(ids).toContain('cron.schedule_task')
+    expect(ids).toContain('cron.list_scheduled_tasks')
+    expect(ids).toContain('cron.cancel_scheduled_task')
+  })
+
+  it('omits the cron tools when no scheduler is injected', () => {
+    const r = createToolRegistry()
+    registerBuiltinTools(r)
+    expect(r.list().some((s) => s.group === 'cron')).toBe(false)
   })
 })
