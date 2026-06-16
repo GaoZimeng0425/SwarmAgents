@@ -49,8 +49,9 @@ except that the catch path now flushes too).
 ## Design (Approach A — centralize in `session-manager`)
 
 Turn errors into persistable `kind: 'error'` `TaskEvent`s at the single point
-where history is buffered/flushed. No `agent-runner` change. No `replay.ts`
-change — reload reconstruction already renders a persisted `kind: 'error'` event.
+where history is buffered/flushed. No `agent-runner` change, no `replay.ts`
+change. One small `task-segments.ts` tweak unifies how a persisted error renders
+with the live one (see Read path below).
 
 ### 1. Write path — `src/service/session-manager.ts`
 
@@ -92,11 +93,26 @@ before marking the task failed, persist what ran plus a synthesized error:
 } finally { ... }
 ```
 
-### 2. Read path — no change
+### 2. Read path — unify the persisted-error rendering
 
 Once an error is a `kind: 'error'` `TaskEvent` in `tasks.history`,
-`replay.tasksToRecords` replays it as a `task.progress`, and `task-segments.ts`
-(lines 103-104) renders it as an `error` segment. Reload == live.
+`replay.tasksToRecords` replays it as a `task.progress`. `replay.ts` needs **no
+change**. But `task-segments.ts`'s `ev.kind === 'error'` branch (lines 103-104)
+currently renders it as a generic `kind: 'event'` segment labeled `"error"` —
+**different** from the live top-level `task.error` branch (lines 108-112), which
+produces a `kind: 'error'` segment and maps `code: 'cancelled'` → label
+`"stopped"`. To make reload identical to live, update the `ev.kind === 'error'`
+branch to emit the same `kind: 'error'` segment with the same
+`cancelled ? 'stopped' : 'error'` label logic:
+
+```ts
+} else if (ev.kind === 'error') {
+  const label = ev.error.code === 'cancelled' ? 'stopped' : 'error'
+  out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, taskId: task.id })
+}
+```
+
+After this, a persisted error renders byte-for-byte like the live one.
 
 ## Data flow
 
@@ -117,10 +133,11 @@ getSessionTasks → rowToTask → replay.tasksToRecords replays kind:'error' as 
 
 ## Testing
 
-- `task-segments` test (the key reload guarantee): a `task.progress` wrapping a
-  `{ kind: 'error', error: { code, message, tier } }` `TaskEvent` produces an
-  `error` segment with the right `detail` (and a `cancelled` code → `stopped`
-  label). This proves persisted errors render after reload. The existing
+- `task-segments` test (the key reload guarantee, failing-first): a
+  `task.progress` wrapping a `{ kind: 'error', error: { code, message, tier } }`
+  `TaskEvent` produces a `kind: 'error'` segment with the right `detail` (and a
+  `cancelled` code → `stopped` label). This currently fails (the branch emits a
+  `kind: 'event'` segment) and passes after the read-path fix above. The existing
   live-`task.error` test stays green.
 - Existing `conversation-store` history round-trip already covers persistence of
   `TaskEvent[]` (no new store test needed; `kind: 'error'` is just another
