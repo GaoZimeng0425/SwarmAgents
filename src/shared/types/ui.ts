@@ -11,6 +11,7 @@ import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { ApiStyle, ModelThinkingLevel, ProviderId, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
+import type { MemoryView } from './memory'
 import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
@@ -71,6 +72,7 @@ export type UIEvent =
     }
   | { kind: 'session.created'; sessionId: string; title: string | null; ts: number }
   | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number }
+  | { kind: 'memory.changed'; ts: number }
 
 export type SessionSummary = {
   id: string
@@ -133,6 +135,10 @@ export type SkillBridge = {
   remove(name: string): Promise<SkillMutationResult>
 }
 
+export type MemoryBridge = {
+  list(namespace?: string): Promise<MemoryView[]>
+}
+
 /** Status of a macOS TCC permission. 'unsupported' on non-macOS platforms. */
 export type MacPermissionState = 'granted' | 'denied' | 'not-determined' | 'unsupported'
 
@@ -177,6 +183,7 @@ export type SwarmBridge = {
   providers: ProvidersBridge
   mcp: McpBridge
   skills: SkillBridge
+  memory: MemoryBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.
