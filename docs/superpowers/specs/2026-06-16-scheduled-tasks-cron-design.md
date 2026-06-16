@@ -150,3 +150,14 @@ CronJob tick
 - No renderer UI for viewing/managing jobs.
 - No one-shot/at-date scheduling, no per-job timezone, no pause/resume.
 - No new dispatcher RPC method.
+
+## Known limitations (accepted for this scope)
+
+- **Unattended medium/high tools.** When a job fires while no renderer is
+  connected, any `medium`/`high`-risk tool the fired goal invokes broadcasts a
+  permission request to nobody and defaults to `deny` after the 30s timeout. So
+  unattended scheduled goals reliably run only `low`-risk tools. (Consistent
+  with the existing permission gate; revisit if autonomous runs need it.)
+- **No missed-tick catch-up.** `CronJob` schedules forward only — a job that was
+  due while the app was closed does not fire on `scheduler.start()`. Expected for
+  raw cron semantics.
