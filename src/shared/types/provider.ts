@@ -36,6 +36,15 @@ const BaseUrlString = z.string().url().max(2048)
 // above any realistic usage.
 const CustomModelsList = z.array(ModelString).max(50)
 
+// Context-window size in tokens. Only meaningful on the `custom` slot, whose
+// model is often absent from pi-ai's registry — without an override its window
+// wrongly inherits the fallback template's (gpt-4o = 128k). Capped well above
+// any real model so a misclick can't produce an absurd value.
+const ContextWindow = z.number().int().positive().max(10_000_000)
+
+/** Default context window assumed when a custom model's real size is unknown. */
+export const DEFAULT_CONTEXT_WINDOW = 200_000
+
 const ProviderRowOnDisk = z.object({
   model: ModelString,
   apiKey: z.string().min(1),
@@ -45,6 +54,9 @@ const ProviderRowOnDisk = z.object({
   apiStyle: ApiStyle.optional(),
   // User's chosen reasoning depth. Clamped to what the model supports at runtime.
   thinkingLevel: ModelThinkingLevel.optional(),
+  // Override for the model's context window. Only meaningful on the `custom`
+  // slot; ignored otherwise.
+  contextWindow: ContextWindow.optional(),
 })
 
 // On-disk shape. NEVER crosses an IPC boundary to the renderer.
@@ -72,6 +84,7 @@ const ProviderRowView = z.object({
   // contains at least 'off'. The effective current choice (stored or default).
   thinkingLevels: z.array(ModelThinkingLevel),
   thinkingLevel: ModelThinkingLevel,
+  contextWindow: ContextWindow.optional(),
 })
 
 // Renderer-visible projection. apiKey replaced by hasKey.
@@ -93,6 +106,7 @@ export const ProviderInjection = z.object({
   baseUrl: BaseUrlString.optional(),
   apiStyle: ApiStyle.optional(),
   thinkingLevel: ModelThinkingLevel.optional(),
+  contextWindow: ContextWindow.optional(),
 })
 export type ProviderInjection = z.infer<typeof ProviderInjection>
 

@@ -42,6 +42,8 @@ export type Service = {
   setApiStyle(p: ProviderId, style: ApiStyle): Promise<SetResult>
   /** Set the reasoning depth for a provider's model. */
   setThinkingLevel(p: ProviderId, level: ModelThinkingLevel): Promise<SetResult>
+  /** Override the context window for the `custom` slot. Pass null to reset to the default. No-op on built-ins. */
+  setContextWindow(p: ProviderId, contextWindow: number | null): Promise<SetResult>
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
 }
 
@@ -142,6 +144,9 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       // The custom slot's apiStyle decides the wire format; built-ins are
       // implicit and never need it on the wire.
       const apiStyle = state.active === 'custom' ? (row.apiStyle ?? DEFAULT_API_STYLE) : undefined
+      // Only the custom slot carries a window override; built-ins resolve their
+      // real window from the pi-ai registry by model id.
+      const contextWindow = state.active === 'custom' ? row.contextWindow : undefined
       return {
         id: state.active,
         model: row.model,
@@ -149,6 +154,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
         ...(apiStyle ? { apiStyle } : {}),
         ...(row.thinkingLevel ? { thinkingLevel: row.thinkingLevel } : {}),
+        ...(contextWindow ? { contextWindow } : {}),
       }
     },
     async setKey(p, key) {
@@ -286,6 +292,32 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       const next: ProvidersStateOnDisk = {
         ...state,
         providers: { ...state.providers, [p]: { ...row, thinkingLevel: level } },
+      }
+      return persist(next)
+    },
+    async setContextWindow(p, contextWindow) {
+      if (p !== 'custom')
+        return { ok: false, code: 'invalid', message: 'contextWindow only applies to the custom slot' }
+      const row = state.providers[p]
+      if (!row)
+        return {
+          ok: false,
+          code: 'invalid',
+          message: `no key configured for ${p}; set a key first`,
+        }
+      let nextRow: ProvidersStateOnDisk['providers']['custom']
+      if (contextWindow == null) {
+        // Clear the override → resolution falls back to the 200k default.
+        const { contextWindow: _omit, ...rest } = row
+        nextRow = rest
+      } else {
+        if (!Number.isInteger(contextWindow) || contextWindow <= 0 || contextWindow > 10_000_000)
+          return { ok: false, code: 'invalid', message: 'contextWindow must be a positive integer ≤ 10,000,000' }
+        nextRow = { ...row, contextWindow }
+      }
+      const next: ProvidersStateOnDisk = {
+        ...state,
+        providers: { ...state.providers, [p]: nextRow },
       }
       return persist(next)
     },

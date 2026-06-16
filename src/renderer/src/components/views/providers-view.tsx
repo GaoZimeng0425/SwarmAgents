@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
+  DEFAULT_CONTEXT_WINDOW,
   OPENAI_MODEL_SUGGESTIONS,
   type ProviderId,
   type ProvidersStateView,
@@ -105,6 +106,7 @@ function ProviderRow({ id, state }: { id: ProviderId; state: ProvidersStateView 
   const hasKey = row?.hasKey ?? false
   const serverApiStyle: ApiStyle = id === 'custom' ? (row?.apiStyle ?? 'openai') : (id as ApiStyle)
   const serverBaseUrl = row?.baseUrl ?? ''
+  const serverContextWindow = row?.contextWindow
   const serverCustomModels = useMemo(() => row?.customModels ?? [], [row?.customModels])
   const [draftKey, setDraftKey] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -118,6 +120,10 @@ function ProviderRow({ id, state }: { id: ProviderId; state: ProvidersStateView 
   const [modelError, setModelError] = useState<string | null>(null)
   const [baseUrlDraft, setBaseUrlDraft] = useState(serverBaseUrl)
   const [baseUrlError, setBaseUrlError] = useState<string | null>(null)
+  const [contextWindowDraft, setContextWindowDraft] = useState(
+    serverContextWindow != null ? String(serverContextWindow) : ''
+  )
+  const [contextWindowError, setContextWindowError] = useState<string | null>(null)
   const [apiStyleDraft, setApiStyleDraft] = useState<ApiStyle>(serverApiStyle)
   const [customModelsDraft, setCustomModelsDraft] = useState<string[]>(serverCustomModels)
 
@@ -141,6 +147,9 @@ function ProviderRow({ id, state }: { id: ProviderId; state: ProvidersStateView 
     setBaseUrlDraft(serverBaseUrl)
   }, [serverBaseUrl])
   useEffect(() => {
+    setContextWindowDraft(serverContextWindow != null ? String(serverContextWindow) : '')
+  }, [serverContextWindow])
+  useEffect(() => {
     setApiStyleDraft(serverApiStyle)
   }, [serverApiStyle])
   useEffect(() => {
@@ -156,6 +165,7 @@ function ProviderRow({ id, state }: { id: ProviderId; state: ProvidersStateView 
     // Snapshot all drafts now — the state broadcast that follows setKey() can
     // race ahead and fire the useEffects above before we commit them.
     const baseUrlSnapshot = baseUrlDraft.trim()
+    const contextWindowSnapshot = contextWindowDraft.trim()
     const apiStyleSnapshot = apiStyleDraft
     const customsSnapshot = customModelsDraft
     const modelSnapshot = modelDraft
@@ -191,6 +201,15 @@ function ProviderRow({ id, state }: { id: ProviderId; state: ProvidersStateView 
     if (baseUrlSnapshot.length > 0 && baseUrlSnapshot !== serverBaseUrl) {
       const rb = await window.swarm.providers.setBaseUrl(id, baseUrlSnapshot)
       if (!rb.ok) setBaseUrlError(rb.message)
+    }
+    if (id === 'custom' && contextWindowSnapshot.length > 0) {
+      const n = Number(contextWindowSnapshot)
+      if (Number.isInteger(n) && n > 0) {
+        const rc = await window.swarm.providers.setContextWindow(id, n)
+        if (!rc.ok) setContextWindowError(rc.message)
+      } else {
+        setContextWindowError('Must be a positive integer')
+      }
     }
     setSaving(false)
   }
@@ -285,6 +304,27 @@ function ProviderRow({ id, state }: { id: ProviderId; state: ProvidersStateView 
     if (!hasKey) return // committed by save()
     const r = await window.swarm.providers.setBaseUrl(id, trimmed === '' ? null : trimmed)
     if (!r.ok) setBaseUrlError(r.message)
+  }
+
+  const commitContextWindow = async (): Promise<void> => {
+    const trimmed = contextWindowDraft.trim()
+    setContextWindowError(null)
+    if (trimmed === '') {
+      if (serverContextWindow == null) return
+      if (!hasKey) return // committed by save()
+      const r = await window.swarm.providers.setContextWindow(id, null)
+      if (!r.ok) setContextWindowError(r.message)
+      return
+    }
+    const n = Number(trimmed)
+    if (!Number.isInteger(n) || n <= 0) {
+      setContextWindowError('Must be a positive integer')
+      return
+    }
+    if (n === serverContextWindow) return
+    if (!hasKey) return // committed by save()
+    const r = await window.swarm.providers.setContextWindow(id, n)
+    if (!r.ok) setContextWindowError(r.message)
   }
 
   const runTest = async (): Promise<void> => {
@@ -488,6 +528,37 @@ function ProviderRow({ id, state }: { id: ProviderId; state: ProvidersStateView 
         {id === 'custom' && ' Required for the custom provider.'}
       </div>
       {baseUrlError && <div className="ml-22 text-red-500 text-xs">{baseUrlError}</div>}
+
+      {id === 'custom' && (
+        <>
+          <div className="flex items-center gap-2">
+            <label className="w-20 text-muted-foreground text-xs" htmlFor={`${id}-context-window`}>
+              Context window
+            </label>
+            <Input
+              autoComplete="off"
+              className="flex-1"
+              id={`${id}-context-window`}
+              inputMode="numeric"
+              onBlur={() => {
+                void commitContextWindow()
+              }}
+              onChange={(e) => setContextWindowDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              }}
+              placeholder={String(DEFAULT_CONTEXT_WINDOW)}
+              spellCheck={false}
+              type="text"
+              value={contextWindowDraft}
+            />
+          </div>
+          <div className="ml-22 text-muted-foreground text-xs">
+            Max tokens this model accepts. Leave blank to default to {DEFAULT_CONTEXT_WINDOW.toLocaleString()} tokens.
+          </div>
+          {contextWindowError && <div className="ml-22 text-red-500 text-xs">{contextWindowError}</div>}
+        </>
+      )}
 
       <div className="space-y-1">
         <div className="flex items-center gap-3">

@@ -120,6 +120,15 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
   }
   ipcMain.handle('providers:setThinkingLevel', setThinkingLevel)
 
+  const setContextWindow = async (_: Electron.IpcMainInvokeEvent, p: unknown, contextWindow: unknown) => {
+    const pid = ProviderId.safeParse(p)
+    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+    if (contextWindow !== null && typeof contextWindow !== 'number')
+      return { ok: false, code: 'invalid', message: 'contextWindow must be a number or null' }
+    return service.setContextWindow(pid.data, contextWindow)
+  }
+  ipcMain.handle('providers:setContextWindow', setContextWindow)
+
   const setBaseUrl = async (_: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
     const pid = ProviderId.safeParse(p)
     if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
@@ -162,6 +171,7 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
       ipcMain.removeHandler('providers:setModel')
       ipcMain.removeHandler('providers:setApiStyle')
       ipcMain.removeHandler('providers:setThinkingLevel')
+      ipcMain.removeHandler('providers:setContextWindow')
       ipcMain.removeHandler('providers:setBaseUrl')
       ipcMain.removeHandler('providers:addCustomModel')
       ipcMain.removeHandler('providers:removeCustomModel')

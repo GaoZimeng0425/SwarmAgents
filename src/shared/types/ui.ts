@@ -112,6 +112,8 @@ export type ProvidersBridge = {
   setApiStyle(p: ProviderId, style: ApiStyle): Promise<ProvidersSetResult>
   /** Set the reasoning depth for a provider's model. */
   setThinkingLevel(p: ProviderId, level: ModelThinkingLevel): Promise<ProvidersSetResult>
+  /** Override the context window for the `custom` slot. Pass null to reset to the default. */
+  setContextWindow(p: ProviderId, contextWindow: number | null): Promise<ProvidersSetResult>
   test(p: ProviderId): Promise<ProvidersTestResult>
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
   onDecryptFailed(cb: () => void): () => void

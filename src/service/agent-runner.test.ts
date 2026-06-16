@@ -177,31 +177,56 @@ describe('AgentRunner', () => {
     await p
   })
 
-  it('blocks and aborts when the token budget is exhausted', async () => {
+  const usageWithSnapshot = (snapshotTokens: number) => ({
+    type: 'turn_end',
+    message: {
+      role: 'assistant',
+      usage: {
+        input: snapshotTokens,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: snapshotTokens,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+    },
+    toolResults: [],
+  })
+
+  it('blocks and aborts when the context snapshot exceeds the model window', async () => {
     const h = installAgent()
-    const task = { ...mkTask('t-tokens'), budget: { tokens: 1000, calls: 100, wallMs: 600_000, usdCents: 100_000 } }
-    const runner = createAgentRunner(baseDeps(task))
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-context')),
+      provider: { id: 'custom', model: 'mystery-model', apiKey: 'k', apiStyle: 'openai', contextWindow: 1000 },
+    })
     const p = runner.run()
 
-    h.emitEvent({
-      type: 'turn_end',
-      message: {
-        role: 'assistant',
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 2000,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-      },
-      toolResults: [],
-    })
+    h.emitEvent(usageWithSnapshot(2000)) // 2000 > 1000 window
 
     const blocked = await h.getBeforeToolCall()({ toolCall: { name: 'tool' }, args: {} })
     expect(blocked).toMatchObject({ block: true })
     expect(h.abortSpy).toHaveBeenCalled()
+
+    h.resolvePrompt()
+    const out = await p
+    expect(out.status).toBe('failed')
+  })
+
+  it('does not block on cumulative token spend — only the live snapshot vs window matters', async () => {
+    const h = installAgent()
+    // budget.tokens is tiny (1000), but it is no longer gated; the snapshot
+    // (16k) sits well under the window, so the run continues.
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-no-token-budget')),
+      provider: { id: 'custom', model: 'mystery-model', apiKey: 'k', apiStyle: 'openai', contextWindow: 200_000 },
+    })
+    const p = runner.run()
+
+    h.emitEvent(usageWithSnapshot(16_000))
+
+    const result = await h.getBeforeToolCall()({ toolCall: { name: 'tool' }, args: {} })
+    expect(result).toBeUndefined() // not blocked
+    expect(h.abortSpy).not.toHaveBeenCalled()
 
     h.resolvePrompt()
     await p
@@ -258,6 +283,54 @@ describe('AgentRunner', () => {
     h.resolvePrompt()
     const out = await p
     expect(out.used).toMatchObject({ tokens: 1500, calls: 1, usdCents: 5 })
+  })
+
+  const cwUsageEvent = {
+    type: 'turn_end',
+    message: {
+      role: 'assistant',
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 100,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+    },
+    toolResults: [],
+  }
+
+  it('resolves an unknown custom model context window to the 200k default', async () => {
+    const h = installAgent()
+    const emitted: Array<{ event: string; data: Record<string, unknown> }> = []
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-cw-default')),
+      provider: { id: 'custom', model: 'mystery-model', apiKey: 'k', apiStyle: 'openai' },
+      emit: (event, data) => emitted.push({ event, data: data as Record<string, unknown> }),
+    })
+    const p = runner.run()
+    h.emitEvent(cwUsageEvent)
+    const usage = emitted.find((e) => e.event === 'task.usage')
+    expect(usage!.data.contextWindow).toBe(200_000)
+    h.resolvePrompt()
+    await p
+  })
+
+  it('honors an explicit custom contextWindow override', async () => {
+    const h = installAgent()
+    const emitted: Array<{ event: string; data: Record<string, unknown> }> = []
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-cw-override')),
+      provider: { id: 'custom', model: 'mystery-model', apiKey: 'k', apiStyle: 'openai', contextWindow: 1_000_000 },
+      emit: (event, data) => emitted.push({ event, data: data as Record<string, unknown> }),
+    })
+    const p = runner.run()
+    h.emitEvent(cwUsageEvent)
+    const usage = emitted.find((e) => e.event === 'task.usage')
+    expect(usage!.data.contextWindow).toBe(1_000_000)
+    h.resolvePrompt()
+    await p
   })
 
   it('emits task.plan with the structured todos when update_plan runs', async () => {

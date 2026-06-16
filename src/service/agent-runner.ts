@@ -5,10 +5,16 @@ import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type { AgentDefinition } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
-import { ANTHROPIC_MODEL_SUGGESTIONS, type ApiStyle, OPENAI_MODEL_SUGGESTIONS } from '@shared/types/provider'
+import {
+  ANTHROPIC_MODEL_SUGGESTIONS,
+  type ApiStyle,
+  DEFAULT_CONTEXT_WINDOW,
+  OPENAI_MODEL_SUGGESTIONS,
+} from '@shared/types/provider'
 import { emptyBudget, type ResourceBudget, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
 import type { AskRegistry } from './ask-registry'
+import type { McpRequestRegistry } from './mcp-request-registry'
 import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
 
@@ -33,25 +39,35 @@ const API_FOR_STYLE: Record<ApiStyle, Api> = {
   anthropic: 'anthropic-messages',
 }
 
-function cloneTemplate(template: Model<Api>, p: ProviderInjection, style: ApiStyle): Model<Api> {
+function cloneTemplate(
+  template: Model<Api>,
+  p: ProviderInjection,
+  style: ApiStyle,
+  contextWindow?: number
+): Model<Api> {
   const { compat: _drop, ...rest } = template
   return {
     ...rest,
     id: p.model,
     baseUrl: p.baseUrl ?? template.baseUrl,
     api: API_FOR_STYLE[style],
+    ...(contextWindow != null ? { contextWindow } : {}),
   }
 }
 
 function resolveModel(p: ProviderInjection): Model<Api> {
   if (p.id === 'custom') {
     const style: ApiStyle = p.apiStyle ?? 'openai'
+    const matched = getModelLoose(style, p.model)
     const template =
-      getModelLoose(style, p.model) ??
-      getModelLoose(style, FALLBACK_MODEL_ID[style]) ??
-      (getModels(style)[0] as Model<Api> | undefined)
+      matched ?? getModelLoose(style, FALLBACK_MODEL_ID[style]) ?? (getModels(style)[0] as Model<Api> | undefined)
     if (!template) throw new Error(`pi-ai has no registered models for style "${style}"`)
-    return cloneTemplate(template, p, style)
+    // A custom endpoint's model is often unknown to pi-ai, so its window would
+    // otherwise inherit the fallback template's (gpt-4o = 128k) — wrong for the
+    // real model. Honor the user's override, else the matched model's real
+    // window, else a sane 200k default.
+    const contextWindow = p.contextWindow ?? matched?.contextWindow ?? DEFAULT_CONTEXT_WINDOW
+    return cloneTemplate(template, p, style, contextWindow)
   }
 
   const exact = getModelLoose(p.id, p.model)
@@ -74,6 +90,7 @@ export type AgentRunnerDeps = {
   emit: EmitFn
   permissionRegistry: PermissionRegistry
   askRegistry: AskRegistry
+  mcpRequests: McpRequestRegistry
   toolRegistry: ToolRegistry
   initialMessages: AgentMessage[]
   /** Aborts the run when fired. The manager wires this to cancelTask. */
@@ -263,6 +280,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           // This stub satisfies the ToolRunContext type without creating a second gate.
           requestPermission: () => Promise.resolve('grant' as const),
           askUser: (args) => deps.askRegistry.request({ taskId: task.id, ...args }),
+          addMcpServer: (config) => deps.mcpRequests.add(config),
         }
         const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
         tools = resolved.tools
@@ -296,21 +314,29 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           provider: model.provider,
           api: model.api,
           baseUrl: model.baseUrl,
+          contextWindow: model.contextWindow,
         },
       })
 
       const budget = task.budget
       const startedAt = Date.now()
       const used = { calls: 0, tokens: 0, usdCents: 0 }
-      // Why a run is ending early. Both causes call agent.abort(); we record
+      // Latest turn's context occupancy (a snapshot, refreshed each turn_end).
+      // This — not cumulative token spend — decides when the conversation no
+      // longer fits the model window. `budget.tokens` is intentionally NOT
+      // gated: cumulative spend never affected the LLM, only the live snapshot
+      // vs the window does.
+      let contextTokens = 0
+      // Why a run is ending early. All causes call agent.abort(); we record
       // which one so the terminal handler reports the right outcome.
-      let stopCause: 'cancelled' | 'budget' | null = null
+      let stopCause: 'cancelled' | 'budget' | 'context' | null = null
       let budgetDim = ''
 
+      // Runaway guards only (calls/time/cost). Token spend is deliberately
+      // absent — context fitness is judged separately, by snapshot vs window.
       const overBudget = (): string | null => {
         if (used.calls > budget.calls) return 'calls'
         if (Date.now() - startedAt > budget.wallMs) return 'wallMs'
-        if (used.tokens > budget.tokens) return 'tokens'
         if (used.usdCents > budget.usdCents) return 'usdCents'
         return null
       }
@@ -321,6 +347,16 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         wallMs: Date.now() - startedAt,
         usdCents: used.usdCents,
       })
+
+      // The human-readable cause of an early stop, mirroring the task-level
+      // error. pi-agent-core stamps the interrupted tool call with a generic
+      // "Operation aborted"; we use this to rewrite it to the real reason.
+      const stopReason = (): string | null => {
+        if (stopCause === 'cancelled') return 'Stopped by user.'
+        if (stopCause === 'budget') return `Budget exhausted (${budgetDim}).`
+        if (stopCause === 'context') return `Context window full (${contextTokens} > ${model.contextWindow} tokens).`
+        return null
+      }
 
       const agent = new Agent({
         getApiKey: () => provider.apiKey,
@@ -371,6 +407,16 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
             return { block: true, reason: `Budget exhausted (${dim}).` }
           }
 
+          // Stop before the next turn would overflow the model's window. The
+          // snapshot already exceeding the window means the next prompt (≈ this
+          // size) won't fit. Interim hard stop; compaction will replace it with
+          // graceful trimming later.
+          if (model.contextWindow && contextTokens > model.contextWindow) {
+            stopCause = 'context'
+            agent.abort()
+            return { block: true, reason: `Context window full (${contextTokens} > ${model.contextWindow} tokens).` }
+          }
+
           const risk = riskOf(toolCall.name, args)
 
           if (risk === 'low') return undefined
@@ -408,21 +454,35 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       agent.subscribe((e) => {
         if (e.type === 'turn_end') {
           const usage = (e as { message?: { usage?: Usage } }).message?.usage
-          let contextTokens: number | undefined
           if (usage) {
-            used.tokens += usage.totalTokens
+            // Snapshot, not a running total: each turn re-sends the whole
+            // conversation, so totalTokens is already the full current size —
+            // summing across turns would double-count.
+            used.tokens = usage.totalTokens
             used.usdCents += Math.round(usage.cost.total * 100)
-            // Latest turn's prompt+completion ≈ how full the context window is now.
+            // Latest turn's prompt+completion ≈ how full the context window is
+            // now. This snapshot is what gates the run (see beforeToolCall).
             contextTokens = usage.input + usage.cacheRead + usage.cacheWrite + usage.output
           }
           emit('task.usage', {
             taskId: task.id,
             used: snapshotUsed(),
-            contextTokens,
+            contextTokens: usage ? contextTokens : undefined,
             contextWindow: model.contextWindow,
             ts: Date.now(),
           })
           deps.saveSnapshot?.(agent.state.messages, snapshotUsed())
+        }
+        // When we abort for budget/context/cancel, pi-agent-core records the
+        // interrupted tool call with a generic "Operation aborted". Rewrite it
+        // to the real cause so the transcript matches the task-level error.
+        if (e.type === 'tool_execution_end' && (e as { isError?: boolean }).isError) {
+          const reason = stopReason()
+          if (reason) {
+            const r = (e as { result?: { content?: Array<{ type: string; text?: string }> } }).result
+            const txt = r?.content?.find((c) => c.type === 'text')
+            if (txt?.text === 'Operation aborted') txt.text = reason
+          }
         }
         const summary: Record<string, unknown> = { type: e.type }
         if ('toolName' in e) summary.toolName = (e as { toolName?: string }).toolName
@@ -472,6 +532,30 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         emit('task.error', {
           taskId: task.id,
           error: { code: 'budget_exhausted', message: `Budget exhausted (${budgetDim}).`, tier: 'gave_up' },
+          ts: Date.now(),
+        })
+        return {
+          status: 'failed',
+          summary: translator.getFinalSummary(),
+          messages: agent.state.messages,
+          used: snapshotUsed(),
+        }
+      }
+
+      if (stopCause === 'context') {
+        taskLog.warn({
+          msg: 'context window full',
+          contextTokens,
+          contextWindow: model.contextWindow,
+          durationMs: Date.now() - t0,
+        })
+        emit('task.error', {
+          taskId: task.id,
+          error: {
+            code: 'context_window_full',
+            message: `Context window full (${contextTokens} > ${model.contextWindow} tokens).`,
+            tier: 'gave_up',
+          },
           ts: Date.now(),
         })
         return {

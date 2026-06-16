@@ -185,6 +185,43 @@ describe('service', () => {
     })
   })
 
+  it('setContextWindow persists on the custom slot and threads it into the injection', async () => {
+    const store = makeStore({
+      version: 1,
+      active: 'custom',
+      providers: {
+        anthropic: null,
+        openai: null,
+        custom: { model: 'mystery-model', apiKey: 'sk-x', apiStyle: 'openai' },
+      },
+    })
+    const svc = await createService({ store })
+    expect(await svc.setContextWindow('custom', 1_000_000)).toEqual({ ok: true })
+    expect(svc.getState().providers.custom?.contextWindow).toBe(1_000_000)
+    expect(svc.getInjection()).toMatchObject({ contextWindow: 1_000_000 })
+
+    // null clears the override → falls back to the resolved default downstream.
+    expect(await svc.setContextWindow('custom', null)).toEqual({ ok: true })
+    expect(svc.getState().providers.custom?.contextWindow).toBeUndefined()
+    expect(svc.getInjection()?.contextWindow).toBeUndefined()
+  })
+
+  it('setContextWindow rejects on built-in slots and bad values', async () => {
+    const store = makeStore({
+      version: 1,
+      active: 'custom',
+      providers: {
+        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-a' },
+        openai: null,
+        custom: { model: 'mystery-model', apiKey: 'sk-x', apiStyle: 'openai' },
+      },
+    })
+    const svc = await createService({ store })
+    expect(await svc.setContextWindow('anthropic', 200_000)).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.setContextWindow('custom', 0)).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.setContextWindow('custom', 1.5)).toMatchObject({ ok: false, code: 'invalid' })
+  })
+
   it('setBaseUrl persists a valid http(s) URL and strips trailing slash', async () => {
     const store = makeStore({
       version: 1,

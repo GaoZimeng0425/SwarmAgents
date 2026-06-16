@@ -20,6 +20,7 @@ function projectRow(
     ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
     ...(row.customModels && row.customModels.length > 0 ? { customModels: row.customModels } : {}),
     ...(row.apiStyle ? { apiStyle: row.apiStyle } : {}),
+    ...(row.contextWindow ? { contextWindow: row.contextWindow } : {}),
   }
 }
 

@@ -3,7 +3,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { TaskRecord, TaskStatus } from '@/lib/apply-event'
-import { formatUsage } from '@/lib/format-usage'
+import { formatUsage, usageTooltip } from '@/lib/format-usage'
 
 const STATUS_VARIANT: Record<TaskStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   pending: 'outline',
@@ -37,7 +37,7 @@ export function TaskListItem({ task, selected, onSelect }: Props): React.JSX.Ele
       <CardContent className="text-muted-foreground text-xs">
         {task.workerId ? `worker ${task.workerId} · ` : ''}
         started {formatDistanceToNow(task.startedAt, { addSuffix: true })}
-        {task.used ? ` · ${formatUsage(task.used)}` : ''}
+        {task.used ? <span title={usageTooltip(task.used)}> · {formatUsage(task.used)}</span> : ''}
       </CardContent>
     </Card>
   )

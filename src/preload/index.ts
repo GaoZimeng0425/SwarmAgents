@@ -42,6 +42,8 @@ const providers: ProvidersBridge = {
     ipcRenderer.invoke('providers:setApiStyle', p, style) as Promise<ProvidersSetResult>,
   setThinkingLevel: (p: ProviderId, level: ModelThinkingLevel) =>
     ipcRenderer.invoke('providers:setThinkingLevel', p, level) as Promise<ProvidersSetResult>,
+  setContextWindow: (p: ProviderId, contextWindow: number | null) =>
+    ipcRenderer.invoke('providers:setContextWindow', p, contextWindow) as Promise<ProvidersSetResult>,
   test: (p: ProviderId) => ipcRenderer.invoke('providers:test', p) as Promise<ProvidersTestResult>,
   onStateChanged: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: ProvidersStateView): void => cb(payload)

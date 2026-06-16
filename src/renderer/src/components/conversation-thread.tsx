@@ -21,7 +21,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
-import { formatUsage } from '@/lib/format-usage'
+import { formatUsage, usageTooltip } from '@/lib/format-usage'
 import { type Segment, taskSegments } from '@/lib/task-segments'
 import { cn } from '@/lib/utils'
 
@@ -233,11 +233,18 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
           <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">
             <Spinner className="size-4 text-primary" />
             <span className="font-medium">{last.status === 'pending' ? 'Queued…' : 'Swarm is thinking…'}</span>
-            {usage && <span className="text-xs opacity-60">· {formatUsage(usage)}</span>}
+            {usage && (
+              <span className="text-xs opacity-60" title={usageTooltip(usage)}>
+                · {formatUsage(usage)}
+              </span>
+            )}
           </div>
         )}
         {!busy && usage && (
-          <div className="flex items-center gap-2 border-border/30 border-t px-1 pt-4 text-muted-foreground text-xs opacity-60">
+          <div
+            className="flex items-center gap-2 border-border/30 border-t px-1 pt-4 text-muted-foreground text-xs opacity-60"
+            title={usageTooltip(usage)}
+          >
             <div className="size-1 rounded-full bg-border" />
             {formatUsage(usage)}
           </div>
