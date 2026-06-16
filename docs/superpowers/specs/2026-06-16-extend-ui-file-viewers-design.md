@@ -94,9 +94,14 @@ one-time integration of 4 viewers.
 
 ### Files touched / added
 
-- **Add:** `src/renderer/src/components/ui/viewers/{pdf-viewer,xlsx-viewer,
-  docx-viewer,csv-viewer,document-viewer-sidebar,file-thumbnail}.tsx` (vendored
-  from Extend, MIT; keep license header).
+- **Add (vendored from Extend, MIT):** the viewer source files go **directly in
+  `src/renderer/src/components/ui/`** (not a `viewers/` subdir) so Extend's
+  internal `@/components/ui/*` cross-imports resolve with zero rewriting. Full
+  set, derived from the registry's `files` + `registryDependencies`:
+  - `ui/csv-viewer.tsx` (self-contained)
+  - `ui/xlsx-viewer.tsx` (self-contained)
+  - `ui/docx-viewer.tsx` + `ui/docx-annotation-card.tsx` + `ui/document-viewer-sidebar.tsx` + `ui/file-thumbnail.tsx`
+  - `ui/pdf-viewer.tsx` + `components/pdf-thumbnail-utils.ts` + `ui/document-viewer-sidebar.tsx` (shared with docx)
 - **Add:** `src/renderer/src/components/attachment-viewer-sheet.tsx`.
 - **Edit:** `src/renderer/src/components/chat-input.tsx` (accept list + AttachBar
   branch + sheet wiring).
