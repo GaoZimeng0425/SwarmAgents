@@ -36,6 +36,7 @@ export type ConversationStore = {
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
   saveTaskHistory(taskId: string, history: import('@shared/types/task').TaskEvent[]): void
+  saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
   saveTaskUsage(taskId: string, used: Task['used']): void
@@ -80,6 +81,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       tool_allowlist      TEXT NOT NULL DEFAULT '[]',
       history             TEXT NOT NULL DEFAULT '[]',
       attachments         TEXT NOT NULL DEFAULT '[]',
+      plan                TEXT NOT NULL DEFAULT '[]',
       created_at          INTEGER NOT NULL,
       started_at          INTEGER,
       ended_at            INTEGER
@@ -109,6 +111,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
+    `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
   ]) {
     try {
       db.exec(stmt)
@@ -139,6 +142,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     used: JSON.parse(row.used as string) as Task['used'],
     history: JSON.parse((row.history as string) ?? '[]') as Task['history'],
     attachments: JSON.parse((row.attachments as string) ?? '[]') as Task['attachments'],
+    plan: JSON.parse((row.plan as string) ?? '[]') as Task['plan'],
     result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
     createdAt: row.created_at as number,
     startedAt: (row.started_at as number | null) ?? null,
@@ -181,9 +185,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtInsertTask = db.prepare(
     `INSERT OR REPLACE INTO tasks
      (id, session_id, parent_id, goal, status, result, budget, used,
-      agent_def_id, assigned_worker_id, tool_allowlist, history, attachments,
+      agent_def_id, assigned_worker_id, tool_allowlist, history, attachments, plan,
       created_at, started_at, ended_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
   const stmtUpdateTaskUsage = db.prepare('UPDATE tasks SET used = ? WHERE id = ?')
@@ -199,6 +203,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
   const stmtGetSnapshot = db.prepare('SELECT agent_snapshot FROM sessions WHERE id = ?')
   const stmtSetTaskHistory = db.prepare('UPDATE tasks SET history = ? WHERE id = ?')
+  const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
     `SELECT s.id, s.title, s.status, s.pinned, s.last_active_at AS lastActiveAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
@@ -272,6 +277,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     saveTaskHistory(taskId, history) {
       stmtSetTaskHistory.run(JSON.stringify(history), taskId)
     },
+    saveTaskPlan(taskId, plan) {
+      stmtSetTaskPlan.run(JSON.stringify(plan), taskId)
+    },
     saveTask(task, sessionId) {
       stmtInsertTask.run(
         task.id,
@@ -287,6 +295,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         JSON.stringify(task.toolAllowlist),
         JSON.stringify(task.history),
         JSON.stringify(task.attachments ?? []),
+        JSON.stringify(task.plan ?? []),
         task.createdAt,
         task.startedAt ?? null,
         task.endedAt ?? null

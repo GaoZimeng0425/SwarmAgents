@@ -188,6 +188,45 @@ describe('ConversationStore', () => {
     store.close()
   })
 
+  it('persists and reloads a task plan', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-p', provider)
+    const now = Date.now()
+    store.saveTask(
+      {
+        id: '01HRX0000000000000000000P1',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'running',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        plan: [],
+        result: null,
+        createdAt: now,
+        startedAt: null,
+        endedAt: null,
+      },
+      'ses-p'
+    )
+    expect(store.getSessionTasks('ses-p')[0].plan).toEqual([])
+
+    store.saveTaskPlan('01HRX0000000000000000000P1', [
+      { content: 'step one', status: 'in_progress' },
+      { content: 'step two', status: 'pending' },
+    ])
+    const tasks = store.getSessionTasks('ses-p')
+    expect(tasks[0].plan).toEqual([
+      { content: 'step one', status: 'in_progress' },
+      { content: 'step two', status: 'pending' },
+    ])
+    store.close()
+  })
+
   it('saveTaskUsage writes used back to the task row', () => {
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const store = createConversationStore(dbPath)

@@ -96,6 +96,7 @@ export const TaskSchema = z.object({
   used: ResourceBudgetSchema,
   history: z.array(TaskEventSchema),
   attachments: z.array(AttachmentSchema).default([]),
+  plan: z.array(PlanTodoSchema).default([]),
   result: TaskResultSchema.nullable(),
   createdAt: z.number(),
   startedAt: z.number().nullable(),
