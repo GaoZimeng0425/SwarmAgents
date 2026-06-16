@@ -1,10 +1,11 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { EventsBridge } from '@/components/events-bridge'
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
+import { useLoadSessions } from '@/hooks/use-tasks'
 
 // Opt-in only — devtools overlap the UI and interfere with manual/automated UI
 // testing. Enable with `VITE_ROUTER_DEVTOOLS=true pnpm dev`.
@@ -17,6 +18,13 @@ const RouterDevtools = SHOW_ROUTER_DEVTOOLS
 export const Route = createRootRoute({ component: RootLayout })
 
 function RootLayout(): React.JSX.Element {
+  const loadSessions = useLoadSessions()
+  // Load the session list once for the whole app (the sidebar is always mounted).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
+  useEffect(() => {
+    loadSessions.mutate()
+  }, [])
+
   return (
     <SidebarProvider>
       <EventsBridge />

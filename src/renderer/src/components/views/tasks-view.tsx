@@ -1,12 +1,10 @@
-import { useEffect } from 'react'
-
 import { AskPanel } from '@/components/ask-panel'
 import { ChatInput } from '@/components/chat-input'
 import { ConversationThread } from '@/components/conversation-thread'
 import { PermissionDrawer } from '@/components/permission-drawer'
 import { RightPanel } from '@/components/right-panel'
 import { useProviders } from '@/hooks/use-providers'
-import { useCancelTask, useDecidePermission, useLoadSessions, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
+import { useCancelTask, useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { type AskPrompt, useAskStore } from '@/stores/ask'
 import { usePermissionStore } from '@/stores/permission'
@@ -24,14 +22,7 @@ export function TasksView(): React.JSX.Element {
   const submitGoal = useSubmitGoal()
   const cancelTask = useCancelTask()
   const decide = useDecidePermission()
-  const loadSessions = useLoadSessions()
   const { ready, state } = useProviders()
-
-  // Load the session list once on mount.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
-  useEffect(() => {
-    loadSessions.mutate()
-  }, [])
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
   // Runs are sequential per session, so at most one task is in flight; the
