@@ -38,7 +38,7 @@ describe('dispatcher', () => {
     const manager = mockManager()
     const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
     const result = dispatch('submitGoal', ['ses-1', 'do it'])
-    expect(manager.submitGoal).toHaveBeenCalledWith('ses-1', 'do it')
+    expect(manager.submitGoal).toHaveBeenCalledWith('ses-1', 'do it', undefined)
     expect(result).toEqual({ taskId: 'task-1' })
   })
 

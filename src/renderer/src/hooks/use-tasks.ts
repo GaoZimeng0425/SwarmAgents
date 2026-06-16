@@ -21,14 +21,20 @@ export function useTasks(): TaskRecord[] {
 /** Submit a goal to the currently-selected session, creating one if needed. */
 export function useSubmitGoal() {
   return useMutation({
-    mutationFn: async (goal: string) => {
+    mutationFn: async ({
+      goal,
+      attachments,
+    }: {
+      goal: string
+      attachments?: import('@shared/types/task').Attachment[]
+    }) => {
       let sessionId = useSessionsStore.getState().selectedSessionId
       if (!sessionId) {
         const created = await swarmApi.createSession()
         sessionId = created.sessionId
         useSessionsStore.getState().select(sessionId)
       }
-      return swarmApi.submitGoal(sessionId, goal)
+      return swarmApi.submitGoal(sessionId, goal, attachments)
     },
   })
 }
@@ -53,10 +59,7 @@ export function useLoadSessions() {
 }
 
 /** Replay a session's stored tasks into the tasks cache (idempotent merge by id). */
-export async function hydrateSession(
-  qc: ReturnType<typeof useQueryClient>,
-  sessionId: string,
-): Promise<void> {
+export async function hydrateSession(qc: ReturnType<typeof useQueryClient>, sessionId: string): Promise<void> {
   const tasks = await swarmApi.getSessionTasks(sessionId)
   const records = tasksToRecords(sessionId, tasks)
   qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => {

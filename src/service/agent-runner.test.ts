@@ -43,6 +43,7 @@ const mkTask = (id: string): Task => ({
   budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
   used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
   history: [],
+  attachments: [],
   result: null,
   createdAt: Date.now(),
   startedAt: null,

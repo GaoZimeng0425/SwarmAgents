@@ -80,11 +80,11 @@ describe('useSubmitGoal', () => {
     const { result } = renderHook(() => useSubmitGoal(), { wrapper: makeWrapper(qc) })
 
     await act(async () => {
-      await result.current.mutateAsync('my goal')
+      await result.current.mutateAsync({ goal: 'my goal' })
     })
 
     expect(api.swarmApi.createSession).toHaveBeenCalledOnce()
-    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-test', 'my goal')
+    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-test', 'my goal', undefined)
     // Session should now be selected
     expect(useSessionsStore.getState().selectedSessionId).toBe('ses-test')
   })
@@ -101,11 +101,11 @@ describe('useSubmitGoal', () => {
     const { result } = renderHook(() => useSubmitGoal(), { wrapper: makeWrapper(qc) })
 
     await act(async () => {
-      await result.current.mutateAsync('another goal')
+      await result.current.mutateAsync({ goal: 'another goal' })
     })
 
     expect(api.swarmApi.createSession).not.toHaveBeenCalled()
-    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-existing', 'another goal')
+    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-existing', 'another goal', undefined)
   })
 })
 

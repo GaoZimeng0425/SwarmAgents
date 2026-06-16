@@ -17,7 +17,7 @@ export function TasksView(): React.JSX.Element {
   const cancelTask = useCancelTask()
   const decide = useDecidePermission()
   const loadSessions = useLoadSessions()
-  const { ready } = useProviders()
+  const { ready, state } = useProviders()
 
   // Load the session list once on mount.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
@@ -55,11 +55,12 @@ export function TasksView(): React.JSX.Element {
           onStop={() => {
             if (activeTask) cancelTask.mutate({ sessionId: activeTask.sessionId, taskId: activeTask.id })
           }}
-          onSubmit={async (g) => {
+          onSubmit={async (g, attachments) => {
             if (!ready) return
-            await submitGoal.mutateAsync(g)
+            await submitGoal.mutateAsync({ goal: g, attachments })
           }}
           status={activeTask ? (activeTask.status === 'pending' ? 'submitted' : 'streaming') : 'ready'}
+          supportsImages={!!(state.active && state.providers[state.active]?.supportsImages)}
         />
       </div>
       {activePlan && <PlanPanel todos={activePlan} />}
