@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import type { SessionSummary } from '@shared/types/ui'
-import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2, Pencil, Pin, PinOff, Search, SquarePen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,18 +23,17 @@ import {
 } from '@/components/ui/context-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { hydrateSession, useTasks } from '@/hooks/use-tasks'
+import { useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
+import { pickNextSession } from '@/lib/session-nav'
 import { cn } from '@/lib/utils'
 import { useSessionsStore } from '@/stores/sessions'
 
 type LiveStatus = 'running' | 'awaiting' | 'idle'
 
 export function SessionList(): React.JSX.Element {
-  const qc = useQueryClient()
   const sessions = useSessionsStore((s) => s.sessions)
   const selected = useSessionsStore((s) => s.selectedSessionId)
-  const select = useSessionsStore((s) => s.select)
   const upsert = useSessionsStore((s) => s.upsert)
   const removeFromStore = useSessionsStore((s) => s.remove)
   const navigate = useNavigate()
@@ -76,9 +74,7 @@ export function SessionList(): React.JSX.Element {
   const onNew = async (): Promise<void> => {
     try {
       const { sessionId } = await swarmApi.createSession()
-      select(sessionId)
-      // Return to the conversation pane in case we're on Skills or another route.
-      void navigate({ to: '/' })
+      void navigate({ to: '/session/$sessionId', params: { sessionId } })
     } catch (err) {
       toast.error('Could not start a new chat. Configure an API key in Settings.')
       console.error(err)
@@ -86,10 +82,7 @@ export function SessionList(): React.JSX.Element {
   }
 
   const onSelect = (id: string): void => {
-    select(id)
-    void hydrateSession(qc, id)
-    // Return to the conversation pane in case we're on Skills or another route.
-    void navigate({ to: '/' })
+    void navigate({ to: '/session/$sessionId', params: { sessionId: id } })
   }
 
   const togglePin = async (s: SessionSummary): Promise<void> => {
@@ -113,9 +106,16 @@ export function SessionList(): React.JSX.Element {
   const confirmDelete = async (): Promise<void> => {
     if (!pendingDelete) return
     const { id } = pendingDelete
+    const wasCurrent = id === selected
     setPendingDelete(null)
+    const next = pickNextSession(sessions, id)
     removeFromStore(id)
     await swarmApi.deleteSession(id)
+    // Only redirect if we were viewing the deleted session.
+    if (wasCurrent) {
+      if (next) void navigate({ to: '/session/$sessionId', params: { sessionId: next } })
+      else void navigate({ to: '/' })
+    }
   }
 
   return (

@@ -1,5 +1,5 @@
 import type { PermissionDecision } from '@shared/types/ui'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
 import type { TaskRecord } from '@/lib/apply-event'
@@ -39,21 +39,13 @@ export function useSubmitGoal() {
   })
 }
 
-/** Load the session list on mount and select the newest. */
+/** Load the session list. The active session is driven by the route, not here. */
 export function useLoadSessions() {
-  const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
       const sessions = await swarmApi.listSessions()
       useSessionsStore.getState().setSessions(sessions)
       return sessions
-    },
-    onSuccess: async (sessions) => {
-      const current = useSessionsStore.getState().selectedSessionId
-      if (!current && sessions[0]) {
-        useSessionsStore.getState().select(sessions[0].id)
-        await hydrateSession(qc, sessions[0].id)
-      }
     },
   })
 }
