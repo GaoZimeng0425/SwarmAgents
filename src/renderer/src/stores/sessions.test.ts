@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { useSessionsStore } from './sessions'
 
 describe('sessions store', () => {
@@ -8,16 +9,16 @@ describe('sessions store', () => {
 
   it('sets the session list', () => {
     useSessionsStore.getState().setSessions([
-      { id: 'a', title: 'A', status: 'active', lastActiveAt: 2, taskCount: 1 },
-      { id: 'b', title: null, status: 'active', lastActiveAt: 1, taskCount: 0 },
+      { id: 'a', title: 'A', status: 'active', lastActiveAt: 2, taskCount: 1, pinned: false },
+      { id: 'b', title: null, status: 'active', lastActiveAt: 1, taskCount: 0, pinned: false },
     ])
     expect(useSessionsStore.getState().sessions.map((s) => s.id)).toEqual(['a', 'b'])
   })
 
   it('upserts a session newest-first and updates title', () => {
     const { upsert } = useSessionsStore.getState()
-    upsert({ id: 'a', title: null, status: 'active', lastActiveAt: 1, taskCount: 0 })
-    upsert({ id: 'a', title: 'Renamed', status: 'active', lastActiveAt: 5, taskCount: 0 })
+    upsert({ id: 'a', title: null, status: 'active', lastActiveAt: 1, taskCount: 0, pinned: false })
+    upsert({ id: 'a', title: 'Renamed', status: 'active', lastActiveAt: 5, taskCount: 0, pinned: false })
     const list = useSessionsStore.getState().sessions
     expect(list).toHaveLength(1)
     expect(list[0].title).toBe('Renamed')
@@ -25,9 +26,28 @@ describe('sessions store', () => {
 
   it('upsert keeps two distinct sessions sorted newest-first', () => {
     const { upsert } = useSessionsStore.getState()
-    upsert({ id: 'old', title: null, status: 'active', lastActiveAt: 1, taskCount: 0 })
-    upsert({ id: 'new', title: null, status: 'active', lastActiveAt: 9, taskCount: 0 })
+    upsert({ id: 'old', title: null, status: 'active', lastActiveAt: 1, taskCount: 0, pinned: false })
+    upsert({ id: 'new', title: null, status: 'active', lastActiveAt: 9, taskCount: 0, pinned: false })
     expect(useSessionsStore.getState().sessions.map((s) => s.id)).toEqual(['new', 'old'])
+  })
+
+  it('floats pinned sessions to the top regardless of recency', () => {
+    useSessionsStore.getState().setSessions([
+      { id: 'recent', title: null, status: 'active', lastActiveAt: 9, taskCount: 0, pinned: false },
+      { id: 'pinned-old', title: null, status: 'active', lastActiveAt: 1, taskCount: 0, pinned: true },
+    ])
+    expect(useSessionsStore.getState().sessions.map((s) => s.id)).toEqual(['pinned-old', 'recent'])
+  })
+
+  it('removes a session and clears selection when it was selected', () => {
+    useSessionsStore.getState().setSessions([
+      { id: 'a', title: null, status: 'active', lastActiveAt: 2, taskCount: 0, pinned: false },
+      { id: 'b', title: null, status: 'active', lastActiveAt: 1, taskCount: 0, pinned: false },
+    ])
+    useSessionsStore.getState().select('a')
+    useSessionsStore.getState().remove('a')
+    expect(useSessionsStore.getState().sessions.map((s) => s.id)).toEqual(['b'])
+    expect(useSessionsStore.getState().selectedSessionId).toBeNull()
   })
 
   it('selects a session', () => {
