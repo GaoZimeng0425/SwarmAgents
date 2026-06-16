@@ -36,6 +36,7 @@ export type ConversationStore = {
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
   saveTaskHistory(taskId: string, history: import('@shared/types/task').TaskEvent[]): void
+  appendTaskEvent(taskId: string, event: import('@shared/types/task').TaskEvent): void
   saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
@@ -87,6 +88,13 @@ export function createConversationStore(dbPath: string): ConversationStore {
       ended_at            INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
+    CREATE TABLE IF NOT EXISTS task_events (
+      id       INTEGER PRIMARY KEY,
+      task_id  TEXT NOT NULL REFERENCES tasks(id),
+      event    TEXT NOT NULL,
+      ts       INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, id);
     CREATE TABLE IF NOT EXISTS tool_state_snapshots (
       session_id  TEXT NOT NULL REFERENCES sessions(id),
       key         TEXT NOT NULL,
@@ -140,7 +148,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     toolAllowlist: JSON.parse((row.tool_allowlist as string) ?? '[]') as string[],
     budget: JSON.parse(row.budget as string) as Task['budget'],
     used: JSON.parse(row.used as string) as Task['used'],
-    history: JSON.parse((row.history as string) ?? '[]') as Task['history'],
+    history: (stmtGetTaskEvents.all(row.id as string) as { event: string }[]).map((r) => JSON.parse(r.event)) as Task['history'],
     attachments: JSON.parse((row.attachments as string) ?? '[]') as Task['attachments'],
     plan: JSON.parse((row.plan as string) ?? '[]') as Task['plan'],
     result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
@@ -202,7 +210,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtSetPinned = db.prepare('UPDATE sessions SET pinned = ? WHERE id = ?')
   const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
   const stmtGetSnapshot = db.prepare('SELECT agent_snapshot FROM sessions WHERE id = ?')
-  const stmtSetTaskHistory = db.prepare('UPDATE tasks SET history = ? WHERE id = ?')
+  const stmtInsertTaskEvent = db.prepare('INSERT INTO task_events (task_id, event, ts) VALUES (?, ?, ?)')
+  const stmtGetTaskEvents = db.prepare('SELECT event FROM task_events WHERE task_id = ? ORDER BY id')
+  const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
+  const stmtDeleteTaskEvents = db.prepare('DELETE FROM task_events WHERE task_id = ?')
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
     `SELECT s.id, s.title, s.status, s.pinned, s.last_active_at AS lastActiveAt,
@@ -217,9 +228,34 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const deleteSessionTx = db.transaction((id: string) => {
     db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM task_events WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)').run(id)
     db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
+
+  // One-time migration: carry forward transcripts persisted in the legacy
+  // tasks.history column into task_events. Idempotent — skips any task that
+  // already has events. New tasks never populate the column, so they're skipped.
+  const backfillTaskEvents = db.transaction(() => {
+    const rows = db
+      .prepare("SELECT id, history FROM tasks WHERE history IS NOT NULL AND history != '[]'")
+      .all() as { id: string; history: string }[]
+    for (const r of rows) {
+      if ((stmtCountTaskEvents.get(r.id) as { n: number }).n > 0) continue
+      let events: unknown
+      try {
+        events = JSON.parse(r.history)
+      } catch {
+        continue
+      }
+      if (!Array.isArray(events)) continue
+      for (const ev of events) {
+        const ts = (ev as { ts?: number }).ts ?? 0
+        stmtInsertTaskEvent.run(r.id, JSON.stringify(ev), ts)
+      }
+    }
+  })
+  backfillTaskEvents()
 
   return {
     createSession(id, provider) {
@@ -275,7 +311,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
       return row ? (JSON.parse(row.agent_snapshot) as AgentMessage[]) : []
     },
     saveTaskHistory(taskId, history) {
-      stmtSetTaskHistory.run(JSON.stringify(history), taskId)
+      // Transitional: route the legacy whole-array save through task_events so
+      // the existing caller keeps working until it switches to appendTaskEvent.
+      const replace = db.transaction(() => {
+        stmtDeleteTaskEvents.run(taskId)
+        for (const ev of history) stmtInsertTaskEvent.run(taskId, JSON.stringify(ev), ev.ts)
+      })
+      replace()
+    },
+    appendTaskEvent(taskId, event) {
+      stmtInsertTaskEvent.run(taskId, JSON.stringify(event), event.ts)
     },
     saveTaskPlan(taskId, plan) {
       stmtSetTaskPlan.run(JSON.stringify(plan), taskId)

@@ -188,6 +188,69 @@ describe('ConversationStore', () => {
     store.close()
   })
 
+  const taskLiteral = (id: string, history: import('@shared/types/task').TaskEvent[] = []) => ({
+    id,
+    parentId: null,
+    agentDefId: 'default',
+    goal: 'g',
+    status: 'running' as const,
+    assignedWorkerId: null,
+    toolAllowlist: [] as string[],
+    budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    history,
+    plan: [],
+    result: null,
+    createdAt: 1,
+    startedAt: null,
+    endedAt: null,
+  })
+
+  it('appends events and reconstructs history in insertion order', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-e', provider)
+    store.saveTask(taskLiteral('01HRX0000000000000000000E1'), 'ses-e')
+    store.appendTaskEvent('01HRX0000000000000000000E1', { kind: 'reasoning', content: 'a', ts: 1 })
+    store.appendTaskEvent('01HRX0000000000000000000E1', { kind: 'llm.message', role: 'assistant', content: 'b', ts: 2 })
+    expect(store.getSessionTasks('ses-e')[0].history).toEqual([
+      { kind: 'reasoning', content: 'a', ts: 1 },
+      { kind: 'llm.message', role: 'assistant', content: 'b', ts: 2 },
+    ])
+    store.close()
+  })
+
+  it('backfills legacy tasks.history into task_events on open, without duplicating', () => {
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const legacy: import('@shared/types/task').TaskEvent[] = [
+      { kind: 'reasoning', content: 'x', ts: 1 },
+      { kind: 'error', error: { code: 'boom', message: 'nope', tier: 'fatal' }, ts: 2 },
+    ]
+    const store1 = createConversationStore(dbPath)
+    store1.createSession('ses-b', provider)
+    store1.saveTask(taskLiteral('01HRX0000000000000000000B1', legacy), 'ses-b')
+    store1.close()
+
+    const store2 = createConversationStore(dbPath)
+    expect(store2.getSessionTasks('ses-b')[0].history).toEqual(legacy)
+    store2.close()
+
+    const store3 = createConversationStore(dbPath)
+    expect(store3.getSessionTasks('ses-b')[0].history).toHaveLength(2)
+    store3.close()
+  })
+
+  it('deletes task_events when its session is deleted', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-d', provider)
+    store.saveTask(taskLiteral('01HRX0000000000000000000D1'), 'ses-d')
+    store.appendTaskEvent('01HRX0000000000000000000D1', { kind: 'reasoning', content: 'a', ts: 1 })
+    store.deleteSession('ses-d')
+    expect(store.getSessionTasks('ses-d')).toEqual([])
+    store.close()
+  })
+
   it('persists and reloads a task plan', () => {
     const store = createConversationStore(dbPath)
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
