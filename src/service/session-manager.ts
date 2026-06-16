@@ -291,16 +291,16 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           askRegistry: session.askRegistry,
           toolRegistry,
           initialMessages: session.messages,
+          saveSnapshot: (messages, used) => {
+            session.messages = messages
+            store.saveAgentSnapshot(sessionId, messages)
+            store.saveTaskUsage(taskId, used)
+          },
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
         })
         try {
-          const { status, messages, used } = await runner.run()
-          if (messages) {
-            session.messages = messages
-            store.saveAgentSnapshot(sessionId, messages)
-          }
-          if (used) store.saveTaskUsage(taskId, used)
+          const { status } = await runner.run()
           store.updateTaskStatus(taskId, status)
         } catch (err) {
           log.error({ msg: 'runTurn failed', taskId, err: err instanceof Error ? err.message : String(err) })

@@ -336,23 +336,33 @@ describe('SessionManager', () => {
     const seeds: unknown[] = []
     let resolveFirst: (() => void) | null = null
     let firstStarted = false
-    mockCreate.mockImplementation((deps: { initialMessages: unknown }) => ({
-      run: async () => {
-        seeds.push(deps.initialMessages)
-        if (!firstStarted) {
-          firstStarted = true
-          await new Promise<void>((r) => {
-            resolveFirst = r
-          })
-          return {
-            status: 'completed' as const,
-            summary: 'a',
-            messages: [{ role: 'assistant', content: 'a' }] as never,
+    mockCreate.mockImplementation(
+      (deps: { initialMessages: unknown; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+        run: async () => {
+          seeds.push(deps.initialMessages)
+          if (!firstStarted) {
+            firstStarted = true
+            await new Promise<void>((r) => {
+              resolveFirst = r
+            })
+            deps.saveSnapshot?.([{ role: 'assistant', content: 'a' }], {
+              tokens: 0,
+              calls: 0,
+              wallMs: 0,
+              usdCents: 0,
+            })
+            return { status: 'completed' as const, summary: 'a' }
           }
-        }
-        return { status: 'completed' as const, summary: 'b', messages: [{ role: 'assistant', content: 'b' }] as never }
-      },
-    }))
+          deps.saveSnapshot?.([{ role: 'assistant', content: 'b' }], {
+            tokens: 0,
+            calls: 0,
+            wallMs: 0,
+            usdCents: 0,
+          })
+          return { status: 'completed' as const, summary: 'b' }
+        },
+      })
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -412,13 +422,11 @@ describe('SessionManager', () => {
   })
 
   it('persists the used returned by the runner to the task row', async () => {
-    mockCreate.mockImplementation(() => ({
-      run: async () => ({
-        status: 'completed' as const,
-        summary: '',
-        messages: [],
-        used: { tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6 },
-      }),
+    mockCreate.mockImplementation((deps: { saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+      run: async () => {
+        deps.saveSnapshot?.([], { tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6 })
+        return { status: 'completed' as const, summary: '' }
+      },
     }))
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()

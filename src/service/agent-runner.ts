@@ -78,6 +78,8 @@ export type AgentRunnerDeps = {
   initialMessages: AgentMessage[]
   /** Aborts the run when fired. The manager wires this to cancelTask. */
   signal?: AbortSignal
+  /** Persist the conversation + usage at each turn boundary so they survive an interrupt. */
+  saveSnapshot?(messages: AgentMessage[], used: ResourceBudget): void
   spawnChild(
     parentTaskId: string,
     newGoal: string,
@@ -420,6 +422,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
             contextWindow: model.contextWindow,
             ts: Date.now(),
           })
+          deps.saveSnapshot?.(agent.state.messages, snapshotUsed())
         }
         const summary: Record<string, unknown> = { type: e.type }
         if ('toolName' in e) summary.toolName = (e as { toolName?: string }).toolName
