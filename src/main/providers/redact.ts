@@ -4,7 +4,7 @@
 // Strips apiKey, replacing it with hasKey:boolean. NEVER call from the renderer.
 import type { ProviderId, ProvidersStateOnDisk, ProvidersStateView } from '@shared/types/provider'
 
-import { modelSupportsImages } from './capabilities'
+import { effectiveThinkingLevel, modelSupportsImages, modelThinkingLevels } from './capabilities'
 
 function projectRow(
   id: ProviderId,
@@ -15,6 +15,8 @@ function projectRow(
     model: row.model,
     hasKey: true,
     supportsImages: modelSupportsImages(id, row.apiStyle, row.model),
+    thinkingLevels: modelThinkingLevels(id, row.apiStyle, row.model),
+    thinkingLevel: effectiveThinkingLevel(id, row.apiStyle, row.model, row.thinkingLevel),
     ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
     ...(row.customModels && row.customModels.length > 0 ? { customModels: row.customModels } : {}),
     ...(row.apiStyle ? { apiStyle: row.apiStyle } : {}),

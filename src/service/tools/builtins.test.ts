@@ -17,6 +17,7 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  askUser: async () => '',
 }
 
 describe('registerBuiltinTools', () => {
@@ -32,6 +33,7 @@ describe('registerBuiltinTools', () => {
       .map((s) => `${s.group}.${s.name}`)
       .sort()
     expect(ids).toEqual([
+      'agent.ask_user',
       'agent.spawn_sub_agent',
       'agent.update_plan',
       'fs.edit_file',

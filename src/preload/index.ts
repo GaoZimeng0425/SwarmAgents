@@ -2,7 +2,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
-import type { ApiStyle, ProviderId, ProvidersStateView } from '../shared/types/provider'
+import type { ApiStyle, ModelThinkingLevel, ProviderId, ProvidersStateView } from '../shared/types/provider'
 import type { Skill, SkillMutationResult } from '../shared/types/skill'
 import type {
   MacPermissions,
@@ -39,6 +39,8 @@ const providers: ProvidersBridge = {
     ipcRenderer.invoke('providers:removeCustomModel', p, model) as Promise<ProvidersSetResult>,
   setApiStyle: (p: ProviderId, style: ApiStyle) =>
     ipcRenderer.invoke('providers:setApiStyle', p, style) as Promise<ProvidersSetResult>,
+  setThinkingLevel: (p: ProviderId, level: ModelThinkingLevel) =>
+    ipcRenderer.invoke('providers:setThinkingLevel', p, level) as Promise<ProvidersSetResult>,
   test: (p: ProviderId) => ipcRenderer.invoke('providers:test', p) as Promise<ProvidersTestResult>,
   onStateChanged: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: ProvidersStateView): void => cb(payload)
@@ -93,6 +95,8 @@ const swarm: SwarmBridge = {
   cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
+  respondAsk: (sessionId, askId, answer) =>
+    ipcRenderer.invoke('swarm:respondAsk', sessionId, askId, answer) as Promise<void>,
   sessions: {
     list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('../shared/types/ui').SessionSummary[]>,
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,

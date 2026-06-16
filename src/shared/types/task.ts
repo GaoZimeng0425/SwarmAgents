@@ -41,6 +41,7 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
     content: z.unknown(),
     ts: z.number(),
   }),
+  z.object({ kind: z.literal('reasoning'), content: z.string(), ts: z.number() }),
   z.object({ kind: z.literal('tool.call'), server: z.string(), tool: z.string(), args: z.unknown(), ts: z.number() }),
   z.object({ kind: z.literal('tool.result'), ok: z.boolean(), payload: z.unknown(), ts: z.number() }),
   z.object({

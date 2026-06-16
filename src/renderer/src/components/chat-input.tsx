@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { ProviderId, ProvidersStateView } from '@shared/types/provider'
+import type { ModelThinkingLevel, ProviderId, ProvidersStateView } from '@shared/types/provider'
 import type { Attachment } from '@shared/types/task'
 import type { ChatStatus } from 'ai'
 import { Paperclip, X } from 'lucide-react'
@@ -20,6 +20,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
+import { ContextRing } from '@/components/context-ring'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
 
@@ -29,6 +30,10 @@ type Props = {
   status?: ChatStatus
   onStop?: () => void
   supportsImages?: boolean
+  contextTokens?: number
+  contextWindow?: number
+  usdCents?: number
+  placeholder?: string
 }
 
 type ModelOption = { providerId: ProviderId; modelId: string; key: string }
@@ -36,6 +41,15 @@ type ModelOption = { providerId: ProviderId; modelId: string; key: string }
 const PROVIDER_IDS: readonly ProviderId[] = ['anthropic', 'openai', 'custom'] as const
 const MAX_FILES = 4
 const MAX_FILE_SIZE = 5 * 1024 * 1024
+
+const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
+  off: 'No thinking',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Max',
+}
 
 function buildModelOptions(state: ProvidersStateView): ModelOption[] {
   const out: ModelOption[] = []
@@ -85,7 +99,17 @@ function AttachBar({ supportsImages }: { supportsImages: boolean }): React.JSX.E
   )
 }
 
-export function ChatInput({ onSubmit, disabled, status, onStop, supportsImages = true }: Props): React.JSX.Element {
+export function ChatInput({
+  onSubmit,
+  disabled,
+  status,
+  onStop,
+  supportsImages = true,
+  contextTokens,
+  contextWindow,
+  usdCents,
+  placeholder,
+}: Props): React.JSX.Element {
   const { state } = useProviders()
   const options = useMemo(() => buildModelOptions(state), [state])
   const currentKey =
@@ -108,6 +132,16 @@ export function ChatInput({ onSubmit, disabled, status, onStop, supportsImages =
     }
   }
 
+  const activeRow = state.active ? state.providers[state.active] : null
+  const thinkingLevels = activeRow?.thinkingLevels ?? []
+  // Only worth a picker when the model offers more than just 'off'.
+  const showThinking = thinkingLevels.length > 1
+
+  const onPickThinking = async (level: string): Promise<void> => {
+    if (!state.active) return
+    await window.swarm.providers.setThinkingLevel(state.active, level as ModelThinkingLevel)
+  }
+
   return (
     <div className="shrink-0 px-4 pt-2 pb-4">
       <PromptInput
@@ -118,7 +152,7 @@ export function ChatInput({ onSubmit, disabled, status, onStop, supportsImages =
         onSubmit={handleSubmit}
       >
         <PromptInputBody>
-          <PromptInputTextarea autoFocus disabled={disabled} placeholder="Message the swarm…" />
+          <PromptInputTextarea autoFocus disabled={disabled} placeholder={placeholder ?? 'Message the swarm…'} />
         </PromptInputBody>
         <PromptInputFooter>
           <PromptInputTools>
@@ -137,8 +171,27 @@ export function ChatInput({ onSubmit, disabled, status, onStop, supportsImages =
                 </PromptInputSelectContent>
               </PromptInputSelect>
             )}
+            {showThinking && activeRow && (
+              <PromptInputSelect onValueChange={(v) => void onPickThinking(String(v))} value={activeRow.thinkingLevel}>
+                <PromptInputSelectTrigger>
+                  <PromptInputSelectValue placeholder="Thinking" />
+                </PromptInputSelectTrigger>
+                <PromptInputSelectContent>
+                  {thinkingLevels.map((lvl) => (
+                    <PromptInputSelectItem key={lvl} value={lvl}>
+                      {THINKING_LABELS[lvl]}
+                    </PromptInputSelectItem>
+                  ))}
+                </PromptInputSelectContent>
+              </PromptInputSelect>
+            )}
           </PromptInputTools>
-          <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
+          <div className="flex items-center gap-3">
+            {contextTokens !== undefined && contextWindow !== undefined && (
+              <ContextRing usdCents={usdCents} used={contextTokens} window={contextWindow} />
+            )}
+            <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
+          </div>
         </PromptInputFooter>
       </PromptInput>
     </div>

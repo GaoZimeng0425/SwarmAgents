@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import type { ToolRunContext } from './registry'
 import { isDangerousCommand, shellSpec } from './shell'
 
@@ -7,6 +8,7 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  askUser: async () => '',
 }
 
 const tool = () => shellSpec().build(ctx)

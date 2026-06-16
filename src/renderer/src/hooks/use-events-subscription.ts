@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { applyEvent, type TaskRecord } from '@/lib/apply-event'
+import { useAskStore } from '@/stores/ask'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -39,6 +40,7 @@ async function handleHighRisk(e: Extract<UIEvent, { kind: 'task.permission_reque
 export function useEventsSubscription(): void {
   const qc = useQueryClient()
   const push = usePermissionStore((s) => s.push)
+  const pushAsk = useAskStore((s) => s.push)
 
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
@@ -51,6 +53,7 @@ export function useEventsSubscription(): void {
           status: 'active',
           lastActiveAt: 'lastActiveAt' in e ? e.lastActiveAt : e.ts,
           taskCount: existing?.taskCount ?? 0,
+          pinned: existing?.pinned ?? false,
         })
       }
       if (e.kind === 'task.permission_request') {
@@ -61,6 +64,16 @@ export function useEventsSubscription(): void {
           push(buildPrompt(e))
         }
       }
+      if (e.kind === 'task.ask') {
+        pushAsk({
+          askId: e.askId,
+          sessionId: e.sessionId,
+          taskId: e.taskId,
+          question: e.question,
+          options: e.options,
+          mode: e.mode,
+        })
+      }
     })
-  }, [qc, push])
+  }, [qc, push, pushAsk])
 }

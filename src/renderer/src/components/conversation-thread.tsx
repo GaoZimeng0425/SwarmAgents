@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, Copy, MessagesSquare, Trash2 } from 'lucide-react'
+import { Brain, ChevronRight, Copy, MessagesSquare, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -21,6 +22,7 @@ import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
 import { formatUsage } from '@/lib/format-usage'
 import { type Segment, taskSegments } from '@/lib/task-segments'
+import { cn } from '@/lib/utils'
 
 type Props = { tasks: TaskRecord[] }
 
@@ -28,6 +30,36 @@ type Props = { tasks: TaskRecord[] }
 function toolState(ok: boolean | null): 'input-available' | 'output-available' | 'output-error' {
   if (ok === null) return 'input-available'
   return ok ? 'output-available' : 'output-error'
+}
+
+// Collapsible "Thinking" block: open while reasoning streams, auto-collapses
+// once the answer begins (live → false). The user can still toggle it.
+function ReasoningBlock({ text, live }: { text: string; live: boolean }): React.JSX.Element {
+  const [open, setOpen] = useState(live)
+  const wasLive = useRef(live)
+  useEffect(() => {
+    if (wasLive.current && !live) setOpen(false)
+    wasLive.current = live
+  }, [live])
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+      <button
+        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
+        onClick={() => setOpen((v) => !v)}
+        type="button"
+      >
+        <Brain className={cn('size-3.5', live && 'animate-pulse text-primary')} />
+        <span className="font-semibold uppercase tracking-wider">Thinking</span>
+        <ChevronRight className={cn('ml-auto size-3.5 transition-transform', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <div className="mt-3 whitespace-pre-wrap break-words text-[12px] text-muted-foreground/90 leading-relaxed">
+          {text}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ConversationThread({ tasks }: Props): React.JSX.Element {
@@ -72,7 +104,10 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
     </MessageActions>
   )
 
-  const renderSegment = (seg: Segment): React.JSX.Element => {
+  const renderSegment = (seg: Segment, isLiveTail: boolean): React.JSX.Element => {
+    if (seg.kind === 'reasoning') {
+      return <ReasoningBlock key={seg.key} live={isLiveTail && busy} text={seg.text} />
+    }
     if (seg.kind === 'user') {
       return (
         <Message className="group" from="user" key={seg.key}>
@@ -106,9 +141,15 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
       )
     }
     if (seg.kind === 'tool') {
+      const preview = seg.output ? seg.output.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined
       return (
         <Tool key={seg.key}>
-          <ToolHeader state={toolState(seg.ok)} title={seg.tool} type={`tool-${seg.tool}` as `tool-${string}`} />
+          <ToolHeader
+            preview={preview}
+            state={toolState(seg.ok)}
+            title={seg.tool}
+            type={`tool-${seg.tool}` as `tool-${string}`}
+          />
           <ToolContent>
             <ToolInput input={seg.input} />
             <ToolOutput
@@ -140,7 +181,10 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
   return (
     <Conversation className="flex-1">
       <ConversationContent className="mx-auto max-w-3xl">
-        {ordered.flatMap((t) => taskSegments(t).map(renderSegment))}
+        {(() => {
+          const segs = ordered.flatMap((t) => taskSegments(t))
+          return segs.map((seg, i) => renderSegment(seg, i === segs.length - 1))
+        })()}
         {busy && (
           <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">
             <Spinner className="size-4 text-primary" />

@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { htmlToMarkdown, isPrivateHost, webFetchSpec } from './web'
+
 import type { ToolRunContext } from './registry'
+import { htmlToMarkdown, isPrivateHost, webFetchSpec } from './web'
 
 const ctx: ToolRunContext = {
   taskId: 't',
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  askUser: async () => '',
 }
 const tool = () => webFetchSpec().build(ctx)
 
@@ -72,9 +74,7 @@ describe('web fetch tool', () => {
   it('returns JSON / plain text bodies as-is', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(
-        async () => new Response('{"a":1}', { status: 200, headers: { 'content-type': 'application/json' } })
-      )
+      vi.fn(async () => new Response('{"a":1}', { status: 200, headers: { 'content-type': 'application/json' } }))
     )
     const res = await tool().execute('c', { url: 'https://api.example.com/x' })
     expect(res.content[0].text).toContain('"a":1')

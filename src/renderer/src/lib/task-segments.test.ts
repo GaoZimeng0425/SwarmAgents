@@ -45,6 +45,18 @@ describe('taskSegments', () => {
     expect(assistant[0]).toMatchObject({ text: 'Hello' })
   })
 
+  it('coalesces consecutive reasoning deltas into one reasoning segment', () => {
+    const segs = taskSegments(
+      rec([
+        prog({ kind: 'reasoning', content: 'Let me ', ts: 1 }),
+        prog({ kind: 'reasoning', content: 'think.', ts: 2 }),
+      ])
+    )
+    const reasoning = segs.filter((s) => s.kind === 'reasoning')
+    expect(reasoning).toHaveLength(1)
+    expect(reasoning[0]).toMatchObject({ text: 'Let me think.' })
+  })
+
   it('pairs a tool.call with its tool.result into one tool segment', () => {
     const segs = taskSegments(
       rec([

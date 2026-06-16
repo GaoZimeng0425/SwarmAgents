@@ -99,6 +99,13 @@ export function wireSwarmIpc(args: {
     log.info({ msg: 'permission decided', sessionId, actionId, decision })
   }
 
+  const respondAsk = (_e: Electron.IpcMainInvokeEvent, sessionId: string, askId: string, answer: string): void => {
+    void serviceClient
+      .respondAsk(sessionId, askId, answer)
+      .catch((err: unknown) => log.warn({ msg: 'respondAsk failed', err: String(err) }))
+    log.info({ msg: 'ask answered', sessionId, askId })
+  }
+
   ipcMain.handle('swarm:createSession', () => createSession())
   ipcMain.handle('swarm:listSessions', () => listSessions())
   ipcMain.handle('swarm:getSessionTasks', getSessionTasks)
@@ -108,6 +115,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:submitGoal', submitGoal)
   ipcMain.handle('swarm:cancelTask', cancelTask)
   ipcMain.handle('swarm:decidePermission', decidePermission)
+  ipcMain.handle('swarm:respondAsk', respondAsk)
 
   const handleGetAccent = (): string | null => getAccent()
   ipcMain.handle('system:getAccent', handleGetAccent)
@@ -168,6 +176,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')
       ipcMain.removeHandler('swarm:decidePermission')
+      ipcMain.removeHandler('swarm:respondAsk')
     },
   }
 }

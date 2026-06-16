@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
 import { createMemoryStore, type MemoryStore } from '../memory-store'
 import { memorySpecs } from './memory'
 import type { ToolRunContext } from './registry'
@@ -11,6 +12,7 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  askUser: async () => '',
 }
 
 let dir: string

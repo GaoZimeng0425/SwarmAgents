@@ -8,6 +8,7 @@ import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
   defaultProvidersStateOnDisk,
+  type ModelThinkingLevel,
   OPENAI_MODEL_SUGGESTIONS,
   type ProviderId,
   type ProviderInjection,
@@ -36,6 +37,8 @@ export type Service = {
   removeCustomModel(p: ProviderId, model: string): Promise<SetResult>
   /** Set the wire-format style for the `custom` slot. No-op on built-ins. */
   setApiStyle(p: ProviderId, style: ApiStyle): Promise<SetResult>
+  /** Set the reasoning depth for a provider's model. */
+  setThinkingLevel(p: ProviderId, level: ModelThinkingLevel): Promise<SetResult>
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
 }
 
@@ -141,6 +144,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         apiKey: row.apiKey,
         ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
         ...(apiStyle ? { apiStyle } : {}),
+        ...(row.thinkingLevel ? { thinkingLevel: row.thinkingLevel } : {}),
       }
     },
     async setKey(p, key) {
@@ -264,6 +268,20 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       const next: ProvidersStateOnDisk = {
         ...state,
         providers: { ...state.providers, [p]: { ...row, apiStyle: parsed } },
+      }
+      return persist(next)
+    },
+    async setThinkingLevel(p, level) {
+      const row = state.providers[p]
+      if (!row)
+        return {
+          ok: false,
+          code: 'invalid',
+          message: `no key configured for ${p}; set a key first`,
+        }
+      const next: ProvidersStateOnDisk = {
+        ...state,
+        providers: { ...state.providers, [p]: { ...row, thinkingLevel: level } },
       }
       return persist(next)
     },

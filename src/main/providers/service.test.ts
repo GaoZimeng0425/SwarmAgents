@@ -157,6 +157,34 @@ describe('service', () => {
     })
   })
 
+  it('setThinkingLevel persists the level and threads it into the injection', async () => {
+    const store = makeStore({
+      version: 1,
+      active: 'anthropic',
+      providers: {
+        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
+        openai: null,
+        custom: null,
+      },
+    })
+    const svc = await createService({ store })
+    const ok = await svc.setThinkingLevel('anthropic', 'low')
+    expect(ok).toEqual({ ok: true })
+    expect(svc.getState().providers.anthropic?.thinkingLevel).toBe('low')
+    expect(svc.getInjection()).toMatchObject({ thinkingLevel: 'low' })
+  })
+
+  it('setThinkingLevel on a not-configured provider is invalid', async () => {
+    const store = makeStore(empty)
+    const svc = await createService({ store })
+    const r = await svc.setThinkingLevel('openai', 'high')
+    expect(r).toEqual({
+      ok: false,
+      code: 'invalid',
+      message: 'no key configured for openai; set a key first',
+    })
+  })
+
   it('setBaseUrl persists a valid http(s) URL and strips trailing slash', async () => {
     const store = makeStore({
       version: 1,

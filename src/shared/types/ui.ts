@@ -9,7 +9,7 @@
  */
 import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
-import type { ApiStyle, ProviderId, ProvidersStateView } from './provider'
+import type { ApiStyle, ModelThinkingLevel, ProviderId, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
 
@@ -37,9 +37,28 @@ export type UIEvent =
       payload: unknown
       ts: number
     }
+  | {
+      kind: 'task.ask'
+      sessionId: string
+      taskId: string
+      askId: string
+      question: string
+      options: { label: string; value?: string }[]
+      mode: 'single' | 'multi'
+      ts: number
+    }
   | { kind: 'task.complete'; sessionId: string; taskId: string; summary: string; ts: number }
   | { kind: 'task.error'; sessionId: string; taskId: string; error: unknown; ts: number }
-  | { kind: 'task.usage'; sessionId: string; taskId: string; used: ResourceBudget; ts: number }
+  | {
+      kind: 'task.usage'
+      sessionId: string
+      taskId: string
+      used: ResourceBudget
+      /** Latest turn's context occupancy and the model's context-window size (for the composer ring). */
+      contextTokens?: number
+      contextWindow?: number
+      ts: number
+    }
   | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number }
   | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number }
   | {
@@ -89,6 +108,8 @@ export type ProvidersBridge = {
   removeCustomModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
   /** Set the wire-format style for the `custom` slot. */
   setApiStyle(p: ProviderId, style: ApiStyle): Promise<ProvidersSetResult>
+  /** Set the reasoning depth for a provider's model. */
+  setThinkingLevel(p: ProviderId, level: ModelThinkingLevel): Promise<ProvidersSetResult>
   test(p: ProviderId): Promise<ProvidersTestResult>
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
   onDecryptFailed(cb: () => void): () => void
@@ -128,6 +149,7 @@ export type SwarmBridge = {
   submitGoal(sessionId: string, goal: string, attachments?: Attachment[]): Promise<SubmitGoalResult>
   cancelTask(sessionId: string, taskId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
+  respondAsk(sessionId: string, askId: string, answer: string): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>
     create(): Promise<{ sessionId: string }>

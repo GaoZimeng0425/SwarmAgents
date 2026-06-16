@@ -114,6 +114,30 @@ This is visual polish toward the flat Codex look.
 
 ---
 
+## F6 — Selectable thinking depth (per model)
+
+**Goal:** A composer `Select` to choose reasoning depth, showing only the levels
+the active model actually supports.
+
+**Determining supported levels:** Never hardcode per model. Use pi-ai's
+`getSupportedThinkingLevels(model)` (reads each model's `thinkingLevelMap`) and
+`clampThinkingLevel(model, level)` for graceful fallback. Claude (5) vs GLM (3)
+vs non-reasoning (`['off']`) all fall out of the registry automatically.
+
+**Persistence/scope:** Per-provider, persisted in the providers config next to
+the model choice. Default depth when unset: `high` (clamped to the model).
+
+- `capabilities.ts`: `modelThinkingLevels()` and `effectiveThinkingLevel()`
+  (mirrors `modelSupportsImages`). Unlisted models fall back to
+  `['off','low','medium','high']`.
+- `provider.ts`: `ModelThinkingLevel` enum; `thinkingLevel` on the on-disk row
+  and injection; `thinkingLevels` + effective `thinkingLevel` on the row view.
+- `service.ts`: `setThinkingLevel(p, level)`; injection carries the level.
+- `ipc.ts` / preload / `ProvidersBridge`: `setThinkingLevel` passthrough.
+- `agent-runner.ts`: `thinkingLevel: clampThinkingLevel(model, provider.thinkingLevel ?? 'high')`.
+- `chat-input.tsx`: depth `Select` next to the model picker, options from
+  `row.thinkingLevels`, hidden when only `['off']` is supported.
+
 ## Testing
 
 - F1: unit-test the context-token derivation and `applyEvent` field storage.

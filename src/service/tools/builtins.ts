@@ -1,5 +1,6 @@
 import type { MemoryStore } from '../memory-store'
 import type { SkillStore } from '../skills/store'
+import { askUserSpec } from './ask'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
 import { buildPeekabooTools } from './peekaboo'
@@ -45,6 +46,7 @@ export function registerBuiltinTools(
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
   registry.register(updatePlanSpec())
+  registry.register(askUserSpec())
   registry.register(shellSpec())
   registry.register(webFetchSpec())
   for (const spec of fsSpecs()) registry.register(spec)

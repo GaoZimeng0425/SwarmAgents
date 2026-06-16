@@ -22,6 +22,7 @@ vi.mock('@earendil-works/pi-ai', () => ({
     compat: {},
   })),
   getModels: vi.fn(() => []),
+  clampThinkingLevel: vi.fn((_model: unknown, level: string) => level),
   Type: {
     Object: (props: Record<string, unknown>) => ({ type: 'object', properties: props }),
     String: (opts?: unknown) => ({ type: 'string', ...((opts as object) ?? {}) }),

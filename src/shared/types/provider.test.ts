@@ -129,7 +129,13 @@ describe('provider schemas', () => {
     const v = ProvidersStateView.parse({
       active: 'anthropic',
       providers: {
-        anthropic: { model: 'claude-sonnet-4-5', hasKey: true, supportsImages: true },
+        anthropic: {
+          model: 'claude-sonnet-4-5',
+          hasKey: true,
+          supportsImages: true,
+          thinkingLevels: ['off', 'high'],
+          thinkingLevel: 'high',
+        },
         openai: null,
         custom: null,
       },

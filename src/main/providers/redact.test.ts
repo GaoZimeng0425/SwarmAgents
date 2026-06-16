@@ -20,6 +20,8 @@ describe('toView', () => {
       model: 'claude-sonnet-4-5',
       hasKey: true,
       supportsImages: expect.any(Boolean),
+      thinkingLevels: expect.any(Array),
+      thinkingLevel: expect.any(String),
     })
     expect(view.providers.openai).toBeNull()
   })
@@ -54,6 +56,8 @@ describe('toView', () => {
       model: 'deepseek-chat',
       hasKey: true,
       supportsImages: expect.any(Boolean),
+      thinkingLevels: expect.any(Array),
+      thinkingLevel: expect.any(String),
       baseUrl: 'https://api.deepseek.com',
     })
   })

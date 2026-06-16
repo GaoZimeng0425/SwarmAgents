@@ -1,13 +1,14 @@
 import type { AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
-import { getModel, getModels } from '@earendil-works/pi-ai'
+import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type { AgentDefinition } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import { ANTHROPIC_MODEL_SUGGESTIONS, type ApiStyle, OPENAI_MODEL_SUGGESTIONS } from '@shared/types/provider'
 import { emptyBudget, type ResourceBudget, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
+import type { AskRegistry } from './ask-registry'
 import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
 
@@ -72,6 +73,7 @@ export type AgentRunnerDeps = {
   sessionId: string
   emit: EmitFn
   permissionRegistry: PermissionRegistry
+  askRegistry: AskRegistry
   toolRegistry: ToolRegistry
   initialMessages: AgentMessage[]
   /** Aborts the run when fired. The manager wires this to cancelTask. */
@@ -110,6 +112,7 @@ function createEventTranslator(
   getFinalSummary: () => string
 } {
   let textBuffer = ''
+  let thinkingBuffer = ''
   let assembledSummary = ''
 
   const flushText = (): void => {
@@ -125,17 +128,30 @@ function createEventTranslator(
     textBuffer = ''
   }
 
+  const flushThinking = (): void => {
+    if (!thinkingBuffer) return
+    const event: TaskEvent = { kind: 'reasoning', content: thinkingBuffer, ts: Date.now() }
+    emit('task.progress', { taskId, event, ts: Date.now() })
+    thinkingBuffer = ''
+  }
+
   const handle = (e: AgentEvent): void => {
     switch (e.type) {
       case 'message_update': {
         const inner = e.assistantMessageEvent
-        if (inner && inner.type === 'text_delta' && typeof inner.delta === 'string') {
+        if (inner && inner.type === 'thinking_delta' && typeof inner.delta === 'string') {
+          thinkingBuffer += inner.delta
+          if (/[.!?\n]\s*$/.test(thinkingBuffer) || thinkingBuffer.length > 200) flushThinking()
+        } else if (inner && inner.type === 'text_delta' && typeof inner.delta === 'string') {
+          // Reasoning always precedes the answer; flush it so the panel settles first.
+          flushThinking()
           textBuffer += inner.delta
           if (/[.!?\n]\s*$/.test(textBuffer) || textBuffer.length > 200) flushText()
         }
         return
       }
       case 'tool_execution_start': {
+        flushThinking()
         flushText()
         const event: TaskEvent = {
           kind: 'tool.call',
@@ -170,6 +186,7 @@ function createEventTranslator(
         return
       }
       case 'agent_end': {
+        flushThinking()
         flushText()
         const summary = assembledSummary.trim() || `Completed task ${taskId}.`
         emit('task.complete', { taskId, result: { summary, artifacts: [] }, ts: Date.now() })
@@ -235,6 +252,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
           // This stub satisfies the ToolRunContext type without creating a second gate.
           requestPermission: () => Promise.resolve('grant' as const),
+          askUser: (args) => deps.askRegistry.request({ taskId: task.id, ...args }),
         }
         const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
         tools = resolved.tools
@@ -322,6 +340,11 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           model,
           tools,
           messages: initialMessages,
+          // Stream reasoning for models that support it; the UI shows it in a
+          // collapsible "Thinking" block. The user's chosen depth is clamped to
+          // what this model supports (defaulting to 'high'); non-reasoning
+          // models clamp to 'off'.
+          thinkingLevel: clampThinkingLevel(model, provider.thinkingLevel ?? 'high'),
         },
         beforeToolCall: async ({ toolCall, args }) => {
           if (deps.signal?.aborted) {
@@ -375,11 +398,20 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       agent.subscribe((e) => {
         if (e.type === 'turn_end') {
           const usage = (e as { message?: { usage?: Usage } }).message?.usage
+          let contextTokens: number | undefined
           if (usage) {
             used.tokens += usage.totalTokens
             used.usdCents += Math.round(usage.cost.total * 100)
+            // Latest turn's prompt+completion ≈ how full the context window is now.
+            contextTokens = usage.input + usage.cacheRead + usage.cacheWrite + usage.output
           }
-          emit('task.usage', { taskId: task.id, used: snapshotUsed(), ts: Date.now() })
+          emit('task.usage', {
+            taskId: task.id,
+            used: snapshotUsed(),
+            contextTokens,
+            contextWindow: model.contextWindow,
+            ts: Date.now(),
+          })
         }
         const summary: Record<string, unknown> = { type: e.type }
         if ('toolName' in e) summary.toolName = (e as { toolName?: string }).toolName

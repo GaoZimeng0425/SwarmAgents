@@ -13,6 +13,8 @@ export type TaskRecord = {
   startedAt: number
   attachments: Attachment[]
   used?: ResourceBudget
+  contextTokens?: number
+  contextWindow?: number
   plan?: PlanTodo[]
   events: UIEvent[]
 }
@@ -73,12 +75,18 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       break
     }
     case 'task.usage':
-      updated = { ...updated, used: e.used }
+      updated = {
+        ...updated,
+        used: e.used,
+        contextTokens: e.contextTokens ?? updated.contextTokens,
+        contextWindow: e.contextWindow ?? updated.contextWindow,
+      }
       break
     case 'task.plan':
       updated = { ...updated, plan: e.todos }
       break
     case 'task.permission_request':
+    case 'task.ask':
       updated = setStatus(updated, 'awaiting_user')
       break
     default:

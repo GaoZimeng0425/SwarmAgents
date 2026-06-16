@@ -173,9 +173,42 @@ describe('applyEvent', () => {
       },
     ]
     const used = { tokens: 900, calls: 2, wallMs: 1500, usdCents: 3 }
-    const next = applyEvent(seed, { kind: 'task.usage', ...baseEvent, used })
+    const next = applyEvent(seed, {
+      kind: 'task.usage',
+      ...baseEvent,
+      used,
+      contextTokens: 1200,
+      contextWindow: 200_000,
+    })
     expect(next[0].used).toEqual(used)
+    expect(next[0].contextTokens).toBe(1200)
+    expect(next[0].contextWindow).toBe(200_000)
     expect(next[0].status).toBe('running')
+  })
+
+  it('flips to awaiting_user on task.ask', () => {
+    const seed: TaskRecord[] = [
+      {
+        id: 't1',
+        sessionId: 'ses-1',
+        goal: 'g',
+        status: 'running',
+        workerId: null,
+        summary: null,
+        startedAt: 1,
+        attachments: [],
+        events: [],
+      },
+    ]
+    const next = applyEvent(seed, {
+      kind: 'task.ask',
+      ...baseEvent,
+      askId: 'a1',
+      question: 'pick one',
+      options: [{ label: 'A' }],
+      mode: 'single',
+    })
+    expect(next[0].status).toBe('awaiting_user')
   })
 
   it('stores the plan on task.plan and replaces it wholesale on the next plan', () => {

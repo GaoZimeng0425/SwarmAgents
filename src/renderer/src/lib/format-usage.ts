@@ -1,6 +1,6 @@
 import type { ResourceBudget } from '@shared/types/task'
 
-const formatTokens = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
+export const formatTokens = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
 
 /** Compact one-line resource summary for a task, e.g. "1.5k tok · 3 calls · $0.07". */
 export function formatUsage(used: ResourceBudget): string {

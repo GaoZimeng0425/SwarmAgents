@@ -66,6 +66,11 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         manager.resolvePermission(sessionId, actionId, decision)
         return { ok: true }
       }
+      case 'respondAsk': {
+        const [sessionId, askId, answer] = args as [string, string, string]
+        manager.resolveAsk(sessionId, askId, answer)
+        return { ok: true }
+      }
       case 'cancelTask': {
         const [sessionId, taskId] = args as [string, string]
         manager.cancelTask(sessionId, taskId)

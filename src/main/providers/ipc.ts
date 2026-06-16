@@ -5,7 +5,7 @@
 // windows, and fires a one-shot decrypt-failed event at boot when applicable.
 
 import { createLogger } from '@shared/logger'
-import { ProviderId } from '@shared/types/provider'
+import { ModelThinkingLevel, ProviderId } from '@shared/types/provider'
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 
 import type { Service } from './service'
@@ -111,6 +111,15 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
   }
   ipcMain.handle('providers:setApiStyle', setApiStyle)
 
+  const setThinkingLevel = async (_: Electron.IpcMainInvokeEvent, p: unknown, level: unknown) => {
+    const pid = ProviderId.safeParse(p)
+    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+    const lvl = ModelThinkingLevel.safeParse(level)
+    if (!lvl.success) return { ok: false, code: 'invalid', message: 'unknown thinking level' }
+    return service.setThinkingLevel(pid.data, lvl.data)
+  }
+  ipcMain.handle('providers:setThinkingLevel', setThinkingLevel)
+
   const setBaseUrl = async (_: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
     const pid = ProviderId.safeParse(p)
     if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
@@ -152,6 +161,7 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
       ipcMain.removeHandler('providers:setActive')
       ipcMain.removeHandler('providers:setModel')
       ipcMain.removeHandler('providers:setApiStyle')
+      ipcMain.removeHandler('providers:setThinkingLevel')
       ipcMain.removeHandler('providers:setBaseUrl')
       ipcMain.removeHandler('providers:addCustomModel')
       ipcMain.removeHandler('providers:removeCustomModel')

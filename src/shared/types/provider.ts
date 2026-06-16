@@ -8,6 +8,11 @@ export type ProviderId = z.infer<typeof ProviderId>
 export const ApiStyle = z.enum(['anthropic', 'openai'])
 export type ApiStyle = z.infer<typeof ApiStyle>
 
+// Reasoning depth. Mirrors pi's ThinkingLevel plus 'off'. Which levels a given
+// model actually supports is read from the pi-ai model registry, never hardcoded.
+export const ModelThinkingLevel = z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+export type ModelThinkingLevel = z.infer<typeof ModelThinkingLevel>
+
 // Suggestion lists for the UI. Not enforced by the schema — once we support
 // custom baseUrls, users may legitimately type any provider-specific model id
 // (e.g. "deepseek-chat", "qwen-max"). First entry is the default.
@@ -38,6 +43,8 @@ const ProviderRowOnDisk = z.object({
   customModels: CustomModelsList.optional(),
   // Only meaningful on the `custom` slot; ignored otherwise.
   apiStyle: ApiStyle.optional(),
+  // User's chosen reasoning depth. Clamped to what the model supports at runtime.
+  thinkingLevel: ModelThinkingLevel.optional(),
 })
 
 // On-disk shape. NEVER crosses an IPC boundary to the renderer.
@@ -61,6 +68,10 @@ const ProviderRowView = z.object({
   baseUrl: BaseUrlString.optional(),
   customModels: CustomModelsList.optional(),
   apiStyle: ApiStyle.optional(),
+  // Reasoning depths this model supports (from the pi-ai registry); always
+  // contains at least 'off'. The effective current choice (stored or default).
+  thinkingLevels: z.array(ModelThinkingLevel),
+  thinkingLevel: ModelThinkingLevel,
 })
 
 // Renderer-visible projection. apiKey replaced by hasKey.
@@ -81,6 +92,7 @@ export const ProviderInjection = z.object({
   apiKey: z.string().min(1),
   baseUrl: BaseUrlString.optional(),
   apiStyle: ApiStyle.optional(),
+  thinkingLevel: ModelThinkingLevel.optional(),
 })
 export type ProviderInjection = z.infer<typeof ProviderInjection>
 
