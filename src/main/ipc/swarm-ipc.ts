@@ -55,17 +55,26 @@ export function wireSwarmIpc(args: {
   const getSessionTasks = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
     serviceClient.getSessionTasks(sessionId)
 
+  const deleteSession = (_e: Electron.IpcMainInvokeEvent, sessionId: string) => serviceClient.deleteSession(sessionId)
+
+  const renameSession = (_e: Electron.IpcMainInvokeEvent, sessionId: string, title: string) =>
+    serviceClient.renameSession(sessionId, title)
+
+  const setSessionPinned = (_e: Electron.IpcMainInvokeEvent, sessionId: string, pinned: boolean) =>
+    serviceClient.setSessionPinned(sessionId, pinned)
+
   const submitGoal = async (
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
-    goal: string
+    goal: string,
+    attachments?: import('@shared/types/task').Attachment[]
   ): Promise<{ taskId: string }> => {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
     }
     const trimmedGoal = goal.trim()
-    const { taskId } = await serviceClient.submitGoal(sessionId, trimmedGoal)
-    log.info({ msg: 'task submitted', sessionId, taskId })
+    const { taskId } = await serviceClient.submitGoal(sessionId, trimmedGoal, attachments)
+    log.info({ msg: 'task submitted', sessionId, taskId, attachments: attachments?.length ?? 0 })
     return { taskId }
   }
 
@@ -93,6 +102,9 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:createSession', () => createSession())
   ipcMain.handle('swarm:listSessions', () => listSessions())
   ipcMain.handle('swarm:getSessionTasks', getSessionTasks)
+  ipcMain.handle('swarm:deleteSession', deleteSession)
+  ipcMain.handle('swarm:renameSession', renameSession)
+  ipcMain.handle('swarm:setSessionPinned', setSessionPinned)
   ipcMain.handle('swarm:submitGoal', submitGoal)
   ipcMain.handle('swarm:cancelTask', cancelTask)
   ipcMain.handle('swarm:decidePermission', decidePermission)
@@ -150,6 +162,9 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:createSession')
       ipcMain.removeHandler('swarm:listSessions')
       ipcMain.removeHandler('swarm:getSessionTasks')
+      ipcMain.removeHandler('swarm:deleteSession')
+      ipcMain.removeHandler('swarm:renameSession')
+      ipcMain.removeHandler('swarm:setSessionPinned')
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')
       ipcMain.removeHandler('swarm:decidePermission')

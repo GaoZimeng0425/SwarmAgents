@@ -11,7 +11,7 @@ import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { ApiStyle, ProviderId, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
-import type { PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
+import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
   | { kind: 'task.created'; sessionId: string; taskId: string; goal: string; ts: number }
@@ -59,6 +59,7 @@ export type SessionSummary = {
   status: 'active' | 'interrupted' | 'ended'
   lastActiveAt: number
   taskCount: number
+  pinned: boolean
 }
 
 export type PermissionDecision = 'grant' | 'deny' | 'skip'
@@ -124,13 +125,16 @@ export type MacPermissions = {
  * The shape exposed to the renderer via contextBridge as `window.swarm`.
  */
 export type SwarmBridge = {
-  submitGoal(sessionId: string, goal: string): Promise<SubmitGoalResult>
+  submitGoal(sessionId: string, goal: string, attachments?: Attachment[]): Promise<SubmitGoalResult>
   cancelTask(sessionId: string, taskId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>
     create(): Promise<{ sessionId: string }>
     getTasks(sessionId: string): Promise<import('./task').Task[]>
+    delete(sessionId: string): Promise<void>
+    rename(sessionId: string, title: string): Promise<void>
+    setPinned(sessionId: string, pinned: boolean): Promise<void>
   }
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** Get the current system accent color (RRGGBBAA hex). Returns null on unsupported platforms. */

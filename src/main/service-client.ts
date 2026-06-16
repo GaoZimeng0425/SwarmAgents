@@ -24,9 +24,16 @@ export type ServiceClient = {
   connect(): Promise<void>
   disconnect(): void
   createSession(provider: ProviderInjection): Promise<{ sessionId: string }>
-  submitGoal(sessionId: string, goal: string): Promise<{ taskId: string }>
+  submitGoal(
+    sessionId: string,
+    goal: string,
+    attachments?: import('@shared/types/task').Attachment[]
+  ): Promise<{ taskId: string }>
   listSessions(): Promise<import('@shared/types/ui').SessionSummary[]>
   getSessionTasks(sessionId: string): Promise<import('@shared/types/task').Task[]>
+  deleteSession(sessionId: string): Promise<void>
+  renameSession(sessionId: string, title: string): Promise<void>
+  setSessionPinned(sessionId: string, pinned: boolean): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   cancelTask(sessionId: string, taskId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
@@ -79,14 +86,23 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     createSession(provider) {
       return call('createSession', [provider])
     },
-    submitGoal(sessionId, goal) {
-      return call('submitGoal', [sessionId, goal])
+    submitGoal(sessionId, goal, attachments) {
+      return call('submitGoal', [sessionId, goal, attachments])
     },
     listSessions() {
       return call('listSessions', [])
     },
     getSessionTasks(sessionId) {
       return call('getSessionTasks', [sessionId])
+    },
+    async deleteSession(sessionId) {
+      await call('deleteSession', [sessionId])
+    },
+    async renameSession(sessionId, title) {
+      await call('renameSession', [sessionId, title])
+    },
+    async setSessionPinned(sessionId, pinned) {
+      await call('setSessionPinned', [sessionId, pinned])
     },
     async decidePermission(sessionId, actionId, decision) {
       await call('decidePermission', [sessionId, actionId, decision])

@@ -88,7 +88,8 @@ const skills: SkillBridge = {
 }
 
 const swarm: SwarmBridge = {
-  submitGoal: (sessionId, goal) => ipcRenderer.invoke('swarm:submitGoal', sessionId, goal) as Promise<SubmitGoalResult>,
+  submitGoal: (sessionId, goal, attachments) =>
+    ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments) as Promise<SubmitGoalResult>,
   cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
@@ -97,6 +98,11 @@ const swarm: SwarmBridge = {
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
     getTasks: (sessionId: string) =>
       ipcRenderer.invoke('swarm:getSessionTasks', sessionId) as Promise<import('../shared/types/task').Task[]>,
+    delete: (sessionId: string) => ipcRenderer.invoke('swarm:deleteSession', sessionId) as Promise<void>,
+    rename: (sessionId: string, title: string) =>
+      ipcRenderer.invoke('swarm:renameSession', sessionId, title) as Promise<void>,
+    setPinned: (sessionId: string, pinned: boolean) =>
+      ipcRenderer.invoke('swarm:setSessionPinned', sessionId, pinned) as Promise<void>,
   },
   subscribeEvents: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: UIEvent): void => cb(payload)
