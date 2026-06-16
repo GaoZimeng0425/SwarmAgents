@@ -216,4 +216,85 @@ describe('ConversationStore', () => {
     expect(task?.used).toEqual({ tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 })
     store.close()
   })
+
+  const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+
+  it('renames a session via setSessionTitle', () => {
+    const store = createConversationStore(dbPath)
+    store.createSession('ses-r', provider)
+    store.setSessionTitle('ses-r', 'My chat')
+    expect(store.listSessions().find((s) => s.id === 'ses-r')?.title).toBe('My chat')
+    store.close()
+  })
+
+  it('floats pinned sessions to the top of listSessions', () => {
+    const store = createConversationStore(dbPath)
+    store.createSession('ses-a', provider)
+    store.createSession('ses-b', provider)
+    // Pin the second one — it must lead regardless of recency tiebreaks.
+    store.setSessionPinned('ses-b', true)
+    expect(store.listSessions()[0].id).toBe('ses-b')
+    expect(store.listSessions().find((s) => s.id === 'ses-b')?.pinned).toBe(true)
+    // Unpinning clears the flag.
+    store.setSessionPinned('ses-b', false)
+    expect(store.listSessions().every((s) => !s.pinned)).toBe(true)
+    store.close()
+  })
+
+  it('hard-deletes a session and its tasks', () => {
+    const store = createConversationStore(dbPath)
+    store.createSession('ses-d', provider)
+    store.saveTask(
+      {
+        id: '01HRX0000000000000000000D1',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'running',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 100, calls: 5, wallMs: 1000, usdCents: 10 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        result: null,
+        createdAt: 1,
+        startedAt: null,
+        endedAt: null,
+      },
+      'ses-d'
+    )
+    store.deleteSession('ses-d')
+    expect(store.getSession('ses-d')).toBeUndefined()
+    expect(store.getSessionTasks('ses-d')).toEqual([])
+    expect(store.listSessions().some((s) => s.id === 'ses-d')).toBe(false)
+    store.close()
+  })
+
+  it('round-trips task attachments', () => {
+    const store = createConversationStore(dbPath)
+    store.createSession('ses-att', provider)
+    store.saveTask(
+      {
+        id: '01HRX0000000000000000000T1',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'look at this',
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        attachments: [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }],
+        result: null,
+        createdAt: 1,
+        startedAt: null,
+        endedAt: null,
+      },
+      'ses-att'
+    )
+    const loaded = store.getSessionTasks('ses-att')
+    expect(loaded[0].attachments).toEqual([{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }])
+    store.close()
+  })
 })

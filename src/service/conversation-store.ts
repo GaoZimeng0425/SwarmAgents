@@ -21,6 +21,8 @@ export type ConversationStore = {
   getInterruptedSessions(): StoredSession[]
   listSessions(): import('@shared/types/ui').SessionSummary[]
   setSessionTitle(id: string, title: string): void
+  setSessionPinned(id: string, pinned: boolean): void
+  deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
   saveTaskHistory(taskId: string, history: import('@shared/types/task').TaskEvent[]): void
@@ -46,7 +48,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
       status          TEXT NOT NULL,
       provider_snapshot TEXT NOT NULL,
       title             TEXT,
-      agent_snapshot    TEXT NOT NULL DEFAULT '[]'
+      agent_snapshot    TEXT NOT NULL DEFAULT '[]',
+      pinned            INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS tasks (
       id                  TEXT PRIMARY KEY,
@@ -61,6 +64,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       assigned_worker_id  TEXT,
       tool_allowlist      TEXT NOT NULL DEFAULT '[]',
       history             TEXT NOT NULL DEFAULT '[]',
+      attachments         TEXT NOT NULL DEFAULT '[]',
       created_at          INTEGER NOT NULL,
       started_at          INTEGER,
       ended_at            INTEGER
@@ -78,6 +82,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
   for (const stmt of [
     'ALTER TABLE sessions ADD COLUMN title TEXT',
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,
+    'ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
+    `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
   ]) {
     try {
       db.exec(stmt)
@@ -107,6 +113,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     budget: JSON.parse(row.budget as string) as Task['budget'],
     used: JSON.parse(row.used as string) as Task['used'],
     history: JSON.parse((row.history as string) ?? '[]') as Task['history'],
+    attachments: JSON.parse((row.attachments as string) ?? '[]') as Task['attachments'],
     result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
     createdAt: row.created_at as number,
     startedAt: (row.started_at as number | null) ?? null,
@@ -130,9 +137,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtInsertTask = db.prepare(
     `INSERT OR REPLACE INTO tasks
      (id, session_id, parent_id, goal, status, result, budget, used,
-      agent_def_id, assigned_worker_id, tool_allowlist, history,
+      agent_def_id, assigned_worker_id, tool_allowlist, history, attachments,
       created_at, started_at, ended_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
   const stmtUpdateTaskUsage = db.prepare('UPDATE tasks SET used = ? WHERE id = ?')
@@ -144,16 +151,25 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtGetToolState = db.prepare('SELECT value FROM tool_state_snapshots WHERE session_id = ? AND key = ?')
 
   const stmtSetTitle = db.prepare('UPDATE sessions SET title = ? WHERE id = ?')
+  const stmtSetPinned = db.prepare('UPDATE sessions SET pinned = ? WHERE id = ?')
   const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
   const stmtGetSnapshot = db.prepare('SELECT agent_snapshot FROM sessions WHERE id = ?')
   const stmtSetTaskHistory = db.prepare('UPDATE tasks SET history = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
-    `SELECT s.id, s.title, s.status, s.last_active_at AS lastActiveAt,
+    `SELECT s.id, s.title, s.status, s.pinned, s.last_active_at AS lastActiveAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
      FROM sessions s
      WHERE s.status != 'ended'
-     ORDER BY s.last_active_at DESC`
+     ORDER BY s.pinned DESC, s.last_active_at DESC`
   )
+
+  // Hard-delete a session and everything that references it (FK constraints
+  // forbid orphaning tasks / tool-state rows).
+  const deleteSessionTx = db.transaction((id: string) => {
+    db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+  })
 
   return {
     createSession(id, provider) {
@@ -189,10 +205,17 @@ export function createConversationStore(dbPath: string): ConversationStore {
         status: r.status as 'active' | 'interrupted' | 'ended',
         lastActiveAt: r.lastActiveAt as number,
         taskCount: r.taskCount as number,
+        pinned: Boolean(r.pinned),
       }))
     },
     setSessionTitle(id, title) {
       stmtSetTitle.run(title, id)
+    },
+    setSessionPinned(id, pinned) {
+      stmtSetPinned.run(pinned ? 1 : 0, id)
+    },
+    deleteSession(id) {
+      deleteSessionTx(id)
     },
     saveAgentSnapshot(sessionId, messages) {
       stmtSetSnapshot.run(JSON.stringify(messages), sessionId)
@@ -218,6 +241,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         task.assignedWorkerId ?? null,
         JSON.stringify(task.toolAllowlist),
         JSON.stringify(task.history),
+        JSON.stringify(task.attachments ?? []),
         task.createdAt,
         task.startedAt ?? null,
         task.endedAt ?? null
