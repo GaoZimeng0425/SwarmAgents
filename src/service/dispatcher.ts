@@ -4,6 +4,7 @@
 // unit-testable.
 
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
+import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
@@ -19,6 +20,7 @@ type DispatcherConfig = {
   listSkills(): Skill[]
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
+  listMemory(namespace?: string): MemoryView[]
 }
 
 export type Dispatcher = (method: ServiceMethod, args: unknown[]) => unknown
@@ -91,6 +93,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'deleteSkill': {
         const [name] = args as [string]
         return cfg.deleteSkill(name)
+      }
+      case 'listMemory': {
+        const [namespace] = args as [string | undefined]
+        return cfg.listMemory(namespace)
       }
       default:
         throw new Error(`unknown method: ${String(method)}`)

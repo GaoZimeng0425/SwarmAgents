@@ -18,6 +18,7 @@ export type ServiceMethod =
   | 'listSkills'
   | 'saveSkill'
   | 'deleteSkill'
+  | 'listMemory'
 
 export type ServiceRequest = {
   kind: 'request'

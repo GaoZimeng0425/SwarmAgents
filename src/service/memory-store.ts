@@ -15,6 +15,7 @@ export interface MemoryEntry {
 export interface MemoryStore {
   store(namespace: string, key: string, content: string, category: string): void
   recall(query: string, limit: number, opts?: { namespace?: string; category?: string }): MemoryEntry[]
+  list(namespace?: string): MemoryEntry[]
   forget(namespace: string, key: string): boolean
   close(): void
 }
@@ -107,6 +108,20 @@ export function createMemoryStore(dbPath: string): MemoryStore {
     forget(namespace: string, key: string): boolean {
       const id = `${namespace}:${key}`
       const idx = entries.findIndex((e) => e.id === id)
+      if (idx < 0) return false
+      tokenSets.delete(id)
+      entries.splice(idx, 1)
+      scheduleFlush()
+      return true
+    },
+
+    close(): void {
+      if (flushTimer) clearTimeout(flushTimer)
+      flush()
+    },
+  }
+}
+ndex((e) => e.id === id)
       if (idx < 0) return false
       tokenSets.delete(id)
       entries.splice(idx, 1)
