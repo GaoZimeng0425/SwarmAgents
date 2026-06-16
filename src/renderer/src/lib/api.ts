@@ -1,3 +1,4 @@
+import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task } from '@shared/types/task'
 import type { PermissionDecision, SessionSummary, SubmitGoalResult, UIEvent } from '@shared/types/ui'
 
@@ -17,4 +18,5 @@ export const swarmApi = {
   renameSession: (sessionId: string, title: string): Promise<void> => window.swarm.sessions.rename(sessionId, title),
   setSessionPinned: (sessionId: string, pinned: boolean): Promise<void> =>
     window.swarm.sessions.setPinned(sessionId, pinned),
+  listMemory: (namespace?: string): Promise<MemoryView[]> => window.swarm.memory.list(namespace),
 }
