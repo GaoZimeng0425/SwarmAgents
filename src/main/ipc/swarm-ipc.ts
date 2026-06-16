@@ -58,6 +58,9 @@ export function wireSwarmIpc(args: {
     serviceClient.saveSkill(skill)
   )
   ipcMain.handle('skills:delete', (_e: Electron.IpcMainInvokeEvent, name: string) => serviceClient.deleteSkill(name))
+  ipcMain.handle('memory:list', (_e: Electron.IpcMainInvokeEvent, namespace?: string) =>
+    serviceClient.listMemory(namespace)
+  )
 
   // ---- Renderer → Main RPC handlers ----
 
@@ -205,6 +208,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('skills:list')
       ipcMain.removeHandler('skills:save')
       ipcMain.removeHandler('skills:delete')
+      ipcMain.removeHandler('memory:list')
       ipcMain.removeHandler('system:openPrivacySettings')
       ipcMain.removeHandler('system:getMacPermissions')
       ipcMain.removeHandler('system:readImageFile')
