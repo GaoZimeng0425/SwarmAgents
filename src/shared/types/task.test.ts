@@ -46,3 +46,32 @@ describe('Task types', () => {
     expect(() => TaskSchema.parse(bad)).toThrow()
   })
 })
+
+describe('TaskSchema.attachments', () => {
+  const base = {
+    id: '01234567890123456789012345',
+    parentId: null,
+    agentDefId: 'default',
+    goal: 'g',
+    status: 'pending',
+    assignedWorkerId: null,
+    toolAllowlist: [],
+    budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    history: [],
+    result: null,
+    createdAt: 1,
+    startedAt: null,
+    endedAt: null,
+  }
+
+  it('defaults attachments to [] when omitted', () => {
+    const t = TaskSchema.parse(base)
+    expect(t.attachments).toEqual([])
+  })
+
+  it('accepts image attachments', () => {
+    const t = TaskSchema.parse({ ...base, attachments: [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }] })
+    expect(t.attachments[0]).toEqual({ data: 'AAAA', mimeType: 'image/png', name: 'a.png' })
+  })
+})

@@ -76,6 +76,13 @@ export const TaskResultSchema = z.object({
 })
 export type TaskResult = z.infer<typeof TaskResultSchema>
 
+export const AttachmentSchema = z.object({
+  data: z.string(), // base64-encoded bytes (no data: prefix)
+  mimeType: z.string(),
+  name: z.string().optional(),
+})
+export type Attachment = z.infer<typeof AttachmentSchema>
+
 export const TaskSchema = z.object({
   id: z.string().length(26),
   parentId: z.string().nullable(),
@@ -87,6 +94,7 @@ export const TaskSchema = z.object({
   budget: ResourceBudgetSchema,
   used: ResourceBudgetSchema,
   history: z.array(TaskEventSchema),
+  attachments: z.array(AttachmentSchema).default([]),
   result: TaskResultSchema.nullable(),
   createdAt: z.number(),
   startedAt: z.number().nullable(),

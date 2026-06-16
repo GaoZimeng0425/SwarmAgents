@@ -42,6 +42,9 @@ export type SessionManager = {
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
   endSession(sessionId: string): void
+  deleteSession(sessionId: string): void
+  renameSession(sessionId: string, title: string): void
+  setSessionPinned(sessionId: string, pinned: boolean): void
   listSessions(): import('@shared/types/ui').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
 }
@@ -150,6 +153,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       budget: { tokens: 50_000, calls: 25, wallMs: 300_000, usdCents: 100 },
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
       history: [],
+      attachments: [],
       result: null,
       createdAt: now,
       startedAt: null,
@@ -239,6 +243,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         budget: { tokens: 100_000, calls: 50, wallMs: 600_000, usdCents: 200 },
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
         history: [],
+        attachments: [],
         result: null,
         createdAt: now,
         startedAt: null,
@@ -306,6 +311,21 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     endSession(sessionId) {
       store.updateSessionStatus(sessionId, 'ended')
       sessions.delete(sessionId)
+    },
+
+    deleteSession(sessionId) {
+      // Abort any in-flight runs for this session before dropping its rows.
+      for (const t of store.getSessionTasks(sessionId)) runHandles.get(t.id)?.abort()
+      sessions.delete(sessionId)
+      store.deleteSession(sessionId)
+    },
+
+    renameSession(sessionId, title) {
+      store.setSessionTitle(sessionId, title)
+    },
+
+    setSessionPinned(sessionId, pinned) {
+      store.setSessionPinned(sessionId, pinned)
     },
 
     listSessions() {

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
 import type { Task } from '@shared/types/task'
+import { describe, expect, it } from 'vitest'
+
 import { tasksToRecords } from './replay'
 
 const baseTask = (over: Partial<Task>): Task => ({
@@ -13,6 +14,7 @@ const baseTask = (over: Partial<Task>): Task => ({
   budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
   used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
   history: [],
+  attachments: [],
   result: null,
   createdAt: 1,
   startedAt: null,
