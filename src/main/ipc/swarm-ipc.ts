@@ -1,6 +1,9 @@
+import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { type ConfirmRequest, ConfirmRequestSchema, type ConfirmResponse } from '@shared/types/ipc'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, shell } from 'electron'
 
 import type { Service as McpService } from '../mcp-servers'
 import type { Service as ProvidersService } from '../providers'
@@ -12,6 +15,22 @@ import { getMainWindow } from '../windows/main-window'
 import { openSettings } from '../windows/settings-window'
 
 const log = createLogger({ process: 'main' }).child({ component: 'swarm-ipc' })
+
+// Only these extensions are read back for inline preview — never arbitrary files.
+const IMAGE_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+}
+// Guard against turning a huge file into an even larger base64 string.
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024
+
+// Agents often report paths with a leading ~; Node's fs/shell don't expand it.
+function expandHome(p: string): string {
+  return p === '~' || p.startsWith('~/') ? homedir() + p.slice(1) : p
+}
 
 export function wireSwarmIpc(args: {
   serviceClient: ServiceClient
@@ -149,6 +168,31 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:openSettings', handleOpenSettings)
 
+  const readImageFile = async (
+    _e: Electron.IpcMainInvokeEvent,
+    path: unknown
+  ): Promise<{ mimeType: string; data: string } | null> => {
+    if (typeof path !== 'string') return null
+    const mimeType = IMAGE_MIME[extname(path).toLowerCase()]
+    if (!mimeType) return null
+    try {
+      const buf = await readFile(expandHome(path))
+      if (buf.byteLength > MAX_IMAGE_BYTES) return null
+      return { mimeType, data: buf.toString('base64') }
+    } catch (err) {
+      log.warn({ msg: 'readImageFile failed', path, err: String(err) })
+      return null
+    }
+  }
+  ipcMain.handle('system:readImageFile', readImageFile)
+
+  const openPath = async (_e: Electron.IpcMainInvokeEvent, path: unknown): Promise<void> => {
+    if (typeof path !== 'string') return
+    const err = await shell.openPath(expandHome(path))
+    if (err) log.warn({ msg: 'openPath failed', path, err })
+  }
+  ipcMain.handle('system:openPath', openPath)
+
   ipcMain.handle('system:getMacPermissions', () => getMacPermissions())
   const handleOpenPrivacySettings = (_e: Electron.IpcMainInvokeEvent, pane: unknown): Promise<void> =>
     openPrivacySettings(pane === 'accessibility' ? 'accessibility' : 'screen')
@@ -163,6 +207,8 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('skills:delete')
       ipcMain.removeHandler('system:openPrivacySettings')
       ipcMain.removeHandler('system:getMacPermissions')
+      ipcMain.removeHandler('system:readImageFile')
+      ipcMain.removeHandler('system:openPath')
       ipcMain.removeHandler('system:openSettings')
       ipcMain.removeHandler('system:showConfirm')
       ipcMain.removeHandler('system:getAccent')

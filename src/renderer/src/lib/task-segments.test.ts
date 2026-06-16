@@ -70,6 +70,21 @@ describe('taskSegments', () => {
     expect((tools[0] as { input: unknown }).input).toEqual({ path: 'a' })
   })
 
+  it('carries an imagePath from the tool.result payload onto the tool segment', () => {
+    const segs = taskSegments(
+      rec([
+        prog({ kind: 'tool.call', server: 'agent', tool: 'see_screen', args: {}, ts: 1 }),
+        prog({
+          kind: 'tool.result',
+          ok: true,
+          payload: { text: 'Screenshot at /tmp/s.png.', imagePath: '/tmp/s.png' },
+          ts: 2,
+        }),
+      ])
+    )
+    expect(segs.find((s) => s.kind === 'tool')).toMatchObject({ tool: 'see_screen', imagePath: '/tmp/s.png' })
+  })
+
   it('marks a failed tool result with ok:false', () => {
     const segs = taskSegments(
       rec([

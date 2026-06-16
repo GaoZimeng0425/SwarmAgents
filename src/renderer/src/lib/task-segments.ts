@@ -13,6 +13,8 @@ export type Segment =
       ok: boolean | null
       input: unknown
       output: string | null
+      /** Local path to an image the tool produced (e.g. a screenshot), if any. */
+      imagePath?: string
       key: string
       taskId: string
     }
@@ -22,6 +24,11 @@ export type Segment =
 function toolDetail(payload: unknown): string {
   const p = payload as { text?: string } | undefined
   return typeof p?.text === 'string' ? p.text : JSON.stringify(payload ?? {}, null, 2)
+}
+
+function toolImagePath(payload: unknown): string | undefined {
+  const p = payload as { imagePath?: unknown } | undefined
+  return typeof p?.imagePath === 'string' ? p.imagePath : undefined
 }
 
 /** Flatten a task's UIEvents into ordered render segments. Pure; unit-tested. */
@@ -82,6 +89,7 @@ export function taskSegments(task: TaskRecord): Segment[] {
         if (pendingTool) {
           pendingTool.ok = ev.ok
           pendingTool.output = toolDetail(ev.payload)
+          pendingTool.imagePath = toolImagePath(ev.payload)
           pendingTool = null
         } else {
           out.push({

@@ -167,7 +167,10 @@ function createEventTranslator(
         flushText()
         const ok = !e.isError
         const result = e.result as
-          | { content?: Array<{ type: string; text?: string }>; details?: { todos?: unknown } }
+          | {
+              content?: Array<{ type: string; text?: string }>
+              details?: { todos?: unknown; screenshotPath?: unknown }
+            }
           | undefined
         // The update_plan tool returns its checklist as structured `details.todos`.
         // Surface it as a dedicated task.plan event so the UI can render a panel
@@ -175,11 +178,15 @@ function createEventTranslator(
         if (e.toolName === 'update_plan' && Array.isArray(result?.details?.todos)) {
           emit('task.plan', { taskId, todos: result.details.todos, ts: Date.now() })
         }
+        // Image-producing tools (e.g. see_screen) save a file and report its path
+        // in details. Carry it so the UI can preview/open the image.
+        const imagePath =
+          typeof result?.details?.screenshotPath === 'string' ? result.details.screenshotPath : undefined
         const payloadText = result?.content?.map((c) => (c.type === 'text' ? (c.text ?? '') : '')).join('') ?? ''
         const event: TaskEvent = {
           kind: 'tool.result',
           ok,
-          payload: { kind: 'text', text: payloadText.slice(0, 4000) },
+          payload: { kind: 'text', text: payloadText.slice(0, 4000), ...(imagePath ? { imagePath } : {}) },
           ts: Date.now(),
         }
         emit('task.progress', { taskId, event, ts: Date.now() })

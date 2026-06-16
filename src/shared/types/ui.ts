@@ -170,6 +170,10 @@ export type SwarmBridge = {
   getMacPermissions(): Promise<MacPermissions>
   /** Open the relevant macOS Privacy & Security settings pane. No-op off macOS. */
   openPrivacySettings(pane: 'screen' | 'accessibility'): Promise<void>
+  /** Read a local image file as base64 for inline preview. Returns null if missing or not an image. */
+  readImageFile(path: string): Promise<{ mimeType: string; data: string } | null>
+  /** Open a local file with the OS default application. */
+  openPath(path: string): Promise<void>
   providers: ProvidersBridge
   mcp: McpBridge
   skills: SkillBridge

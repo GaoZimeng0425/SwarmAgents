@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Brain, ChevronRight, Copy, MessagesSquare, Trash2 } from 'lucide-react'
+import { Brain, ChevronRight, Copy, ExternalLink, MessagesSquare, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -20,6 +20,7 @@ import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/componen
 import { Spinner } from '@/components/ui/spinner'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
+import { extractImagePaths } from '@/lib/file-paths'
 import { formatUsage } from '@/lib/format-usage'
 import { type Segment, taskSegments } from '@/lib/task-segments'
 import { cn } from '@/lib/utils'
@@ -57,6 +58,43 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }): React.
         <div className="mt-3 whitespace-pre-wrap break-words text-[12px] text-muted-foreground/90 leading-relaxed">
           {text}
         </div>
+      )}
+    </div>
+  )
+}
+
+// Inline preview for a tool-produced image (e.g. a screenshot). The sandboxed
+// renderer can't read local files, so we pull bytes over IPC as a data URL and
+// offer an "Open" button that hands the path to the OS.
+function ToolImage({ path, showName = true }: { path: string; showName?: boolean }): React.JSX.Element {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    void window.swarm.readImageFile(path).then((img) => {
+      if (alive && img) setSrc(`data:${img.mimeType};base64,${img.data}`)
+    })
+    return () => {
+      alive = false
+    }
+  }, [path])
+
+  const name = path.split('/').pop() ?? path
+  return (
+    <div className="space-y-2">
+      {src && (
+        <button className="block cursor-pointer" onClick={() => void window.swarm.openPath(path)} type="button">
+          <img alt={name} className="max-h-96 rounded-lg border border-border/40" src={src} />
+        </button>
+      )}
+      {showName && (
+        <button
+          className="flex cursor-pointer items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
+          onClick={() => void window.swarm.openPath(path)}
+          type="button"
+        >
+          <ExternalLink className="size-3.5" />
+          <span className="font-mono">{name}</span>
+        </button>
       )}
     </div>
   )
@@ -131,10 +169,14 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
       )
     }
     if (seg.kind === 'assistant') {
+      const images = extractImagePaths(seg.text)
       return (
         <Message className="group" from="assistant" key={seg.key}>
           <MessageContent>
             <MessageResponse>{seg.text}</MessageResponse>
+            {images.map((p) => (
+              <ToolImage key={p} path={p} showName={false} />
+            ))}
           </MessageContent>
           {messageActions(seg.text, seg.taskId)}
         </Message>
@@ -152,6 +194,7 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
           />
           <ToolContent>
             <ToolInput input={seg.input} />
+            {seg.imagePath && <ToolImage path={seg.imagePath} />}
             <ToolOutput
               errorText={seg.ok === false ? (seg.output ?? '') : undefined}
               output={seg.ok === false ? undefined : seg.output}
@@ -180,7 +223,8 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
 
   return (
     <Conversation className="flex-1">
-      <ConversationContent className="mx-auto max-w-3xl">
+      {/* user-content re-enables text selection (globals.css disables it on chrome by default). */}
+      <ConversationContent className="user-content mx-auto max-w-3xl">
         {(() => {
           const segs = ordered.flatMap((t) => taskSegments(t))
           return segs.map((seg, i) => renderSegment(seg, i === segs.length - 1))

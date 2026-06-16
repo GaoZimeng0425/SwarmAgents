@@ -127,6 +127,9 @@ const swarm: SwarmBridge = {
   openSettings: (opts) => ipcRenderer.invoke('system:openSettings', opts) as Promise<void>,
   getMacPermissions: () => ipcRenderer.invoke('system:getMacPermissions') as Promise<MacPermissions>,
   openPrivacySettings: (pane) => ipcRenderer.invoke('system:openPrivacySettings', pane) as Promise<void>,
+  readImageFile: (path: string) =>
+    ipcRenderer.invoke('system:readImageFile', path) as Promise<{ mimeType: string; data: string } | null>,
+  openPath: (path: string) => ipcRenderer.invoke('system:openPath', path) as Promise<void>,
   providers,
   mcp,
   skills,
