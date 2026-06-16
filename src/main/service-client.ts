@@ -2,6 +2,7 @@ import { createLogger } from '@shared/logger'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
+import type { MemoryView } from '@shared/types/memory'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { PermissionDecision } from '@shared/types/ui'
 
@@ -42,6 +43,7 @@ export type ServiceClient = {
   listSkills(): Promise<Skill[]>
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
+  listMemory(namespace?: string): Promise<MemoryView[]>
 }
 
 export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
@@ -128,6 +130,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     deleteSkill(name) {
       return call('deleteSkill', [name])
+    },
+    listMemory(namespace) {
+      return call('listMemory', [namespace])
     },
   }
 }
