@@ -35,8 +35,10 @@ function matchScore(entryTokens: Set<string>, queryTokens: string[]): number {
   return queryTokens.length > 0 ? hits / queryTokens.length : 0
 }
 
-export function createMemoryStore(dbPath: string): MemoryStore {
+export function createMemoryStore(dbPath: string, onChange?: () => void): MemoryStore {
   let entries: MemoryEntry[] = []
+  const insertionIndex = new Map<string, number>()
+  let insertionCounter = 0
 
   if (existsSync(dbPath)) {
     try {
@@ -68,7 +70,10 @@ export function createMemoryStore(dbPath: string): MemoryStore {
   const rebuildTokens = (entry: MemoryEntry): void => {
     tokenSets.set(entry.id, new Set(tokenize(entry.content)))
   }
-  for (const e of entries) rebuildTokens(e)
+  for (const e of entries) {
+    rebuildTokens(e)
+    insertionIndex.set(e.id, insertionCounter++)
+  }
 
   return {
     store(namespace: string, key: string, content: string, category: string): void {
@@ -80,9 +85,11 @@ export function createMemoryStore(dbPath: string): MemoryStore {
       } else {
         entries.push(entry)
       }
+      insertionIndex.set(id, insertionCounter++)
       rebuildTokens(entry)
       log.debug({ msg: 'stored', namespace, key, category })
       scheduleFlush()
+      onChange?.()
     },
 
     recall(query: string, limit: number, opts?: { namespace?: string; category?: string }): MemoryEntry[] {
@@ -105,27 +112,24 @@ export function createMemoryStore(dbPath: string): MemoryStore {
       return results
     },
 
+    list(namespace?: string): MemoryEntry[] {
+      const filtered = namespace ? entries.filter((e) => e.namespace === namespace) : entries
+      return [...filtered].sort((a, b) => {
+        const tsDiff = b.timestamp - a.timestamp
+        if (tsDiff !== 0) return tsDiff
+        return (insertionIndex.get(b.id) ?? 0) - (insertionIndex.get(a.id) ?? 0)
+      })
+    },
+
     forget(namespace: string, key: string): boolean {
       const id = `${namespace}:${key}`
       const idx = entries.findIndex((e) => e.id === id)
       if (idx < 0) return false
       tokenSets.delete(id)
+      insertionIndex.delete(id)
       entries.splice(idx, 1)
       scheduleFlush()
-      return true
-    },
-
-    close(): void {
-      if (flushTimer) clearTimeout(flushTimer)
-      flush()
-    },
-  }
-}
-ndex((e) => e.id === id)
-      if (idx < 0) return false
-      tokenSets.delete(id)
-      entries.splice(idx, 1)
-      scheduleFlush()
+      onChange?.()
       return true
     },
 

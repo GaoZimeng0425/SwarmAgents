@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createMemoryStore, type MemoryStore } from './memory-store'
 
@@ -88,6 +88,47 @@ describe('createMemoryStore', () => {
       expect(store.recall('nonexistent query xyz', 5).length).toBe(0)
     } finally {
       cleanup()
+    }
+  })
+
+  it('list returns entries newest-first', () => {
+    const { store, cleanup } = makeStore()
+    try {
+      store.store('ns', 'old', 'first entry', 'note')
+      store.store('ns', 'new', 'second entry', 'note')
+      const all = store.list()
+      expect(all.map((e) => e.key)).toEqual(['new', 'old'])
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('list filters by namespace', () => {
+    const { store, cleanup } = makeStore()
+    try {
+      store.store('ns-a', 'k1', 'a', 'note')
+      store.store('ns-b', 'k2', 'b', 'note')
+      const onlyA = store.list('ns-a')
+      expect(onlyA.length).toBe(1)
+      expect(onlyA[0].namespace).toBe('ns-a')
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('onChange fires on store and forget', () => {
+    const dir = mkdtempSync(`${tmpdir()}/swarm-memory-test-`)
+    const onChange = vi.fn()
+    const store = createMemoryStore(join(dir, 'test.db'), onChange)
+    try {
+      store.store('ns', 'k1', 'data', 'note')
+      expect(onChange).toHaveBeenCalledTimes(1)
+      store.forget('ns', 'k1')
+      expect(onChange).toHaveBeenCalledTimes(2)
+      store.forget('ns', 'missing')
+      expect(onChange).toHaveBeenCalledTimes(2) // no-op forget does not fire
+    } finally {
+      store.close()
     }
   })
 })
