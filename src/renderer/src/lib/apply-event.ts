@@ -1,4 +1,4 @@
-import type { PlanTodo, ResourceBudget } from '@shared/types/task'
+import type { Attachment, PlanTodo, ResourceBudget } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
@@ -11,6 +11,7 @@ export type TaskRecord = {
   workerId: string | null
   summary: string | null
   startedAt: number
+  attachments: Attachment[]
   used?: ResourceBudget
   plan?: PlanTodo[]
   events: UIEvent[]
@@ -33,6 +34,7 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       workerId: null,
       summary: null,
       startedAt: e.ts,
+      attachments: e.attachments ?? [],
       events: [e],
     }
     const without = tasks.filter((t) => t.id !== e.taskId)
@@ -49,6 +51,7 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       workerId: null,
       summary: null,
       startedAt: e.ts,
+      attachments: [],
       events: [e],
     }
     return [stub, ...tasks]

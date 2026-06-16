@@ -1,9 +1,10 @@
+import type { Attachment } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
 
 import type { TaskRecord } from './apply-event'
 
 export type Segment =
-  | { kind: 'user'; text: string; key: string; taskId: string }
+  | { kind: 'user'; text: string; attachments: Attachment[]; key: string; taskId: string }
   | { kind: 'assistant'; text: string; key: string; taskId: string }
   | {
       kind: 'tool'
@@ -24,7 +25,9 @@ function toolDetail(payload: unknown): string {
 
 /** Flatten a task's UIEvents into ordered render segments. Pure; unit-tested. */
 export function taskSegments(task: TaskRecord): Segment[] {
-  const out: Segment[] = [{ kind: 'user', text: task.goal, key: `${task.id}-goal`, taskId: task.id }]
+  const out: Segment[] = [
+    { kind: 'user', text: task.goal, attachments: task.attachments ?? [], key: `${task.id}-goal`, taskId: task.id },
+  ]
 
   const pushAssistant = (text: string, key: string): void => {
     const last = out[out.length - 1]

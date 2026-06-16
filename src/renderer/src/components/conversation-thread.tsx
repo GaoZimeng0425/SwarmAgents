@@ -77,6 +77,18 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
       return (
         <Message className="group" from="user" key={seg.key}>
           <MessageContent>
+            {seg.attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {seg.attachments.map((a, i) => (
+                  <img
+                    alt={a.name ?? 'attachment'}
+                    className="size-20 rounded-lg border border-border/40 object-cover"
+                    key={`${seg.key}-att-${i}`}
+                    src={`data:${a.mimeType};base64,${a.data}`}
+                  />
+                ))}
+              </div>
+            )}
             <span className="whitespace-pre-wrap">{seg.text}</span>
           </MessageContent>
           {messageActions(seg.text, seg.taskId)}

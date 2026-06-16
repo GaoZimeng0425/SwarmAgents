@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { TaskRecord } from './apply-event'
 import { taskSegments } from './task-segments'
 
-function rec(events: TaskRecord['events']): TaskRecord {
+function rec(events: TaskRecord['events'], attachments: TaskRecord['attachments'] = []): TaskRecord {
   return {
     id: 't1',
     sessionId: 's1',
@@ -12,6 +12,7 @@ function rec(events: TaskRecord['events']): TaskRecord {
     workerId: null,
     summary: null,
     startedAt: 1,
+    attachments,
     events,
   }
 }
@@ -22,6 +23,14 @@ describe('taskSegments', () => {
   it('emits the goal as the first user segment', () => {
     const segs = taskSegments(rec([]))
     expect(segs[0]).toMatchObject({ kind: 'user', text: 'do x' })
+  })
+
+  it('carries attachments on the user segment', () => {
+    const segs = taskSegments(rec([], [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }]))
+    const user = segs.find((s) => s.kind === 'user')
+    expect(user && 'attachments' in user && user.attachments).toEqual([
+      { data: 'AAAA', mimeType: 'image/png', name: 'a.png' },
+    ])
   })
 
   it('coalesces consecutive assistant deltas into one segment', () => {

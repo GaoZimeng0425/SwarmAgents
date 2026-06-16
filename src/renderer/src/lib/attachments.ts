@@ -1,7 +1,7 @@
 import type { Attachment } from '@shared/types/task'
 
 // The minimal shape we need from the composer's FileUIPart.
-type FileLike = { mediaType?: string; filename?: string; url?: string }
+type FileLike = { type?: string; mediaType?: string; filename?: string; url?: string }
 
 /** Keep only image/* files whose url is a base64 data URL; convert to Attachment[]. */
 export function imageAttachmentsFrom(files: readonly FileLike[]): Attachment[] {

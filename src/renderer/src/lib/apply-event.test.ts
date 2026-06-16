@@ -21,6 +21,7 @@ describe('applyEvent', () => {
         workerId: null,
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]
@@ -39,6 +40,7 @@ describe('applyEvent', () => {
         workerId: 'w1',
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]
@@ -57,6 +59,7 @@ describe('applyEvent', () => {
         workerId: 'w1',
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]
@@ -78,6 +81,7 @@ describe('applyEvent', () => {
         workerId: 'w1',
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]
@@ -99,6 +103,7 @@ describe('applyEvent', () => {
         workerId: 'w1',
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]
@@ -120,6 +125,7 @@ describe('applyEvent', () => {
         workerId: 'w1',
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]
@@ -162,6 +168,7 @@ describe('applyEvent', () => {
         workerId: null,
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]
@@ -181,6 +188,7 @@ describe('applyEvent', () => {
         workerId: null,
         summary: null,
         startedAt: 1,
+        attachments: [],
         events: [],
       },
     ]

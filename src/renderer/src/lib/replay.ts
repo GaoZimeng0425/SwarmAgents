@@ -1,5 +1,6 @@
 import type { Task } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
+
 import type { TaskRecord, TaskStatus } from './apply-event'
 
 // Keys are the persisted Task['status'] string values, so snake_case is required here.
@@ -20,12 +21,20 @@ const STORED_TO_UI_STATUS: Partial<Record<Task['status'], TaskStatus>> = {
 /** Rebuild renderer TaskRecords from persisted tasks (for session replay on switch). */
 export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
   const records = tasks.map((t): TaskRecord => {
-    const events: UIEvent[] = [{ kind: 'task.created', sessionId, taskId: t.id, goal: t.goal, ts: t.createdAt }]
+    const events: UIEvent[] = [
+      { kind: 'task.created', sessionId, taskId: t.id, goal: t.goal, attachments: t.attachments, ts: t.createdAt },
+    ]
     for (const ev of t.history) {
       events.push({ kind: 'task.progress', sessionId, taskId: t.id, event: ev, ts: ev.ts })
     }
     if (t.result) {
-      events.push({ kind: 'task.complete', sessionId, taskId: t.id, summary: t.result.summary, ts: t.endedAt ?? t.createdAt })
+      events.push({
+        kind: 'task.complete',
+        sessionId,
+        taskId: t.id,
+        summary: t.result.summary,
+        ts: t.endedAt ?? t.createdAt,
+      })
     }
     return {
       id: t.id,
@@ -35,6 +44,7 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       workerId: t.assignedWorkerId,
       summary: t.result?.summary ?? null,
       startedAt: t.createdAt,
+      attachments: t.attachments,
       events,
     }
   })

@@ -14,7 +14,7 @@ import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
 
 export type UIEvent =
-  | { kind: 'task.created'; sessionId: string; taskId: string; goal: string; ts: number }
+  | { kind: 'task.created'; sessionId: string; taskId: string; goal: string; attachments?: Attachment[]; ts: number }
   | { kind: 'task.dispatched'; sessionId: string; taskId: string; workerId: string; ts: number }
   | { kind: 'task.progress'; sessionId: string; taskId: string; event: TaskEvent; ts: number }
   | {
