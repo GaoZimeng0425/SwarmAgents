@@ -4,7 +4,7 @@ import { AskPanel } from '@/components/ask-panel'
 import { ChatInput } from '@/components/chat-input'
 import { ConversationThread } from '@/components/conversation-thread'
 import { PermissionDrawer } from '@/components/permission-drawer'
-import { PlanPanel } from '@/components/plan-panel'
+import { RightPanel } from '@/components/right-panel'
 import { useProviders } from '@/hooks/use-providers'
 import { useCancelTask, useDecidePermission, useLoadSessions, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
@@ -94,7 +94,7 @@ export function TasksView(): React.JSX.Element {
           usdCents={latestTask?.used?.usdCents}
         />
       </div>
-      <PlanPanel todos={activePlan ?? []} />
+      <RightPanel plan={activePlan ?? []} />
     </div>
   )
 }
