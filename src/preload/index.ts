@@ -7,6 +7,7 @@ import type { Skill, SkillMutationResult } from '../shared/types/skill'
 import type {
   MacPermissions,
   McpBridge,
+  MemoryBridge,
   PermissionDecision,
   ProvidersBridge,
   ProvidersSetResult,
@@ -89,6 +90,11 @@ const skills: SkillBridge = {
   remove: (name: string) => ipcRenderer.invoke('skills:delete', name) as Promise<SkillMutationResult>,
 }
 
+const memory: MemoryBridge = {
+  list: (namespace?: string) =>
+    ipcRenderer.invoke('memory:list', namespace) as Promise<import('../shared/types/memory').MemoryView[]>,
+}
+
 const swarm: SwarmBridge = {
   submitGoal: (sessionId, goal, attachments) =>
     ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments) as Promise<SubmitGoalResult>,
@@ -133,6 +139,7 @@ const swarm: SwarmBridge = {
   providers,
   mcp,
   skills,
+  memory,
 }
 
 if (process.contextIsolated) {
