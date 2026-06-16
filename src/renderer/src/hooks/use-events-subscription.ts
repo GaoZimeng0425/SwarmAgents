@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { UIEvent } from '@shared/types/ui'
 import { useQueryClient } from '@tanstack/react-query'
 
+import { MEMORY_KEY } from '@/hooks/use-memory'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { applyEvent, type TaskRecord } from '@/lib/apply-event'
@@ -55,6 +56,9 @@ export function useEventsSubscription(): void {
           taskCount: existing?.taskCount ?? 0,
           pinned: existing?.pinned ?? false,
         })
+      }
+      if (e.kind === 'memory.changed') {
+        void qc.invalidateQueries({ queryKey: MEMORY_KEY })
       }
       if (e.kind === 'task.permission_request') {
         if (e.risk === 'high') {
