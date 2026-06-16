@@ -13,6 +13,16 @@ export type StoredSession = {
   agentSnapshot: AgentMessage[]
 }
 
+export type StoredCronJob = {
+  id: string
+  sessionId: string
+  name: string | null
+  cron: string
+  goal: string
+  createdAt: number
+  lastRunAt: number | null
+}
+
 export type ConversationStore = {
   createSession(id: string, provider: ProviderInjection): StoredSession
   getSession(id: string): StoredSession | undefined
@@ -32,6 +42,11 @@ export type ConversationStore = {
   getSessionTasks(sessionId: string): Task[]
   saveToolState(sessionId: string, key: string, value: unknown): void
   getToolState(sessionId: string, key: string): unknown
+  saveCronJob(job: StoredCronJob): void
+  listCronJobs(): StoredCronJob[]
+  listCronJobsForSession(sessionId: string): StoredCronJob[]
+  deleteCronJob(id: string): void
+  touchCronJob(id: string, lastRunAt: number): void
   close(): void
 }
 
@@ -77,6 +92,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
       updated_at  INTEGER NOT NULL,
       PRIMARY KEY (session_id, key)
     );
+    CREATE TABLE IF NOT EXISTS cron_jobs (
+      id           TEXT PRIMARY KEY,
+      session_id   TEXT NOT NULL REFERENCES sessions(id),
+      name         TEXT,
+      cron         TEXT NOT NULL,
+      goal         TEXT NOT NULL,
+      created_at   INTEGER NOT NULL,
+      last_run_at  INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_cron_jobs_session ON cron_jobs(session_id);
   `)
 
   for (const stmt of [
@@ -119,6 +144,25 @@ export function createConversationStore(dbPath: string): ConversationStore {
     startedAt: (row.started_at as number | null) ?? null,
     endedAt: (row.ended_at as number | null) ?? null,
   })
+
+  const rowToCronJob = (row: Record<string, unknown>): StoredCronJob => ({
+    id: row.id as string,
+    sessionId: row.session_id as string,
+    name: (row.name as string | null) ?? null,
+    cron: row.cron as string,
+    goal: row.goal as string,
+    createdAt: row.created_at as number,
+    lastRunAt: (row.last_run_at as number | null) ?? null,
+  })
+
+  const stmtInsertCronJob = db.prepare(
+    `INSERT OR REPLACE INTO cron_jobs (id, session_id, name, cron, goal, created_at, last_run_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  )
+  const stmtListCronJobs = db.prepare('SELECT * FROM cron_jobs')
+  const stmtListCronJobsForSession = db.prepare('SELECT * FROM cron_jobs WHERE session_id = ?')
+  const stmtDeleteCronJob = db.prepare('DELETE FROM cron_jobs WHERE id = ?')
+  const stmtTouchCronJob = db.prepare('UPDATE cron_jobs SET last_run_at = ? WHERE id = ?')
 
   const stmtInsertSession = db.prepare(
     `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot)
@@ -166,6 +210,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   // Hard-delete a session and everything that references it (FK constraints
   // forbid orphaning tasks / tool-state rows).
   const deleteSessionTx = db.transaction((id: string) => {
+    db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
@@ -264,6 +309,23 @@ export function createConversationStore(dbPath: string): ConversationStore {
     getToolState(sessionId, key) {
       const row = stmtGetToolState.get(sessionId, key) as { value: string } | undefined
       return row ? JSON.parse(row.value) : undefined
+    },
+    saveCronJob(job) {
+      stmtInsertCronJob.run(
+        job.id, job.sessionId, job.name ?? null, job.cron, job.goal, job.createdAt, job.lastRunAt ?? null
+      )
+    },
+    listCronJobs() {
+      return (stmtListCronJobs.all() as Record<string, unknown>[]).map(rowToCronJob)
+    },
+    listCronJobsForSession(sessionId) {
+      return (stmtListCronJobsForSession.all(sessionId) as Record<string, unknown>[]).map(rowToCronJob)
+    },
+    deleteCronJob(id) {
+      stmtDeleteCronJob.run(id)
+    },
+    touchCronJob(id, lastRunAt) {
+      stmtTouchCronJob.run(lastRunAt, id)
     },
     close() {
       db.close()

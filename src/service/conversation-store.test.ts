@@ -297,4 +297,43 @@ describe('ConversationStore', () => {
     expect(loaded[0].attachments).toEqual([{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }])
     store.close()
   })
+
+  it('saves, lists, touches, and deletes cron jobs', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+
+    store.saveCronJob({
+      id: 'job-1',
+      sessionId: 'ses-1',
+      name: 'morning',
+      cron: '0 9 * * *',
+      goal: 'summarize inbox',
+      createdAt: 1000,
+      lastRunAt: null,
+    })
+
+    expect(store.listCronJobs().length).toBe(1)
+    expect(store.listCronJobsForSession('ses-1')[0].goal).toBe('summarize inbox')
+
+    store.touchCronJob('job-1', 2000)
+    expect(store.listCronJobs()[0].lastRunAt).toBe(2000)
+
+    store.deleteCronJob('job-1')
+    expect(store.listCronJobs().length).toBe(0)
+    store.close()
+  })
+
+  it('cascades cron job deletion when its session is deleted', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+    store.saveCronJob({
+      id: 'job-1', sessionId: 'ses-1', name: null, cron: '* * * * *',
+      goal: 'g', createdAt: 1000, lastRunAt: null,
+    })
+    store.deleteSession('ses-1')
+    expect(store.listCronJobs().length).toBe(0)
+    store.close()
+  })
 })
