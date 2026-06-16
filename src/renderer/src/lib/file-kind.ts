@@ -14,9 +14,12 @@ export function fileKind(mediaType: string | undefined): FileKind {
   return 'other'
 }
 
-/**
- * `accept` for the composer file input. The composer's matchesAccept only
- * supports `prefix/*` and exact mime strings — extensions like `.csv` are NOT
- * matched, so every non-image type is listed by exact mime.
- */
-export const ATTACHMENT_ACCEPT = ['image/*', 'application/pdf', XLSX_MIME, DOCX_MIME, 'text/csv'].join(',')
+// The composer's matchesAccept only supports `prefix/*` and exact mime strings —
+// extensions like `.csv` are NOT matched, so every non-image type is listed by exact mime.
+const DOCUMENT_MIMES = ['application/pdf', XLSX_MIME, DOCX_MIME, 'text/csv']
+
+/** `accept` for documents only (no images) — used when the model has no vision support. */
+export const DOCUMENT_ACCEPT = DOCUMENT_MIMES.join(',')
+
+/** `accept` for images + documents — used when the model supports images. */
+export const ATTACHMENT_ACCEPT = ['image/*', ...DOCUMENT_MIMES].join(',')

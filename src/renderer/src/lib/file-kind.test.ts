@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ATTACHMENT_ACCEPT, fileKind } from './file-kind'
+import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from './file-kind'
 
 describe('fileKind', () => {
   it('classifies the supported document types', () => {
@@ -26,5 +26,13 @@ describe('fileKind', () => {
     expect(ATTACHMENT_ACCEPT).toContain('text/csv')
     expect(ATTACHMENT_ACCEPT).toContain('spreadsheetml.sheet')
     expect(ATTACHMENT_ACCEPT).toContain('wordprocessingml.document')
+  })
+
+  it('document accept covers the four doc types but excludes images', () => {
+    expect(DOCUMENT_ACCEPT).not.toContain('image')
+    expect(DOCUMENT_ACCEPT).toContain('application/pdf')
+    expect(DOCUMENT_ACCEPT).toContain('text/csv')
+    expect(DOCUMENT_ACCEPT).toContain('spreadsheetml.sheet')
+    expect(DOCUMENT_ACCEPT).toContain('wordprocessingml.document')
   })
 })

@@ -24,7 +24,7 @@ import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-
 import { ContextRing } from '@/components/context-ring'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
-import { ATTACHMENT_ACCEPT, fileKind } from '@/lib/file-kind'
+import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'
 
 type Props = {
   onSubmit: (goal: string, attachments?: Attachment[]) => void | Promise<void>
@@ -116,9 +116,8 @@ function AttachBar({
         </div>
       )}
       <PromptInputButton
-        disabled={!supportsImages}
         onClick={() => attachments.openFileDialog()}
-        tooltip={supportsImages ? 'Attach files' : "This model can't read images"}
+        tooltip={supportsImages ? 'Attach files' : 'Attach documents (images need a vision model)'}
       >
         <Paperclip className="size-4" />
       </PromptInputButton>
@@ -173,7 +172,7 @@ export function ChatInput({
   return (
     <div className="shrink-0 px-4 pt-2 pb-4">
       <PromptInput
-        accept={ATTACHMENT_ACCEPT}
+        accept={supportsImages ? ATTACHMENT_ACCEPT : DOCUMENT_ACCEPT}
         className="mx-auto max-w-3xl"
         maxFileSize={MAX_FILE_SIZE}
         maxFiles={MAX_FILES}
