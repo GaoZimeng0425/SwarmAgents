@@ -16,7 +16,11 @@ import type {
   SubmitGoalResult,
   SwarmBridge,
   UIEvent,
+  WebSearchBridge,
+  WebSearchKeyId,
+  WebSearchSetResult,
 } from '../shared/types/ui'
+import type { WebSearchConfigView, WebSearchProviderId } from '../shared/types/web-search'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
 const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
@@ -24,6 +28,7 @@ const PROVIDERS_STATE_CHANNEL = 'providers:stateChanged'
 const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
 const MCP_CONFIG_CHANGED_CHANNEL = 'mcp:configChanged'
 const MCP_STATUS_CHANNEL = 'mcp:status'
+const WEB_SEARCH_STATE_CHANNEL = 'webSearch:stateChanged'
 
 const providers: ProvidersBridge = {
   get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
@@ -86,6 +91,24 @@ const mcp: McpBridge = {
   },
 }
 
+const webSearch: WebSearchBridge = {
+  get: () => ipcRenderer.invoke('webSearch:get') as Promise<WebSearchConfigView>,
+  setProvider: (p: WebSearchProviderId) =>
+    ipcRenderer.invoke('webSearch:setProvider', p) as Promise<WebSearchSetResult>,
+  setKey: (id: WebSearchKeyId, key: string) =>
+    ipcRenderer.invoke('webSearch:setKey', id, key) as Promise<WebSearchSetResult>,
+  clearKey: (id: WebSearchKeyId) => ipcRenderer.invoke('webSearch:clearKey', id) as Promise<WebSearchSetResult>,
+  setSearxngUrl: (url: string | null) =>
+    ipcRenderer.invoke('webSearch:setSearxngUrl', url) as Promise<WebSearchSetResult>,
+  onStateChanged: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WebSearchConfigView): void => cb(payload)
+    ipcRenderer.on(WEB_SEARCH_STATE_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(WEB_SEARCH_STATE_CHANNEL, listener)
+    }
+  },
+}
+
 const skills: SkillBridge = {
   list: () => ipcRenderer.invoke('skills:list') as Promise<Skill[]>,
   save: (skill: Skill) => ipcRenderer.invoke('skills:save', skill) as Promise<SkillMutationResult>,
@@ -140,6 +163,7 @@ const swarm: SwarmBridge = {
   openPath: (path: string) => ipcRenderer.invoke('system:openPath', path) as Promise<void>,
   providers,
   mcp,
+  webSearch,
   skills,
   memory,
 }

@@ -1,10 +1,11 @@
 import { createLogger } from '@shared/logger'
-import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
+import type { McpAddResult, McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { PermissionDecision } from '@shared/types/ui'
+import type { WebSearchInjection } from '@shared/types/web-search'
 
 const log = createLogger({ process: 'main' }).child({ component: 'service-client' })
 
@@ -40,6 +41,8 @@ export type ServiceClient = {
   cancelTask(sessionId: string, taskId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
+  respondMcpAdd(requestId: string, result: McpAddResult): Promise<void>
+  setWebSearchConfig(config: WebSearchInjection): Promise<void>
   listSkills(): Promise<Skill[]>
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
@@ -121,6 +124,12 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     getMcpStatus() {
       return call('getMcpStatus', [])
+    },
+    async respondMcpAdd(requestId, result) {
+      await call('respondMcpAdd', [requestId, result])
+    },
+    async setWebSearchConfig(config) {
+      await call('setWebSearchConfig', [config])
     },
     listSkills() {
       return call('listSkills', [])

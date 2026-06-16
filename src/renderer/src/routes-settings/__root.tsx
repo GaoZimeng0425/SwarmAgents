@@ -7,6 +7,7 @@ export const Route = createRootRoute({ component: SettingsLayout })
 const TABS = [
   { to: '/providers', label: 'Providers' },
   { to: '/mcp', label: 'MCP Servers' },
+  { to: '/web-search', label: 'Web Search' },
   { to: '/', label: 'General' },
   { to: '/permissions', label: 'Permissions' },
   { to: '/about', label: 'About' },

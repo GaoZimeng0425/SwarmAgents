@@ -1,7 +1,15 @@
+import type { WebSearchInjection } from '@shared/types/web-search'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRunContext } from './registry'
-import { htmlToMarkdown, isPrivateHost, webFetchSpec } from './web'
+import {
+  htmlToMarkdown,
+  isPrivateHost,
+  pickSearchProvider,
+  resolveSearchConfig,
+  webFetchSpec,
+  webSearchSpec,
+} from './web'
 
 const ctx: ToolRunContext = {
   sessionId: 's',
@@ -15,6 +23,7 @@ const tool = () => webFetchSpec().build(ctx)
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 describe('isPrivateHost', () => {
@@ -99,5 +108,95 @@ describe('web fetch tool', () => {
     )
     const res = await tool().execute('c', { url: 'https://example.com' })
     expect((res.details as { error?: string }).error).toMatch(/boom/i)
+  })
+})
+
+const searchTool = (cfg: WebSearchInjection) => webSearchSpec(() => cfg).build(ctx)
+
+const clearSearchEnv = (): void => {
+  for (const k of ['TAVILY_API_KEY', 'BRAVE_API_KEY', 'SEARXNG_URL']) {
+    vi.stubEnv(k, '')
+  }
+}
+
+describe('pickSearchProvider', () => {
+  it('honors an explicit provider choice', () => {
+    expect(pickSearchProvider({ provider: 'brave' }).name).toBe('brave')
+  })
+
+  it('auto-detects the first available keyed provider', () => {
+    expect(pickSearchProvider({ provider: 'auto', braveKey: 'k' }).name).toBe('brave')
+  })
+
+  it('falls back to duckduckgo when nothing is configured', () => {
+    expect(pickSearchProvider({ provider: 'auto' }).name).toBe('duckduckgo')
+  })
+})
+
+describe('resolveSearchConfig', () => {
+  it('prefers the configured key over the env fallback', () => {
+    vi.stubEnv('BRAVE_API_KEY', 'envk')
+    expect(resolveSearchConfig({ provider: 'auto', braveKey: 'uik' }).braveKey).toBe('uik')
+  })
+
+  it('falls back to the env var when no key is configured', () => {
+    vi.stubEnv('BRAVE_API_KEY', 'envk')
+    expect(resolveSearchConfig({ provider: 'auto' }).braveKey).toBe('envk')
+  })
+})
+
+describe('web search tool', () => {
+  it('returns an error for an empty query without searching', async () => {
+    const res = await searchTool({ provider: 'auto' }).execute('c', { query: '   ' })
+    expect((res.details as { error?: string }).error).toMatch(/empty/i)
+  })
+
+  it('formats brave JSON results as a numbered list', async () => {
+    clearSearchEnv()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              web: {
+                results: [
+                  { title: 'A', url: 'https://a.com', description: 'first' },
+                  { title: 'B', url: 'https://b.com', description: 'second' },
+                ],
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      )
+    )
+    const res = await searchTool({ provider: 'brave', braveKey: 'k' }).execute('c', { query: 'hello' })
+    expect(res.content[0].text).toContain('1. A')
+    expect(res.content[0].text).toContain('https://a.com')
+    expect((res.details as { provider: string }).provider).toBe('brave')
+  })
+
+  it('surfaces a provider HTTP error as a result, not a throw', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('nope', { status: 500, statusText: 'Server Error' }))
+    )
+    const res = await searchTool({ provider: 'brave', braveKey: 'k' }).execute('c', { query: 'hello' })
+    expect((res.details as { error?: string }).error).toMatch(/brave: 500/)
+  })
+
+  it('parses duckduckgo HTML results and decodes redirect URLs', async () => {
+    const html =
+      '<div class="result">' +
+      '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fx&rut=abc">Example</a>' +
+      '<div class="result__snippet">a snippet</div>' +
+      '</div>'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(html, { status: 200, headers: { 'content-type': 'text/html' } }))
+    )
+    const res = await searchTool({ provider: 'duckduckgo' }).execute('c', { query: 'hello' })
+    expect(res.content[0].text).toContain('Example')
+    expect(res.content[0].text).toContain('https://example.com/x')
   })
 })

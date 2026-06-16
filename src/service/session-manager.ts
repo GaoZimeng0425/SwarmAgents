@@ -12,6 +12,7 @@ import { createAgentRunner } from './agent-runner'
 import { type AskRegistry, createAskRegistry } from './ask-registry'
 import type { Broadcaster } from './broadcaster'
 import type { ConversationStore } from './conversation-store'
+import type { McpRequestRegistry } from './mcp-request-registry'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
 import { withSkills } from './skills/prompt'
 import type { SkillStore } from './skills/store'
@@ -36,6 +37,7 @@ type SessionManagerConfig = {
   getProvider(key: string): ProviderInjection | undefined
   toolRegistry?: ToolRegistry
   skillStore?: SkillStore
+  mcpRequests?: McpRequestRegistry
 }
 
 export type SessionManager = {
@@ -77,6 +79,11 @@ function buildDefaultRegistry(): ToolRegistry {
 export function createSessionManager(cfg: SessionManagerConfig): SessionManager {
   const { store, broadcaster } = cfg
   const toolRegistry = cfg.toolRegistry ?? buildDefaultRegistry()
+  // Optional like toolRegistry/skillStore: when absent, mcp_add reports it cleanly.
+  const mcpRequests: McpRequestRegistry = cfg.mcpRequests ?? {
+    add: () => Promise.resolve({ ok: false, code: 'unavailable', message: 'MCP config is unavailable here.' }),
+    resolve: () => undefined,
+  }
   const sessions = new Map<string, Session>()
 
   // Inject the available-skills list into the agent's system prompt at task
@@ -188,6 +195,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
           askRegistry: session.askRegistry,
+          mcpRequests,
           toolRegistry,
           initialMessages: [],
           signal: abort.signal,
@@ -289,6 +297,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
           askRegistry: session.askRegistry,
+          mcpRequests,
           toolRegistry,
           initialMessages: session.messages,
           saveSnapshot: (messages, used) => {

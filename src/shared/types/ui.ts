@@ -13,6 +13,7 @@ import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProviderId, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
+import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
 export type UIEvent =
   | { kind: 'task.created'; sessionId: string; taskId: string; goal: string; attachments?: Attachment[]; ts: number }
@@ -131,6 +132,20 @@ export type McpBridge = {
   onStatus(cb: (statuses: McpServerStatus[]) => void): () => void
 }
 
+export type WebSearchSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
+
+export type WebSearchKeyId = 'tavily' | 'brave'
+
+export type WebSearchBridge = {
+  get(): Promise<WebSearchConfigView>
+  setProvider(p: WebSearchProviderId): Promise<WebSearchSetResult>
+  setKey(id: WebSearchKeyId, key: string): Promise<WebSearchSetResult>
+  clearKey(id: WebSearchKeyId): Promise<WebSearchSetResult>
+  /** Pass an empty string or null to clear. */
+  setSearxngUrl(url: string | null): Promise<WebSearchSetResult>
+  onStateChanged(cb: (v: WebSearchConfigView) => void): () => void
+}
+
 export type SkillBridge = {
   list(): Promise<Skill[]>
   save(skill: Skill): Promise<SkillMutationResult>
@@ -184,6 +199,7 @@ export type SwarmBridge = {
   openPath(path: string): Promise<void>
   providers: ProvidersBridge
   mcp: McpBridge
+  webSearch: WebSearchBridge
   skills: SkillBridge
   memory: MemoryBridge
 }

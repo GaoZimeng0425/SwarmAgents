@@ -32,4 +32,5 @@ export async function initMcpServers(): Promise<McpServersHandle> {
   return { service, dispose }
 }
 
+export { applyAgentMcpAdd } from './agent-bridge'
 export type { Service } from './service'

@@ -20,6 +20,7 @@ const ctx: ToolRunContext = {
   send: () => undefined,
   requestPermission: async () => 'grant',
   askUser: async () => '',
+  addMcpServer: async () => ({ ok: true }),
 }
 
 describe('registerBuiltinTools', () => {
@@ -44,6 +45,7 @@ describe('registerBuiltinTools', () => {
       'fs.list_dir',
       'fs.read_file',
       'fs.write_file',
+      'mcp.mcp_add',
       'peekaboo.click',
       'peekaboo.hotkey',
       'peekaboo.list_apps',
@@ -52,6 +54,7 @@ describe('registerBuiltinTools', () => {
       'peekaboo.type',
       'shell.run_shell',
       'web.fetch',
+      'web.web_search',
     ])
   })
 
@@ -92,11 +95,12 @@ describe('registerBuiltinTools', () => {
     expect(riskOf('remember')).toBe('low')
   })
 
-  it('resolves the web fetch tool and gates private/non-http URLs dynamically', () => {
+  it('resolves the web fetch + search tools and gates private/non-http URLs dynamically', () => {
     const { tools, riskOf } = make().resolve(['web.*'], ctx)
-    expect(tools.map((t) => t.name)).toEqual(['fetch'])
+    expect(tools.map((t) => t.name).sort()).toEqual(['fetch', 'web_search'])
     expect(riskOf('fetch', { url: 'https://example.com' })).toBe('low')
     expect(riskOf('fetch', { url: 'http://localhost:8080' })).toBe('high')
+    expect(riskOf('web_search')).toBe('low')
   })
 
   it('resolves the fs tools and gates writes to sensitive paths dynamically', () => {

@@ -1,8 +1,10 @@
-import { Readability } from '@mozilla/readability'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
+import { Readability } from '@mozilla/readability'
+import type { WebSearchInjection } from '@shared/types/web-search'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
+
 import type { ToolRisk, ToolRunContext, ToolSpec } from './registry'
 
 const MAX_OUTPUT = 16_000
@@ -16,8 +18,7 @@ const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
 })
 const err = (message: string): Result => ok(`error: ${message}`, { error: message })
 
-const IPV4_PRIVATE =
-  /^(127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0$|172\.(1[6-9]|2\d|3[01])\.)/
+const IPV4_PRIVATE = /^(127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0$|172\.(1[6-9]|2\d|3[01])\.)/
 
 // SSRF guard input for riskFor: loopback / private / link-local hosts escalate
 // to the permission prompt. Not a hard block — the prompt is the real gate.
@@ -117,6 +118,212 @@ export function webFetchSpec(): ToolSpec {
           return err(msg)
         } finally {
           clearTimeout(timer)
+        }
+      },
+    }),
+  }
+}
+
+// ─── web search ──────────────────────────────────────────────────────────────
+
+const SEARCH_TIMEOUT_MS = 15_000
+const DEFAULT_COUNT = 5
+const MAX_COUNT = 10
+
+export type SearchResult = { title: string; url: string; snippet: string }
+
+// Per-call config with secrets resolved: UI-configured key/URL first, then the
+// matching env var as a fallback (so env-only setups keep working).
+export type ResolvedSearchConfig = {
+  provider: WebSearchInjection['provider']
+  tavilyKey?: string
+  braveKey?: string
+  searxngUrl?: string
+}
+
+export function resolveSearchConfig(cfg: WebSearchInjection): ResolvedSearchConfig {
+  const pick = (configured: string | undefined, env: string | undefined): string | undefined =>
+    configured?.trim() || env?.trim() || undefined
+  return {
+    provider: cfg.provider,
+    tavilyKey: pick(cfg.tavilyKey, process.env.TAVILY_API_KEY),
+    braveKey: pick(cfg.braveKey, process.env.BRAVE_API_KEY),
+    searxngUrl: pick(cfg.searxngUrl, process.env.SEARXNG_URL),
+  }
+}
+
+// A swappable search backend. `name` routes selection; `isAvailable` is a cheap,
+// network-free check (is its key/URL present in the resolved config?); `search`
+// runs the query. Mirrors Hermes' WebSearchProvider — adding a source is one object.
+export interface SearchProvider {
+  name: Exclude<WebSearchInjection['provider'], 'auto'>
+  isAvailable(cfg: ResolvedSearchConfig): boolean
+  search(query: string, count: number, cfg: ResolvedSearchConfig): Promise<SearchResult[]>
+}
+
+// Shared GET/POST → JSON with a timeout. AbortSignal.timeout throws a
+// TimeoutError; non-2xx becomes an Error so providers don't parse error bodies.
+async function searchJson(url: string | URL, init?: RequestInit): Promise<unknown> {
+  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS) })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json()
+}
+
+const tavilyProvider: SearchProvider = {
+  name: 'tavily',
+  isAvailable: (cfg) => !!cfg.tavilyKey,
+  async search(query, count, cfg) {
+    const json = (await searchJson('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${cfg.tavilyKey ?? ''}`,
+      },
+      body: JSON.stringify({ query, max_results: count }),
+    })) as { results?: { title: string; url: string; content?: string }[] }
+    return (json.results ?? []).slice(0, count).map((r) => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.content ?? '',
+    }))
+  },
+}
+
+const braveProvider: SearchProvider = {
+  name: 'brave',
+  isAvailable: (cfg) => !!cfg.braveKey,
+  async search(query, count, cfg) {
+    const u = new URL('https://api.search.brave.com/res/v1/web/search')
+    u.searchParams.set('q', query)
+    u.searchParams.set('count', String(count))
+    const json = (await searchJson(u, {
+      headers: { accept: 'application/json', 'x-subscription-token': cfg.braveKey ?? '' },
+    })) as { web?: { results?: { title: string; url: string; description?: string }[] } }
+    return (json.web?.results ?? []).slice(0, count).map((r) => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.description ?? '',
+    }))
+  },
+}
+
+const searxngProvider: SearchProvider = {
+  name: 'searxng',
+  isAvailable: (cfg) => !!cfg.searxngUrl,
+  async search(query, count, cfg) {
+    const u = new URL('/search', cfg.searxngUrl ?? '')
+    u.searchParams.set('q', query)
+    u.searchParams.set('format', 'json')
+    const json = (await searchJson(u, { headers: { accept: 'application/json' } })) as {
+      results?: { title: string; url: string; content?: string }[]
+    }
+    return (json.results ?? []).slice(0, count).map((r) => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.content ?? '',
+    }))
+  },
+}
+
+// DuckDuckGo's HTML endpoint wraps each result URL in a redirect
+// (//duckduckgo.com/l/?uddg=<encoded>); pull the real target back out.
+function ddgRealUrl(href: string): string {
+  try {
+    return new URL(href, 'https://duckduckgo.com').searchParams.get('uddg') ?? href
+  } catch {
+    return href
+  }
+}
+
+// No key, no config — the always-available fallback. Scrapes the HTML results
+// page, so it's the most fragile; fine for local/dev, not for production load.
+const ddgProvider: SearchProvider = {
+  name: 'duckduckgo',
+  isAvailable: () => true,
+  async search(query, count) {
+    const u = new URL('https://html.duckduckgo.com/html/')
+    u.searchParams.set('q', query)
+    const res = await fetch(u, {
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+      headers: { 'user-agent': USER_AGENT },
+    })
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    const doc = new JSDOM(await res.text()).window.document
+    const out: SearchResult[] = []
+    for (const el of Array.from(doc.querySelectorAll('.result'))) {
+      const a = el.querySelector('a.result__a')
+      if (!a) continue
+      out.push({
+        title: a.textContent?.trim() ?? '',
+        url: ddgRealUrl(a.getAttribute('href') ?? ''),
+        snippet: el.querySelector('.result__snippet')?.textContent?.trim() ?? '',
+      })
+      if (out.length >= count) break
+    }
+    return out
+  },
+}
+
+// Precedence for auto-detection: keyed providers first (better quality), DDG
+// last as the always-on fallback.
+const SEARCH_PROVIDERS: SearchProvider[] = [tavilyProvider, braveProvider, searxngProvider, ddgProvider]
+
+// An explicit provider wins (even if its key is missing — the search() call
+// then errors clearly). 'auto' picks the first available provider; DDG always
+// qualifies.
+export function pickSearchProvider(cfg: ResolvedSearchConfig): SearchProvider {
+  if (cfg.provider !== 'auto') {
+    const chosen = SEARCH_PROVIDERS.find((p) => p.name === cfg.provider)
+    if (chosen) return chosen
+  }
+  return SEARCH_PROVIDERS.find((p) => p.isAvailable(cfg)) ?? ddgProvider
+}
+
+function formatResults(results: SearchResult[]): string {
+  return results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`).join('\n\n')
+}
+
+const SearchParams = Type.Object({
+  query: Type.String({ description: 'The search query.' }),
+  count: Type.Optional(
+    Type.Number({ description: `Max results to return (1-${MAX_COUNT}, default ${DEFAULT_COUNT}).` })
+  ),
+})
+
+// `getConfig` is read per call (not snapshotted) so a config change in Settings
+// takes effect on the next search without re-registering the tool.
+export function webSearchSpec(getConfig: () => WebSearchInjection): ToolSpec {
+  return {
+    group: 'web',
+    name: 'web_search',
+    risk: 'low', // read-only result list; nothing is opened or changed
+    source: 'builtin',
+    build: (_ctx: ToolRunContext): AgentTool => ({
+      name: 'web_search',
+      label: 'Web Search',
+      description:
+        'Search the web and return a ranked list of {title, url, snippet}. ' +
+        'Use it to discover URLs, then call fetch to read a page in full.',
+      parameters: SearchParams,
+      execute: async (_id: string, params: unknown) => {
+        const p = params as { query?: string; count?: number }
+        const query = (p.query ?? '').trim()
+        if (!query) return err('empty query')
+        const count = Math.min(Math.max(p.count ?? DEFAULT_COUNT, 1), MAX_COUNT)
+        const cfg = resolveSearchConfig(getConfig())
+        const provider = pickSearchProvider(cfg)
+        try {
+          const results = await provider.search(query, count, cfg)
+          if (results.length === 0) return ok('(no results)', { provider: provider.name, query })
+          return ok(formatResults(results), { provider: provider.name, query, count: results.length })
+        } catch (e) {
+          const msg =
+            e instanceof Error && e.name === 'TimeoutError'
+              ? `timed out after ${SEARCH_TIMEOUT_MS}ms`
+              : e instanceof Error
+                ? e.message
+                : String(e)
+          return err(`${provider.name}: ${msg}`)
         }
       },
     }),

@@ -1,9 +1,12 @@
+import type { WebSearchInjection } from '@shared/types/web-search'
+
 import type { CronScheduler } from '../cron-scheduler'
 import type { MemoryStore } from '../memory-store'
 import type { SkillStore } from '../skills/store'
 import { askUserSpec } from './ask'
 import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
+import { mcpAddSpec } from './mcp'
 import { memorySpecs } from './memory'
 import { buildPeekabooTools } from './peekaboo'
 import { updatePlanSpec } from './plan'
@@ -11,7 +14,7 @@ import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
 import { spawnAgentSpec } from './spawn'
-import { webFetchSpec } from './web'
+import { webFetchSpec, webSearchSpec } from './web'
 
 const PEEKABOO_RISK: Record<string, ToolRisk> = {
   // Read-only observation and the reversible scroll auto-run; consequential
@@ -43,7 +46,12 @@ export function peekabooSpecs(): ToolSpec[] {
 
 export function registerBuiltinTools(
   registry: ToolRegistry,
-  deps?: { memoryStore?: MemoryStore; skillStore?: SkillStore; scheduler?: CronScheduler }
+  deps?: {
+    memoryStore?: MemoryStore
+    skillStore?: SkillStore
+    scheduler?: CronScheduler
+    getWebSearchConfig?: () => WebSearchInjection
+  }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
@@ -51,6 +59,9 @@ export function registerBuiltinTools(
   registry.register(askUserSpec())
   registry.register(shellSpec())
   registry.register(webFetchSpec())
+  // No config getter (e.g. tests) → 'auto' with env-var fallback inside web.ts.
+  registry.register(webSearchSpec(deps?.getWebSearchConfig ?? (() => ({ provider: 'auto' }))))
+  registry.register(mcpAddSpec())
   for (const spec of fsSpecs()) registry.register(spec)
   // Memory tools need a backing store; registered only when one is injected.
   if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)

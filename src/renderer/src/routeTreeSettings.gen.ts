@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes-settings/__root'
+import { Route as WebSearchRouteImport } from './routes-settings/web-search'
 import { Route as ProvidersRouteImport } from './routes-settings/providers'
 import { Route as PermissionsRouteImport } from './routes-settings/permissions'
 import { Route as McpRouteImport } from './routes-settings/mcp'
 import { Route as AboutRouteImport } from './routes-settings/about'
 import { Route as IndexRouteImport } from './routes-settings/index'
 
+const WebSearchRoute = WebSearchRouteImport.update({
+  id: '/web-search',
+  path: '/web-search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProvidersRoute = ProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
+  '/web-search': typeof WebSearchRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
+  '/web-search': typeof WebSearchRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,27 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
+  '/web-search': typeof WebSearchRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/mcp' | '/permissions' | '/providers'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/mcp'
+    | '/permissions'
+    | '/providers'
+    | '/web-search'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/mcp' | '/permissions' | '/providers'
-  id: '__root__' | '/' | '/about' | '/mcp' | '/permissions' | '/providers'
+  to: '/' | '/about' | '/mcp' | '/permissions' | '/providers' | '/web-search'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/mcp'
+    | '/permissions'
+    | '/providers'
+    | '/web-search'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,10 +99,18 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   PermissionsRoute: typeof PermissionsRoute
   ProvidersRoute: typeof ProvidersRoute
+  WebSearchRoute: typeof WebSearchRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/web-search': {
+      id: '/web-search'
+      path: '/web-search'
+      fullPath: '/web-search'
+      preLoaderRoute: typeof WebSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/providers': {
       id: '/providers'
       path: '/providers'
@@ -125,6 +155,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   PermissionsRoute: PermissionsRoute,
   ProvidersRoute: ProvidersRoute,
+  WebSearchRoute: WebSearchRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

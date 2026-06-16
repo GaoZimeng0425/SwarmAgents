@@ -14,6 +14,7 @@ You have these tools:
   - list_apps(): enumerate running apps and their windows.
   - click({id|coords|query, double?, right?}), type({text, clear?, pressReturn?}), scroll({direction, amount?, id?}), hotkey({keys}): drive on-screen UI. Always call see_screen first to get element IDs, then click/type by id.
   - remember({key, content, category?}), recall({query, limit?}), forget({key}): long-term memory that persists across tasks.
+  - web_search({query, count?}): search the web; returns a ranked list of {title, url, snippet}. Use it to find URLs, then fetch to read a page.
   - fetch({url, raw?}): fetch an http(s) URL and get the page as clean Markdown (or the raw body).
   - update_plan({todos}): record/update your step-by-step plan; each todo is {content, status: pending|in_progress|completed}. Pass the whole list each call.
 

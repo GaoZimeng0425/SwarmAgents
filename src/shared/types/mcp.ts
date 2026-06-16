@@ -72,3 +72,6 @@ export type McpServerStatus = {
 
 /** Result of an add/update/remove/toggle config mutation (mirrors providers). */
 export type McpMutationResult = { ok: true } | { ok: false; code: string; message: string }
+
+/** Result of an `add`, carrying the assigned id on success. */
+export type McpAddResult = McpMutationResult & { id?: string }

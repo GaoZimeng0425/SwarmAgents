@@ -5,12 +5,13 @@ import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
-import { initMcpServers } from './mcp-servers'
+import { applyAgentMcpAdd, initMcpServers } from './mcp-servers'
 import { initProviders } from './providers'
 import { createServiceClient, type ServiceTransport } from './service-client'
 import { setupAutoUpdate } from './system/auto-update'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
+import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
 import { openSettings } from './windows/settings-window'
 
@@ -41,9 +42,13 @@ app.whenReady().then(async () => {
   const mcpServers = await initMcpServers()
   log.info({ msg: 'mcp servers initialised' })
 
+  const webSearch = await initWebSearch()
+  log.info({ msg: 'web search config initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
     mcpServers.dispose()
+    webSearch.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')
@@ -80,6 +85,14 @@ app.whenReady().then(async () => {
     serviceClient = createServiceClient({
       transport: serviceProcess as unknown as ServiceTransport,
       onEvent: (event, data) => {
+        // An agent tool asking to add an MCP server: validate + persist via the
+        // config service, then reply so the tool unblocks with the result.
+        if (event === 'mcp.config.add') {
+          void applyAgentMcpAdd(mcpServers.service, data)
+            .then((res) => res && serviceClient.respondMcpAdd(res.requestId, res.result))
+            .catch((err: unknown) => log.warn({ msg: 'applyAgentMcpAdd failed', err: String(err) }))
+          return
+        }
         // MCP status rides a dedicated channel — it isn't a task UIEvent and
         // must not reach applyEvent (which would create a phantom task stub).
         const channel = event.startsWith('mcp.') ? 'mcp:status' : 'swarm:event'
@@ -91,7 +104,12 @@ app.whenReady().then(async () => {
     })
     await serviceClient.connect()
 
-    wireSwarmIpc({ serviceClient, providers: providers.service, mcpServers: mcpServers.service })
+    wireSwarmIpc({
+      serviceClient,
+      providers: providers.service,
+      mcpServers: mcpServers.service,
+      webSearch: webSearch.service,
+    })
     log.info({ msg: 'core services up' })
   } catch (err) {
     log.error({ msg: 'Agent Service failed to start', err: String(err) })

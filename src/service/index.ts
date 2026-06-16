@@ -3,12 +3,14 @@ import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceRequest } from '@shared/types/service-ipc'
+import type { WebSearchInjection } from '@shared/types/web-search'
 
 import { createBroadcaster } from './broadcaster'
 import { createConversationStore } from './conversation-store'
 import { createCronScheduler } from './cron-scheduler'
 import { createDispatcher } from './dispatcher'
 import { createMcpManager } from './mcp/manager'
+import { createMcpRequestRegistry } from './mcp-request-registry'
 import { createMemoryStore } from './memory-store'
 import { createSessionManager } from './session-manager'
 import { createSkillStore } from './skills/store'
@@ -43,6 +45,13 @@ const toolRegistry = createToolRegistry()
 
 const providerRegistry = new Map<string, ProviderInjection>()
 
+// Live web-search config, pushed from Main and read per call by the web_search
+// tool. Defaults to 'auto' (env-var fallback) until Main sends the persisted one.
+let webSearchConfig: WebSearchInjection = { provider: 'auto' }
+
+// Lets the mcp_add tool persist a server via Main (the config store lives there).
+const mcpRequests = createMcpRequestRegistry((event, data) => broadcaster.broadcast(event, data))
+
 const manager = createSessionManager({
   store,
   broadcaster,
@@ -50,6 +59,7 @@ const manager = createSessionManager({
   getProvider: (key) => providerRegistry.get(key),
   toolRegistry,
   skillStore,
+  mcpRequests,
 })
 
 const scheduler = createCronScheduler({
@@ -58,7 +68,12 @@ const scheduler = createCronScheduler({
     manager.submitGoal(sessionId, goal)
   },
 })
-registerBuiltinTools(toolRegistry, { memoryStore, skillStore, scheduler })
+registerBuiltinTools(toolRegistry, {
+  memoryStore,
+  skillStore,
+  scheduler,
+  getWebSearchConfig: () => webSearchConfig,
+})
 scheduler.start()
 
 const mcpManager = createMcpManager({
@@ -73,6 +88,10 @@ const dispatch = createDispatcher({
   },
   setMcpServers: (configs) => mcpManager.setServers(configs),
   getMcpStatus: () => mcpManager.getStatus(),
+  resolveMcpAdd: (requestId, result) => mcpRequests.resolve(requestId, result),
+  setWebSearchConfig: (config) => {
+    webSearchConfig = config
+  },
   listSkills: () => skillStore.list(),
   saveSkill: (skill) => skillStore.save(skill),
   deleteSkill: (name) => skillStore.remove(name),

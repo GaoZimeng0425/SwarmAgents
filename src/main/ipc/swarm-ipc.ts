@@ -11,6 +11,7 @@ import type { ServiceClient } from '../service-client'
 import { getAccent, subscribeAccent } from '../system/accent'
 import { showNativeConfirm } from '../system/confirm'
 import { getMacPermissions, openPrivacySettings } from '../system/permissions'
+import type { Service as WebSearchService } from '../web-search'
 import { getMainWindow } from '../windows/main-window'
 import { openSettings } from '../windows/settings-window'
 
@@ -36,8 +37,9 @@ export function wireSwarmIpc(args: {
   serviceClient: ServiceClient
   providers: ProvidersService
   mcpServers: McpService
+  webSearch: WebSearchService
 }): { dispose: () => void } {
-  const { serviceClient, providers, mcpServers } = args
+  const { serviceClient, providers, mcpServers, webSearch } = args
 
   // ---- MCP config ↔ service bridge ----
   // Push the persisted config to the service now, and on every change. The
@@ -51,6 +53,18 @@ export function wireSwarmIpc(args: {
     })
   })
   ipcMain.handle('mcp:getStatus', () => serviceClient.getMcpStatus())
+
+  // ---- Web-search config ↔ service bridge ----
+  // Push the persisted config (incl. keys) to the service now, and on every
+  // change. The web_search tool reads it per call.
+  void serviceClient.setWebSearchConfig(webSearch.getInjection()).catch((err: unknown) => {
+    log.warn({ msg: 'initial setWebSearchConfig failed', err: String(err) })
+  })
+  const offWebSearchChange = webSearch.onStateChanged(() => {
+    void serviceClient.setWebSearchConfig(webSearch.getInjection()).catch((err: unknown) => {
+      log.warn({ msg: 'setWebSearchConfig failed', err: String(err) })
+    })
+  })
 
   // ---- Skills (service owns the files; main is a thin passthrough) ----
   ipcMain.handle('skills:list', () => serviceClient.listSkills())
@@ -204,6 +218,7 @@ export function wireSwarmIpc(args: {
   return {
     dispose(): void {
       offMcpChange()
+      offWebSearchChange()
       ipcMain.removeHandler('mcp:getStatus')
       ipcMain.removeHandler('skills:list')
       ipcMain.removeHandler('skills:save')

@@ -18,6 +18,8 @@ function mockManager(): SessionManager {
 const mcpDeps = () => ({
   setMcpServers: vi.fn().mockResolvedValue(undefined),
   getMcpStatus: vi.fn().mockReturnValue([]),
+  resolveMcpAdd: vi.fn(),
+  setWebSearchConfig: vi.fn(),
   listSkills: vi.fn().mockReturnValue([]),
   saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   deleteSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
@@ -89,7 +91,9 @@ describe('dispatcher', () => {
 
   it('listMemory reads through with the namespace arg', () => {
     const deps = mcpDeps()
-    deps.listMemory.mockReturnValue([{ id: 'ns:k', namespace: 'ns', key: 'k', content: 'c', category: 'note', timestamp: 1 }])
+    deps.listMemory.mockReturnValue([
+      { id: 'ns:k', namespace: 'ns', key: 'k', content: 'c', category: 'note', timestamp: 1 },
+    ])
     const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn(), ...deps })
     const result = dispatch('listMemory', ['ns'])
     expect(deps.listMemory).toHaveBeenCalledWith('ns')
