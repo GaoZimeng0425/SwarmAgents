@@ -129,6 +129,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
         historyByTask.delete(taskId)
       }
+      if (event === 'task.plan' && taskId && Array.isArray(obj?.todos)) {
+        const todos = obj.todos as import('@shared/types/task').PlanTodo[]
+        store.saveTaskPlan(taskId, todos)
+        log.debug({ msg: 'plan persisted', taskId, steps: todos.length })
+      }
       broadcaster.broadcast(event, payload)
     }
 
