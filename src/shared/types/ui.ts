@@ -9,9 +9,9 @@
  */
 import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
+import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProviderId, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
-import type { MemoryView } from './memory'
 import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
 
 export type UIEvent =

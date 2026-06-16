@@ -36,9 +36,7 @@ const skillsPath = process.env.SWARM_SERVICE_SKILLS_PATH ?? join(tmpdir(), 'swar
 
 const store = createConversationStore(dbPath)
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
-const memoryStore = createMemoryStore(memoryPath, () =>
-  broadcaster.broadcast('memory.changed', { ts: Date.now() })
-)
+const memoryStore = createMemoryStore(memoryPath, () => broadcaster.broadcast('memory.changed', { ts: Date.now() }))
 const skillStore = createSkillStore({ dir: skillsPath })
 
 const toolRegistry = createToolRegistry()

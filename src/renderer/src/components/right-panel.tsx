@@ -1,6 +1,6 @@
+import { useState } from 'react'
 import type { PlanTodo } from '@shared/types/task'
 import { Brain, ListChecks, PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { useState } from 'react'
 
 import { MemoryPanel } from '@/components/memory-panel'
 import { PlanPanel } from '@/components/plan-panel'
@@ -62,7 +62,11 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
 
   return (
     <div className="flex h-full w-80 shrink-0 flex-col border-l bg-sidebar/50 backdrop-blur-sm">
-      <Tabs className="flex min-h-0 flex-1 flex-col gap-0" onValueChange={(v) => setTab(v as 'plan' | 'memory')} value={tab}>
+      <Tabs
+        className="flex min-h-0 flex-1 flex-col gap-0"
+        onValueChange={(v) => setTab(v as 'plan' | 'memory')}
+        value={tab}
+      >
         <div className="flex h-11 items-center justify-between border-border/40 border-b px-2">
           <TabsList className="bg-transparent">
             <TabsTrigger value="plan">Plan</TabsTrigger>

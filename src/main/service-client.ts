@@ -1,8 +1,8 @@
 import { createLogger } from '@shared/logger'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
+import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
-import type { MemoryView } from '@shared/types/memory'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { PermissionDecision } from '@shared/types/ui'
 
