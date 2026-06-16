@@ -113,6 +113,12 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   const historyByTask = new Map<string, TaskEvent[]>()
 
+  const appendError = (taskId: string, error: unknown): void => {
+    const buf = historyByTask.get(taskId) ?? []
+    buf.push({ kind: 'error', error: error as Extract<TaskEvent, { kind: 'error' }>['error'], ts: Date.now() })
+    historyByTask.set(taskId, buf)
+  }
+
   const makeEmit =
     (sessionId: string) =>
     (event: string, data: unknown): void => {
@@ -124,6 +130,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const buf = historyByTask.get(taskId) ?? []
         buf.push(obj.event as TaskEvent)
         historyByTask.set(taskId, buf)
+      }
+      if (event === 'task.error' && taskId && obj?.error) {
+        appendError(taskId, obj.error)
       }
       if ((event === 'task.complete' || event === 'task.error') && taskId) {
         store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
@@ -305,6 +314,17 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           store.updateTaskStatus(taskId, status)
         } catch (err) {
           log.error({ msg: 'runTurn failed', taskId, err: err instanceof Error ? err.message : String(err) })
+          appendError(taskId, {
+            code: 'run_failed',
+            message: err instanceof Error ? err.message : String(err),
+            tier: 'fatal',
+          })
+          try {
+            store.saveTaskHistory(taskId, historyByTask.get(taskId) ?? [])
+            historyByTask.delete(taskId)
+          } catch (histErr) {
+            log.error({ msg: 'failed to persist history on failure', taskId, err: String(histErr) })
+          }
           try {
             store.updateTaskStatus(taskId, 'failed')
           } catch (statusErr) {
