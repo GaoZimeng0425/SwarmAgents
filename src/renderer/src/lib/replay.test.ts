@@ -14,6 +14,7 @@ const baseTask = (over: Partial<Task>): Task => ({
   budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
   used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
   history: [],
+  plan: [],
   attachments: [],
   result: null,
   createdAt: 1,
@@ -45,5 +46,25 @@ describe('tasksToRecords', () => {
       baseTask({ id: '01HRX0000000000000000000R2', createdAt: 5 }),
     ])
     expect(records[0].id).toBe('01HRX0000000000000000000R2')
+  })
+
+  it('rehydrates a persisted plan onto the record', () => {
+    const records = tasksToRecords('ses-1', [
+      baseTask({
+        plan: [
+          { content: 'step one', status: 'completed' },
+          { content: 'step two', status: 'in_progress' },
+        ],
+      }),
+    ])
+    expect(records[0].plan).toEqual([
+      { content: 'step one', status: 'completed' },
+      { content: 'step two', status: 'in_progress' },
+    ])
+  })
+
+  it('leaves plan undefined when the persisted plan is empty', () => {
+    const records = tasksToRecords('ses-1', [baseTask({ plan: [] })])
+    expect(records[0].plan).toBeUndefined()
   })
 })

@@ -45,6 +45,7 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       summary: t.result?.summary ?? null,
       startedAt: t.createdAt,
       attachments: t.attachments,
+      plan: t.plan.length ? t.plan : undefined,
       events,
     }
   })
