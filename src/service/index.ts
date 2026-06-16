@@ -35,9 +35,11 @@ const memoryPath = process.env.SWARM_SERVICE_MEMORY_PATH ?? join(tmpdir(), 'swar
 const skillsPath = process.env.SWARM_SERVICE_SKILLS_PATH ?? join(tmpdir(), 'swarm-agent-skills')
 
 const store = createConversationStore(dbPath)
-const memoryStore = createMemoryStore(memoryPath)
-const skillStore = createSkillStore({ dir: skillsPath })
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
+const memoryStore = createMemoryStore(memoryPath, () =>
+  broadcaster.broadcast('memory.changed', { ts: Date.now() })
+)
+const skillStore = createSkillStore({ dir: skillsPath })
 
 const toolRegistry = createToolRegistry()
 
@@ -76,6 +78,7 @@ const dispatch = createDispatcher({
   listSkills: () => skillStore.list(),
   saveSkill: (skill) => skillStore.save(skill),
   deleteSkill: (name) => skillStore.remove(name),
+  listMemory: (namespace) => memoryStore.list(namespace),
 })
 
 parentPort.on('message', async (e) => {
