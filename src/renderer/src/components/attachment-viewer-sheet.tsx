@@ -7,7 +7,6 @@ import { DocxViewerPreview } from '@/components/ui/docx-viewer'
 import { PDFViewer } from '@/components/ui/pdf-viewer'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { XlsxViewerPreview } from '@/components/ui/xlsx-viewer'
-import { dataUrlToBlob } from '@/lib/data-url'
 import { fileKind } from '@/lib/file-kind'
 
 export type ViewerFile = { url: string; mediaType?: string; filename?: string }
@@ -17,39 +16,29 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
-/** Convert a base64 data URL to an object URL for the lifetime of `dataUrl`. */
-function useObjectUrl(dataUrl: string | null): string | null {
-  const [objectUrl, setObjectUrl] = useState<string | null>(null)
-  useEffect(() => {
-    if (!dataUrl) {
-      setObjectUrl(null)
-      return
-    }
-    const url = URL.createObjectURL(dataUrlToBlob(dataUrl))
-    setObjectUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [dataUrl])
-  return objectUrl
-}
-
-/** Read a base64 data URL as text (for CSV). */
-function useTextContent(dataUrl: string | null): string | null {
+// The composer stores each attachment's `url` as a blob: object URL
+// (URL.createObjectURL). The pdf/xlsx/docx viewers take that URL as `src`
+// directly; only CSV needs the raw text, which we fetch from the same URL.
+function useFetchedText(url: string | null): string | null {
   const [text, setText] = useState<string | null>(null)
   useEffect(() => {
-    if (!dataUrl) {
+    if (!url) {
       setText(null)
       return
     }
     let cancelled = false
-    dataUrlToBlob(dataUrl)
-      .text()
+    void fetch(url)
+      .then((r) => r.text())
       .then((t) => {
         if (!cancelled) setText(t)
+      })
+      .catch(() => {
+        if (!cancelled) setText(null)
       })
     return () => {
       cancelled = true
     }
-  }, [dataUrl])
+  }, [url])
   return text
 }
 
@@ -61,12 +50,10 @@ function ViewerBody({ file }: { file: ViewerFile }): React.JSX.Element {
   }, [resolvedTheme])
 
   const kind = useMemo(() => fileKind(file.mediaType), [file.mediaType])
-  // `src`-based viewers (pdf/xlsx/docx) take an object URL; csv takes text.
-  const objectUrl = useObjectUrl(kind === 'csv' ? null : file.url)
-  const csvText = useTextContent(kind === 'csv' ? file.url : null)
+  const csvText = useFetchedText(kind === 'csv' ? file.url : null)
 
   if (kind === 'pdf') {
-    return <PDFViewer className="h-full" fileName={file.filename} src={objectUrl ?? undefined} />
+    return <PDFViewer className="h-full" fileName={file.filename} src={file.url} />
   }
   if (kind === 'xlsx') {
     return (
@@ -75,7 +62,7 @@ function ViewerBody({ file }: { file: ViewerFile }): React.JSX.Element {
         fileName={file.filename}
         isDark={isDark}
         onIsDarkChange={setIsDark}
-        src={objectUrl ?? undefined}
+        src={file.url}
       />
     )
   }
@@ -86,7 +73,7 @@ function ViewerBody({ file }: { file: ViewerFile }): React.JSX.Element {
         fileName={file.filename}
         isDark={isDark}
         onIsDarkChange={setIsDark}
-        src={objectUrl ?? undefined}
+        src={file.url}
       />
     )
   }

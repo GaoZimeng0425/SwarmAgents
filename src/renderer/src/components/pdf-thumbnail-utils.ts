@@ -1,7 +1,8 @@
 import type { PdfDocumentObject, PdfEngine } from '@embedpdf/models'
-
-const PDFIUM_VERSION = '2.14.4'
-const PDFIUM_WASM_URL = `https://cdn.jsdelivr.net/npm/@embedpdf/pdfium@${PDFIUM_VERSION}/dist/pdfium.wasm`
+// local-adapt: bundle pdfium.wasm as a local asset instead of fetching from the jsdelivr
+// CDN. The app's CSP is connect-src 'self', so a CDN fetch is blocked, and a desktop app
+// must work offline. Vite emits the wasm and resolves a same-origin URL at build time.
+import PDFIUM_WASM_URL from '@embedpdf/pdfium/pdfium.wasm?url'
 
 let sharedEnginePromise: Promise<PdfEngine> | null = null
 const pdfDocumentCache = new Map<string, Promise<PdfDocumentObject>>()
