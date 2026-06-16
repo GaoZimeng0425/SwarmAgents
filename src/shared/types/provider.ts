@@ -57,6 +57,7 @@ export type ProvidersStateOnDisk = z.infer<typeof ProvidersStateOnDisk>
 const ProviderRowView = z.object({
   model: ModelString,
   hasKey: z.boolean(),
+  supportsImages: z.boolean(),
   baseUrl: BaseUrlString.optional(),
   customModels: CustomModelsList.optional(),
   apiStyle: ApiStyle.optional(),

@@ -19,6 +19,7 @@ describe('toView', () => {
     expect(view.providers.anthropic).toEqual({
       model: 'claude-sonnet-4-5',
       hasKey: true,
+      supportsImages: expect.any(Boolean),
     })
     expect(view.providers.openai).toBeNull()
   })
@@ -52,6 +53,7 @@ describe('toView', () => {
     expect(view.providers.openai).toEqual({
       model: 'deepseek-chat',
       hasKey: true,
+      supportsImages: expect.any(Boolean),
       baseUrl: 'https://api.deepseek.com',
     })
   })
