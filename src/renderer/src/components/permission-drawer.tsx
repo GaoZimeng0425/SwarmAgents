@@ -1,14 +1,14 @@
 // src/renderer/src/components/permission-drawer.tsx
 //
-// Medium-risk permission UI. Renders as a fixed bottom card with no backdrop
-// (ship B.19: no modal overlays with backdrop blur for "dialogs"). Dismissible
-// by Escape. High-risk goes through native dialog.showMessageBox via
-// useNativeConfirm; low-risk is auto-granted by the main-process permission
-// gate and never reaches the renderer.
-import { useEffect } from 'react'
+// 权限申请面板。渲染为 chat 列内、紧贴 composer 上方的内联滑出面板(非模态、
+// 无 backdrop),进场上滑淡入。所有风险等级(medium/high)都经此面板决策;
+// low 由主进程 permission gate 自动放行,不到渲染层。高风险仅做视觉区分
+// (destructive 样式 + 默认焦点落在 Deny),不加二次确认门槛。Escape = skip。
+import { useEffect, useRef } from 'react'
 import type { PermissionDecision } from '@shared/types/ui'
 
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { PermissionPrompt } from '@/stores/permission'
 
 type Props = {
@@ -17,6 +17,8 @@ type Props = {
 }
 
 export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element | null {
+  const denyRef = useRef<HTMLButtonElement>(null)
+
   useEffect(() => {
     if (!prompt) return
     const onKey = (e: KeyboardEvent): void => {
@@ -28,17 +30,31 @@ export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element
     }
   }, [prompt, onDecide])
 
+  // High-risk: park focus on Deny so the safe choice is the default.
+  useEffect(() => {
+    if (prompt?.risk === 'high') denyRef.current?.focus()
+  }, [prompt])
+
   if (!prompt) return null
+
+  const isHigh = prompt.risk === 'high'
 
   return (
     <div
       aria-label="Action requires confirmation"
-      className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-auto border-border border-t bg-popover/95 px-6 py-4 shadow-lg"
-      role="dialog"
+      className={cn(
+        'mx-3 mb-2 max-h-[50vh] shrink-0 overflow-auto rounded-xl border bg-popover/95 px-4 py-3 shadow-lg',
+        'duration-200 animate-in fade-in-0 slide-in-from-bottom-3',
+        isHigh ? 'border-destructive/50 ring-1 ring-destructive/30' : 'border-border'
+      )}
+      data-risk={prompt.risk}
+      role="region"
     >
       <div className="flex flex-col gap-3">
         <header>
-          <h2 className="font-medium text-base">Action requires confirmation</h2>
+          <h2 className={cn('font-medium text-base', isHigh && 'text-destructive')}>
+            Action requires confirmation
+          </h2>
           <p className="text-muted-foreground text-sm">
             Task {prompt.taskId} · risk: <strong>{prompt.risk}</strong>
           </p>
@@ -67,6 +83,7 @@ export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element
             onClick={() => {
               onDecide(prompt.actionId, 'deny')
             }}
+            ref={denyRef}
             variant="destructive"
           >
             Deny
