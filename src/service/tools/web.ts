@@ -1,11 +1,14 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { Readability } from '@mozilla/readability'
+import { createLogger } from '@shared/logger'
 import type { WebSearchInjection } from '@shared/types/web-search'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 
 import type { ToolRisk, ToolRunContext, ToolSpec } from './registry'
+
+const log = createLogger({ process: 'service' }).child({ component: 'web' })
 
 const MAX_OUTPUT = 16_000
 const TIMEOUT_MS = 20_000
@@ -312,9 +315,14 @@ export function webSearchSpec(getConfig: () => WebSearchInjection): ToolSpec {
         const count = Math.min(Math.max(p.count ?? DEFAULT_COUNT, 1), MAX_COUNT)
         const cfg = resolveSearchConfig(getConfig())
         const provider = pickSearchProvider(cfg)
+        log.info({ msg: 'web_search start', provider: provider.name, configProvider: cfg.provider, count })
         try {
           const results = await provider.search(query, count, cfg)
-          if (results.length === 0) return ok('(no results)', { provider: provider.name, query })
+          if (results.length === 0) {
+            log.warn({ msg: 'web_search no results', provider: provider.name, query })
+            return ok('(no results)', { provider: provider.name, query })
+          }
+          log.info({ msg: 'web_search ok', provider: provider.name, count: results.length })
           return ok(formatResults(results), { provider: provider.name, query, count: results.length })
         } catch (e) {
           const msg =
@@ -323,6 +331,7 @@ export function webSearchSpec(getConfig: () => WebSearchInjection): ToolSpec {
               : e instanceof Error
                 ? e.message
                 : String(e)
+          log.error({ msg: 'web_search threw', provider: provider.name, err: msg })
           return err(`${provider.name}: ${msg}`)
         }
       },
