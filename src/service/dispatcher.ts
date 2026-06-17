@@ -105,6 +105,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         const [namespace] = args as [string | undefined]
         return cfg.listMemory(namespace)
       }
+      case 'getUsageStats': {
+        const [rangeDays] = args as [number]
+        return manager.getUsageStats(rangeDays)
+      }
       default:
         throw new Error(`unknown method: ${String(method)}`)
     }

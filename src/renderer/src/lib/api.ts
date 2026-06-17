@@ -1,6 +1,7 @@
 import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task } from '@shared/types/task'
 import type { PermissionDecision, SessionSummary, SubmitGoalResult, UIEvent } from '@shared/types/ui'
+import type { UsageStats } from '@shared/types/usage'
 
 export const swarmApi = {
   submitGoal: (sessionId: string, goal: string, attachments?: Attachment[]): Promise<SubmitGoalResult> =>
@@ -19,4 +20,5 @@ export const swarmApi = {
   setSessionPinned: (sessionId: string, pinned: boolean): Promise<void> =>
     window.swarm.sessions.setPinned(sessionId, pinned),
   listMemory: (namespace?: string): Promise<MemoryView[]> => window.swarm.memory.list(namespace),
+  getUsageStats: (rangeDays: number): Promise<UsageStats> => window.swarm.usage.get(rangeDays),
 }

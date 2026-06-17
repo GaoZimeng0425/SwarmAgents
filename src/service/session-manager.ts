@@ -55,6 +55,7 @@ export type SessionManager = {
   setSessionPinned(sessionId: string, pinned: boolean): void
   listSessions(): import('@shared/types/ui').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
+  getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
 }
 
 const DEFAULT_AGENT_DEF: AgentDefinition = {
@@ -371,6 +372,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     getSessionTasks(sessionId) {
       return store.getSessionTasks(sessionId)
+    },
+
+    getUsageStats(rangeDays) {
+      return store.getUsageStats(rangeDays)
     },
   }
 }

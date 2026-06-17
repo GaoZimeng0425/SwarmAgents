@@ -200,6 +200,9 @@ export type SwarmBridge = {
     rename(sessionId: string, title: string): Promise<void>
     setPinned(sessionId: string, pinned: boolean): Promise<void>
   }
+  usage: {
+    get(rangeDays: number): Promise<import('./usage').UsageStats>
+  }
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** Get the current system accent color (RRGGBBAA hex). Returns null on unsupported platforms. */
   getAccent(): Promise<string | null>

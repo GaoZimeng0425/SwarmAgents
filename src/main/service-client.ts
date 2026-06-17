@@ -46,6 +46,7 @@ export type ServiceClient = {
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
   listMemory(namespace?: string): Promise<MemoryView[]>
+  getUsageStats(rangeDays: number): Promise<import('@shared/types/usage').UsageStats>
 }
 
 export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
@@ -138,6 +139,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     listMemory(namespace) {
       return call('listMemory', [namespace])
+    },
+    getUsageStats(rangeDays) {
+      return call('getUsageStats', [rangeDays])
     },
   }
 }

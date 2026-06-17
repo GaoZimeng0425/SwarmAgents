@@ -147,6 +147,10 @@ const swarm: SwarmBridge = {
     setPinned: (sessionId: string, pinned: boolean) =>
       ipcRenderer.invoke('swarm:setSessionPinned', sessionId, pinned) as Promise<void>,
   },
+  usage: {
+    get: (rangeDays: number) =>
+      ipcRenderer.invoke('swarm:getUsageStats', rangeDays) as Promise<import('../shared/types/usage').UsageStats>,
+  },
   subscribeEvents: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: UIEvent): void => cb(payload)
     ipcRenderer.on(IPC_EVENT_CHANNEL, listener)

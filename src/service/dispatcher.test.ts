@@ -104,4 +104,17 @@ describe('dispatcher', () => {
     expect(deps.listMemory).toHaveBeenCalledWith('ns')
     expect(result).toEqual([{ id: 'ns:k', namespace: 'ns', key: 'k', content: 'c', category: 'note', timestamp: 1 }])
   })
+
+  it('routes getUsageStats to the manager', () => {
+    const manager = mockManager()
+    const getUsageStats = vi.fn().mockReturnValue({ rangeDays: 7 })
+    const dispatch = createDispatcher({
+      manager: { ...manager, getUsageStats } as unknown as SessionManager,
+      registerProvider: vi.fn(),
+      ...mcpDeps(),
+    })
+    const result = dispatch('getUsageStats', [7])
+    expect(getUsageStats).toHaveBeenCalledWith(7)
+    expect(result).toEqual({ rangeDays: 7 })
+  })
 })
