@@ -86,23 +86,3 @@ export const AccentColorSchema = z.object({
 })
 export type AccentColor = z.infer<typeof AccentColorSchema>
 
-export const ConfirmRequestSchema = z.object({
-  title: z.string(),
-  message: z.string(),
-  detail: z.string().optional(),
-  risk: RiskSchema,
-  buttons: z
-    .array(
-      z.object({
-        label: z.string(),
-        role: z.enum(['grant', 'deny', 'skip']),
-        destructive: z.boolean().optional(),
-      })
-    )
-    .min(1)
-    .max(4),
-})
-export type ConfirmRequest = z.infer<typeof ConfirmRequestSchema>
-
-export const ConfirmResponseSchema = z.enum(['grant', 'deny', 'skip'])
-export type ConfirmResponse = z.infer<typeof ConfirmResponseSchema>

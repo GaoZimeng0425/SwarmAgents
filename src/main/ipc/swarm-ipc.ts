@@ -2,17 +2,14 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { type ConfirmRequest, ConfirmRequestSchema, type ConfirmResponse } from '@shared/types/ipc'
 import { BrowserWindow, ipcMain, shell } from 'electron'
 
 import type { Service as McpService } from '../mcp-servers'
 import type { Service as ProvidersService } from '../providers'
 import type { ServiceClient } from '../service-client'
 import { getAccent, subscribeAccent } from '../system/accent'
-import { showNativeConfirm } from '../system/confirm'
 import { getMacPermissions, openPrivacySettings } from '../system/permissions'
 import type { Service as WebSearchService } from '../web-search'
-import { getMainWindow } from '../windows/main-window'
 import { openSettings } from '../windows/settings-window'
 
 const log = createLogger({ process: 'main' }).child({ component: 'swarm-ipc' })
@@ -163,14 +160,6 @@ export function wireSwarmIpc(args: {
     }
   })
 
-  const handleShowConfirm = async (_e: Electron.IpcMainInvokeEvent, raw: unknown): Promise<ConfirmResponse> => {
-    const req: ConfirmRequest = ConfirmRequestSchema.parse(raw)
-    const parent = getMainWindow()
-    if (!parent) return 'deny'
-    return showNativeConfirm(parent, req)
-  }
-  ipcMain.handle('system:showConfirm', handleShowConfirm)
-
   const handleOpenSettings = (_: Electron.IpcMainInvokeEvent, opts?: unknown): void => {
     let initialRoute: string | undefined
     if (
@@ -229,7 +218,6 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:readImageFile')
       ipcMain.removeHandler('system:openPath')
       ipcMain.removeHandler('system:openSettings')
-      ipcMain.removeHandler('system:showConfirm')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
       ipcMain.removeHandler('swarm:createSession')

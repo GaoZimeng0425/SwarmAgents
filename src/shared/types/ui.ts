@@ -7,7 +7,7 @@
  * etc. Each event carries a server-side timestamp so the UI can render a
  * linear timeline without needing its own clock.
  */
-import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
+import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
@@ -205,7 +205,6 @@ export type SwarmBridge = {
   getAccent(): Promise<string | null>
   /** Subscribe to accent-color changes. Returns an unsubscribe function. */
   onAccentChange(cb: (hex: string) => void): () => void
-  showConfirm(req: ConfirmRequest): Promise<ConfirmResponse>
   /** Open the Settings window. Optional initialRoute selects which tab to land on. */
   openSettings(opts?: { initialRoute?: string }): Promise<void>
   /** Current macOS screen-recording / accessibility permission status. */
