@@ -55,8 +55,11 @@ function cloneTemplate(
 }
 
 function resolveModel(p: ProviderInjection): Model<Api> {
-  if (p.id === 'custom') {
-    const style: ApiStyle = p.apiStyle ?? 'openai'
+  // `registry` is the single discriminator: absent ⇒ a custom endpoint pi-ai
+  // doesn't know, looked up by its wire style (apiStyle); present ⇒ a valid
+  // pi-ai provider key with a real model catalog. Nothing branches on the id.
+  if (!p.registry) {
+    const style = p.apiStyle
     const matched = getModelLoose(style, p.model)
     const template =
       matched ?? getModelLoose(style, FALLBACK_MODEL_ID[style]) ?? (getModels(style)[0] as Model<Api> | undefined)
@@ -69,14 +72,16 @@ function resolveModel(p: ProviderInjection): Model<Api> {
     return cloneTemplate(template, p, style, contextWindow)
   }
 
-  const exact = getModelLoose(p.id, p.model)
+  const exact = getModelLoose(p.registry, p.model)
   if (exact && !p.baseUrl) return exact
 
   const template =
-    exact ?? getModelLoose(p.id, FALLBACK_MODEL_ID[p.id]) ?? (getModels(p.id)[0] as Model<Api> | undefined)
-  if (!template) throw new Error(`pi-ai has no registered models for provider "${p.id}"`)
+    exact ??
+    getModelLoose(p.registry, FALLBACK_MODEL_ID[p.registry]) ??
+    (getModels(p.registry)[0] as Model<Api> | undefined)
+  if (!template) throw new Error(`pi-ai has no registered models for provider "${p.registry}"`)
 
-  return cloneTemplate(template, p, p.id)
+  return cloneTemplate(template, p, p.registry)
 }
 
 type EmitFn = (event: string, data: unknown) => void
@@ -246,7 +251,8 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         goalLen: task.goal.length,
         injection: {
           id: provider.id,
-          apiStyle: provider.apiStyle ?? null,
+          registry: provider.registry ?? null,
+          apiStyle: provider.apiStyle,
           baseUrlSet: !!provider.baseUrl,
           modelRequested: provider.model,
         },

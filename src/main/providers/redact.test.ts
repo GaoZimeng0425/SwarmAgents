@@ -1,87 +1,86 @@
-import type { ProvidersStateOnDisk } from '@shared/types/provider'
+import type { Provider, ProvidersStateOnDisk } from '@shared/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import { toView } from './redact'
 
-const base = (over: Partial<ProvidersStateOnDisk> = {}): ProvidersStateOnDisk => ({
-  version: 2,
-  active: null,
-  builtins: { anthropic: null, openai: null },
-  custom: [],
+const provider = (over: Partial<Provider> = {}): Provider => ({
+  id: 'anthropic',
+  name: 'Anthropic',
+  registry: 'anthropic',
+  apiStyle: 'anthropic',
+  apiKey: 'sk-secret',
+  models: ['claude-sonnet-4-5'],
+  model: 'claude-sonnet-4-5',
   ...over,
 })
 
+const base = (providers: Provider[], active: string | null = null): ProvidersStateOnDisk => ({
+  version: 3,
+  active,
+  providers,
+})
+
 describe('toView', () => {
-  it('replaces apiKey with hasKey:true when a builtin key is present', () => {
-    const view = toView(
-      base({
-        active: 'anthropic',
-        builtins: { anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-secret' }, openai: null },
-      })
-    )
+  it('replaces apiKey with hasKey:true and carries identity fields', () => {
+    const view = toView(base([provider()], 'anthropic'))
     expect(view.active).toBe('anthropic')
-    expect(view.builtins.anthropic).toEqual({
+    expect(view.providers[0]).toMatchObject({
+      id: 'anthropic',
+      name: 'Anthropic',
+      registry: 'anthropic',
+      apiStyle: 'anthropic',
       model: 'claude-sonnet-4-5',
+      models: ['claude-sonnet-4-5'],
       hasKey: true,
       supportsImages: expect.any(Boolean),
       thinkingLevels: expect.any(Array),
       thinkingLevel: expect.any(String),
     })
-    expect(view.builtins.openai).toBeNull()
   })
 
-  it('keeps null builtins null and projects custom providers with id/name', () => {
+  it('projects a custom provider (no registry) with its models and apiStyle', () => {
     const view = toView(
-      base({
-        custom: [
-          {
-            id: 'c1',
-            name: 'BigModel',
-            model: 'glm-4',
-            apiKey: 'sk-c',
-            apiStyle: 'openai',
-            baseUrl: 'https://x.com/v4',
-          },
-        ],
-      })
+      base([
+        provider({
+          id: 'c1',
+          name: 'BigModel',
+          registry: undefined,
+          apiStyle: 'openai',
+          apiKey: 'sk-c',
+          models: ['glm-4', 'glm-4-air'],
+          model: 'glm-4',
+          baseUrl: 'https://x.com/v4',
+        }),
+      ])
     )
-    expect(view.builtins.anthropic).toBeNull()
-    expect(view.custom).toHaveLength(1)
-    expect(view.custom[0]).toMatchObject({
+    expect(view.providers[0]).toMatchObject({
       id: 'c1',
       name: 'BigModel',
       hasKey: true,
-      baseUrl: 'https://x.com/v4',
       apiStyle: 'openai',
+      baseUrl: 'https://x.com/v4',
+      models: ['glm-4', 'glm-4-air'],
     })
-  })
-
-  it('threads customModels through and omits them when empty', () => {
-    const view = toView(
-      base({
-        builtins: {
-          anthropic: { model: 'claude-opus-4-7', apiKey: 'sk-a', customModels: [] },
-          openai: { model: 'gpt-4o', apiKey: 'sk-o', customModels: ['deepseek-chat', 'deepseek-coder'] },
-        },
-      })
-    )
-    expect(view.builtins.anthropic?.customModels).toBeUndefined()
-    expect(view.builtins.openai?.customModels).toEqual(['deepseek-chat', 'deepseek-coder'])
+    expect(view.providers[0].registry).toBeUndefined()
   })
 
   it('no apiKey field survives anywhere in the view (deep walk)', () => {
     const view = toView(
-      base({
-        builtins: {
-          anthropic: { model: 'claude-opus-4-7', apiKey: 'sk-a' },
-          openai: { model: 'gpt-4o', apiKey: 'sk-o' },
-        },
-        custom: [{ id: 'c1', name: 'X', model: 'glm-4', apiKey: 'sk-c', apiStyle: 'openai' }],
-      })
+      base([
+        provider({ id: 'anthropic', apiKey: 'sk-a' }),
+        provider({
+          id: 'c1',
+          name: 'X',
+          registry: undefined,
+          apiStyle: 'openai',
+          apiKey: 'sk-c',
+          models: ['glm-4'],
+          model: 'glm-4',
+        }),
+      ])
     )
     const json = JSON.stringify(view)
     expect(json).not.toContain('sk-a')
-    expect(json).not.toContain('sk-o')
     expect(json).not.toContain('sk-c')
     expect(json).not.toContain('"apiKey"')
   })

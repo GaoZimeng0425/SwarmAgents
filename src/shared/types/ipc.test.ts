@@ -23,7 +23,13 @@ describe('IPC schemas', () => {
         endedAt: null,
       },
       promptContext: 'hello',
-      provider: { id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
+      provider: {
+        id: 'anthropic',
+        registry: 'anthropic',
+        apiStyle: 'anthropic',
+        model: 'claude-sonnet-4-5',
+        apiKey: 'sk-x',
+      },
       agentDefinition: {
         id: 'default',
         name: 'Default Agent',
@@ -97,7 +103,13 @@ describe('Inbound task.assign provider field', () => {
         endedAt: null,
       },
       promptContext: '',
-      provider: { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
+      provider: {
+        id: 'anthropic' as const,
+        registry: 'anthropic' as const,
+        apiStyle: 'anthropic' as const,
+        model: 'claude-sonnet-4-5',
+        apiKey: 'sk-x',
+      },
       agentDefinition: {
         id: 'default',
         name: 'Default Agent',

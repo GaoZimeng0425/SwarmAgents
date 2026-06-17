@@ -1,22 +1,21 @@
 // src/main/providers/service.ts
 //
-// Providers state machine (v2). Single source of truth for the active provider,
-// the two built-in slots (anthropic/openai) and an arbitrary list of custom
-// providers. Wraps the encrypted Store with input validation and a state-change
-// broadcast for the IPC layer. Failures during persistence do NOT advance the
-// in-memory state.
+// Providers state machine (v3). Single source of truth for the active provider
+// and one flat list of providers (built-in or custom — distinguished only by
+// `registry`). Wraps the encrypted Store with input validation and a
+// state-change broadcast for the IPC layer. Failures during persistence do NOT
+// advance the in-memory state.
 import { randomUUID } from 'node:crypto'
 import { createLogger } from '@shared/logger'
 import {
-  ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
-  type BuiltinProviderId,
-  type CustomProviderOnDisk,
+  BUILTIN_DEFS,
   defaultProvidersStateOnDisk,
+  isBuiltinId,
+  MAX_MODELS,
   type ModelThinkingLevel,
-  OPENAI_MODEL_SUGGESTIONS,
+  type Provider,
   type ProviderInjection,
-  type ProviderRowOnDisk,
   type ProvidersStateOnDisk,
   type ProvidersStateView,
 } from '@shared/types/provider'
@@ -43,16 +42,16 @@ export type Service = {
   getView(): ProvidersStateView
   getInjection(): ProviderInjection | null
   setActive(id: string | null): Promise<SetResult>
-  /** Built-in slot: set/replace its key (creates the slot). */
+  /** Built-in: set/replace its key (materializes the provider on first use). */
   setKey(id: string, key: string): Promise<SetResult>
-  /** Built-in slot only: remove it. Custom providers use removeCustomProvider. */
+  /** Built-in only: remove the provider. Custom providers use removeCustomProvider. */
   clearKey(id: string): Promise<SetResult>
   setModel(id: string, model: string): Promise<SetResult>
   /** Pass an empty string or null to clear. */
   setBaseUrl(id: string, baseUrl: string | null): Promise<SetResult>
   addCustomModel(id: string, model: string): Promise<SetResult>
   removeCustomModel(id: string, model: string): Promise<SetResult>
-  /** Custom providers only. */
+  /** Custom providers only (a built-in's apiStyle is fixed to its wire format). */
   setApiStyle(id: string, style: ApiStyle): Promise<SetResult>
   setThinkingLevel(id: string, level: ModelThinkingLevel): Promise<SetResult>
   /** Custom providers only. Pass null to reset to the default window. */
@@ -64,18 +63,7 @@ export type Service = {
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
 }
 
-const MAX_CUSTOM_MODELS = 50
-
-const DEFAULT_MODEL: Record<BuiltinProviderId, string> = {
-  anthropic: ANTHROPIC_MODEL_SUGGESTIONS[0],
-  openai: OPENAI_MODEL_SUGGESTIONS[0],
-}
-
 const invalid = (message: string): SetResult => ({ ok: false, code: 'invalid', message })
-
-function isBuiltin(id: string): id is BuiltinProviderId {
-  return id === 'anthropic' || id === 'openai'
-}
 
 function validateKey(key: string): string | null {
   if (key.length === 0) return 'API key must not be empty'
@@ -127,6 +115,13 @@ function normalizeBaseUrl(raw: string | null): NormalizedBaseUrl {
   return { ok: true, value }
 }
 
+// Build a fresh built-in provider row from its canonical definition.
+function makeBuiltin(id: 'anthropic' | 'openai', apiKey: string): Provider {
+  const def = BUILTIN_DEFS[id]
+  const model = def.suggestions[0] as string
+  return { id, name: def.name, registry: def.registry, apiStyle: def.apiStyle, apiKey, models: [model], model }
+}
+
 export async function createService(opts: { store: Store }): Promise<Service> {
   let state = await opts.store.load()
   const listeners = new Set<(v: ProvidersStateView) => void>()
@@ -148,36 +143,21 @@ export async function createService(opts: { store: Store }): Promise<Service> {
     return { ok: true }
   }
 
-  // Read the row for any id (builtin slot or custom entry).
-  const readRow = (id: string): ProviderRowOnDisk | null => {
-    if (id === 'anthropic') return state.builtins.anthropic
-    if (id === 'openai') return state.builtins.openai
-    return state.custom.find((c) => c.id === id) ?? null
-  }
+  const find = (id: string): Provider | undefined => state.providers.find((p) => p.id === id)
 
-  // Replace the row for an id with `nextRow`. nextRow is the complete intended
-  // row (the patch deletes fields it wants gone), so we must NOT merge it over
-  // the original — that would resurrect deleted optional fields (e.g. a cleared
-  // contextWindow). We only carry over the custom identity (id/name/apiStyle).
-  const withRow = (id: string, nextRow: ProviderRowOnDisk): ProvidersStateOnDisk => {
-    if (isBuiltin(id)) {
-      return { ...state, builtins: { ...state.builtins, [id]: nextRow } }
-    }
-    return {
-      ...state,
-      custom: state.custom.map((c) =>
-        c.id === id
-          ? ({ ...nextRow, id: c.id, name: c.name, apiStyle: nextRow.apiStyle ?? c.apiStyle } as CustomProviderOnDisk)
-          : c
-      ),
-    }
-  }
+  const isCustom = (p: Provider): boolean => p.registry === undefined
 
-  // Mutate an existing row by id; errors if absent.
-  const patchRow = (id: string, patch: (row: ProviderRowOnDisk) => ProviderRowOnDisk): Promise<SetResult> => {
-    const row = readRow(id)
-    if (!row) return Promise.resolve(invalid(`no provider configured for "${id}"`))
-    return persist(withRow(id, patch(row)))
+  // Replace the provider with `id` using `next` (the complete intended row).
+  const replaceProvider = (id: string, next: Provider): ProvidersStateOnDisk => ({
+    ...state,
+    providers: state.providers.map((p) => (p.id === id ? next : p)),
+  })
+
+  // Mutate an existing provider by id; errors if absent.
+  const patch = (id: string, fn: (p: Provider) => Provider): Promise<SetResult> => {
+    const p = find(id)
+    if (!p) return Promise.resolve(invalid(`no provider configured for "${id}"`))
+    return persist(replaceProvider(id, fn(p)))
   }
 
   return {
@@ -185,110 +165,107 @@ export async function createService(opts: { store: Store }): Promise<Service> {
     getView: () => toView(state),
     getInjection: () => {
       if (!state.active) return null
-      const row = readRow(state.active)
-      if (!row) return null
-      const apiStyle = isBuiltin(state.active) ? undefined : row.apiStyle
-      const contextWindow = isBuiltin(state.active) ? undefined : row.contextWindow
+      const p = find(state.active)
+      if (!p) return null
       return {
-        id: state.active,
-        model: row.model,
-        apiKey: row.apiKey,
-        ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
-        ...(apiStyle ? { apiStyle } : {}),
-        ...(row.thinkingLevel ? { thinkingLevel: row.thinkingLevel } : {}),
-        ...(contextWindow ? { contextWindow } : {}),
+        id: p.id,
+        ...(p.registry ? { registry: p.registry } : {}),
+        apiStyle: p.apiStyle,
+        model: p.model,
+        apiKey: p.apiKey,
+        ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
+        ...(p.thinkingLevel ? { thinkingLevel: p.thinkingLevel } : {}),
+        ...(p.contextWindow ? { contextWindow: p.contextWindow } : {}),
       }
     },
 
     async setActive(id) {
-      if (id !== null && !isBuiltin(id) && !state.custom.some((c) => c.id === id))
-        return invalid(`unknown provider "${id}"`)
+      if (id !== null && !find(id)) return invalid(`unknown provider "${id}"`)
       return persist({ ...state, active: id })
     },
 
     async setKey(id, key) {
       const v = validateKey(key)
       if (v) return invalid(v)
-      if (isBuiltin(id)) {
-        const existing = state.builtins[id]
-        const nextRow: ProviderRowOnDisk = existing
-          ? { ...existing, apiKey: key }
-          : { model: DEFAULT_MODEL[id], apiKey: key }
-        return persist({ ...state, builtins: { ...state.builtins, [id]: nextRow } })
-      }
-      return patchRow(id, (row) => ({ ...row, apiKey: key }))
+      const existing = find(id)
+      if (existing) return persist(replaceProvider(id, { ...existing, apiKey: key }))
+      if (isBuiltinId(id)) return persist({ ...state, providers: [...state.providers, makeBuiltin(id, key)] })
+      return invalid(`unknown provider "${id}" — create custom providers via addCustomProvider`)
     },
 
     async clearKey(id) {
-      if (!isBuiltin(id)) return invalid('use removeCustomProvider to remove a custom provider')
-      return persist({ ...state, builtins: { ...state.builtins, [id]: null } })
+      const p = find(id)
+      if (!p) return invalid(`no provider configured for "${id}"`)
+      if (isCustom(p)) return invalid('use removeCustomProvider to remove a custom provider')
+      const active = state.active === id ? null : state.active
+      return persist({ ...state, active, providers: state.providers.filter((x) => x.id !== id) })
     },
 
     async setModel(id, model) {
-      const v = validateModel(model)
-      if (v) return invalid(v)
-      return patchRow(id, (row) => ({ ...row, model }))
+      const e = validateModel(model)
+      if (e) return invalid(e)
+      return patch(id, (p) => ({
+        ...p,
+        model,
+        models: p.models.includes(model) ? p.models : [...p.models, model].slice(0, MAX_MODELS),
+      }))
     },
 
     async setBaseUrl(id, baseUrl) {
       const n = normalizeBaseUrl(baseUrl)
       if (!n.ok) return invalid(n.message)
-      return patchRow(id, (row) => {
-        if (n.value) return { ...row, baseUrl: n.value }
-        const { baseUrl: _omit, ...rest } = row
+      return patch(id, (p) => {
+        if (n.value) return { ...p, baseUrl: n.value }
+        const { baseUrl: _omit, ...rest } = p
         return rest
       })
     },
 
     async addCustomModel(id, model) {
-      const v = validateModel(model)
-      if (v) return invalid(v)
+      const e = validateModel(model)
+      if (e) return invalid(e)
       const trimmed = model.trim()
-      return patchRow(id, (row) => {
-        const existing = row.customModels ?? []
-        if (existing.includes(trimmed)) return row
-        if (existing.length >= MAX_CUSTOM_MODELS) throw new Error(`custom-model list full (max ${MAX_CUSTOM_MODELS})`)
-        return { ...row, customModels: [...existing, trimmed] }
-      }).catch((e) => invalid(e instanceof Error ? e.message : String(e)))
+      return patch(id, (p) => {
+        if (p.models.includes(trimmed)) return p
+        if (p.models.length >= MAX_MODELS) throw new Error(`model list full (max ${MAX_MODELS})`)
+        return { ...p, models: [...p.models, trimmed] }
+      }).catch((e2) => invalid(e2 instanceof Error ? e2.message : String(e2)))
     },
 
     async removeCustomModel(id, model) {
-      return patchRow(id, (row) => {
-        const existing = row.customModels ?? []
-        if (!existing.includes(model)) return row
-        const nextList = existing.filter((m) => m !== model)
-        if (nextList.length === 0) {
-          const { customModels: _omit, ...rest } = row
-          return rest
-        }
-        return { ...row, customModels: nextList }
-      })
+      const p = find(id)
+      if (!p) return invalid(`no provider configured for "${id}"`)
+      if (model === p.model) return invalid('cannot remove the selected model')
+      if (!p.models.includes(model)) return { ok: true }
+      return persist(replaceProvider(id, { ...p, models: p.models.filter((m) => m !== model) }))
     },
 
     async setApiStyle(id, style) {
-      if (isBuiltin(id)) return invalid('apiStyle only applies to custom providers')
+      const p = find(id)
+      if (!p) return invalid(`no provider configured for "${id}"`)
+      if (!isCustom(p)) return invalid('apiStyle only applies to custom providers')
       if (style !== 'anthropic' && style !== 'openai') return invalid(`unknown apiStyle: ${style}`)
-      return patchRow(id, (row) => ({ ...row, apiStyle: style }))
+      return persist(replaceProvider(id, { ...p, apiStyle: style }))
     },
 
     async setThinkingLevel(id, level) {
-      return patchRow(id, (row) => ({ ...row, thinkingLevel: level }))
+      return patch(id, (p) => ({ ...p, thinkingLevel: level }))
     },
 
     async setContextWindow(id, contextWindow) {
-      if (isBuiltin(id)) return invalid('contextWindow only applies to custom providers')
+      const p = find(id)
+      if (!p) return invalid(`no provider configured for "${id}"`)
+      if (!isCustom(p)) return invalid('contextWindow only applies to custom providers')
       if (
         contextWindow !== null &&
         (!Number.isInteger(contextWindow) || contextWindow <= 0 || contextWindow > 10_000_000)
       )
         return invalid('contextWindow must be a positive integer ≤ 10,000,000')
-      return patchRow(id, (row) => {
-        if (contextWindow == null) {
-          const { contextWindow: _omit, ...rest } = row
-          return rest
-        }
-        return { ...row, contextWindow }
-      })
+      if (contextWindow == null) {
+        const { contextWindow: _omit, ...rest } = p
+        return persist(replaceProvider(id, rest))
+      }
+      return persist(replaceProvider(id, { ...p, contextWindow }))
     },
 
     async addCustomProvider(input) {
@@ -298,7 +275,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       if (keyErr) return { ok: false, code: 'invalid', message: keyErr }
       if (input.apiStyle !== 'anthropic' && input.apiStyle !== 'openai')
         return { ok: false, code: 'invalid', message: `unknown apiStyle: ${input.apiStyle}` }
-      const models = input.models.map((m) => m.trim()).filter((m) => m.length > 0)
+      const models = [...new Set(input.models.map((m) => m.trim()).filter((m) => m.length > 0))].slice(0, MAX_MODELS)
       if (models.length === 0) return { ok: false, code: 'invalid', message: 'add at least one model' }
       for (const m of models) {
         const me = validateModel(m)
@@ -308,31 +285,35 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       if (!n.ok) return { ok: false, code: 'invalid', message: n.message }
 
       const id = randomUUID()
-      const provider: CustomProviderOnDisk = {
+      const provider: Provider = {
         id,
         name: input.name.trim(),
-        model: models[0],
-        apiKey: input.apiKey,
         apiStyle: input.apiStyle,
+        apiKey: input.apiKey,
+        models,
+        model: models[0] as string,
         ...(n.value ? { baseUrl: n.value } : {}),
-        ...(models.length > 1 ? { customModels: models.slice(1) } : {}),
         ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
       }
-      const r = await persist({ ...state, custom: [...state.custom, provider] })
+      const r = await persist({ ...state, providers: [...state.providers, provider] })
       return r.ok ? { ok: true, id } : r
     },
 
     async removeCustomProvider(id) {
-      if (!state.custom.some((c) => c.id === id)) return invalid(`unknown custom provider "${id}"`)
-      const nextActive = state.active === id ? null : state.active
-      return persist({ ...state, active: nextActive, custom: state.custom.filter((c) => c.id !== id) })
+      const p = find(id)
+      if (!p) return invalid(`unknown custom provider "${id}"`)
+      if (!isCustom(p)) return invalid('cannot remove a built-in provider; use clearKey')
+      const active = state.active === id ? null : state.active
+      return persist({ ...state, active, providers: state.providers.filter((x) => x.id !== id) })
     },
 
     async renameCustomProvider(id, name) {
       const nameErr = validateName(name)
       if (nameErr) return invalid(nameErr)
-      if (!state.custom.some((c) => c.id === id)) return invalid(`unknown custom provider "${id}"`)
-      return persist({ ...state, custom: state.custom.map((c) => (c.id === id ? { ...c, name: name.trim() } : c)) })
+      const p = find(id)
+      if (!p) return invalid(`unknown custom provider "${id}"`)
+      if (!isCustom(p)) return invalid('cannot rename a built-in provider')
+      return persist(replaceProvider(id, { ...p, name: name.trim() }))
     },
 
     onStateChanged(cb) {

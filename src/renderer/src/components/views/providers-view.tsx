@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
-  ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
-  findProviderRowView,
+  BUILTIN_DEFS,
+  BUILTIN_IDS,
+  isBuiltinId,
   type ModelThinkingLevel,
-  OPENAI_MODEL_SUGGESTIONS,
-  type ProviderRowView,
+  modelSuggestionsFor,
   type ProvidersStateView,
+  type ProviderView,
+  providerViewById,
 } from '@shared/types/provider'
 import type { ProvidersTestResult } from '@shared/types/ui'
 
@@ -26,7 +28,16 @@ import { Input } from '@/components/ui/input'
 import { useProviders } from '@/hooks/use-providers'
 
 const ADD = '__add__'
-const BUILTIN_LABEL: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI' }
+
+// Display name for any provider id: the configured row's name, else the built-in
+// default, else a generic fallback (an unconfigured custom id should never reach
+// here). The only place the UI needs to name an unconfigured provider.
+function displayName(state: ProvidersStateView, id: string): string {
+  const row = providerViewById(state, id)
+  if (row) return row.name
+  return isBuiltinId(id) ? BUILTIN_DEFS[id].name : 'Custom'
+}
+
 const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
   off: 'No thinking',
   minimal: 'Minimal',
@@ -42,7 +53,7 @@ export function ProvidersView(): React.JSX.Element {
 
   // Until the user picks, land on the active provider (or the first configured
   // one, else Anthropic). `selected === ADD` shows the add form.
-  const current = selected ?? state.active ?? state.custom[0]?.id ?? 'anthropic'
+  const current = selected ?? state.active ?? state.providers[0]?.id ?? 'anthropic'
 
   return (
     <div className="flex h-full gap-0">
@@ -95,11 +106,10 @@ function Sidebar({
   return (
     <aside className="flex w-60 shrink-0 flex-col gap-1 border-r p-3">
       <div className="px-3 py-1 text-muted-foreground text-xs">内置</div>
-      {item('anthropic', 'Anthropic', state.builtins.anthropic !== null)}
-      {item('openai', 'OpenAI', state.builtins.openai !== null)}
+      {BUILTIN_IDS.map((bid) => item(bid, BUILTIN_DEFS[bid].name, providerViewById(state, bid) !== null))}
 
       <div className="px-3 pt-3 pb-1 text-muted-foreground text-xs">自定义供应商</div>
-      {state.custom.map((c) => item(c.id, c.name, true))}
+      {state.providers.filter((p) => !p.registry).map((p) => item(p.id, p.name, true))}
 
       <button
         className={`mt-1 flex w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left text-sm hover:bg-accent ${
@@ -124,9 +134,9 @@ function ProviderDetail({
   state: ProvidersStateView
   onDeleted: () => void
 }): React.JSX.Element {
-  const isBuiltin = id === 'anthropic' || id === 'openai'
-  const row = findProviderRowView(state, id)
-  const name = isBuiltin ? BUILTIN_LABEL[id] : (state.custom.find((c) => c.id === id)?.name ?? 'Custom')
+  const isBuiltin = isBuiltinId(id)
+  const row = providerViewById(state, id)
+  const name = displayName(state, id)
   const isActive = state.active === id
 
   return (
@@ -159,7 +169,7 @@ function ProviderDetail({
 
       <BaseUrlField id={id} isBuiltin={isBuiltin} value={row?.baseUrl ?? ''} />
 
-      {row && <ModelList id={id} isBuiltin={isBuiltin} row={row} />}
+      {row && <ModelList id={id} row={row} />}
 
       {row && row.thinkingLevels.length > 1 && <ThinkingField id={id} row={row} />}
 
@@ -261,18 +271,10 @@ function BaseUrlField({ id, value, isBuiltin }: { id: string; value: string; isB
   )
 }
 
-function ModelList({
-  id,
-  row,
-  isBuiltin,
-}: {
-  id: string
-  row: ProviderRowView
-  isBuiltin: boolean
-}): React.JSX.Element {
+function ModelList({ id, row }: { id: string; row: ProviderView }): React.JSX.Element {
   const [draft, setDraft] = useState('')
-  const suggestions = isBuiltin ? (id === 'anthropic' ? ANTHROPIC_MODEL_SUGGESTIONS : OPENAI_MODEL_SUGGESTIONS) : []
-  const models = useMemo(() => [...new Set([row.model, ...(row.customModels ?? [])])], [row.model, row.customModels])
+  const suggestions = modelSuggestionsFor(id)
+  const models = row.models
 
   const add = async (m: string): Promise<void> => {
     if (!m.trim()) return
@@ -325,7 +327,7 @@ function ModelList({
   )
 }
 
-function ThinkingField({ id, row }: { id: string; row: ProviderRowView }): React.JSX.Element {
+function ThinkingField({ id, row }: { id: string; row: ProviderView }): React.JSX.Element {
   return (
     <Section label="推理深度">
       <select

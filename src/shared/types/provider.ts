@@ -1,12 +1,13 @@
 import { z } from 'zod'
 
-// The two built-in providers. Custom providers are referenced by a generated
-// string id, so an "any provider" reference is just a string (builtin id or
-// custom id) — see `active` / ProviderInjection.id.
+// The two providers pi-ai has a built-in model catalog for. A provider whose
+// `registry` is one of these can be looked up in pi-ai (real capabilities,
+// default baseUrl); a provider with no `registry` is a custom endpoint known
+// only by its wire format (apiStyle) + baseUrl.
 export const BuiltinProviderId = z.enum(['anthropic', 'openai'])
 export type BuiltinProviderId = z.infer<typeof BuiltinProviderId>
 
-// Wire format a custom provider speaks. For built-ins the style is their id.
+// Wire format a provider speaks. For built-ins this equals their registry id.
 export const ApiStyle = z.enum(['anthropic', 'openai'])
 export type ApiStyle = z.infer<typeof ApiStyle>
 
@@ -34,8 +35,8 @@ const IdString = z.string().min(1).max(64)
 // null before persistence.
 const BaseUrlString = z.string().url().max(2048)
 
-// Capped at 50 so a misclick or stale UI can't balloon the on-disk file.
-const CustomModelsList = z.array(ModelString).max(50)
+/** Max models in a single provider's list. */
+export const MAX_MODELS = 50
 
 // Context-window size in tokens. Mainly meaningful for custom models absent
 // from pi-ai's registry. Capped well above any real model.
@@ -44,60 +45,129 @@ const ContextWindow = z.number().int().positive().max(10_000_000)
 /** Default context window assumed when a model's real size is unknown. */
 export const DEFAULT_CONTEXT_WINDOW = 200_000
 
-// Shared editable fields for any provider (built-in or custom).
-const ProviderRowOnDisk = z.object({
+// ── Built-in identity, in one place ───────────────────────────────────────────
+// Everything special about a built-in provider lives here: its display name, its
+// pi-ai registry key, its wire format, and its suggested models. The service
+// materializes a built-in provider row from this on first use; nothing else in
+// the codebase branches on a provider id.
+export const BUILTIN_DEFS = {
+  anthropic: {
+    name: 'Anthropic',
+    registry: 'anthropic',
+    apiStyle: 'anthropic',
+    suggestions: ANTHROPIC_MODEL_SUGGESTIONS,
+  },
+  openai: {
+    name: 'OpenAI',
+    registry: 'openai',
+    apiStyle: 'openai',
+    suggestions: OPENAI_MODEL_SUGGESTIONS,
+  },
+} as const satisfies Record<
+  BuiltinProviderId,
+  { name: string; registry: BuiltinProviderId; apiStyle: ApiStyle; suggestions: readonly string[] }
+>
+
+export const BUILTIN_IDS = ['anthropic', 'openai'] as const
+
+export function isBuiltinId(id: string): id is BuiltinProviderId {
+  return id === 'anthropic' || id === 'openai'
+}
+
+/** Suggested models for a provider id (built-in suggestions, else none). */
+export function modelSuggestionsFor(id: string): readonly string[] {
+  return isBuiltinId(id) ? BUILTIN_DEFS[id].suggestions : []
+}
+
+// ── On-disk shape (v3): one flat list of providers ────────────────────────────
+// A single uniform provider record covers both built-ins and custom endpoints.
+// `registry` is the only discriminator: present ⇒ pi-ai catalog; absent ⇒ custom.
+export const Provider = z.object({
+  id: IdString,
+  name: NameString,
+  registry: BuiltinProviderId.optional(),
+  apiStyle: ApiStyle,
+  apiKey: z.string().min(1),
+  models: z.array(ModelString).min(1).max(MAX_MODELS),
+  model: ModelString,
+  baseUrl: BaseUrlString.optional(),
+  thinkingLevel: ModelThinkingLevel.optional(),
+  contextWindow: ContextWindow.optional(),
+})
+export type Provider = z.infer<typeof Provider>
+
+export const ProvidersStateOnDisk = z.object({
+  version: z.literal(3),
+  active: z.string().nullable(),
+  providers: z.array(Provider).default([]),
+})
+export type ProvidersStateOnDisk = z.infer<typeof ProvidersStateOnDisk>
+
+// ── Legacy schemas — parsed only for migration ────────────────────────────────
+const ProviderRowOnDiskV2 = z.object({
   model: ModelString,
   apiKey: z.string().min(1),
   baseUrl: BaseUrlString.optional(),
-  customModels: CustomModelsList.optional(),
+  customModels: z.array(ModelString).max(MAX_MODELS).optional(),
   apiStyle: ApiStyle.optional(),
   thinkingLevel: ModelThinkingLevel.optional(),
   contextWindow: ContextWindow.optional(),
 })
-export type ProviderRowOnDisk = z.infer<typeof ProviderRowOnDisk>
-
-// A custom provider is a row plus identity (generated id + user-facing name)
-// and a required apiStyle (its wire format has no implicit default).
-const CustomProviderOnDisk = ProviderRowOnDisk.extend({
+const CustomProviderOnDiskV2 = ProviderRowOnDiskV2.extend({
   id: IdString,
   name: NameString,
   apiStyle: ApiStyle,
 })
-export type CustomProviderOnDisk = z.infer<typeof CustomProviderOnDisk>
-
-// On-disk shape (v2). NEVER crosses an IPC boundary to the renderer.
-export const ProvidersStateOnDisk = z.object({
+const ProvidersStateOnDiskV2 = z.object({
   version: z.literal(2),
   active: z.string().nullable(),
   builtins: z.object({
-    anthropic: ProviderRowOnDisk.nullable().default(null),
-    openai: ProviderRowOnDisk.nullable().default(null),
+    anthropic: ProviderRowOnDiskV2.nullable().default(null),
+    openai: ProviderRowOnDiskV2.nullable().default(null),
   }),
-  custom: z.array(CustomProviderOnDisk).default([]),
+  custom: z.array(CustomProviderOnDiskV2).default([]),
 })
-export type ProvidersStateOnDisk = z.infer<typeof ProvidersStateOnDisk>
+type ProvidersStateOnDiskV2 = z.infer<typeof ProvidersStateOnDiskV2>
 
-// ── Legacy v1 (3 fixed slots) — parsed only for migration ────────────────────
 const ProvidersStateOnDiskV1 = z.object({
   version: z.literal(1),
   active: z.enum(['anthropic', 'openai', 'custom']).nullable(),
   providers: z.object({
-    anthropic: ProviderRowOnDisk.nullable().default(null),
-    openai: ProviderRowOnDisk.nullable().default(null),
-    custom: ProviderRowOnDisk.nullable().default(null),
+    anthropic: ProviderRowOnDiskV2.nullable().default(null),
+    openai: ProviderRowOnDiskV2.nullable().default(null),
+    custom: ProviderRowOnDiskV2.nullable().default(null),
   }),
 })
-export type ProvidersStateOnDiskV1 = z.infer<typeof ProvidersStateOnDiskV1>
+type ProvidersStateOnDiskV1 = z.infer<typeof ProvidersStateOnDiskV1>
 
-/**
- * Migrate a legacy v1 state to v2: built-in slots carry over; the single custom
- * slot (if any) becomes the first entry of the custom array with a generated id
- * and a default name. `genId` is injected so this module stays dependency-free.
- */
-export function migrateV1ToV2(v1: ProvidersStateOnDiskV1, genId: () => string): ProvidersStateOnDisk {
+// Build a v3 provider from a legacy row, merging the selected model + extras
+// into one capped list with the selected model first.
+function rowToProvider(
+  id: string,
+  name: string,
+  registry: BuiltinProviderId | undefined,
+  apiStyle: ApiStyle,
+  row: z.infer<typeof ProviderRowOnDiskV2>
+): Provider {
+  const models = [...new Set([row.model, ...(row.customModels ?? [])])].slice(0, MAX_MODELS)
+  return {
+    id,
+    name,
+    ...(registry ? { registry } : {}),
+    apiStyle,
+    apiKey: row.apiKey,
+    models,
+    model: row.model,
+    ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
+    ...(row.thinkingLevel ? { thinkingLevel: row.thinkingLevel } : {}),
+    ...(row.contextWindow ? { contextWindow: row.contextWindow } : {}),
+  }
+}
+
+function migrateV1ToV2(v1: ProvidersStateOnDiskV1, genId: () => string): ProvidersStateOnDiskV2 {
   const legacyCustom = v1.providers.custom
-  const custom: CustomProviderOnDisk[] = legacyCustom
-    ? [{ ...legacyCustom, id: genId(), name: 'Custom', apiStyle: legacyCustom.apiStyle ?? 'openai' }]
+  const custom = legacyCustom
+    ? [{ ...legacyCustom, id: genId(), name: 'Custom', apiStyle: legacyCustom.apiStyle ?? ('openai' as ApiStyle) }]
     : []
   const active = v1.active === 'custom' ? (custom[0]?.id ?? null) : v1.active
   return {
@@ -108,80 +178,75 @@ export function migrateV1ToV2(v1: ProvidersStateOnDiskV1, genId: () => string): 
   }
 }
 
-/** Parse possibly-legacy persisted state. Returns null if it matches no schema. */
+function migrateV2ToV3(v2: ProvidersStateOnDiskV2): ProvidersStateOnDisk {
+  const providers: Provider[] = []
+  for (const bid of BUILTIN_IDS) {
+    const row = v2.builtins[bid]
+    if (row) {
+      const def = BUILTIN_DEFS[bid]
+      providers.push(rowToProvider(bid, def.name, def.registry, row.apiStyle ?? def.apiStyle, row))
+    }
+  }
+  for (const c of v2.custom) {
+    providers.push(rowToProvider(c.id, c.name, undefined, c.apiStyle, c))
+  }
+  return { version: 3, active: v2.active, providers }
+}
+
+/** Parse possibly-legacy persisted state, migrating v1/v2 forward. Null if no schema matches. */
 export function parsePersistedState(raw: unknown, genId: () => string): ProvidersStateOnDisk | null {
-  const v2 = ProvidersStateOnDisk.safeParse(raw)
-  if (v2.success) return v2.data
+  const v3 = ProvidersStateOnDisk.safeParse(raw)
+  if (v3.success) return v3.data
+  const v2 = ProvidersStateOnDiskV2.safeParse(raw)
+  if (v2.success) return migrateV2ToV3(v2.data)
   const v1 = ProvidersStateOnDiskV1.safeParse(raw)
-  if (v1.success) return migrateV1ToV2(v1.data, genId)
+  if (v1.success) return migrateV2ToV3(migrateV1ToV2(v1.data, genId))
   return null
 }
 
 // ── Renderer-visible projection (apiKey replaced by hasKey) ───────────────────
-const ProviderRowView = z.object({
-  model: ModelString,
+export const ProviderView = z.object({
+  id: IdString,
+  name: NameString,
+  registry: BuiltinProviderId.optional(),
+  apiStyle: ApiStyle,
   hasKey: z.boolean(),
   supportsImages: z.boolean(),
+  models: z.array(ModelString).min(1).max(MAX_MODELS),
+  model: ModelString,
   baseUrl: BaseUrlString.optional(),
-  customModels: CustomModelsList.optional(),
-  apiStyle: ApiStyle.optional(),
   thinkingLevels: z.array(ModelThinkingLevel),
   thinkingLevel: ModelThinkingLevel,
   contextWindow: ContextWindow.optional(),
 })
-export type ProviderRowView = z.infer<typeof ProviderRowView>
-
-const CustomProviderView = ProviderRowView.extend({
-  id: IdString,
-  name: NameString,
-})
-export type CustomProviderView = z.infer<typeof CustomProviderView>
+export type ProviderView = z.infer<typeof ProviderView>
 
 export const ProvidersStateView = z.object({
   active: z.string().nullable(),
-  builtins: z.object({
-    anthropic: ProviderRowView.nullable(),
-    openai: ProviderRowView.nullable(),
-  }),
-  custom: z.array(CustomProviderView),
+  providers: z.array(ProviderView),
 })
 export type ProvidersStateView = z.infer<typeof ProvidersStateView>
 
-/** Find a row in the view by id (builtin id or custom id). Renderer convenience. */
-export function findProviderRowView(view: ProvidersStateView, id: string | null): ProviderRowView | null {
+/** Find a provider in the view by id. Renderer convenience. */
+export function providerViewById(view: ProvidersStateView, id: string | null): ProviderView | null {
   if (!id) return null
-  if (id === 'anthropic') return view.builtins.anthropic
-  if (id === 'openai') return view.builtins.openai
-  return view.custom.find((c) => c.id === id) ?? null
+  return view.providers.find((p) => p.id === id) ?? null
 }
 
-/** All configured providers (built-in slots that have a key + every custom), in display order. */
-export function providerViewEntries(view: ProvidersStateView): { id: string; row: ProviderRowView }[] {
-  const out: { id: string; row: ProviderRowView }[] = []
-  if (view.builtins.anthropic) out.push({ id: 'anthropic', row: view.builtins.anthropic })
-  if (view.builtins.openai) out.push({ id: 'openai', row: view.builtins.openai })
-  for (const c of view.custom) out.push({ id: c.id, row: c })
-  return out
-}
-
-// Injection payload travelling Main → Worker on task.assign. `id` is a builtin
-// id ('anthropic'|'openai') or a custom provider id.
+// Injection payload travelling Main → Worker on task.assign. `registry` (if
+// present) selects the pi-ai catalog; `apiStyle` is always the wire format.
 export const ProviderInjection = z.object({
   id: z.string(),
+  registry: BuiltinProviderId.optional(),
+  apiStyle: ApiStyle,
   model: ModelString,
   apiKey: z.string().min(1),
   baseUrl: BaseUrlString.optional(),
-  apiStyle: ApiStyle.optional(),
   thinkingLevel: ModelThinkingLevel.optional(),
   contextWindow: ContextWindow.optional(),
 })
 export type ProviderInjection = z.infer<typeof ProviderInjection>
 
 export function defaultProvidersStateOnDisk(): ProvidersStateOnDisk {
-  return {
-    version: 2,
-    active: null,
-    builtins: { anthropic: null, openai: null },
-    custom: [],
-  }
+  return { version: 3, active: null, providers: [] }
 }

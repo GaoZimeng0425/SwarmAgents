@@ -34,7 +34,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
+    const provider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    }
 
     const { sessionId } = manager.createSession(provider)
     expect(sessionId).toBeTruthy()
@@ -44,7 +50,13 @@ describe('SessionManager', () => {
 
   it('marks active sessions interrupted on init', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
+    const provider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    }
     store.createSession('old-ses', provider)
     store.close()
 
@@ -60,7 +72,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
+    const provider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    }
     const { sessionId } = manager.createSession(provider)
 
     expect(() => manager.resolvePermission(sessionId, 'no-such-action', 'deny')).not.toThrow()
@@ -81,7 +99,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
+    const provider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    }
     const { sessionId: s1 } = manager.createSession(provider)
     const { sessionId: s2 } = manager.createSession(provider)
     const { sessionId: s3 } = manager.createSession(provider)
@@ -124,7 +148,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
+    const provider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    }
     const { sessionId: s1 } = manager.createSession(provider)
     const { sessionId: s2 } = manager.createSession(provider)
     const { sessionId: s3 } = manager.createSession(provider)
@@ -192,7 +222,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
-    const provider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' }
+    const provider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    }
     const { sessionId } = manager.createSession(provider)
 
     const { taskId: parentTaskId } = manager.submitGoal(sessionId, 'parent goal')
@@ -210,7 +246,13 @@ describe('SessionManager', () => {
   })
 
   it('uses session provider when providerKey is not given', async () => {
-    const sessionProvider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'session-key' }
+    const sessionProvider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'session-key',
+    }
     let capturedSpawnChild:
       | ((
           parentTaskId: string,
@@ -232,7 +274,13 @@ describe('SessionManager', () => {
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
-    const altProvider = { id: 'openai' as const, model: 'gpt-4o', apiKey: 'alt-key' }
+    const altProvider = {
+      id: 'openai' as const,
+      registry: 'openai' as const,
+      apiStyle: 'openai' as const,
+      model: 'gpt-4o',
+      apiKey: 'alt-key',
+    }
     const manager = createSessionManager({
       store,
       broadcaster,
@@ -254,8 +302,20 @@ describe('SessionManager', () => {
   })
 
   it('uses the looked-up provider when providerKey matches', async () => {
-    const sessionProvider = { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'session-key' }
-    const altProvider = { id: 'openai' as const, model: 'gpt-4o', apiKey: 'alt-key' }
+    const sessionProvider = {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'session-key',
+    }
+    const altProvider = {
+      id: 'openai' as const,
+      registry: 'openai' as const,
+      apiStyle: 'openai' as const,
+      model: 'gpt-4o',
+      apiKey: 'alt-key',
+    }
     let capturedSpawnChild:
       | ((
           parentTaskId: string,
@@ -319,7 +379,13 @@ describe('SessionManager', () => {
 
     const store = createConversationStore(dbPath)
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic',
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
     const { taskId } = manager.submitGoal(sessionId, 'say hi')
 
     await new Promise((r) => setTimeout(r, 0))
@@ -367,7 +433,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
-    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic',
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
 
     manager.submitGoal(sessionId, 'first')
     manager.submitGoal(sessionId, 'second')
@@ -393,7 +465,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
-    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic',
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
     manager.submitGoal(sessionId, 'Organize my downloads folder')
     expect(store.getSession(sessionId)?.title).toBe('Organize my downloads folder')
     store.close()
@@ -409,7 +487,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic',
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
     const { taskId } = manager.submitGoal(sessionId, 'long running goal')
 
     await new Promise((r) => setTimeout(r, 0))
@@ -431,7 +515,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic',
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
     const { taskId } = manager.submitGoal(sessionId, 'g')
 
     await new Promise((r) => setTimeout(r, 0))
@@ -449,7 +539,13 @@ describe('SessionManager', () => {
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
-    const { sessionId } = manager.createSession({ id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic',
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
     manager.submitGoal(sessionId, 'g')
     expect(manager.listSessions().map((s) => s.id)).toContain(sessionId)
     expect(manager.getSessionTasks(sessionId).length).toBeGreaterThanOrEqual(1)
