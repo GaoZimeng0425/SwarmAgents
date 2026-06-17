@@ -2,98 +2,117 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
+  BUILTIN_DEFS,
   BuiltinProviderId,
   defaultProvidersStateOnDisk,
-  findProviderRowView,
   OPENAI_MODEL_SUGGESTIONS,
+  Provider,
   ProviderInjection,
   ProvidersStateOnDisk,
   ProvidersStateView,
   parsePersistedState,
+  providerViewById,
 } from './provider'
 
 const genId = () => 'cust-1'
 
-describe('provider schemas (v2)', () => {
+const builtinRow = (over: Record<string, unknown> = {}) => ({
+  id: 'anthropic',
+  name: 'Anthropic',
+  registry: 'anthropic',
+  apiStyle: 'anthropic',
+  apiKey: 'sk-a',
+  models: ['claude-sonnet-4-5'],
+  model: 'claude-sonnet-4-5',
+  ...over,
+})
+
+describe('provider schemas (v3)', () => {
   it('BuiltinProviderId accepts only anthropic and openai', () => {
     expect(BuiltinProviderId.parse('anthropic')).toBe('anthropic')
     expect(BuiltinProviderId.parse('openai')).toBe('openai')
     expect(() => BuiltinProviderId.parse('custom')).toThrow()
   })
 
-  it('model suggestion lists contain expected entries', () => {
-    expect(ANTHROPIC_MODEL_SUGGESTIONS).toContain('claude-opus-4-7')
-    expect(OPENAI_MODEL_SUGGESTIONS).toContain('gpt-4o')
+  it('BUILTIN_DEFS concentrates builtin identity (name, registry, apiStyle, suggestions)', () => {
+    expect(BUILTIN_DEFS.anthropic.registry).toBe('anthropic')
+    expect(BUILTIN_DEFS.anthropic.apiStyle).toBe('anthropic')
+    expect(BUILTIN_DEFS.anthropic.name).toBe('Anthropic')
+    expect(BUILTIN_DEFS.anthropic.suggestions).toEqual([...ANTHROPIC_MODEL_SUGGESTIONS])
+    expect(BUILTIN_DEFS.openai.suggestions).toEqual([...OPENAI_MODEL_SUGGESTIONS])
   })
 
-  it('ProvidersStateOnDisk requires version 2 and builtins/custom shape', () => {
-    const ok = ProvidersStateOnDisk.parse({
-      version: 2,
-      active: null,
-      builtins: { anthropic: null, openai: null },
-      custom: [],
+  it('Provider requires models[] (>=1), a selected model, and a non-empty apiKey', () => {
+    expect(Provider.parse(builtinRow()).models).toEqual(['claude-sonnet-4-5'])
+    expect(() => Provider.parse(builtinRow({ models: [] }))).toThrow()
+    expect(() => Provider.parse(builtinRow({ apiKey: '' }))).toThrow()
+    // registry is optional — a custom provider omits it
+    const custom = Provider.parse({
+      id: 'c1',
+      name: 'BigModel',
+      apiStyle: 'openai',
+      apiKey: 'sk-x',
+      models: ['glm-4'],
+      model: 'glm-4',
+      baseUrl: 'https://x.com/v4',
     })
-    expect(ok.version).toBe(2)
+    expect(custom.registry).toBeUndefined()
+    expect(custom.apiStyle).toBe('openai')
+  })
+
+  it('Provider rejects a models list longer than 50', () => {
+    const models = Array.from({ length: 51 }, (_, i) => `m${i}`)
+    expect(() => Provider.parse(builtinRow({ models, model: 'm0' }))).toThrow()
+  })
+
+  it('ProvidersStateOnDisk is version 3 with a flat providers[]', () => {
+    const ok = ProvidersStateOnDisk.parse({ version: 3, active: null, providers: [] })
+    expect(ok.version).toBe(3)
+    expect(ok.providers).toEqual([])
+    // old v2 shape no longer validates as current
     expect(() =>
-      ProvidersStateOnDisk.parse({ version: 1, active: null, providers: { anthropic: null, openai: null } })
+      ProvidersStateOnDisk.parse({ version: 2, active: null, builtins: { anthropic: null, openai: null }, custom: [] })
     ).toThrow()
   })
 
-  it('rejects an empty apiKey in a builtin slot', () => {
-    expect(() =>
-      ProvidersStateOnDisk.parse({
+  it('migrates a legacy v2 file (builtins{} + custom[]) into a flat providers[]', () => {
+    const migrated = parsePersistedState(
+      {
         version: 2,
-        active: 'anthropic',
-        builtins: { anthropic: { model: 'claude-sonnet-4-5', apiKey: '' }, openai: null },
-        custom: [],
-      })
-    ).toThrow()
-  })
-
-  it('accepts custom providers with id, name and required apiStyle', () => {
-    const v = ProvidersStateOnDisk.parse({
-      version: 2,
-      active: 'c1',
-      builtins: { anthropic: null, openai: null },
-      custom: [
-        { id: 'c1', name: 'BigModel', model: 'glm-4', apiKey: 'sk-x', apiStyle: 'openai', baseUrl: 'https://x.com/v4' },
-      ],
-    })
-    expect(v.custom[0].name).toBe('BigModel')
-    expect(v.custom[0].apiStyle).toBe('openai')
-  })
-
-  it('rejects a customModels list that is too long', () => {
-    const list = Array.from({ length: 51 }, (_, i) => `m${i}`)
-    expect(() =>
-      ProvidersStateOnDisk.parse({
-        version: 2,
-        active: null,
-        builtins: { anthropic: { model: 'gpt-4o', apiKey: 'sk-x', customModels: list }, openai: null },
-        custom: [],
-      })
-    ).toThrow()
-  })
-
-  it('ProvidersStateView uses hasKey and a custom array', () => {
-    const v = ProvidersStateView.parse({
-      active: 'anthropic',
-      builtins: {
-        anthropic: {
-          model: 'claude-sonnet-4-5',
-          hasKey: true,
-          supportsImages: true,
-          thinkingLevels: ['off', 'high'],
-          thinkingLevel: 'high',
+        active: 'c1',
+        builtins: {
+          anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-a', customModels: ['claude-haiku-4-5'] },
+          openai: null,
         },
-        openai: null,
+        custom: [
+          {
+            id: 'c1',
+            name: 'BigModel',
+            model: 'glm-4',
+            apiKey: 'sk-c',
+            apiStyle: 'openai',
+            baseUrl: 'https://x.com/v4',
+          },
+        ],
       },
-      custom: [],
-    })
-    expect(v.builtins.anthropic?.hasKey).toBe(true)
+      genId
+    )
+    expect(migrated?.version).toBe(3)
+    expect(migrated?.active).toBe('c1')
+    const anthropic = migrated?.providers.find((p) => p.id === 'anthropic')
+    expect(anthropic?.registry).toBe('anthropic')
+    expect(anthropic?.apiStyle).toBe('anthropic')
+    expect(anthropic?.name).toBe('Anthropic')
+    expect(anthropic?.models).toEqual(['claude-sonnet-4-5', 'claude-haiku-4-5'])
+    expect(anthropic?.model).toBe('claude-sonnet-4-5')
+    expect(migrated?.providers.find((p) => p.id === 'openai')).toBeUndefined()
+    const custom = migrated?.providers.find((p) => p.id === 'c1')
+    expect(custom?.registry).toBeUndefined()
+    expect(custom?.apiStyle).toBe('openai')
+    expect(custom?.models).toEqual(['glm-4'])
   })
 
-  it('migrates a legacy v1 file (custom slot → custom array entry)', () => {
+  it('migrates a legacy v1 file straight through to v3', () => {
     const migrated = parsePersistedState(
       {
         version: 1,
@@ -106,64 +125,75 @@ describe('provider schemas (v2)', () => {
       },
       genId
     )
-    expect(migrated).not.toBeNull()
-    expect(migrated?.version).toBe(2)
-    expect(migrated?.builtins.anthropic?.apiKey).toBe('sk-a')
-    expect(migrated?.custom).toHaveLength(1)
-    expect(migrated?.custom[0].id).toBe('cust-1')
-    expect(migrated?.active).toBe('cust-1') // active 'custom' now points at the migrated id
+    expect(migrated?.version).toBe(3)
+    // the v1 'custom' slot became a custom provider with the generated id, and active follows it
+    expect(migrated?.active).toBe('cust-1')
+    expect(migrated?.providers.find((p) => p.id === 'cust-1')?.model).toBe('glm-4')
+    expect(migrated?.providers.find((p) => p.id === 'anthropic')?.registry).toBe('anthropic')
   })
 
-  it('parsePersistedState returns a v2 file unchanged and null for garbage', () => {
-    const v2 = defaultProvidersStateOnDisk()
-    expect(parsePersistedState(v2, genId)).toEqual(v2)
+  it('parsePersistedState returns a v3 file unchanged and null for garbage', () => {
+    const v3 = defaultProvidersStateOnDisk()
+    expect(parsePersistedState(v3, genId)).toEqual(v3)
     expect(parsePersistedState({ nonsense: true }, genId)).toBeNull()
   })
 
-  it('defaultProvidersStateOnDisk returns an empty version-2 state', () => {
+  it('defaultProvidersStateOnDisk returns an empty version-3 state', () => {
     const d = defaultProvidersStateOnDisk()
-    expect(d.version).toBe(2)
+    expect(d.version).toBe(3)
     expect(d.active).toBeNull()
-    expect(d.custom).toEqual([])
+    expect(d.providers).toEqual([])
     expect(ProvidersStateOnDisk.parse(d)).toEqual(d)
   })
 
-  it('ProviderInjection requires a non-empty apiKey and a string id', () => {
-    expect(ProviderInjection.parse({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-x' })).toBeDefined()
-    expect(ProviderInjection.parse({ id: 'cust-1', model: 'glm-4', apiKey: 'sk-x', apiStyle: 'openai' }).apiStyle).toBe(
-      'openai'
-    )
-    expect(() => ProviderInjection.parse({ id: 'anthropic', model: 'm', apiKey: '' })).toThrow()
+  it('ProviderInjection requires apiKey + apiStyle, with optional registry', () => {
+    const builtin = ProviderInjection.parse({
+      id: 'anthropic',
+      registry: 'anthropic',
+      apiStyle: 'anthropic',
+      model: 'claude-sonnet-4-5',
+      apiKey: 'sk-x',
+    })
+    expect(builtin.registry).toBe('anthropic')
+    const custom = ProviderInjection.parse({ id: 'c1', apiStyle: 'openai', model: 'glm-4', apiKey: 'sk-x' })
+    expect(custom.registry).toBeUndefined()
+    expect(custom.apiStyle).toBe('openai')
+    expect(() => ProviderInjection.parse({ id: 'anthropic', apiStyle: 'anthropic', model: 'm', apiKey: '' })).toThrow()
+    expect(() => ProviderInjection.parse({ id: 'c1', model: 'm', apiKey: 'k' })).toThrow() // apiStyle required
   })
 
-  it('findProviderRowView resolves builtin and custom ids', () => {
+  it('providerViewById finds a provider in the flat view', () => {
     const view = ProvidersStateView.parse({
       active: null,
-      builtins: {
-        anthropic: {
-          model: 'claude',
+      providers: [
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          registry: 'anthropic',
+          apiStyle: 'anthropic',
           hasKey: true,
           supportsImages: true,
+          models: ['claude'],
+          model: 'claude',
           thinkingLevels: ['off'],
           thinkingLevel: 'off',
         },
-        openai: null,
-      },
-      custom: [
         {
           id: 'c1',
           name: 'X',
-          model: 'glm-4',
+          apiStyle: 'openai',
           hasKey: true,
           supportsImages: false,
+          models: ['glm-4'],
+          model: 'glm-4',
           thinkingLevels: ['off'],
           thinkingLevel: 'off',
         },
       ],
     })
-    expect(findProviderRowView(view, 'anthropic')?.model).toBe('claude')
-    expect(findProviderRowView(view, 'c1')?.model).toBe('glm-4')
-    expect(findProviderRowView(view, 'openai')).toBeNull()
-    expect(findProviderRowView(view, null)).toBeNull()
+    expect(providerViewById(view, 'anthropic')?.model).toBe('claude')
+    expect(providerViewById(view, 'c1')?.model).toBe('glm-4')
+    expect(providerViewById(view, 'openai')).toBeNull()
+    expect(providerViewById(view, null)).toBeNull()
   })
 })

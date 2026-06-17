@@ -1,3 +1,4 @@
+import type { ProviderInjection } from '@shared/types/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { testConnection } from './test-connection'
@@ -8,35 +9,46 @@ afterEach(() => {
   global.fetch = originalFetch
 })
 
+// Built-in injection (has a registry → pi-ai default baseUrl). Custom injections
+// are spelled out inline in their own tests.
+const builtin = (registry: 'anthropic' | 'openai', over: Partial<ProviderInjection> = {}): ProviderInjection => ({
+  id: registry,
+  registry,
+  apiStyle: registry,
+  model: registry === 'anthropic' ? 'claude-sonnet-4-5' : 'gpt-4o',
+  apiKey: 'sk',
+  ...over,
+})
+
 describe('testConnection', () => {
   it('returns ok:true and latencyMs for HTTP 200', async () => {
     global.fetch = vi.fn(async () => new Response('{}', { status: 200 }))
-    const r = await testConnection({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk' })
+    const r = await testConnection(builtin('anthropic'))
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.latencyMs).toBeGreaterThanOrEqual(0)
   })
 
   it('maps HTTP 401 to unauthorized', async () => {
     global.fetch = vi.fn(async () => new Response('{}', { status: 401 }))
-    const r = await testConnection({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk' })
+    const r = await testConnection(builtin('anthropic'))
     expect(r).toMatchObject({ ok: false, code: 'unauthorized' })
   })
 
   it('maps HTTP 403 to unauthorized', async () => {
     global.fetch = vi.fn(async () => new Response('{}', { status: 403 }))
-    const r = await testConnection({ id: 'openai', model: 'gpt-4o', apiKey: 'sk' })
+    const r = await testConnection(builtin('openai'))
     expect(r).toMatchObject({ ok: false, code: 'unauthorized' })
   })
 
   it('maps HTTP 429 to rate_limited', async () => {
     global.fetch = vi.fn(async () => new Response('{}', { status: 429 }))
-    const r = await testConnection({ id: 'openai', model: 'gpt-4o', apiKey: 'sk' })
+    const r = await testConnection(builtin('openai'))
     expect(r).toMatchObject({ ok: false, code: 'rate_limited' })
   })
 
   it('maps other non-2xx to unknown with status code in message', async () => {
     global.fetch = vi.fn(async () => new Response('boom', { status: 503 }))
-    const r = await testConnection({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk' })
+    const r = await testConnection(builtin('anthropic'))
     expect(r.ok).toBe(false)
     if (!r.ok) {
       expect(r.code).toBe('unknown')
@@ -48,14 +60,14 @@ describe('testConnection', () => {
     global.fetch = vi.fn(async () => {
       throw new Error('ECONNREFUSED')
     })
-    const r = await testConnection({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk' })
+    const r = await testConnection(builtin('anthropic'))
     expect(r).toMatchObject({ ok: false, code: 'network' })
   })
 
   it('targets Anthropic /v1/messages with the model + key', async () => {
     const f = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     global.fetch = f
-    await testConnection({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-anth' })
+    await testConnection(builtin('anthropic', { apiKey: 'sk-anth' }))
     const [url, init] = f.mock.calls[0]
     expect(String(url)).toBe('https://api.anthropic.com/v1/messages')
     const headers = (init as RequestInit).headers as Record<string, string>
@@ -70,7 +82,7 @@ describe('testConnection', () => {
     const f = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     global.fetch = f
     // No baseUrl override → default `api.openai.com/v1` + `/chat/completions`.
-    await testConnection({ id: 'openai', model: 'gpt-4o', apiKey: 'sk-openai' })
+    await testConnection(builtin('openai', { apiKey: 'sk-openai' }))
     const [url, init] = f.mock.calls[0]
     expect(String(url)).toBe('https://api.openai.com/v1/chat/completions')
     const headers = (init as RequestInit).headers as Record<string, string>
@@ -91,7 +103,7 @@ describe('testConnection', () => {
         })
     )
     const r = await testConnection({
-      id: 'custom',
+      id: 'c1',
       model: 'gpt-4o',
       apiKey: 'sk-x',
       baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
@@ -107,35 +119,27 @@ describe('testConnection', () => {
 
   it('surfaces a plain-text error body when not JSON', async () => {
     global.fetch = vi.fn(async () => new Response('Bad Gateway', { status: 502 }))
-    const r = await testConnection({ id: 'openai', model: 'gpt-4o', apiKey: 'sk-x' })
+    const r = await testConnection(builtin('openai', { apiKey: 'sk-x' }))
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.message).toContain('Bad Gateway')
   })
 
-  it('uses a custom baseUrl when provided (OpenAI-compatible)', async () => {
+  it('uses a custom baseUrl when provided on a built-in (OpenAI-compatible)', async () => {
     const f = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     global.fetch = f
     // baseUrl already includes the version root (e.g. /v1, /v4) per the
     // OpenAI-SDK convention; we append only the endpoint path.
-    await testConnection({
-      id: 'openai',
-      model: 'glm-4',
-      apiKey: 'sk-x',
-      baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    })
+    await testConnection(
+      builtin('openai', { model: 'glm-4', apiKey: 'sk-x', baseUrl: 'https://open.bigmodel.cn/api/paas/v4' })
+    )
     const [url] = f.mock.calls[0]
     expect(String(url)).toBe('https://open.bigmodel.cn/api/paas/v4/chat/completions')
   })
 
-  it('uses a custom baseUrl when provided (Anthropic-compatible)', async () => {
+  it('uses a custom baseUrl when provided on a built-in (Anthropic-compatible)', async () => {
     const f = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     global.fetch = f
-    await testConnection({
-      id: 'anthropic',
-      model: 'claude-sonnet-4-5',
-      apiKey: 'sk-x',
-      baseUrl: 'https://anthropic.proxy.example/api',
-    })
+    await testConnection(builtin('anthropic', { apiKey: 'sk-x', baseUrl: 'https://anthropic.proxy.example/api' }))
     const [url] = f.mock.calls[0]
     expect(String(url)).toBe('https://anthropic.proxy.example/api/v1/messages')
   })
@@ -144,7 +148,7 @@ describe('testConnection', () => {
     const f = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     global.fetch = f
     await testConnection({
-      id: 'custom',
+      id: 'c1',
       model: 'glm-4',
       apiKey: 'sk-x',
       baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
@@ -160,7 +164,7 @@ describe('testConnection', () => {
     const f = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     global.fetch = f
     await testConnection({
-      id: 'custom',
+      id: 'c1',
       model: 'my-claude-clone',
       apiKey: 'sk-x',
       baseUrl: 'https://anth.proxy.example',
@@ -174,7 +178,7 @@ describe('testConnection', () => {
 
   it('custom provider without baseUrl returns a clear error', async () => {
     const r = await testConnection({
-      id: 'custom',
+      id: 'c1',
       model: 'deepseek-chat',
       apiKey: 'sk-x',
       apiStyle: 'openai',

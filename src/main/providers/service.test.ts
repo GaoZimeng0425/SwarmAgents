@@ -1,4 +1,4 @@
-import type { ProvidersStateOnDisk } from '@shared/types/provider'
+import type { Provider, ProvidersStateOnDisk } from '@shared/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createService } from './service'
@@ -18,44 +18,54 @@ function makeStore(initial: ProvidersStateOnDisk): Store & { saved: ProvidersSta
   }
 }
 
-const empty: ProvidersStateOnDisk = {
-  version: 2,
-  active: null,
-  builtins: { anthropic: null, openai: null },
-  custom: [],
+const empty: ProvidersStateOnDisk = { version: 3, active: null, providers: [] }
+
+const anthropic: Provider = {
+  id: 'anthropic',
+  name: 'Anthropic',
+  registry: 'anthropic',
+  apiStyle: 'anthropic',
+  apiKey: 'sk-1',
+  models: ['claude-sonnet-4-5'],
+  model: 'claude-sonnet-4-5',
 }
 
-const withBuiltin = (over: Partial<ProvidersStateOnDisk> = {}): ProvidersStateOnDisk => ({
-  version: 2,
-  active: 'anthropic',
-  builtins: { anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-1' }, openai: null },
-  custom: [],
-  ...over,
-})
-
-const customRow = {
+const customRow: Provider = {
   id: 'c1',
   name: 'BigModel',
-  model: 'glm-4',
+  apiStyle: 'openai',
   apiKey: 'sk-c',
-  apiStyle: 'openai' as const,
+  models: ['glm-4'],
+  model: 'glm-4',
   baseUrl: 'https://x.com/v4',
 }
 
-describe('service (v2)', () => {
+const state = (over: Partial<ProvidersStateOnDisk> = {}): ProvidersStateOnDisk => ({ ...empty, ...over })
+const find = (s: ProvidersStateOnDisk, id: string) => s.providers.find((p) => p.id === id)
+
+describe('service (v3)', () => {
   it('init populates state and view from the store', async () => {
-    const svc = await createService({ store: makeStore(withBuiltin()) })
+    const svc = await createService({ store: makeStore(state({ active: 'anthropic', providers: [anthropic] })) })
     expect(svc.getState().active).toBe('anthropic')
-    expect(svc.getView().builtins.anthropic?.hasKey).toBe(true)
+    expect(svc.getView().providers.find((p) => p.id === 'anthropic')?.hasKey).toBe(true)
   })
 
-  it('setKey on a builtin persists and broadcasts', async () => {
+  it('setKey materializes a builtin from BUILTIN_DEFS on first use', async () => {
     const store = makeStore(empty)
     const svc = await createService({ store })
     const calls: unknown[] = []
     svc.onStateChanged((v) => calls.push(v))
     expect(await svc.setKey('anthropic', 'sk-new')).toEqual({ ok: true })
-    expect(store.saved[0].builtins.anthropic?.apiKey).toBe('sk-new')
+    const created = find(store.saved[0], 'anthropic')
+    expect(created).toMatchObject({
+      id: 'anthropic',
+      name: 'Anthropic',
+      registry: 'anthropic',
+      apiStyle: 'anthropic',
+      apiKey: 'sk-new',
+      model: 'claude-opus-4-7',
+      models: ['claude-opus-4-7'],
+    })
     expect(calls).toHaveLength(1)
   })
 
@@ -66,73 +76,87 @@ describe('service (v2)', () => {
     expect(await svc.setKey('anthropic', 'x'.repeat(5000))).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setKey preserves an existing model and defaults it otherwise', async () => {
+  it('setKey preserves an existing provider model; rejects an unknown non-builtin id', async () => {
     const svc = await createService({
-      store: makeStore({
-        ...empty,
-        builtins: { anthropic: { model: 'claude-opus-4-7', apiKey: 'old' }, openai: null },
-      }),
+      store: makeStore(state({ providers: [{ ...anthropic, model: 'claude-opus-4-7', models: ['claude-opus-4-7'] }] })),
     })
     await svc.setKey('anthropic', 'new')
-    expect(svc.getState().builtins.anthropic?.model).toBe('claude-opus-4-7')
+    expect(find(svc.getState(), 'anthropic')?.model).toBe('claude-opus-4-7')
+    expect(find(svc.getState(), 'anthropic')?.apiKey).toBe('new')
     await svc.setKey('openai', 'gpt-key')
-    expect(svc.getState().builtins.openai?.model).toBe('gpt-4o')
+    expect(find(svc.getState(), 'openai')?.model).toBe('gpt-4o')
+    expect(await svc.setKey('nope', 'k')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('clearKey nulls a builtin but is invalid for custom providers', async () => {
-    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
+  it('clearKey removes a builtin but is invalid for custom providers', async () => {
+    const svc = await createService({
+      store: makeStore(state({ active: 'anthropic', providers: [anthropic, customRow] })),
+    })
     await svc.clearKey('anthropic')
-    expect(svc.getState().builtins.anthropic).toBeNull()
+    expect(find(svc.getState(), 'anthropic')).toBeUndefined()
+    expect(svc.getState().active).toBeNull() // demoted
     expect(await svc.clearKey('c1')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setActive accepts null, builtin ids, and known custom ids; rejects unknown', async () => {
-    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
-    expect((await svc.setActive('openai')).ok).toBe(true)
+  it('setActive accepts null and configured ids; rejects unknown/unconfigured', async () => {
+    const svc = await createService({ store: makeStore(state({ providers: [anthropic, customRow] })) })
+    expect((await svc.setActive('anthropic')).ok).toBe(true)
     expect((await svc.setActive('c1')).ok).toBe(true)
     expect((await svc.setActive(null)).ok).toBe(true)
+    expect(await svc.setActive('openai')).toMatchObject({ ok: false, code: 'invalid' }) // not configured
     expect(await svc.setActive('nope')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setModel updates the row; empty is invalid; unconfigured is invalid', async () => {
-    const svc = await createService({ store: makeStore(withBuiltin()) })
+  it('setModel updates the selected model and adds it to the list if new; validates', async () => {
+    const svc = await createService({ store: makeStore(state({ active: 'anthropic', providers: [anthropic] })) })
     expect((await svc.setModel('anthropic', 'claude-opus-4-7')).ok).toBe(true)
-    expect(svc.getState().builtins.anthropic?.model).toBe('claude-opus-4-7')
+    const p = find(svc.getState(), 'anthropic')
+    expect(p?.model).toBe('claude-opus-4-7')
+    expect(p?.models).toContain('claude-opus-4-7')
     expect(await svc.setModel('anthropic', '')).toMatchObject({ ok: false, code: 'invalid' })
     expect(await svc.setModel('openai', 'gpt-4o')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
   it('setThinkingLevel persists and threads into the injection', async () => {
-    const svc = await createService({ store: makeStore(withBuiltin()) })
+    const svc = await createService({ store: makeStore(state({ active: 'anthropic', providers: [anthropic] })) })
     expect((await svc.setThinkingLevel('anthropic', 'low')).ok).toBe(true)
-    expect(svc.getState().builtins.anthropic?.thinkingLevel).toBe('low')
+    expect(find(svc.getState(), 'anthropic')?.thinkingLevel).toBe('low')
     expect(svc.getInjection()).toMatchObject({ thinkingLevel: 'low' })
   })
 
   it('setBaseUrl normalizes, strips trailing slash and pasted endpoint suffixes', async () => {
-    const svc = await createService({
-      store: makeStore({ ...empty, builtins: { anthropic: null, openai: { model: 'gpt-4o', apiKey: 'sk-x' } } }),
-    })
+    const openai: Provider = {
+      id: 'openai',
+      name: 'OpenAI',
+      registry: 'openai',
+      apiStyle: 'openai',
+      apiKey: 'sk-x',
+      models: ['gpt-4o'],
+      model: 'gpt-4o',
+    }
+    const svc = await createService({ store: makeStore(state({ providers: [openai] })) })
     await svc.setBaseUrl('openai', 'https://api.deepseek.com/')
-    expect(svc.getState().builtins.openai?.baseUrl).toBe('https://api.deepseek.com')
+    expect(find(svc.getState(), 'openai')?.baseUrl).toBe('https://api.deepseek.com')
     await svc.setBaseUrl('openai', 'https://open.bigmodel.cn/api/paas/v4/chat/completions')
-    expect(svc.getState().builtins.openai?.baseUrl).toBe('https://open.bigmodel.cn/api/paas/v4')
+    expect(find(svc.getState(), 'openai')?.baseUrl).toBe('https://open.bigmodel.cn/api/paas/v4')
     await svc.setBaseUrl('openai', '')
-    expect(svc.getState().builtins.openai?.baseUrl).toBeUndefined()
+    expect(find(svc.getState(), 'openai')?.baseUrl).toBeUndefined()
     expect(await svc.setBaseUrl('openai', 'ftp://x.com')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('addCustomModel / removeCustomModel manage the list on any provider', async () => {
-    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
+  it('addCustomModel / removeCustomModel manage the models list; cannot remove the selected', async () => {
+    const svc = await createService({ store: makeStore(state({ providers: [customRow] })) })
     expect((await svc.addCustomModel('c1', 'glm-4-flash')).ok).toBe(true)
-    expect(svc.getState().custom[0].customModels).toEqual(['glm-4-flash'])
+    expect(find(svc.getState(), 'c1')?.models).toEqual(['glm-4', 'glm-4-flash'])
     expect((await svc.addCustomModel('c1', 'glm-4-flash')).ok).toBe(true) // idempotent
-    expect(svc.getState().custom[0].customModels).toEqual(['glm-4-flash'])
+    expect(find(svc.getState(), 'c1')?.models).toEqual(['glm-4', 'glm-4-flash'])
     await svc.removeCustomModel('c1', 'glm-4-flash')
-    expect(svc.getState().custom[0].customModels).toBeUndefined()
+    expect(find(svc.getState(), 'c1')?.models).toEqual(['glm-4'])
+    // selected model cannot be removed (would leave selection dangling)
+    expect(await svc.removeCustomModel('c1', 'glm-4')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('addCustomProvider creates an entry with a generated id and split model list', async () => {
+  it('addCustomProvider creates an entry with a generated id and full model list', async () => {
     const svc = await createService({ store: makeStore(empty) })
     const r = await svc.addCustomProvider({
       name: 'BigModel',
@@ -143,10 +167,11 @@ describe('service (v2)', () => {
     })
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    const c = svc.getState().custom.find((x) => x.id === r.id)
+    const c = find(svc.getState(), r.id)
     expect(c?.name).toBe('BigModel')
+    expect(c?.registry).toBeUndefined()
     expect(c?.model).toBe('glm-4')
-    expect(c?.customModels).toEqual(['glm-4-flash'])
+    expect(c?.models).toEqual(['glm-4', 'glm-4-flash'])
     expect(c?.baseUrl).toBe('https://x.com/v4')
   })
 
@@ -163,61 +188,72 @@ describe('service (v2)', () => {
     })
   })
 
-  it('removeCustomProvider deletes the entry and demotes active', async () => {
-    const svc = await createService({ store: makeStore({ ...empty, active: 'c1', custom: [customRow] }) })
+  it('removeCustomProvider deletes the entry and demotes active; invalid on builtins', async () => {
+    const svc = await createService({ store: makeStore(state({ active: 'c1', providers: [anthropic, customRow] })) })
     expect((await svc.removeCustomProvider('c1')).ok).toBe(true)
-    expect(svc.getState().custom).toHaveLength(0)
+    expect(find(svc.getState(), 'c1')).toBeUndefined()
     expect(svc.getState().active).toBeNull()
     expect(await svc.removeCustomProvider('c1')).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.removeCustomProvider('anthropic')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('renameCustomProvider updates the name', async () => {
-    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
+  it('renameCustomProvider updates the name; rejects builtins and empty', async () => {
+    const svc = await createService({ store: makeStore(state({ providers: [anthropic, customRow] })) })
     expect((await svc.renameCustomProvider('c1', 'Zhipu')).ok).toBe(true)
-    expect(svc.getState().custom[0].name).toBe('Zhipu')
+    expect(find(svc.getState(), 'c1')?.name).toBe('Zhipu')
     expect(await svc.renameCustomProvider('c1', '')).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.renameCustomProvider('anthropic', 'X')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
   it('setApiStyle + setContextWindow apply to custom providers and reject on builtins', async () => {
-    const svc = await createService({ store: makeStore({ ...withBuiltin(), custom: [customRow] }) })
+    const svc = await createService({
+      store: makeStore(state({ active: 'anthropic', providers: [anthropic, customRow] })),
+    })
     expect((await svc.setApiStyle('c1', 'anthropic')).ok).toBe(true)
-    expect(svc.getState().custom[0].apiStyle).toBe('anthropic')
+    expect(find(svc.getState(), 'c1')?.apiStyle).toBe('anthropic')
     expect(await svc.setApiStyle('anthropic', 'openai')).toMatchObject({ ok: false, code: 'invalid' })
 
     expect((await svc.setContextWindow('c1', 1_000_000)).ok).toBe(true)
-    expect(svc.getState().custom[0].contextWindow).toBe(1_000_000)
+    expect(find(svc.getState(), 'c1')?.contextWindow).toBe(1_000_000)
     expect((await svc.setContextWindow('c1', null)).ok).toBe(true)
-    expect(svc.getState().custom[0].contextWindow).toBeUndefined()
+    expect(find(svc.getState(), 'c1')?.contextWindow).toBeUndefined()
     expect(await svc.setContextWindow('anthropic', 200_000)).toMatchObject({ ok: false, code: 'invalid' })
     expect(await svc.setContextWindow('c1', 0)).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('getInjection: builtin omits apiStyle; custom threads apiStyle + baseUrl + contextWindow', async () => {
+  it('getInjection: builtin carries registry + apiStyle; custom threads baseUrl + contextWindow', async () => {
     const svc = await createService({
-      store: makeStore({
-        version: 2,
-        active: 'anthropic',
-        builtins: { anthropic: { model: 'claude-haiku-4-5', apiKey: 'sk-y' }, openai: null },
-        custom: [{ ...customRow, contextWindow: 1_000_000 }],
-      }),
+      store: makeStore(
+        state({
+          active: 'anthropic',
+          providers: [
+            { ...anthropic, model: 'claude-haiku-4-5', models: ['claude-haiku-4-5'], apiKey: 'sk-y' },
+            { ...customRow, contextWindow: 1_000_000 },
+          ],
+        })
+      ),
     })
-    expect(svc.getInjection()).toEqual({ id: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'sk-y' })
+    expect(svc.getInjection()).toEqual({
+      id: 'anthropic',
+      registry: 'anthropic',
+      apiStyle: 'anthropic',
+      model: 'claude-haiku-4-5',
+      apiKey: 'sk-y',
+    })
 
     await svc.setActive('c1')
     expect(svc.getInjection()).toEqual({
       id: 'c1',
+      apiStyle: 'openai',
       model: 'glm-4',
       apiKey: 'sk-c',
       baseUrl: 'https://x.com/v4',
-      apiStyle: 'openai',
       contextWindow: 1_000_000,
     })
   })
 
-  it('getInjection returns null with no active provider or an unconfigured builtin', async () => {
+  it('getInjection returns null with no active provider', async () => {
     const svc = await createService({ store: makeStore(empty) })
-    expect(svc.getInjection()).toBeNull()
-    await svc.setActive('anthropic')
     expect(svc.getInjection()).toBeNull()
   })
 
@@ -228,6 +264,6 @@ describe('service (v2)', () => {
     })
     const svc = await createService({ store })
     expect(await svc.setKey('anthropic', 'sk-x')).toEqual({ ok: false, code: 'persist_failed', message: 'disk full' })
-    expect(svc.getState().builtins.anthropic).toBeNull()
+    expect(find(svc.getState(), 'anthropic')).toBeUndefined()
   })
 })

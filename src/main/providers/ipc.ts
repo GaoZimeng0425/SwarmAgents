@@ -164,21 +164,15 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
   ipcMain.handle('providers:test', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
     const id = asId(p)
     if (!id) return { ok: false, code: 'unknown', message: 'invalid provider id' }
-    const state = service.getState()
-    const isBuiltin = id === 'anthropic' || id === 'openai'
-    const row = isBuiltin
-      ? id === 'anthropic'
-        ? state.builtins.anthropic
-        : state.builtins.openai
-      : (state.custom.find((c) => c.id === id) ?? null)
-    if (!row) return { ok: false, code: 'no_key', message: 'no key configured' }
+    const provider = service.getState().providers.find((x) => x.id === id)
+    if (!provider) return { ok: false, code: 'no_key', message: 'no key configured' }
     return testConnection({
-      id,
-      model: row.model,
-      apiKey: row.apiKey,
-      ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
-      // Built-in style is implicit (its id); custom carries an explicit apiStyle.
-      ...(!isBuiltin && row.apiStyle ? { apiStyle: row.apiStyle } : {}),
+      id: provider.id,
+      ...(provider.registry ? { registry: provider.registry } : {}),
+      apiStyle: provider.apiStyle,
+      model: provider.model,
+      apiKey: provider.apiKey,
+      ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
     })
   })
 

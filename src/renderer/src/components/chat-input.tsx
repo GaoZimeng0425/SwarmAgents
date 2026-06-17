@@ -1,10 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  findProviderRowView,
-  type ModelThinkingLevel,
-  type ProvidersStateView,
-  providerViewEntries,
-} from '@shared/types/provider'
+import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@shared/types/provider'
 import type { Attachment } from '@shared/types/task'
 import type { ChatStatus } from 'ai'
 import { FileText, Paperclip, X } from 'lucide-react'
@@ -43,7 +38,7 @@ type Props = {
   placeholder?: string
 }
 
-type ModelOption = { providerId: string; modelId: string; key: string }
+type ModelOption = { providerId: string; providerName: string; modelId: string; key: string }
 
 const MAX_FILES = 4
 const MAX_FILE_SIZE = 25 * 1024 * 1024
@@ -59,13 +54,13 @@ const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
 
 function buildModelOptions(state: ProvidersStateView): ModelOption[] {
   const out: ModelOption[] = []
-  for (const { id, row } of providerViewEntries(state)) {
-    if (!row.hasKey) continue
+  for (const p of state.providers) {
+    if (!p.hasKey) continue
     const seen = new Set<string>()
-    for (const m of [row.model, ...(row.customModels ?? [])]) {
+    for (const m of p.models) {
       if (seen.has(m)) continue
       seen.add(m)
-      out.push({ providerId: id, modelId: m, key: `${id}::${m}` })
+      out.push({ providerId: p.id, providerName: p.name, modelId: m, key: `${p.id}::${m}` })
     }
   }
   return out
@@ -142,7 +137,7 @@ export function ChatInput({
   const { state } = useProviders()
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
   const options = useMemo(() => buildModelOptions(state), [state])
-  const activeRow = findProviderRowView(state, state.active)
+  const activeRow = providerViewById(state, state.active)
   const currentKey = state.active && activeRow ? `${state.active}::${activeRow.model}` : ''
 
   const handleSubmit = async (message: PromptInputMessage): Promise<void> => {
@@ -157,7 +152,7 @@ export function ChatInput({
     const opt = options.find((o) => o.key === key)
     if (!opt) return
     if (state.active !== opt.providerId) await window.swarm.providers.setActive(opt.providerId)
-    if (findProviderRowView(state, opt.providerId)?.model !== opt.modelId) {
+    if (providerViewById(state, opt.providerId)?.model !== opt.modelId) {
       await window.swarm.providers.setModel(opt.providerId, opt.modelId)
     }
   }
@@ -189,12 +184,17 @@ export function ChatInput({
             {options.length > 0 && (
               <PromptInputSelect onValueChange={(v) => void onPickModel(String(v))} value={currentKey}>
                 <PromptInputSelectTrigger>
-                  <PromptInputSelectValue placeholder="Model" />
+                  <PromptInputSelectValue placeholder="Model">
+                    {(key) => {
+                      const o = options.find((opt) => opt.key === key)
+                      return o ? `${o.providerName} · ${o.modelId}` : 'Model'
+                    }}
+                  </PromptInputSelectValue>
                 </PromptInputSelectTrigger>
                 <PromptInputSelectContent>
                   {options.map((o) => (
                     <PromptInputSelectItem key={o.key} value={o.key}>
-                      {o.modelId}
+                      {o.providerName} · {o.modelId}
                     </PromptInputSelectItem>
                   ))}
                 </PromptInputSelectContent>
@@ -203,7 +203,9 @@ export function ChatInput({
             {showThinking && activeRow && (
               <PromptInputSelect onValueChange={(v) => void onPickThinking(String(v))} value={activeRow.thinkingLevel}>
                 <PromptInputSelectTrigger>
-                  <PromptInputSelectValue placeholder="Thinking" />
+                  <PromptInputSelectValue placeholder="Thinking">
+                    {(lvl) => (lvl ? THINKING_LABELS[lvl as ModelThinkingLevel] : 'Thinking')}
+                  </PromptInputSelectValue>
                 </PromptInputSelectTrigger>
                 <PromptInputSelectContent>
                   {thinkingLevels.map((lvl) => (

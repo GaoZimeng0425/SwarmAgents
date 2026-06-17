@@ -3,12 +3,11 @@
 // Subscribes to providers state from main and derives the `ready` flag used
 // by the main-window banner (Task 19) and any future task-creation surface.
 import { useEffect, useMemo, useState } from 'react'
-import { findProviderRowView, type ProvidersStateView } from '@shared/types/provider'
+import { type ProvidersStateView, providerViewById } from '@shared/types/provider'
 
 const EMPTY: ProvidersStateView = {
   active: null,
-  builtins: { anthropic: null, openai: null },
-  custom: [],
+  providers: [],
 }
 
 export type UseProviders = {
@@ -36,7 +35,7 @@ export function useProviders(): UseProviders {
   }, [])
 
   const ready = useMemo(() => {
-    const row = findProviderRowView(state, state.active)
+    const row = providerViewById(state, state.active)
     return row?.hasKey === true
   }, [state])
 

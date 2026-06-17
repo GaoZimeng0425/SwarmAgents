@@ -30,7 +30,13 @@ describe('dispatcher', () => {
     const manager = mockManager()
     const registerProvider = vi.fn()
     const dispatch = createDispatcher({ manager, registerProvider, ...mcpDeps() })
-    const provider = { id: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' }
+    const provider = {
+      id: 'anthropic',
+      registry: 'anthropic',
+      apiStyle: 'anthropic',
+      model: 'claude-haiku-4-5',
+      apiKey: 'k',
+    }
     const result = dispatch('createSession', [provider])
     expect(registerProvider).toHaveBeenCalledWith(provider)
     expect(result).toEqual({ sessionId: 'ses-1' })

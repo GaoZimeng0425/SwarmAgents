@@ -1,4 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { getModel } from '@earendil-works/pi-ai'
 import type { Task } from '@shared/types/task'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +61,13 @@ describe('AgentRunner', () => {
     const emitted: Array<{ event: string; data: unknown }> = []
     const runner = createAgentRunner({
       task: mkTask('t-1'),
-      provider: { id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: '' },
+      provider: {
+        id: 'anthropic',
+        registry: 'anthropic',
+        apiStyle: 'anthropic',
+        model: 'claude-haiku-4-5-20251001',
+        apiKey: '',
+      },
       agentDefinition: { id: 'default', name: 'Default', systemPrompt: '', toolScope: 'all', maxIterations: 1 },
       emit: (event, data) => emitted.push({ event, data }),
       permissionRegistry: { request: vi.fn(), resolve: vi.fn() },
@@ -97,7 +104,13 @@ describe('AgentRunner', () => {
 
     const runner = createAgentRunner({
       task: { ...mkTask('t-2'), goal: 'do it' },
-      provider: { id: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'k' },
+      provider: {
+        id: 'anthropic',
+        registry: 'anthropic',
+        apiStyle: 'anthropic',
+        model: 'claude-haiku-4-5-20251001',
+        apiKey: 'k',
+      },
       agentDefinition: { id: 'default', name: 'd', systemPrompt: '', toolScope: 'all', maxIterations: 25 },
       sessionId: 'ses-1',
       emit: () => undefined,
@@ -150,7 +163,13 @@ describe('AgentRunner', () => {
 
   const baseDeps = (task: Task) => ({
     task,
-    provider: { id: 'anthropic' as const, model: 'claude-haiku-4-5-20251001', apiKey: 'k' },
+    provider: {
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    },
     agentDefinition: { id: 'default', name: 'd', systemPrompt: '', toolScope: 'all' as const, maxIterations: 25 },
     sessionId: 'ses-1',
     emit: () => undefined,
@@ -315,6 +334,29 @@ describe('AgentRunner', () => {
     expect(usage!.data.contextWindow).toBe(200_000)
     h.resolvePrompt()
     await p
+  })
+
+  // Regression: custom providers now carry a generated UUID id (multi-custom v2),
+  // not the literal 'custom'. resolveModel must look them up by apiStyle, never by
+  // the id — else pi-ai throws "has no registered models for provider <uuid>".
+  it('looks up a UUID-id custom provider by its apiStyle, not its id', async () => {
+    vi.mocked(getModel).mockClear()
+    const h = installAgent()
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-uuid')),
+      provider: {
+        id: '1ec9df3a-02f0-4d29-b83b-c21bc8644801',
+        model: 'glm-4',
+        apiKey: 'k',
+        apiStyle: 'openai',
+      },
+    })
+    const p = runner.run()
+    h.resolvePrompt()
+    await p
+    const providersQueried = vi.mocked(getModel).mock.calls.map((c) => c[0])
+    expect(providersQueried).toContain('openai')
+    expect(providersQueried).not.toContain('1ec9df3a-02f0-4d29-b83b-c21bc8644801')
   })
 
   it('honors an explicit custom contextWindow override', async () => {
