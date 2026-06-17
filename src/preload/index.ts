@@ -2,13 +2,15 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
-import type { ApiStyle, ModelThinkingLevel, ProviderId, ProvidersStateView } from '../shared/types/provider'
+import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
 import type { Skill, SkillMutationResult } from '../shared/types/skill'
 import type {
+  AddCustomProviderInput,
   MacPermissions,
   McpBridge,
   MemoryBridge,
   PermissionDecision,
+  ProvidersAddResult,
   ProvidersBridge,
   ProvidersSetResult,
   ProvidersTestResult,
@@ -32,24 +34,30 @@ const WEB_SEARCH_STATE_CHANNEL = 'webSearch:stateChanged'
 
 const providers: ProvidersBridge = {
   get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
-  setKey: (p: ProviderId, key: string) => ipcRenderer.invoke('providers:setKey', p, key) as Promise<ProvidersSetResult>,
-  clearKey: (p: ProviderId) => ipcRenderer.invoke('providers:clearKey', p) as Promise<ProvidersSetResult>,
-  setActive: (p: ProviderId | null) => ipcRenderer.invoke('providers:setActive', p) as Promise<ProvidersSetResult>,
-  setModel: (p: ProviderId, model: string) =>
-    ipcRenderer.invoke('providers:setModel', p, model) as Promise<ProvidersSetResult>,
-  setBaseUrl: (p: ProviderId, baseUrl: string | null) =>
-    ipcRenderer.invoke('providers:setBaseUrl', p, baseUrl) as Promise<ProvidersSetResult>,
-  addCustomModel: (p: ProviderId, model: string) =>
-    ipcRenderer.invoke('providers:addCustomModel', p, model) as Promise<ProvidersSetResult>,
-  removeCustomModel: (p: ProviderId, model: string) =>
-    ipcRenderer.invoke('providers:removeCustomModel', p, model) as Promise<ProvidersSetResult>,
-  setApiStyle: (p: ProviderId, style: ApiStyle) =>
-    ipcRenderer.invoke('providers:setApiStyle', p, style) as Promise<ProvidersSetResult>,
-  setThinkingLevel: (p: ProviderId, level: ModelThinkingLevel) =>
-    ipcRenderer.invoke('providers:setThinkingLevel', p, level) as Promise<ProvidersSetResult>,
-  setContextWindow: (p: ProviderId, contextWindow: number | null) =>
-    ipcRenderer.invoke('providers:setContextWindow', p, contextWindow) as Promise<ProvidersSetResult>,
-  test: (p: ProviderId) => ipcRenderer.invoke('providers:test', p) as Promise<ProvidersTestResult>,
+  setKey: (id: string, key: string) => ipcRenderer.invoke('providers:setKey', id, key) as Promise<ProvidersSetResult>,
+  clearKey: (id: string) => ipcRenderer.invoke('providers:clearKey', id) as Promise<ProvidersSetResult>,
+  setActive: (id: string | null) => ipcRenderer.invoke('providers:setActive', id) as Promise<ProvidersSetResult>,
+  setModel: (id: string, model: string) =>
+    ipcRenderer.invoke('providers:setModel', id, model) as Promise<ProvidersSetResult>,
+  setBaseUrl: (id: string, baseUrl: string | null) =>
+    ipcRenderer.invoke('providers:setBaseUrl', id, baseUrl) as Promise<ProvidersSetResult>,
+  addCustomModel: (id: string, model: string) =>
+    ipcRenderer.invoke('providers:addCustomModel', id, model) as Promise<ProvidersSetResult>,
+  removeCustomModel: (id: string, model: string) =>
+    ipcRenderer.invoke('providers:removeCustomModel', id, model) as Promise<ProvidersSetResult>,
+  setApiStyle: (id: string, style: ApiStyle) =>
+    ipcRenderer.invoke('providers:setApiStyle', id, style) as Promise<ProvidersSetResult>,
+  setThinkingLevel: (id: string, level: ModelThinkingLevel) =>
+    ipcRenderer.invoke('providers:setThinkingLevel', id, level) as Promise<ProvidersSetResult>,
+  setContextWindow: (id: string, contextWindow: number | null) =>
+    ipcRenderer.invoke('providers:setContextWindow', id, contextWindow) as Promise<ProvidersSetResult>,
+  addCustomProvider: (input: AddCustomProviderInput) =>
+    ipcRenderer.invoke('providers:addCustomProvider', input) as Promise<ProvidersAddResult>,
+  removeCustomProvider: (id: string) =>
+    ipcRenderer.invoke('providers:removeCustomProvider', id) as Promise<ProvidersSetResult>,
+  renameCustomProvider: (id: string, name: string) =>
+    ipcRenderer.invoke('providers:renameCustomProvider', id, name) as Promise<ProvidersSetResult>,
+  test: (id: string) => ipcRenderer.invoke('providers:test', id) as Promise<ProvidersTestResult>,
   onStateChanged: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: ProvidersStateView): void => cb(payload)
     ipcRenderer.on(PROVIDERS_STATE_CHANNEL, listener)

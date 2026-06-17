@@ -74,11 +74,11 @@ async function extractServerMessage(res: Response): Promise<string | null> {
 export async function testConnection(p: ProviderInjection): Promise<TestResult> {
   if (!p.apiKey) return { ok: false, code: 'no_key', message: 'no API key' }
 
-  // Custom provider needs a baseUrl (no sensible default) and an apiStyle.
-  // Built-in providers' style is their id.
-  const style = p.id === 'custom' ? (p.apiStyle ?? 'openai') : p.id
-  if (p.id === 'custom' && !p.baseUrl)
-    return { ok: false, code: 'unknown', message: 'custom provider requires a Base URL' }
+  // Built-in providers' style is their id; custom providers (any other id)
+  // carry an explicit apiStyle and need a baseUrl (no sensible default).
+  const isBuiltin = p.id === 'anthropic' || p.id === 'openai'
+  const style = isBuiltin ? p.id : (p.apiStyle ?? 'openai')
+  if (!isBuiltin && !p.baseUrl) return { ok: false, code: 'unknown', message: 'custom provider requires a Base URL' }
 
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS)

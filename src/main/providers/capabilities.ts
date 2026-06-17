@@ -1,6 +1,10 @@
 import type { Api, KnownProvider, Model } from '@earendil-works/pi-ai'
 import { clampThinkingLevel, getModel, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
-import type { ApiStyle, ModelThinkingLevel, ProviderId } from '@shared/types/provider'
+import type { ApiStyle, BuiltinProviderId, ModelThinkingLevel } from '@shared/types/provider'
+
+// Which pi-ai registry to look a model up in: a built-in id, or 'custom' (whose
+// real wire format comes from apiStyle).
+type ModelLookupKind = BuiltinProviderId | 'custom'
 
 // pi-ai's getModel is strictly typed per known provider; loosen it like agent-runner does.
 const getModelLoose = getModel as unknown as (provider: KnownProvider, modelId: string) => Model<Api> | undefined
@@ -13,7 +17,11 @@ const UNKNOWN_MODEL_LEVELS: ModelThinkingLevel[] = ['off', 'low', 'medium', 'hig
 /** Default depth applied when the user hasn't chosen one for a reasoning model. */
 export const DEFAULT_THINKING_LEVEL: ModelThinkingLevel = 'high'
 
-function lookupModel(providerId: ProviderId, apiStyle: ApiStyle | undefined, model: string): Model<Api> | undefined {
+function lookupModel(
+  providerId: ModelLookupKind,
+  apiStyle: ApiStyle | undefined,
+  model: string
+): Model<Api> | undefined {
   const lookup = (providerId === 'custom' ? (apiStyle ?? 'openai') : providerId) as KnownProvider
   return getModelLoose(lookup, model)
 }
@@ -24,13 +32,17 @@ export function modelSupportsImagesFromInput(input: readonly string[] | undefine
 }
 
 /** Look up a model's image capability from the pi-ai registry. */
-export function modelSupportsImages(providerId: ProviderId, apiStyle: ApiStyle | undefined, model: string): boolean {
+export function modelSupportsImages(
+  providerId: ModelLookupKind,
+  apiStyle: ApiStyle | undefined,
+  model: string
+): boolean {
   return modelSupportsImagesFromInput(lookupModel(providerId, apiStyle, model)?.input)
 }
 
 /** Reasoning depths a model supports, from the pi-ai registry. Falls back for unlisted models. */
 export function modelThinkingLevels(
-  providerId: ProviderId,
+  providerId: ModelLookupKind,
   apiStyle: ApiStyle | undefined,
   model: string
 ): ModelThinkingLevel[] {
@@ -41,7 +53,7 @@ export function modelThinkingLevels(
 
 /** Resolve the effective depth to show/use: the stored choice (or the default), clamped to the model. */
 export function effectiveThinkingLevel(
-  providerId: ProviderId,
+  providerId: ModelLookupKind,
   apiStyle: ApiStyle | undefined,
   model: string,
   stored: ModelThinkingLevel | undefined

@@ -1,3 +1,5 @@
+import { findProviderRowView } from '@shared/types/provider'
+
 import { AskPanel } from '@/components/ask-panel'
 import { ChatInput } from '@/components/chat-input'
 import { ConversationThread } from '@/components/conversation-thread'
@@ -81,7 +83,7 @@ export function TasksView(): React.JSX.Element {
           }}
           placeholder={pendingChatAskId ? 'Reply to the agent…' : undefined}
           status={activeTask ? (activeTask.status === 'pending' ? 'submitted' : 'streaming') : 'ready'}
-          supportsImages={!!(state.active && state.providers[state.active]?.supportsImages)}
+          supportsImages={!!findProviderRowView(state, state.active)?.supportsImages}
           usdCents={latestTask?.used?.usdCents}
         />
       </div>

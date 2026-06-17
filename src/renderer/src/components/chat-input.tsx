@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react'
-import type { ModelThinkingLevel, ProviderId, ProvidersStateView } from '@shared/types/provider'
+import {
+  findProviderRowView,
+  type ModelThinkingLevel,
+  type ProvidersStateView,
+  providerViewEntries,
+} from '@shared/types/provider'
 import type { Attachment } from '@shared/types/task'
 import type { ChatStatus } from 'ai'
 import { FileText, Paperclip, X } from 'lucide-react'
@@ -38,9 +43,8 @@ type Props = {
   placeholder?: string
 }
 
-type ModelOption = { providerId: ProviderId; modelId: string; key: string }
+type ModelOption = { providerId: string; modelId: string; key: string }
 
-const PROVIDER_IDS: readonly ProviderId[] = ['anthropic', 'openai', 'custom'] as const
 const MAX_FILES = 4
 const MAX_FILE_SIZE = 25 * 1024 * 1024
 
@@ -55,9 +59,8 @@ const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
 
 function buildModelOptions(state: ProvidersStateView): ModelOption[] {
   const out: ModelOption[] = []
-  for (const id of PROVIDER_IDS) {
-    const row = state.providers[id]
-    if (!row?.hasKey) continue
+  for (const { id, row } of providerViewEntries(state)) {
+    if (!row.hasKey) continue
     const seen = new Set<string>()
     for (const m of [row.model, ...(row.customModels ?? [])]) {
       if (seen.has(m)) continue
@@ -139,8 +142,8 @@ export function ChatInput({
   const { state } = useProviders()
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
   const options = useMemo(() => buildModelOptions(state), [state])
-  const currentKey =
-    state.active && state.providers[state.active] ? `${state.active}::${state.providers[state.active]!.model}` : ''
+  const activeRow = findProviderRowView(state, state.active)
+  const currentKey = state.active && activeRow ? `${state.active}::${activeRow.model}` : ''
 
   const handleSubmit = async (message: PromptInputMessage): Promise<void> => {
     if (disabled) return
@@ -154,12 +157,11 @@ export function ChatInput({
     const opt = options.find((o) => o.key === key)
     if (!opt) return
     if (state.active !== opt.providerId) await window.swarm.providers.setActive(opt.providerId)
-    if (state.providers[opt.providerId]?.model !== opt.modelId) {
+    if (findProviderRowView(state, opt.providerId)?.model !== opt.modelId) {
       await window.swarm.providers.setModel(opt.providerId, opt.modelId)
     }
   }
 
-  const activeRow = state.active ? state.providers[state.active] : null
   const thinkingLevels = activeRow?.thinkingLevels ?? []
   // Only worth a picker when the model offers more than just 'off'.
   const showThinking = thinkingLevels.length > 1

@@ -35,34 +35,52 @@ describe('store', () => {
     const store = createStore({ filePath: path })
     const state = await store.load()
     expect(state).toEqual({
-      version: 1,
+      version: 2,
       active: null,
-      providers: { anthropic: null, openai: null, custom: null },
+      builtins: { anthropic: null, openai: null },
+      custom: [],
     })
   })
 
   it('round-trips state through write → load', async () => {
     const store = createStore({ filePath: path })
     await store.save({
-      version: 1,
+      version: 2,
       active: 'anthropic',
-      providers: {
-        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-rt' },
-        openai: null,
-        custom: null,
-      },
+      builtins: { anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-rt' }, openai: null },
+      custom: [],
     })
     expect(existsSync(path)).toBe(true)
     const reread = await store.load()
-    expect(reread.providers.anthropic?.apiKey).toBe('sk-rt')
+    expect(reread.builtins.anthropic?.apiKey).toBe('sk-rt')
+  })
+
+  it('migrates a legacy v1 file on load', async () => {
+    const v1 = JSON.stringify({
+      version: 1,
+      active: 'custom',
+      providers: {
+        anthropic: null,
+        openai: null,
+        custom: { model: 'glm-4', apiKey: 'sk-c', baseUrl: 'https://x.com/v4', apiStyle: 'openai' },
+      },
+    })
+    writeFileSync(path, Buffer.from(`enc:${v1}`))
+    const store = createStore({ filePath: path })
+    const state = await store.load()
+    expect(state.version).toBe(2)
+    expect(state.custom).toHaveLength(1)
+    expect(state.custom[0].name).toBe('Custom')
+    expect(state.active).toBe(state.custom[0].id)
   })
 
   it('save writes atomically via rename', async () => {
     const store = createStore({ filePath: path })
     await store.save({
-      version: 1,
+      version: 2,
       active: null,
-      providers: { anthropic: null, openai: null, custom: null },
+      builtins: { anthropic: null, openai: null },
+      custom: [],
     })
     // Atomic write should leave no tmp file behind.
     expect(existsSync(`${path}.tmp`)).toBe(false)

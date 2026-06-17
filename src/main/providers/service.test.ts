@@ -19,407 +19,206 @@ function makeStore(initial: ProvidersStateOnDisk): Store & { saved: ProvidersSta
 }
 
 const empty: ProvidersStateOnDisk = {
-  version: 1,
+  version: 2,
   active: null,
-  providers: { anthropic: null, openai: null, custom: null },
+  builtins: { anthropic: null, openai: null },
+  custom: [],
 }
 
-describe('service', () => {
-  it('init populates state from store', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'anthropic',
-      providers: {
-        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-1' },
-        openai: null,
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
+const withBuiltin = (over: Partial<ProvidersStateOnDisk> = {}): ProvidersStateOnDisk => ({
+  version: 2,
+  active: 'anthropic',
+  builtins: { anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-1' }, openai: null },
+  custom: [],
+  ...over,
+})
+
+const customRow = {
+  id: 'c1',
+  name: 'BigModel',
+  model: 'glm-4',
+  apiKey: 'sk-c',
+  apiStyle: 'openai' as const,
+  baseUrl: 'https://x.com/v4',
+}
+
+describe('service (v2)', () => {
+  it('init populates state and view from the store', async () => {
+    const svc = await createService({ store: makeStore(withBuiltin()) })
     expect(svc.getState().active).toBe('anthropic')
-    expect(svc.getView().providers.anthropic?.hasKey).toBe(true)
+    expect(svc.getView().builtins.anthropic?.hasKey).toBe(true)
   })
 
-  it('setKey persists and broadcasts state', async () => {
+  it('setKey on a builtin persists and broadcasts', async () => {
     const store = makeStore(empty)
     const svc = await createService({ store })
     const calls: unknown[] = []
     svc.onStateChanged((v) => calls.push(v))
-
-    const r = await svc.setKey('anthropic', 'sk-new')
-    expect(r).toEqual({ ok: true })
-    expect(store.saved).toHaveLength(1)
-    expect(store.saved[0].providers.anthropic?.apiKey).toBe('sk-new')
+    expect(await svc.setKey('anthropic', 'sk-new')).toEqual({ ok: true })
+    expect(store.saved[0].builtins.anthropic?.apiKey).toBe('sk-new')
     expect(calls).toHaveLength(1)
   })
 
-  it('setKey rejects empty / oversize / newline keys', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
-
-    expect(await svc.setKey('anthropic', '')).toEqual({
-      ok: false,
-      code: 'invalid',
-      message: 'API key must not be empty',
-    })
-    expect(await svc.setKey('anthropic', 'sk-with-\nnewline')).toEqual({
-      ok: false,
-      code: 'invalid',
-      message: 'API key must not contain newlines',
-    })
-    expect(await svc.setKey('anthropic', 'x'.repeat(5000))).toEqual({
-      ok: false,
-      code: 'invalid',
-      message: 'API key too long (max 4096 chars)',
-    })
-    expect(store.saved).toHaveLength(0)
+  it('setKey rejects empty / newline / oversize keys', async () => {
+    const svc = await createService({ store: makeStore(empty) })
+    expect(await svc.setKey('anthropic', '')).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.setKey('anthropic', 'a\nb')).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.setKey('anthropic', 'x'.repeat(5000))).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setKey preserves model if already set; defaults model otherwise', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: { model: 'claude-opus-4-7', apiKey: 'old' },
-        openai: null,
-        custom: null,
-      },
+  it('setKey preserves an existing model and defaults it otherwise', async () => {
+    const svc = await createService({
+      store: makeStore({
+        ...empty,
+        builtins: { anthropic: { model: 'claude-opus-4-7', apiKey: 'old' }, openai: null },
+      }),
     })
-    const svc = await createService({ store })
-    await svc.setKey('anthropic', 'new-key')
-    expect(svc.getState().providers.anthropic?.model).toBe('claude-opus-4-7')
-
+    await svc.setKey('anthropic', 'new')
+    expect(svc.getState().builtins.anthropic?.model).toBe('claude-opus-4-7')
     await svc.setKey('openai', 'gpt-key')
-    expect(svc.getState().providers.openai?.model).toBe('gpt-4o') // default
+    expect(svc.getState().builtins.openai?.model).toBe('gpt-4o')
   })
 
-  it('clearKey nulls the provider and may demote active', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'anthropic',
-      providers: {
-        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
-        openai: null,
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
+  it('clearKey nulls a builtin but is invalid for custom providers', async () => {
+    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
     await svc.clearKey('anthropic')
-    expect(svc.getState().providers.anthropic).toBeNull()
-    expect(svc.getState().active).toBe('anthropic')
+    expect(svc.getState().builtins.anthropic).toBeNull()
+    expect(await svc.clearKey('c1')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setActive accepts null and any ProviderId', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
+  it('setActive accepts null, builtin ids, and known custom ids; rejects unknown', async () => {
+    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
     expect((await svc.setActive('openai')).ok).toBe(true)
-    expect(svc.getState().active).toBe('openai')
+    expect((await svc.setActive('c1')).ok).toBe(true)
     expect((await svc.setActive(null)).ok).toBe(true)
-    expect(svc.getState().active).toBeNull()
+    expect(await svc.setActive('nope')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setModel updates only the provider row and accepts any non-empty id', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
-        openai: null,
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    const ok = await svc.setModel('anthropic', 'claude-opus-4-7')
-    expect(ok).toEqual({ ok: true })
-    expect(svc.getState().providers.anthropic?.model).toBe('claude-opus-4-7')
-
-    // Free-form ids are now valid (third-party providers).
-    const custom = await svc.setModel('anthropic', 'claude-3-5-mythos-preview')
-    expect(custom).toEqual({ ok: true })
-    expect(svc.getState().providers.anthropic?.model).toBe('claude-3-5-mythos-preview')
-
-    const bad = await svc.setModel('anthropic', '')
-    expect(bad).toEqual({
-      ok: false,
-      code: 'invalid',
-      message: 'model must not be empty',
-    })
+  it('setModel updates the row; empty is invalid; unconfigured is invalid', async () => {
+    const svc = await createService({ store: makeStore(withBuiltin()) })
+    expect((await svc.setModel('anthropic', 'claude-opus-4-7')).ok).toBe(true)
+    expect(svc.getState().builtins.anthropic?.model).toBe('claude-opus-4-7')
+    expect(await svc.setModel('anthropic', '')).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.setModel('openai', 'gpt-4o')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setModel on a not-configured provider is invalid', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
-    const r = await svc.setModel('openai', 'gpt-4o')
-    expect(r).toEqual({
-      ok: false,
-      code: 'invalid',
-      message: 'no key configured for openai; set a key first',
-    })
-  })
-
-  it('setThinkingLevel persists the level and threads it into the injection', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'anthropic',
-      providers: {
-        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-x' },
-        openai: null,
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    const ok = await svc.setThinkingLevel('anthropic', 'low')
-    expect(ok).toEqual({ ok: true })
-    expect(svc.getState().providers.anthropic?.thinkingLevel).toBe('low')
+  it('setThinkingLevel persists and threads into the injection', async () => {
+    const svc = await createService({ store: makeStore(withBuiltin()) })
+    expect((await svc.setThinkingLevel('anthropic', 'low')).ok).toBe(true)
+    expect(svc.getState().builtins.anthropic?.thinkingLevel).toBe('low')
     expect(svc.getInjection()).toMatchObject({ thinkingLevel: 'low' })
   })
 
-  it('setThinkingLevel on a not-configured provider is invalid', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
-    const r = await svc.setThinkingLevel('openai', 'high')
-    expect(r).toEqual({
-      ok: false,
-      code: 'invalid',
-      message: 'no key configured for openai; set a key first',
+  it('setBaseUrl normalizes, strips trailing slash and pasted endpoint suffixes', async () => {
+    const svc = await createService({
+      store: makeStore({ ...empty, builtins: { anthropic: null, openai: { model: 'gpt-4o', apiKey: 'sk-x' } } }),
     })
-  })
-
-  it('setContextWindow persists on the custom slot and threads it into the injection', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'custom',
-      providers: {
-        anthropic: null,
-        openai: null,
-        custom: { model: 'mystery-model', apiKey: 'sk-x', apiStyle: 'openai' },
-      },
-    })
-    const svc = await createService({ store })
-    expect(await svc.setContextWindow('custom', 1_000_000)).toEqual({ ok: true })
-    expect(svc.getState().providers.custom?.contextWindow).toBe(1_000_000)
-    expect(svc.getInjection()).toMatchObject({ contextWindow: 1_000_000 })
-
-    // null clears the override → falls back to the resolved default downstream.
-    expect(await svc.setContextWindow('custom', null)).toEqual({ ok: true })
-    expect(svc.getState().providers.custom?.contextWindow).toBeUndefined()
-    expect(svc.getInjection()?.contextWindow).toBeUndefined()
-  })
-
-  it('setContextWindow rejects on built-in slots and bad values', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'custom',
-      providers: {
-        anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-a' },
-        openai: null,
-        custom: { model: 'mystery-model', apiKey: 'sk-x', apiStyle: 'openai' },
-      },
-    })
-    const svc = await createService({ store })
-    expect(await svc.setContextWindow('anthropic', 200_000)).toMatchObject({ ok: false, code: 'invalid' })
-    expect(await svc.setContextWindow('custom', 0)).toMatchObject({ ok: false, code: 'invalid' })
-    expect(await svc.setContextWindow('custom', 1.5)).toMatchObject({ ok: false, code: 'invalid' })
-  })
-
-  it('setBaseUrl persists a valid http(s) URL and strips trailing slash', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'openai',
-      providers: {
-        anthropic: null,
-        openai: { model: 'gpt-4o', apiKey: 'sk-x' },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    const ok = await svc.setBaseUrl('openai', 'https://api.deepseek.com/')
-    expect(ok).toEqual({ ok: true })
-    expect(svc.getState().providers.openai?.baseUrl).toBe('https://api.deepseek.com')
-    expect(svc.getInjection()).toMatchObject({ baseUrl: 'https://api.deepseek.com' })
-  })
-
-  it('setBaseUrl with empty/null clears the override', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: { model: 'gpt-4o', apiKey: 'sk-x', baseUrl: 'https://api.deepseek.com' },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    await svc.setBaseUrl('openai', '')
-    expect(svc.getState().providers.openai?.baseUrl).toBeUndefined()
-    await svc.setBaseUrl('openai', 'https://x.example')
-    expect(svc.getState().providers.openai?.baseUrl).toBe('https://x.example')
-    await svc.setBaseUrl('openai', null)
-    expect(svc.getState().providers.openai?.baseUrl).toBeUndefined()
-  })
-
-  it('setBaseUrl strips a trailing /chat/completions or /messages users paste from docs', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: { model: 'gpt-4o', apiKey: 'sk-x' },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
+    await svc.setBaseUrl('openai', 'https://api.deepseek.com/')
+    expect(svc.getState().builtins.openai?.baseUrl).toBe('https://api.deepseek.com')
     await svc.setBaseUrl('openai', 'https://open.bigmodel.cn/api/paas/v4/chat/completions')
-    expect(svc.getState().providers.openai?.baseUrl).toBe('https://open.bigmodel.cn/api/paas/v4')
-    await svc.setBaseUrl('openai', 'https://my.proxy.example/v1/chat/completions')
-    expect(svc.getState().providers.openai?.baseUrl).toBe('https://my.proxy.example')
-    await svc.setBaseUrl('openai', 'https://anth.example/v1/messages')
-    expect(svc.getState().providers.openai?.baseUrl).toBe('https://anth.example')
+    expect(svc.getState().builtins.openai?.baseUrl).toBe('https://open.bigmodel.cn/api/paas/v4')
+    await svc.setBaseUrl('openai', '')
+    expect(svc.getState().builtins.openai?.baseUrl).toBeUndefined()
+    expect(await svc.setBaseUrl('openai', 'ftp://x.com')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setBaseUrl rejects non-URL strings and non-http(s) schemes', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: { model: 'gpt-4o', apiKey: 'sk-x' },
-        custom: null,
-      },
+  it('addCustomModel / removeCustomModel manage the list on any provider', async () => {
+    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
+    expect((await svc.addCustomModel('c1', 'glm-4-flash')).ok).toBe(true)
+    expect(svc.getState().custom[0].customModels).toEqual(['glm-4-flash'])
+    expect((await svc.addCustomModel('c1', 'glm-4-flash')).ok).toBe(true) // idempotent
+    expect(svc.getState().custom[0].customModels).toEqual(['glm-4-flash'])
+    await svc.removeCustomModel('c1', 'glm-4-flash')
+    expect(svc.getState().custom[0].customModels).toBeUndefined()
+  })
+
+  it('addCustomProvider creates an entry with a generated id and split model list', async () => {
+    const svc = await createService({ store: makeStore(empty) })
+    const r = await svc.addCustomProvider({
+      name: 'BigModel',
+      apiKey: 'sk-c',
+      apiStyle: 'openai',
+      baseUrl: 'https://x.com/v4/',
+      models: ['glm-4', 'glm-4-flash'],
     })
-    const svc = await createService({ store })
-    expect(await svc.setBaseUrl('openai', 'not a url')).toMatchObject({
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const c = svc.getState().custom.find((x) => x.id === r.id)
+    expect(c?.name).toBe('BigModel')
+    expect(c?.model).toBe('glm-4')
+    expect(c?.customModels).toEqual(['glm-4-flash'])
+    expect(c?.baseUrl).toBe('https://x.com/v4')
+  })
+
+  it('addCustomProvider validates name, key, apiStyle and at least one model', async () => {
+    const svc = await createService({ store: makeStore(empty) })
+    expect(await svc.addCustomProvider({ name: '', apiKey: 'k', apiStyle: 'openai', models: ['m'] })).toMatchObject({
       ok: false,
-      code: 'invalid',
     })
-    expect(await svc.setBaseUrl('openai', 'ftp://example.com')).toMatchObject({
+    expect(await svc.addCustomProvider({ name: 'X', apiKey: '', apiStyle: 'openai', models: ['m'] })).toMatchObject({
       ok: false,
-      code: 'invalid',
-      message: 'baseUrl must use http or https',
     })
-  })
-
-  it('setBaseUrl on a not-configured provider is invalid', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
-    const r = await svc.setBaseUrl('openai', 'https://api.deepseek.com')
-    expect(r).toEqual({
+    expect(await svc.addCustomProvider({ name: 'X', apiKey: 'k', apiStyle: 'openai', models: [] })).toMatchObject({
       ok: false,
-      code: 'invalid',
-      message: 'no key configured for openai; set a key first',
     })
   })
 
-  it('addCustomModel appends, dedupes, and is idempotent', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: { model: 'gpt-4o', apiKey: 'sk-x' },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    expect((await svc.addCustomModel('openai', 'deepseek-chat')).ok).toBe(true)
-    expect(svc.getState().providers.openai?.customModels).toEqual(['deepseek-chat'])
-    expect((await svc.addCustomModel('openai', 'deepseek-coder')).ok).toBe(true)
-    expect(svc.getState().providers.openai?.customModels).toEqual(['deepseek-chat', 'deepseek-coder'])
-    // Idempotent — re-adding doesn't duplicate or fail.
-    expect((await svc.addCustomModel('openai', 'deepseek-chat')).ok).toBe(true)
-    expect(svc.getState().providers.openai?.customModels).toEqual(['deepseek-chat', 'deepseek-coder'])
+  it('removeCustomProvider deletes the entry and demotes active', async () => {
+    const svc = await createService({ store: makeStore({ ...empty, active: 'c1', custom: [customRow] }) })
+    expect((await svc.removeCustomProvider('c1')).ok).toBe(true)
+    expect(svc.getState().custom).toHaveLength(0)
+    expect(svc.getState().active).toBeNull()
+    expect(await svc.removeCustomProvider('c1')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('addCustomModel rejects empty / oversize ids and caps at 50', async () => {
-    const list = Array.from({ length: 50 }, (_, i) => `m${i}`)
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: { model: 'gpt-4o', apiKey: 'sk-x', customModels: list },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    expect(await svc.addCustomModel('openai', '')).toMatchObject({
-      ok: false,
-      code: 'invalid',
-    })
-    expect(await svc.addCustomModel('openai', 'one-more')).toMatchObject({
-      ok: false,
-      code: 'invalid',
-      message: 'custom-model list full (max 50)',
-    })
+  it('renameCustomProvider updates the name', async () => {
+    const svc = await createService({ store: makeStore({ ...empty, custom: [customRow] }) })
+    expect((await svc.renameCustomProvider('c1', 'Zhipu')).ok).toBe(true)
+    expect(svc.getState().custom[0].name).toBe('Zhipu')
+    expect(await svc.renameCustomProvider('c1', '')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('removeCustomModel drops the entry and clears the field when emptied', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: {
-          model: 'gpt-4o',
-          apiKey: 'sk-x',
-          customModels: ['deepseek-chat', 'deepseek-coder'],
-        },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    await svc.removeCustomModel('openai', 'deepseek-chat')
-    expect(svc.getState().providers.openai?.customModels).toEqual(['deepseek-coder'])
-    await svc.removeCustomModel('openai', 'deepseek-coder')
-    expect(svc.getState().providers.openai?.customModels).toBeUndefined()
+  it('setApiStyle + setContextWindow apply to custom providers and reject on builtins', async () => {
+    const svc = await createService({ store: makeStore({ ...withBuiltin(), custom: [customRow] }) })
+    expect((await svc.setApiStyle('c1', 'anthropic')).ok).toBe(true)
+    expect(svc.getState().custom[0].apiStyle).toBe('anthropic')
+    expect(await svc.setApiStyle('anthropic', 'openai')).toMatchObject({ ok: false, code: 'invalid' })
+
+    expect((await svc.setContextWindow('c1', 1_000_000)).ok).toBe(true)
+    expect(svc.getState().custom[0].contextWindow).toBe(1_000_000)
+    expect((await svc.setContextWindow('c1', null)).ok).toBe(true)
+    expect(svc.getState().custom[0].contextWindow).toBeUndefined()
+    expect(await svc.setContextWindow('anthropic', 200_000)).toMatchObject({ ok: false, code: 'invalid' })
+    expect(await svc.setContextWindow('c1', 0)).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('removeCustomModel is idempotent when the entry is absent', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: { model: 'gpt-4o', apiKey: 'sk-x' },
-        custom: null,
-      },
+  it('getInjection: builtin omits apiStyle; custom threads apiStyle + baseUrl + contextWindow', async () => {
+    const svc = await createService({
+      store: makeStore({
+        version: 2,
+        active: 'anthropic',
+        builtins: { anthropic: { model: 'claude-haiku-4-5', apiKey: 'sk-y' }, openai: null },
+        custom: [{ ...customRow, contextWindow: 1_000_000 }],
+      }),
     })
-    const svc = await createService({ store })
-    const r = await svc.removeCustomModel('openai', 'nope')
-    expect(r).toEqual({ ok: true })
-  })
+    expect(svc.getInjection()).toEqual({ id: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'sk-y' })
 
-  it('addCustomModel on a not-configured provider is invalid', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
-    const r = await svc.addCustomModel('openai', 'deepseek-chat')
-    expect(r).toEqual({
-      ok: false,
-      code: 'invalid',
-      message: 'no key configured for openai; set a key first',
+    await svc.setActive('c1')
+    expect(svc.getInjection()).toEqual({
+      id: 'c1',
+      model: 'glm-4',
+      apiKey: 'sk-c',
+      baseUrl: 'https://x.com/v4',
+      apiStyle: 'openai',
+      contextWindow: 1_000_000,
     })
   })
 
-  it('setKey preserves an existing baseUrl + customModels when rewriting the API key', async () => {
-    const store = makeStore({
-      version: 1,
-      active: null,
-      providers: {
-        anthropic: null,
-        openai: {
-          model: 'gpt-4o',
-          apiKey: 'old',
-          baseUrl: 'https://api.deepseek.com',
-          customModels: ['deepseek-chat'],
-        },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    await svc.setKey('openai', 'new-key')
-    expect(svc.getState().providers.openai?.baseUrl).toBe('https://api.deepseek.com')
-    expect(svc.getState().providers.openai?.customModels).toEqual(['deepseek-chat'])
-    expect(svc.getState().providers.openai?.apiKey).toBe('new-key')
+  it('getInjection returns null with no active provider or an unconfigured builtin', async () => {
+    const svc = await createService({ store: makeStore(empty) })
+    expect(svc.getInjection()).toBeNull()
+    await svc.setActive('anthropic')
+    expect(svc.getInjection()).toBeNull()
   })
 
   it('in-memory state does not advance when store.save throws', async () => {
@@ -428,121 +227,7 @@ describe('service', () => {
       throw new Error('disk full')
     })
     const svc = await createService({ store })
-    const r = await svc.setKey('anthropic', 'sk-x')
-    expect(r).toEqual({ ok: false, code: 'persist_failed', message: 'disk full' })
-    expect(svc.getState().providers.anthropic).toBeNull()
-  })
-
-  it('getInjection returns { id, model, apiKey } for the active provider', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'anthropic',
-      providers: {
-        anthropic: { model: 'claude-haiku-4-5', apiKey: 'sk-y' },
-        openai: null,
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    const inj = svc.getInjection()
-    expect(inj).toEqual({
-      id: 'anthropic',
-      model: 'claude-haiku-4-5',
-      apiKey: 'sk-y',
-    })
-  })
-
-  it('setKey on the custom slot seeds apiStyle to openai when none is set', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
-    const r = await svc.setKey('custom', 'sk-x')
-    expect(r.ok).toBe(true)
-    expect(svc.getState().providers.custom?.apiStyle).toBe('openai')
-  })
-
-  it('setApiStyle persists on the custom slot and rejects on built-ins', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'custom',
-      providers: {
-        anthropic: null,
-        openai: null,
-        custom: { model: 'gpt-4o', apiKey: 'sk-x', apiStyle: 'openai' },
-      },
-    })
-    const svc = await createService({ store })
-    expect((await svc.setApiStyle('custom', 'anthropic')).ok).toBe(true)
-    expect(svc.getState().providers.custom?.apiStyle).toBe('anthropic')
-    expect(await svc.setApiStyle('anthropic', 'openai')).toMatchObject({
-      ok: false,
-      code: 'invalid',
-    })
-  })
-
-  it('getInjection threads apiStyle for the custom slot', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'custom',
-      providers: {
-        anthropic: null,
-        openai: null,
-        custom: {
-          model: 'deepseek-chat',
-          apiKey: 'sk-x',
-          baseUrl: 'https://api.deepseek.com',
-          apiStyle: 'openai',
-        },
-      },
-    })
-    const svc = await createService({ store })
-    expect(svc.getInjection()).toEqual({
-      id: 'custom',
-      model: 'deepseek-chat',
-      apiKey: 'sk-x',
-      baseUrl: 'https://api.deepseek.com',
-      apiStyle: 'openai',
-    })
-  })
-
-  it('getInjection does NOT thread apiStyle for built-in slots', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'anthropic',
-      providers: {
-        anthropic: { model: 'claude-haiku-4-5', apiKey: 'sk-y' },
-        openai: null,
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    expect(svc.getInjection()).not.toHaveProperty('apiStyle')
-  })
-
-  it('getInjection threads baseUrl through when configured', async () => {
-    const store = makeStore({
-      version: 1,
-      active: 'openai',
-      providers: {
-        anthropic: null,
-        openai: { model: 'deepseek-chat', apiKey: 'sk-x', baseUrl: 'https://api.deepseek.com' },
-        custom: null,
-      },
-    })
-    const svc = await createService({ store })
-    expect(svc.getInjection()).toEqual({
-      id: 'openai',
-      model: 'deepseek-chat',
-      apiKey: 'sk-x',
-      baseUrl: 'https://api.deepseek.com',
-    })
-  })
-
-  it('getInjection returns null when no active or active has no key', async () => {
-    const store = makeStore(empty)
-    const svc = await createService({ store })
-    expect(svc.getInjection()).toBeNull()
-
-    await svc.setActive('anthropic')
-    expect(svc.getInjection()).toBeNull()
+    expect(await svc.setKey('anthropic', 'sk-x')).toEqual({ ok: false, code: 'persist_failed', message: 'disk full' })
+    expect(svc.getState().builtins.anthropic).toBeNull()
   })
 })

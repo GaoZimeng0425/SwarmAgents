@@ -1,20 +1,29 @@
 // src/main/providers/ipc.ts
 //
-// Wires the providers subsystem to Electron IPC. Exposes get/setKey/clearKey/
-// setActive/setModel/test handlers, broadcasts state changes to all renderer
-// windows, and fires a one-shot decrypt-failed event at boot when applicable.
-
+// Wires the providers subsystem to Electron IPC. Exposes get / setKey / clearKey
+// / setActive / setModel / apiStyle / thinking / contextWindow / baseUrl /
+// custom-model handlers, the custom-provider lifecycle (add/remove/rename), and
+// a test handler. Broadcasts state changes to all renderer windows and fires a
+// one-shot decrypt-failed event at boot when applicable.
 import { createLogger } from '@shared/logger'
-import { ModelThinkingLevel, ProviderId } from '@shared/types/provider'
+import { type ApiStyle, ModelThinkingLevel } from '@shared/types/provider'
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 
-import type { Service } from './service'
+import type { AddCustomInput, Service } from './service'
 import { testConnection } from './test-connection'
 
 const log = createLogger({ process: 'main' }).child({ component: 'providers-ipc' })
 
 const STATE_CHANGED_CHANNEL = 'providers:stateChanged'
 const DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
+
+// Any provider id (builtin 'anthropic'/'openai' or a custom uuid). The service
+// rejects unknown ids; here we only guard the wire type.
+function asId(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 && v.length <= 64 ? v : null
+}
+
+const badId = { ok: false as const, code: 'invalid' as const, message: 'invalid provider id' }
 
 export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: boolean }): { dispose: () => void } {
   const { service, decryptFailedAtBoot } = args
@@ -25,16 +34,13 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     }
   }
 
-  // Push state changes to every renderer window.
   const unsubscribe = service.onStateChanged((view) => {
     broadcast(STATE_CHANGED_CHANNEL, view)
   })
 
   // One-shot at boot if applicable. Fired on any new window via did-finish-load.
   const fireDecryptIfNeeded = (w: BrowserWindow): void => {
-    if (decryptFailedAtBoot && !w.isDestroyed()) {
-      w.webContents.send(DECRYPT_FAILED_CHANNEL)
-    }
+    if (decryptFailedAtBoot && !w.isDestroyed()) w.webContents.send(DECRYPT_FAILED_CHANNEL)
   }
   const onWebContentsCreated = (_: Electron.Event, contents: Electron.WebContents): void => {
     contents.once('did-finish-load', () => {
@@ -43,139 +49,164 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     })
   }
   app.on('web-contents-created', onWebContentsCreated)
-  // Cover already-open windows
   for (const w of BrowserWindow.getAllWindows()) {
-    if (w.webContents.isLoading()) {
-      w.webContents.once('did-finish-load', () => fireDecryptIfNeeded(w))
-    } else {
-      fireDecryptIfNeeded(w)
-    }
+    if (w.webContents.isLoading()) w.webContents.once('did-finish-load', () => fireDecryptIfNeeded(w))
+    else fireDecryptIfNeeded(w)
   }
 
-  const get = (): unknown => service.getView()
-  ipcMain.handle('providers:get', get)
+  ipcMain.handle('providers:get', () => service.getView())
 
-  const setKey = async (_: Electron.IpcMainInvokeEvent, p: unknown, key: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+  ipcMain.handle('providers:setKey', (_e: Electron.IpcMainInvokeEvent, p: unknown, key: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
     if (typeof key !== 'string') return { ok: false, code: 'invalid', message: 'key must be a string' }
-    return service.setKey(pid.data, key)
-  }
-  ipcMain.handle('providers:setKey', setKey)
+    return service.setKey(id, key)
+  })
 
-  const clearKey = async (_: Electron.IpcMainInvokeEvent, p: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
-    return service.clearKey(pid.data)
-  }
-  ipcMain.handle('providers:clearKey', clearKey)
+  ipcMain.handle('providers:clearKey', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+    const id = asId(p)
+    return id ? service.clearKey(id) : badId
+  })
 
-  const setActive = async (_: Electron.IpcMainInvokeEvent, p: unknown) => {
+  ipcMain.handle('providers:setActive', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
     if (p === null) return service.setActive(null)
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
-    return service.setActive(pid.data)
-  }
-  ipcMain.handle('providers:setActive', setActive)
+    const id = asId(p)
+    return id ? service.setActive(id) : badId
+  })
 
-  const setModel = async (_: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+  ipcMain.handle('providers:setModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
-    return service.setModel(pid.data, model)
-  }
-  ipcMain.handle('providers:setModel', setModel)
+    return service.setModel(id, model)
+  })
 
-  const addCustomModel = async (_: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+  ipcMain.handle('providers:addCustomModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
-    return service.addCustomModel(pid.data, model)
-  }
-  ipcMain.handle('providers:addCustomModel', addCustomModel)
+    return service.addCustomModel(id, model)
+  })
 
-  const removeCustomModel = async (_: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+  ipcMain.handle('providers:removeCustomModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
-    return service.removeCustomModel(pid.data, model)
-  }
-  ipcMain.handle('providers:removeCustomModel', removeCustomModel)
+    return service.removeCustomModel(id, model)
+  })
 
-  const setApiStyle = async (_: Electron.IpcMainInvokeEvent, p: unknown, style: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+  ipcMain.handle('providers:setApiStyle', (_e: Electron.IpcMainInvokeEvent, p: unknown, style: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
     if (style !== 'anthropic' && style !== 'openai')
       return { ok: false, code: 'invalid', message: 'apiStyle must be "anthropic" or "openai"' }
-    return service.setApiStyle(pid.data, style)
-  }
-  ipcMain.handle('providers:setApiStyle', setApiStyle)
+    return service.setApiStyle(id, style)
+  })
 
-  const setThinkingLevel = async (_: Electron.IpcMainInvokeEvent, p: unknown, level: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+  ipcMain.handle('providers:setThinkingLevel', (_e: Electron.IpcMainInvokeEvent, p: unknown, level: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
     const lvl = ModelThinkingLevel.safeParse(level)
     if (!lvl.success) return { ok: false, code: 'invalid', message: 'unknown thinking level' }
-    return service.setThinkingLevel(pid.data, lvl.data)
-  }
-  ipcMain.handle('providers:setThinkingLevel', setThinkingLevel)
+    return service.setThinkingLevel(id, lvl.data)
+  })
 
-  const setContextWindow = async (_: Electron.IpcMainInvokeEvent, p: unknown, contextWindow: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
-    if (contextWindow !== null && typeof contextWindow !== 'number')
-      return { ok: false, code: 'invalid', message: 'contextWindow must be a number or null' }
-    return service.setContextWindow(pid.data, contextWindow)
-  }
-  ipcMain.handle('providers:setContextWindow', setContextWindow)
+  ipcMain.handle(
+    'providers:setContextWindow',
+    (_e: Electron.IpcMainInvokeEvent, p: unknown, contextWindow: unknown) => {
+      const id = asId(p)
+      if (!id) return badId
+      if (contextWindow !== null && typeof contextWindow !== 'number')
+        return { ok: false, code: 'invalid', message: 'contextWindow must be a number or null' }
+      return service.setContextWindow(id, contextWindow)
+    }
+  )
 
-  const setBaseUrl = async (_: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'invalid', message: 'unknown provider id' }
+  ipcMain.handle('providers:setBaseUrl', (_e: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
     if (baseUrl !== null && typeof baseUrl !== 'string')
       return { ok: false, code: 'invalid', message: 'baseUrl must be a string or null' }
-    return service.setBaseUrl(pid.data, baseUrl)
-  }
-  ipcMain.handle('providers:setBaseUrl', setBaseUrl)
+    return service.setBaseUrl(id, baseUrl)
+  })
 
-  const test = async (_: Electron.IpcMainInvokeEvent, p: unknown) => {
-    const pid = ProviderId.safeParse(p)
-    if (!pid.success) return { ok: false, code: 'unknown', message: 'unknown provider id' }
+  ipcMain.handle('providers:addCustomProvider', (_e: Electron.IpcMainInvokeEvent, input: unknown) => {
+    if (!input || typeof input !== 'object') return { ok: false, code: 'invalid', message: 'input must be an object' }
+    const i = input as Partial<AddCustomInput>
+    if (typeof i.name !== 'string' || typeof i.apiKey !== 'string')
+      return { ok: false, code: 'invalid', message: 'name and apiKey are required' }
+    if (i.apiStyle !== 'anthropic' && i.apiStyle !== 'openai')
+      return { ok: false, code: 'invalid', message: 'apiStyle must be "anthropic" or "openai"' }
+    if (!Array.isArray(i.models) || i.models.some((m) => typeof m !== 'string'))
+      return { ok: false, code: 'invalid', message: 'models must be an array of strings' }
+    return service.addCustomProvider({
+      name: i.name,
+      apiKey: i.apiKey,
+      apiStyle: i.apiStyle as ApiStyle,
+      baseUrl: typeof i.baseUrl === 'string' ? i.baseUrl : null,
+      models: i.models as string[],
+      ...(i.thinkingLevel ? { thinkingLevel: i.thinkingLevel } : {}),
+    })
+  })
+
+  ipcMain.handle('providers:removeCustomProvider', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+    const id = asId(p)
+    return id ? service.removeCustomProvider(id) : badId
+  })
+
+  ipcMain.handle('providers:renameCustomProvider', (_e: Electron.IpcMainInvokeEvent, p: unknown, name: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
+    if (typeof name !== 'string') return { ok: false, code: 'invalid', message: 'name must be a string' }
+    return service.renameCustomProvider(id, name)
+  })
+
+  ipcMain.handle('providers:test', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+    const id = asId(p)
+    if (!id) return { ok: false, code: 'unknown', message: 'invalid provider id' }
     const state = service.getState()
-    const row = state.providers[pid.data]
+    const isBuiltin = id === 'anthropic' || id === 'openai'
+    const row = isBuiltin
+      ? id === 'anthropic'
+        ? state.builtins.anthropic
+        : state.builtins.openai
+      : (state.custom.find((c) => c.id === id) ?? null)
     if (!row) return { ok: false, code: 'no_key', message: 'no key configured' }
     return testConnection({
-      id: pid.data,
+      id,
       model: row.model,
       apiKey: row.apiKey,
       ...(row.baseUrl ? { baseUrl: row.baseUrl } : {}),
-      // Without apiStyle, a custom row configured for Anthropic-compatible
-      // endpoints would be tested with an OpenAI-style POST — false positive
-      // for the user, mismatched with what the worker actually does at
-      // chat-time (which DOES use the saved apiStyle via getInjection()).
-      ...(row.apiStyle ? { apiStyle: row.apiStyle } : {}),
+      // Built-in style is implicit (its id); custom carries an explicit apiStyle.
+      ...(!isBuiltin && row.apiStyle ? { apiStyle: row.apiStyle } : {}),
     })
-  }
-  ipcMain.handle('providers:test', test)
+  })
 
   log.info({ msg: 'providers IPC wired', decryptFailedAtBoot })
+
+  const channels = [
+    'providers:get',
+    'providers:setKey',
+    'providers:clearKey',
+    'providers:setActive',
+    'providers:setModel',
+    'providers:addCustomModel',
+    'providers:removeCustomModel',
+    'providers:setApiStyle',
+    'providers:setThinkingLevel',
+    'providers:setContextWindow',
+    'providers:setBaseUrl',
+    'providers:addCustomProvider',
+    'providers:removeCustomProvider',
+    'providers:renameCustomProvider',
+    'providers:test',
+  ]
 
   return {
     dispose(): void {
       unsubscribe()
       app.off('web-contents-created', onWebContentsCreated)
-      ipcMain.removeHandler('providers:get')
-      ipcMain.removeHandler('providers:setKey')
-      ipcMain.removeHandler('providers:clearKey')
-      ipcMain.removeHandler('providers:setActive')
-      ipcMain.removeHandler('providers:setModel')
-      ipcMain.removeHandler('providers:setApiStyle')
-      ipcMain.removeHandler('providers:setThinkingLevel')
-      ipcMain.removeHandler('providers:setContextWindow')
-      ipcMain.removeHandler('providers:setBaseUrl')
-      ipcMain.removeHandler('providers:addCustomModel')
-      ipcMain.removeHandler('providers:removeCustomModel')
-      ipcMain.removeHandler('providers:test')
+      for (const c of channels) ipcMain.removeHandler(c)
     },
   }
 }

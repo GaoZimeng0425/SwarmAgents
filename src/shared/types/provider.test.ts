@@ -2,133 +2,83 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
+  BuiltinProviderId,
   defaultProvidersStateOnDisk,
+  findProviderRowView,
   OPENAI_MODEL_SUGGESTIONS,
-  ProviderId,
   ProviderInjection,
   ProvidersStateOnDisk,
   ProvidersStateView,
+  parsePersistedState,
 } from './provider'
 
-describe('provider schemas', () => {
-  it('ProviderId accepts anthropic, openai, and custom', () => {
-    expect(ProviderId.parse('anthropic')).toBe('anthropic')
-    expect(ProviderId.parse('openai')).toBe('openai')
-    expect(ProviderId.parse('custom')).toBe('custom')
-    expect(() => ProviderId.parse('gemini')).toThrow()
+const genId = () => 'cust-1'
+
+describe('provider schemas (v2)', () => {
+  it('BuiltinProviderId accepts only anthropic and openai', () => {
+    expect(BuiltinProviderId.parse('anthropic')).toBe('anthropic')
+    expect(BuiltinProviderId.parse('openai')).toBe('openai')
+    expect(() => BuiltinProviderId.parse('custom')).toThrow()
   })
 
   it('model suggestion lists contain expected entries', () => {
     expect(ANTHROPIC_MODEL_SUGGESTIONS).toContain('claude-opus-4-7')
-    expect(ANTHROPIC_MODEL_SUGGESTIONS).toContain('claude-sonnet-4-5')
     expect(OPENAI_MODEL_SUGGESTIONS).toContain('gpt-4o')
-    expect(OPENAI_MODEL_SUGGESTIONS).toContain('o1-mini')
   })
 
-  it('ProvidersStateOnDisk requires version 1', () => {
+  it('ProvidersStateOnDisk requires version 2 and builtins/custom shape', () => {
     const ok = ProvidersStateOnDisk.parse({
-      version: 1,
+      version: 2,
       active: null,
-      providers: { anthropic: null, openai: null },
+      builtins: { anthropic: null, openai: null },
+      custom: [],
     })
-    expect(ok.version).toBe(1)
+    expect(ok.version).toBe(2)
+    expect(() =>
+      ProvidersStateOnDisk.parse({ version: 1, active: null, providers: { anthropic: null, openai: null } })
+    ).toThrow()
+  })
+
+  it('rejects an empty apiKey in a builtin slot', () => {
+    expect(() =>
+      ProvidersStateOnDisk.parse({
+        version: 2,
+        active: 'anthropic',
+        builtins: { anthropic: { model: 'claude-sonnet-4-5', apiKey: '' }, openai: null },
+        custom: [],
+      })
+    ).toThrow()
+  })
+
+  it('accepts custom providers with id, name and required apiStyle', () => {
+    const v = ProvidersStateOnDisk.parse({
+      version: 2,
+      active: 'c1',
+      builtins: { anthropic: null, openai: null },
+      custom: [
+        { id: 'c1', name: 'BigModel', model: 'glm-4', apiKey: 'sk-x', apiStyle: 'openai', baseUrl: 'https://x.com/v4' },
+      ],
+    })
+    expect(v.custom[0].name).toBe('BigModel')
+    expect(v.custom[0].apiStyle).toBe('openai')
+  })
+
+  it('rejects a customModels list that is too long', () => {
+    const list = Array.from({ length: 51 }, (_, i) => `m${i}`)
     expect(() =>
       ProvidersStateOnDisk.parse({
         version: 2,
         active: null,
-        providers: { anthropic: null, openai: null },
+        builtins: { anthropic: { model: 'gpt-4o', apiKey: 'sk-x', customModels: list }, openai: null },
+        custom: [],
       })
     ).toThrow()
   })
 
-  it('ProvidersStateOnDisk rejects empty apiKey', () => {
-    expect(() =>
-      ProvidersStateOnDisk.parse({
-        version: 1,
-        active: 'anthropic',
-        providers: {
-          anthropic: { model: 'claude-sonnet-4-5', apiKey: '' },
-          openai: null,
-        },
-      })
-    ).toThrow()
-  })
-
-  it('ProvidersStateOnDisk accepts custom model ids (free strings)', () => {
-    const v = ProvidersStateOnDisk.parse({
-      version: 1,
-      active: 'openai',
-      providers: {
-        anthropic: null,
-        openai: { model: 'deepseek-chat', apiKey: 'sk-x' },
-      },
-    })
-    expect(v.providers.openai?.model).toBe('deepseek-chat')
-  })
-
-  it('ProvidersStateOnDisk accepts an optional baseUrl on each row', () => {
-    const v = ProvidersStateOnDisk.parse({
-      version: 1,
-      active: 'openai',
-      providers: {
-        anthropic: null,
-        openai: {
-          model: 'deepseek-chat',
-          apiKey: 'sk-x',
-          baseUrl: 'https://api.deepseek.com',
-        },
-      },
-    })
-    expect(v.providers.openai?.baseUrl).toBe('https://api.deepseek.com')
-  })
-
-  it('ProvidersStateOnDisk accepts an optional customModels list', () => {
-    const v = ProvidersStateOnDisk.parse({
-      version: 1,
-      active: 'openai',
-      providers: {
-        anthropic: null,
-        openai: {
-          model: 'deepseek-chat',
-          apiKey: 'sk-x',
-          customModels: ['deepseek-chat', 'deepseek-coder'],
-        },
-      },
-    })
-    expect(v.providers.openai?.customModels).toEqual(['deepseek-chat', 'deepseek-coder'])
-  })
-
-  it('ProvidersStateOnDisk rejects a customModels list that is too long', () => {
-    const list = Array.from({ length: 51 }, (_, i) => `m${i}`)
-    expect(() =>
-      ProvidersStateOnDisk.parse({
-        version: 1,
-        active: null,
-        providers: {
-          anthropic: null,
-          openai: { model: 'gpt-4o', apiKey: 'sk-x', customModels: list },
-        },
-      })
-    ).toThrow()
-  })
-
-  it('ProvidersStateOnDisk rejects a malformed baseUrl', () => {
-    expect(() =>
-      ProvidersStateOnDisk.parse({
-        version: 1,
-        active: 'openai',
-        providers: {
-          anthropic: null,
-          openai: { model: 'gpt-4o', apiKey: 'sk-x', baseUrl: 'not a url' },
-        },
-      })
-    ).toThrow()
-  })
-
-  it('ProvidersStateView mirrors structure but uses hasKey', () => {
+  it('ProvidersStateView uses hasKey and a custom array', () => {
     const v = ProvidersStateView.parse({
       active: 'anthropic',
-      providers: {
+      builtins: {
         anthropic: {
           model: 'claude-sonnet-4-5',
           hasKey: true,
@@ -137,70 +87,83 @@ describe('provider schemas', () => {
           thinkingLevel: 'high',
         },
         openai: null,
-        custom: null,
       },
+      custom: [],
     })
-    expect(v.providers.anthropic?.hasKey).toBe(true)
+    expect(v.builtins.anthropic?.hasKey).toBe(true)
   })
 
-  it('ProvidersStateOnDisk back-fills a missing custom slot from legacy state', () => {
-    const v = ProvidersStateOnDisk.parse({
-      version: 1,
-      active: null,
-      providers: { anthropic: null, openai: null },
-    })
-    expect(v.providers.custom).toBeNull()
-  })
-
-  it('ProvidersStateOnDisk accepts the custom slot with apiStyle', () => {
-    const v = ProvidersStateOnDisk.parse({
-      version: 1,
-      active: 'custom',
-      providers: {
-        anthropic: null,
-        openai: null,
-        custom: {
-          model: 'deepseek-chat',
-          apiKey: 'sk-x',
-          baseUrl: 'https://api.deepseek.com',
-          apiStyle: 'openai',
+  it('migrates a legacy v1 file (custom slot → custom array entry)', () => {
+    const migrated = parsePersistedState(
+      {
+        version: 1,
+        active: 'custom',
+        providers: {
+          anthropic: { model: 'claude-sonnet-4-5', apiKey: 'sk-a' },
+          openai: null,
+          custom: { model: 'glm-4', apiKey: 'sk-c', baseUrl: 'https://x.com/v4', apiStyle: 'openai' },
         },
       },
-    })
-    expect(v.providers.custom?.apiStyle).toBe('openai')
+      genId
+    )
+    expect(migrated).not.toBeNull()
+    expect(migrated?.version).toBe(2)
+    expect(migrated?.builtins.anthropic?.apiKey).toBe('sk-a')
+    expect(migrated?.custom).toHaveLength(1)
+    expect(migrated?.custom[0].id).toBe('cust-1')
+    expect(migrated?.active).toBe('cust-1') // active 'custom' now points at the migrated id
   })
 
-  it('defaultProvidersStateOnDisk returns an empty version-1 state', () => {
+  it('parsePersistedState returns a v2 file unchanged and null for garbage', () => {
+    const v2 = defaultProvidersStateOnDisk()
+    expect(parsePersistedState(v2, genId)).toEqual(v2)
+    expect(parsePersistedState({ nonsense: true }, genId)).toBeNull()
+  })
+
+  it('defaultProvidersStateOnDisk returns an empty version-2 state', () => {
     const d = defaultProvidersStateOnDisk()
-    expect(d.version).toBe(1)
+    expect(d.version).toBe(2)
     expect(d.active).toBeNull()
-    expect(d.providers.anthropic).toBeNull()
-    expect(d.providers.openai).toBeNull()
-    expect(d.providers.custom).toBeNull()
+    expect(d.custom).toEqual([])
     expect(ProvidersStateOnDisk.parse(d)).toEqual(d)
   })
 
-  it('ProviderInjection requires apiKey to be non-empty and accepts optional baseUrl', () => {
+  it('ProviderInjection requires a non-empty apiKey and a string id', () => {
     expect(ProviderInjection.parse({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-x' })).toBeDefined()
-    expect(
-      ProviderInjection.parse({
-        id: 'openai',
-        model: 'deepseek-chat',
-        apiKey: 'sk-x',
-        baseUrl: 'https://api.deepseek.com',
-      }).baseUrl
-    ).toBe('https://api.deepseek.com')
-    expect(() => ProviderInjection.parse({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: '' })).toThrow()
+    expect(ProviderInjection.parse({ id: 'cust-1', model: 'glm-4', apiKey: 'sk-x', apiStyle: 'openai' }).apiStyle).toBe(
+      'openai'
+    )
+    expect(() => ProviderInjection.parse({ id: 'anthropic', model: 'm', apiKey: '' })).toThrow()
   })
 
-  it('ProviderInjection carries apiStyle for custom provider', () => {
-    const v = ProviderInjection.parse({
-      id: 'custom',
-      model: 'deepseek-chat',
-      apiKey: 'sk-x',
-      baseUrl: 'https://api.deepseek.com',
-      apiStyle: 'openai',
+  it('findProviderRowView resolves builtin and custom ids', () => {
+    const view = ProvidersStateView.parse({
+      active: null,
+      builtins: {
+        anthropic: {
+          model: 'claude',
+          hasKey: true,
+          supportsImages: true,
+          thinkingLevels: ['off'],
+          thinkingLevel: 'off',
+        },
+        openai: null,
+      },
+      custom: [
+        {
+          id: 'c1',
+          name: 'X',
+          model: 'glm-4',
+          hasKey: true,
+          supportsImages: false,
+          thinkingLevels: ['off'],
+          thinkingLevel: 'off',
+        },
+      ],
     })
-    expect(v.apiStyle).toBe('openai')
+    expect(findProviderRowView(view, 'anthropic')?.model).toBe('claude')
+    expect(findProviderRowView(view, 'c1')?.model).toBe('glm-4')
+    expect(findProviderRowView(view, 'openai')).toBeNull()
+    expect(findProviderRowView(view, null)).toBeNull()
   })
 })

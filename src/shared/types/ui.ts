@@ -10,7 +10,7 @@
 import type { ConfirmRequest, ConfirmResponse, Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
-import type { ApiStyle, ModelThinkingLevel, ProviderId, ProvidersStateView } from './provider'
+import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
@@ -90,6 +90,19 @@ export type SubmitGoalResult = { taskId: string }
 
 export type ProvidersSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
+export type ProvidersAddResult =
+  | { ok: true; id: string }
+  | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
+
+export type AddCustomProviderInput = {
+  name: string
+  apiKey: string
+  apiStyle: ApiStyle
+  baseUrl?: string | null
+  models: string[]
+  thinkingLevel?: ModelThinkingLevel
+}
+
 export type ProvidersTestResult =
   | { ok: true; latencyMs: number; url: string }
   | {
@@ -101,21 +114,27 @@ export type ProvidersTestResult =
 
 export type ProvidersBridge = {
   get(): Promise<ProvidersStateView>
-  setKey(p: ProviderId, key: string): Promise<ProvidersSetResult>
-  clearKey(p: ProviderId): Promise<ProvidersSetResult>
-  setActive(p: ProviderId | null): Promise<ProvidersSetResult>
-  setModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
+  /** id is a builtin id ('anthropic'|'openai') or a custom provider id. */
+  setKey(id: string, key: string): Promise<ProvidersSetResult>
+  /** Built-in only; remove the slot. Custom providers use removeCustomProvider. */
+  clearKey(id: string): Promise<ProvidersSetResult>
+  setActive(id: string | null): Promise<ProvidersSetResult>
+  setModel(id: string, model: string): Promise<ProvidersSetResult>
   /** Pass empty string or null to clear. */
-  setBaseUrl(p: ProviderId, baseUrl: string | null): Promise<ProvidersSetResult>
-  addCustomModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
-  removeCustomModel(p: ProviderId, model: string): Promise<ProvidersSetResult>
-  /** Set the wire-format style for the `custom` slot. */
-  setApiStyle(p: ProviderId, style: ApiStyle): Promise<ProvidersSetResult>
+  setBaseUrl(id: string, baseUrl: string | null): Promise<ProvidersSetResult>
+  addCustomModel(id: string, model: string): Promise<ProvidersSetResult>
+  removeCustomModel(id: string, model: string): Promise<ProvidersSetResult>
+  /** Custom providers only. */
+  setApiStyle(id: string, style: ApiStyle): Promise<ProvidersSetResult>
   /** Set the reasoning depth for a provider's model. */
-  setThinkingLevel(p: ProviderId, level: ModelThinkingLevel): Promise<ProvidersSetResult>
-  /** Override the context window for the `custom` slot. Pass null to reset to the default. */
-  setContextWindow(p: ProviderId, contextWindow: number | null): Promise<ProvidersSetResult>
-  test(p: ProviderId): Promise<ProvidersTestResult>
+  setThinkingLevel(id: string, level: ModelThinkingLevel): Promise<ProvidersSetResult>
+  /** Custom providers only. Pass null to reset to the default window. */
+  setContextWindow(id: string, contextWindow: number | null): Promise<ProvidersSetResult>
+  // Custom-provider lifecycle.
+  addCustomProvider(input: AddCustomProviderInput): Promise<ProvidersAddResult>
+  removeCustomProvider(id: string): Promise<ProvidersSetResult>
+  renameCustomProvider(id: string, name: string): Promise<ProvidersSetResult>
+  test(id: string): Promise<ProvidersTestResult>
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
   onDecryptFailed(cb: () => void): () => void
 }

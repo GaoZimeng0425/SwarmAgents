@@ -4,8 +4,9 @@
 // safeStorage (Keychain-backed on macOS). Saves are atomic (write tmp → rename)
 // and validated against the Zod schema before encryption so we never persist
 // garbage. Pure module: no logging, no globals — callers inject the filePath.
+import { randomUUID } from 'node:crypto'
 import { existsSync, promises as fs } from 'node:fs'
-import { defaultProvidersStateOnDisk, ProvidersStateOnDisk } from '@shared/types/provider'
+import { defaultProvidersStateOnDisk, ProvidersStateOnDisk, parsePersistedState } from '@shared/types/provider'
 import { safeStorage } from 'electron'
 
 export type LoadResult =
@@ -38,9 +39,10 @@ export function createStore(opts: { filePath: string }): Store {
     } catch {
       return { ok: false, reason: 'schema_invalid' }
     }
-    const checked = ProvidersStateOnDisk.safeParse(parsed)
-    if (!checked.success) return { ok: false, reason: 'schema_invalid' }
-    return { ok: true, state: checked.data }
+    // Accepts current v2 or migrates a legacy v1 file forward.
+    const state = parsePersistedState(parsed, randomUUID)
+    if (!state) return { ok: false, reason: 'schema_invalid' }
+    return { ok: true, state }
   }
 
   const load: Store['load'] = async () => {
