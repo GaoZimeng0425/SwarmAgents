@@ -11,6 +11,14 @@ import { useSessionsStore } from '../stores/sessions'
 import { useEventsSubscription } from './use-events-subscription'
 import { useDecidePermission, useSubmitGoal, useTasks } from './use-tasks'
 
+// useEventsSubscription now navigates (toast jump) + toasts on background
+// activity; stub both so rendering it here needs no router/Toaster.
+vi.mock('sonner', () => ({ toast: vi.fn() }))
+vi.mock('@tanstack/react-router', async (orig) => ({
+  ...(await orig<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => vi.fn(),
+}))
+
 function makeWrapper(qc: QueryClient) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return <QueryClientProvider client={qc}>{children}</QueryClientProvider>
@@ -18,7 +26,7 @@ function makeWrapper(qc: QueryClient) {
 }
 
 beforeEach(() => {
-  useSessionsStore.setState({ sessions: [], selectedSessionId: null })
+  useSessionsStore.setState({ sessions: [], selectedSessionId: null, unread: {} })
   usePermissionStore.setState({ queue: [] })
 })
 

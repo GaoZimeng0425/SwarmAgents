@@ -4,7 +4,7 @@ import { useSessionsStore } from './sessions'
 
 describe('sessions store', () => {
   beforeEach(() => {
-    useSessionsStore.setState({ sessions: [], selectedSessionId: null })
+    useSessionsStore.setState({ sessions: [], selectedSessionId: null, unread: {} })
   })
 
   it('sets the session list', () => {
@@ -53,5 +53,30 @@ describe('sessions store', () => {
   it('selects a session', () => {
     useSessionsStore.getState().select('x')
     expect(useSessionsStore.getState().selectedSessionId).toBe('x')
+  })
+
+  it('marks a background session unread', () => {
+    useSessionsStore.getState().select('a')
+    useSessionsStore.getState().markUnread('b')
+    expect(useSessionsStore.getState().unread).toEqual({ b: true })
+  })
+
+  it('does not mark the currently selected session unread', () => {
+    useSessionsStore.getState().select('a')
+    useSessionsStore.getState().markUnread('a')
+    expect(useSessionsStore.getState().unread).toEqual({})
+  })
+
+  it('clears unread when the session is selected', () => {
+    useSessionsStore.getState().markUnread('b')
+    expect(useSessionsStore.getState().unread).toEqual({ b: true })
+    useSessionsStore.getState().select('b')
+    expect(useSessionsStore.getState().unread).toEqual({})
+  })
+
+  it('clears unread when the session is removed', () => {
+    useSessionsStore.getState().markUnread('b')
+    useSessionsStore.getState().remove('b')
+    expect(useSessionsStore.getState().unread).toEqual({})
   })
 })

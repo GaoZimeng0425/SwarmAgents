@@ -34,6 +34,7 @@ type LiveStatus = 'running' | 'awaiting' | 'idle'
 export function SessionList(): React.JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const selected = useSessionsStore((s) => s.selectedSessionId)
+  const unread = useSessionsStore((s) => s.unread)
   const upsert = useSessionsStore((s) => s.upsert)
   const removeFromStore = useSessionsStore((s) => s.remove)
   const navigate = useNavigate()
@@ -195,6 +196,13 @@ export function SessionList(): React.JSX.Element {
                     >
                       {selected === s.id && (
                         <div className="absolute top-2 bottom-2 left-0 w-1 rounded-full bg-primary" />
+                      )}
+                      {selected !== s.id && unread[s.id] && (
+                        <span
+                          aria-label="Unread activity"
+                          className="absolute top-1 left-1 size-1.5 rounded-full bg-primary"
+                          role="img"
+                        />
                       )}
                       {s.pinned && <Pin className="size-3 shrink-0 rotate-45 text-primary/70" />}
                       <span className="flex-1 truncate leading-tight">{title}</span>
