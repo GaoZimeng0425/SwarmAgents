@@ -245,6 +245,52 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('applies the configured main/sub budgets to tasks', async () => {
+    const customBudget = {
+      main: { tokens: 11, calls: 1, wallMs: 1000, usdCents: 1 },
+      sub: { tokens: 22, calls: 2, wallMs: 2000, usdCents: 2 },
+    }
+    const seenBudgets: Array<{ tokens: number; calls: number; wallMs: number; usdCents: number }> = []
+    let callCount = 0
+    let capturedSpawnChild: ((...args: unknown[]) => Promise<unknown>) | null = null
+    mockCreate.mockImplementation((deps) => {
+      callCount++
+      seenBudgets.push(deps.task.budget)
+      if (callCount === 1) {
+        capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
+        return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'parent done' }) }
+      }
+      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'child done' }) }
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({
+      store,
+      broadcaster,
+      maxConcurrent: 4,
+      getProvider: () => undefined,
+      getBudgetConfig: () => customBudget,
+    })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+
+    const { taskId: parentTaskId } = manager.submitGoal(sessionId, 'parent goal')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(seenBudgets[0]).toEqual(customBudget.main)
+
+    await capturedSpawnChild!(parentTaskId, 'child goal')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(seenBudgets[1]).toEqual(customBudget.sub)
+    await Promise.resolve()
+    store.close()
+  })
+
   it('uses session provider when providerKey is not given', async () => {
     const sessionProvider = {
       id: 'anthropic' as const,

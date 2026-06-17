@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { builtinAgents } from '@shared/agents/builtins'
 import { createLogger } from '@shared/logger'
+import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceRequest } from '@shared/types/service-ipc'
 import type { WebSearchInjection } from '@shared/types/web-search'
@@ -56,6 +57,10 @@ const providerRegistry = new Map<string, ProviderInjection>()
 // tool. Defaults to 'auto' (env-var fallback) until Main sends the persisted one.
 let webSearchConfig: WebSearchInjection = { provider: 'auto' }
 
+// Live per-task budgets, pushed from Main and read at task creation. Defaults
+// match the previous hardcoded values until Main sends the persisted config.
+let budgetConfig: BudgetConfig = defaultBudgetConfig()
+
 const manager = createSessionManager({
   store,
   broadcaster,
@@ -64,6 +69,7 @@ const manager = createSessionManager({
   toolRegistry,
   skillStore,
   agentStore,
+  getBudgetConfig: () => budgetConfig,
 })
 
 const scheduler = createCronScheduler({
@@ -94,6 +100,9 @@ const dispatch = createDispatcher({
   getMcpStatus: () => mcpManager.getStatus(),
   setWebSearchConfig: (config) => {
     webSearchConfig = config
+  },
+  setBudgetConfig: (config) => {
+    budgetConfig = config
   },
   listSkills: () => skillStore.list(),
   saveSkill: (skill) => skillStore.save(skill),

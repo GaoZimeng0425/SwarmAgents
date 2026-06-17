@@ -4,6 +4,7 @@ import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { BrowserWindow, ipcMain, shell } from 'electron'
 
+import type { Service as BudgetsService } from '../budgets'
 import type { Service as McpService } from '../mcp-servers'
 import type { Service as ProvidersService } from '../providers'
 import type { ServiceClient } from '../service-client'
@@ -35,8 +36,9 @@ export function wireSwarmIpc(args: {
   providers: ProvidersService
   mcpServers: McpService
   webSearch: WebSearchService
+  budgets: BudgetsService
 }): { dispose: () => void } {
-  const { serviceClient, providers, mcpServers, webSearch } = args
+  const { serviceClient, providers, mcpServers, webSearch, budgets } = args
 
   // ---- MCP config ↔ service bridge ----
   // Push the persisted config to the service now, and on every change. The
@@ -60,6 +62,18 @@ export function wireSwarmIpc(args: {
   const offWebSearchChange = webSearch.onStateChanged(() => {
     void serviceClient.setWebSearchConfig(webSearch.getInjection()).catch((err: unknown) => {
       log.warn({ msg: 'setWebSearchConfig failed', err: String(err) })
+    })
+  })
+
+  // ---- Budget config ↔ service bridge ----
+  // Push the persisted budgets to the service now, and on every change. The
+  // session-manager reads them when creating main/sub-agent tasks.
+  void serviceClient.setBudgetConfig(budgets.get()).catch((err: unknown) => {
+    log.warn({ msg: 'initial setBudgetConfig failed', err: String(err) })
+  })
+  const offBudgetsChange = budgets.onStateChanged(() => {
+    void serviceClient.setBudgetConfig(budgets.get()).catch((err: unknown) => {
+      log.warn({ msg: 'setBudgetConfig failed', err: String(err) })
     })
   })
 
@@ -211,6 +225,7 @@ export function wireSwarmIpc(args: {
     dispose(): void {
       offMcpChange()
       offWebSearchChange()
+      offBudgetsChange()
       ipcMain.removeHandler('mcp:getStatus')
       ipcMain.removeHandler('skills:list')
       ipcMain.removeHandler('skills:save')

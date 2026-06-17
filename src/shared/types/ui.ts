@@ -7,6 +7,7 @@
  * etc. Each event carries a server-side timestamp so the UI can render a
  * linear timeline without needing its own clock.
  */
+import type { BudgetConfig } from './budgets'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
@@ -165,6 +166,14 @@ export type WebSearchBridge = {
   onStateChanged(cb: (v: WebSearchConfigView) => void): () => void
 }
 
+export type BudgetsSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
+
+export type BudgetsBridge = {
+  get(): Promise<BudgetConfig>
+  set(config: BudgetConfig): Promise<BudgetsSetResult>
+  onStateChanged(cb: (c: BudgetConfig) => void): () => void
+}
+
 export type SkillBridge = {
   list(): Promise<Skill[]>
   save(skill: Skill): Promise<SkillMutationResult>
@@ -221,6 +230,7 @@ export type SwarmBridge = {
   providers: ProvidersBridge
   mcp: McpBridge
   webSearch: WebSearchBridge
+  budgets: BudgetsBridge
   skills: SkillBridge
   memory: MemoryBridge
 }

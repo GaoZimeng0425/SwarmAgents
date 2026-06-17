@@ -3,6 +3,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
+import { initBudgets } from './budgets'
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initMcpServers } from './mcp-servers'
@@ -50,10 +51,14 @@ app.whenReady().then(async () => {
   const webSearch = await initWebSearch()
   log.info({ msg: 'web search config initialised' })
 
+  const budgets = await initBudgets()
+  log.info({ msg: 'budget config initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
     mcpServers.dispose()
     webSearch.dispose()
+    budgets.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')
@@ -107,6 +112,7 @@ app.whenReady().then(async () => {
       providers: providers.service,
       mcpServers: mcpServers.service,
       webSearch: webSearch.service,
+      budgets: budgets.service,
     })
     log.info({ msg: 'core services up' })
   } catch (err) {

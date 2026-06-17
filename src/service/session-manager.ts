@@ -3,6 +3,7 @@ import { DEFAULT_AGENT_DEF } from '@shared/agents/builtins'
 import { createLogger } from '@shared/logger'
 import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
+import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
@@ -39,6 +40,8 @@ type SessionManagerConfig = {
   toolRegistry?: ToolRegistry
   skillStore?: SkillStore
   agentStore?: AgentStore
+  /** Returns the user-configured per-task budgets; defaults apply when omitted. */
+  getBudgetConfig?: () => BudgetConfig
 }
 
 export type SessionManager = {
@@ -83,6 +86,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     if (cfg.agentStore) systemPrompt = withAgentTypes(systemPrompt, cfg.agentStore.list())
     return { ...def, systemPrompt }
   }
+
+  // Read the user-configured per-task budgets at task-creation time; defaults
+  // apply when no getter is wired (tests/scripts).
+  const budgets = (): BudgetConfig => cfg.getBudgetConfig?.() ?? defaultBudgetConfig()
 
   let activeRunners = 0
   const waitQueue: Array<() => void> = []
@@ -171,7 +178,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: suggestedTools ?? deriveAllowlist(def.toolScope),
-      budget: { tokens: 50_000, calls: 25, wallMs: 300_000, usdCents: 100 },
+      budget: budgets().sub,
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
       history: [],
       attachments: [],
@@ -267,7 +274,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         status: 'pending',
         assignedWorkerId: null,
         toolAllowlist: deriveAllowlist(agentDef.toolScope),
-        budget: { tokens: 100_000, calls: 50, wallMs: 600_000, usdCents: 200 },
+        budget: budgets().main,
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
         history: [],
         attachments,

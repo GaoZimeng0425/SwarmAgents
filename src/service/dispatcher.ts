@@ -3,6 +3,7 @@
 // matching that lived in the HTTP server. No transport, no I/O — trivially
 // unit-testable.
 
+import type { BudgetConfig } from '@shared/types/budgets'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
@@ -19,6 +20,7 @@ type DispatcherConfig = {
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): McpServerStatus[]
   setWebSearchConfig(config: WebSearchInjection): void
+  setBudgetConfig(config: BudgetConfig): void
   listSkills(): Skill[]
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
@@ -89,6 +91,11 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'setWebSearchConfig': {
         const [config] = args as [WebSearchInjection]
         cfg.setWebSearchConfig(config)
+        return { ok: true }
+      }
+      case 'setBudgetConfig': {
+        const [config] = args as [BudgetConfig]
+        cfg.setBudgetConfig(config)
         return { ok: true }
       }
       case 'listSkills':

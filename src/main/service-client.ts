@@ -1,4 +1,5 @@
 import { createLogger } from '@shared/logger'
+import type { BudgetConfig } from '@shared/types/budgets'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
@@ -42,6 +43,7 @@ export type ServiceClient = {
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
+  setBudgetConfig(config: BudgetConfig): Promise<void>
   listSkills(): Promise<Skill[]>
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
@@ -127,6 +129,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     async setWebSearchConfig(config) {
       await call('setWebSearchConfig', [config])
+    },
+    async setBudgetConfig(config) {
+      await call('setBudgetConfig', [config])
     },
     listSkills() {
       return call('listSkills', [])

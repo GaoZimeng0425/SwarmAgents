@@ -13,6 +13,7 @@ import { Route as WebSearchRouteImport } from './routes-settings/web-search'
 import { Route as ProvidersRouteImport } from './routes-settings/providers'
 import { Route as PermissionsRouteImport } from './routes-settings/permissions'
 import { Route as McpRouteImport } from './routes-settings/mcp'
+import { Route as BudgetsRouteImport } from './routes-settings/budgets'
 import { Route as AboutRouteImport } from './routes-settings/about'
 import { Route as IndexRouteImport } from './routes-settings/index'
 
@@ -36,6 +37,11 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BudgetsRoute = BudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
@@ -50,6 +56,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/budgets': typeof BudgetsRoute
   '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/budgets': typeof BudgetsRoute
   '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/budgets': typeof BudgetsRoute
   '/mcp': typeof McpRoute
   '/permissions': typeof PermissionsRoute
   '/providers': typeof ProvidersRoute
@@ -77,16 +86,25 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/budgets'
     | '/mcp'
     | '/permissions'
     | '/providers'
     | '/web-search'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/mcp' | '/permissions' | '/providers' | '/web-search'
+  to:
+    | '/'
+    | '/about'
+    | '/budgets'
+    | '/mcp'
+    | '/permissions'
+    | '/providers'
+    | '/web-search'
   id:
     | '__root__'
     | '/'
     | '/about'
+    | '/budgets'
     | '/mcp'
     | '/permissions'
     | '/providers'
@@ -96,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  BudgetsRoute: typeof BudgetsRoute
   McpRoute: typeof McpRoute
   PermissionsRoute: typeof PermissionsRoute
   ProvidersRoute: typeof ProvidersRoute
@@ -132,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/budgets': {
+      id: '/budgets'
+      path: '/budgets'
+      fullPath: '/budgets'
+      preLoaderRoute: typeof BudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -152,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  BudgetsRoute: BudgetsRoute,
   McpRoute: McpRoute,
   PermissionsRoute: PermissionsRoute,
   ProvidersRoute: ProvidersRoute,

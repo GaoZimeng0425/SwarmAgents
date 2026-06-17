@@ -16,6 +16,7 @@ export type ServiceMethod =
   | 'setMcpServers'
   | 'getMcpStatus'
   | 'setWebSearchConfig'
+  | 'setBudgetConfig'
   | 'listSkills'
   | 'saveSkill'
   | 'deleteSkill'

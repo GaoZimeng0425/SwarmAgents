@@ -19,6 +19,7 @@ const mcpDeps = () => ({
   setMcpServers: vi.fn().mockResolvedValue(undefined),
   getMcpStatus: vi.fn().mockReturnValue([]),
   setWebSearchConfig: vi.fn(),
+  setBudgetConfig: vi.fn(),
   listSkills: vi.fn().mockReturnValue([]),
   saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   deleteSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),

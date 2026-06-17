@@ -1,11 +1,14 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
+import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
 import type { Skill, SkillMutationResult } from '../shared/types/skill'
 import type {
   AddCustomProviderInput,
+  BudgetsBridge,
+  BudgetsSetResult,
   MacPermissions,
   McpBridge,
   MemoryBridge,
@@ -31,6 +34,7 @@ const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
 const MCP_CONFIG_CHANGED_CHANNEL = 'mcp:configChanged'
 const MCP_STATUS_CHANNEL = 'mcp:status'
 const WEB_SEARCH_STATE_CHANNEL = 'webSearch:stateChanged'
+const BUDGETS_STATE_CHANNEL = 'budgets:stateChanged'
 
 const providers: ProvidersBridge = {
   get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
@@ -117,6 +121,18 @@ const webSearch: WebSearchBridge = {
   },
 }
 
+const budgets: BudgetsBridge = {
+  get: () => ipcRenderer.invoke('budgets:get') as Promise<BudgetConfig>,
+  set: (config: BudgetConfig) => ipcRenderer.invoke('budgets:set', config) as Promise<BudgetsSetResult>,
+  onStateChanged: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: BudgetConfig): void => cb(payload)
+    ipcRenderer.on(BUDGETS_STATE_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(BUDGETS_STATE_CHANNEL, listener)
+    }
+  },
+}
+
 const skills: SkillBridge = {
   list: () => ipcRenderer.invoke('skills:list') as Promise<Skill[]>,
   save: (skill: Skill) => ipcRenderer.invoke('skills:save', skill) as Promise<SkillMutationResult>,
@@ -175,6 +191,7 @@ const swarm: SwarmBridge = {
   providers,
   mcp,
   webSearch,
+  budgets,
   skills,
   memory,
 }
