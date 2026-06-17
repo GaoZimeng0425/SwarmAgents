@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import '@testing-library/jest-dom/vitest'
 import type { PermissionPrompt } from '@/stores/permission'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
