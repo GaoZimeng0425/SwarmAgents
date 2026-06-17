@@ -72,13 +72,12 @@ describe('use-tasks + use-events-subscription', () => {
         ts: 1,
         sessionId: 'sess-1',
         taskId: 'task-1',
-        workerId: null,
+        workerId: 'w-1',
         actionId: 'act-9',
         risk: 'high',
-        toolName: 'shell',
         summary: 'rm -rf /tmp/x',
         payload: { cmd: 'rm -rf /tmp/x' },
-      } as UIEvent)
+      })
     })
 
     await waitFor(() => {
