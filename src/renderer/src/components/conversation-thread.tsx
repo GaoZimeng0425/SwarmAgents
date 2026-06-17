@@ -132,7 +132,7 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
   const usage = last.used
 
   const messageActions = (text: string, taskId: string): React.JSX.Element => (
-    <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100">
+    <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 group-[.is-user]:justify-end">
       <MessageAction label="Copy" onClick={() => onCopy(text)} tooltip="Copy message">
         <Copy className="size-3.5" />
       </MessageAction>
