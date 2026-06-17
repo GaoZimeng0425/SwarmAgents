@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { ScrollArea as ScrollAreaPrimitive } from '@base-ui/react/scroll-area'
 import type { UsageRange, UsageStats } from '@shared/types/usage'
 import { Activity, BarChart3, CalendarCheck, CalendarDays, Flame, MessageSquare, MessagesSquare } from 'lucide-react'
 import { Bar, BarChart, Cell, Pie, PieChart, XAxis } from 'recharts'
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { swarmApi } from '@/lib/api'
 import { formatCost, formatCount, heatmapShade } from '@/lib/usage-format'
 import { cn } from '@/lib/utils'
@@ -16,15 +19,29 @@ function ActivityHeatmap({ days }: { days: { date: string; tokens: number }[] })
   return (
     <div className="rounded-xl border bg-card p-4">
       <h3 className="mb-3 font-medium text-sm">活跃热力图</h3>
-      <div className="grid grid-flow-col grid-rows-7 gap-1">
-        {days.map((d) => (
-          <div
-            className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
-            key={d.date}
-            title={`${d.date}: ${d.tokens}`}
-          />
-        ))}
-      </div>
+      {/* 52-week (one year) grid; column-major 7-row fill = one column per week.
+          Wider than the card on narrow windows, so scroll the grid horizontally. */}
+      <TooltipProvider>
+        <ScrollAreaPrimitive.Root className="relative w-full">
+          <ScrollAreaPrimitive.Viewport className="w-full rounded-[inherit]">
+            <div className="grid w-max grid-flow-col grid-rows-7 gap-1 pb-2">
+              {days.map((d) => (
+                <Tooltip key={d.date}>
+                  <TooltipTrigger
+                    className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
+                    render={<div />}
+                  />
+                  <TooltipContent className="flex-col items-start gap-0.5">
+                    <span>{d.date}</span>
+                    <span>{formatCount(d.tokens)} tokens</span>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </ScrollAreaPrimitive.Viewport>
+          <ScrollBar orientation="horizontal" />
+        </ScrollAreaPrimitive.Root>
+      </TooltipProvider>
       <div className="mt-2 flex items-center justify-end gap-1 text-muted-foreground text-xs">
         <span>较少</span>
         {SHADE_CLASS.map((c) => (
@@ -144,66 +161,68 @@ export function UsageView(): React.JSX.Element {
   }, [rangeDays])
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
-      <header className="flex items-center justify-between">
-        <h2 className="font-semibold text-lg">时间范围</h2>
-        <div className="flex rounded-lg border p-0.5">
-          {([7, 30] as const).map((r) => (
-            <button
-              className={cn(
-                'rounded-md px-3 py-1 text-sm transition-colors',
-                rangeDays === r ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
-              )}
-              key={r}
-              onClick={() => setRangeDays(r)}
-              type="button"
-            >
-              最近 {r} 天
-            </button>
-          ))}
-        </div>
-      </header>
+    <ScrollArea className="h-full">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
+        <header className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg">时间范围</h2>
+          <div className="flex rounded-lg border p-0.5">
+            {([7, 30] as const).map((r) => (
+              <button
+                className={cn(
+                  'rounded-md px-3 py-1 text-sm transition-colors',
+                  rangeDays === r ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
+                )}
+                key={r}
+                onClick={() => setRangeDays(r)}
+                type="button"
+              >
+                最近 {r} 天
+              </button>
+            ))}
+          </div>
+        </header>
 
-      {error ? (
-        <div className="rounded-lg border border-destructive/40 p-4 text-destructive text-sm">{error}</div>
-      ) : null}
-      {loading && !stats ? <div className="text-muted-foreground text-sm">加载中…</div> : null}
-      {stats && stats.totals.tokens === 0 ? (
-        <div className="rounded-lg border p-8 text-center text-muted-foreground text-sm">还没有用量数据</div>
-      ) : null}
+        {error ? (
+          <div className="rounded-lg border border-destructive/40 p-4 text-destructive text-sm">{error}</div>
+        ) : null}
+        {loading && !stats ? <div className="text-muted-foreground text-sm">加载中…</div> : null}
+        {stats && stats.totals.tokens === 0 ? (
+          <div className="rounded-lg border p-8 text-center text-muted-foreground text-sm">还没有用量数据</div>
+        ) : null}
 
-      {stats ? (
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          <StatCard icon={<Flame size={15} />} label="tokens 用量" value={formatCount(stats.totals.tokens)} />
-          <StatCard
-            icon={<BarChart3 size={15} />}
-            label="花费"
-            sub={<span className="rounded bg-muted px-1.5 py-0.5">估算 · 自定义模型价格可能不准</span>}
-            value={formatCost(stats.totals.usdCents)}
-          />
-          <StatCard icon={<MessagesSquare size={15} />} label="会话数量" value={String(stats.totals.sessions)} />
-          <StatCard icon={<MessageSquare size={15} />} label="消息数量" value={String(stats.totals.messages)} />
-          <StatCard icon={<CalendarDays size={15} />} label="活跃天数" value={String(stats.totals.activeDays)} />
-          <StatCard
-            icon={<CalendarCheck size={15} />}
-            label="当前连续天数"
-            value={String(stats.totals.currentStreak)}
-          />
-          <StatCard
-            icon={<Activity size={15} />}
-            label="最常用模型"
-            sub={stats.totals.topModel ? `占比 ${stats.totals.topModel.pct}%` : undefined}
-            value={stats.totals.topModel?.model ?? '—'}
-          />
-        </section>
-      ) : null}
-      {stats && stats.totals.tokens > 0 ? (
-        <>
-          <ActivityHeatmap days={stats.heatmap} />
-          <DailyTokenChart daily={stats.daily} />
-          <ModelUsageDonut byModel={stats.byModel} total={stats.totals.tokens} />
-        </>
-      ) : null}
-    </div>
+        {stats ? (
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            <StatCard icon={<Flame size={15} />} label="tokens 用量" value={formatCount(stats.totals.tokens)} />
+            <StatCard
+              icon={<BarChart3 size={15} />}
+              label="花费"
+              sub={<span className="rounded bg-muted px-1.5 py-0.5">估算 · 自定义模型价格可能不准</span>}
+              value={formatCost(stats.totals.usdCents)}
+            />
+            <StatCard icon={<MessagesSquare size={15} />} label="会话数量" value={String(stats.totals.sessions)} />
+            <StatCard icon={<MessageSquare size={15} />} label="消息数量" value={String(stats.totals.messages)} />
+            <StatCard icon={<CalendarDays size={15} />} label="活跃天数" value={String(stats.totals.activeDays)} />
+            <StatCard
+              icon={<CalendarCheck size={15} />}
+              label="当前连续天数"
+              value={String(stats.totals.currentStreak)}
+            />
+            <StatCard
+              icon={<Activity size={15} />}
+              label="最常用模型"
+              sub={stats.totals.topModel ? `占比 ${stats.totals.topModel.pct}%` : undefined}
+              value={stats.totals.topModel?.model ?? '—'}
+            />
+          </section>
+        ) : null}
+        {stats && stats.totals.tokens > 0 ? (
+          <>
+            <ActivityHeatmap days={stats.heatmap} />
+            <DailyTokenChart daily={stats.daily} />
+            <ModelUsageDonut byModel={stats.byModel} total={stats.totals.tokens} />
+          </>
+        ) : null}
+      </div>
+    </ScrollArea>
   )
 }

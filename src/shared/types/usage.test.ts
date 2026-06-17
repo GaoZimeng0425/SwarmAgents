@@ -24,6 +24,6 @@ describe('UsageStatsSchema', () => {
 
   it('rejects an invalid rangeDays and exposes the heatmap window', () => {
     expect(UsageStatsSchema.safeParse({ rangeDays: 99 }).success).toBe(false)
-    expect(HEATMAP_DAYS).toBe(84)
+    expect(HEATMAP_DAYS).toBe(364)
   })
 })

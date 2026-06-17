@@ -470,7 +470,7 @@ describe('ConversationStore', () => {
     expect(stats.totals.topModel?.model).toBe('claude-sonnet-4-5')
     expect(stats.totals.currentStreak).toBe(2) // today + yesterday both have tasks
     expect(stats.daily.length).toBe(30)
-    expect(stats.heatmap.length).toBe(84)
+    expect(stats.heatmap.length).toBe(364)
     store.close()
   })
 
@@ -482,7 +482,7 @@ describe('ConversationStore', () => {
     expect(stats.totals.currentStreak).toBe(0)
     expect(stats.byModel).toEqual([])
     expect(stats.daily.length).toBe(7)
-    expect(stats.heatmap.length).toBe(84)
+    expect(stats.heatmap.length).toBe(364)
     store.close()
   })
 })

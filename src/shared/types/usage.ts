@@ -1,7 +1,10 @@
 import { z } from 'zod'
 
-/** Fixed trailing window for the activity heatmap, independent of the range toggle. */
-export const HEATMAP_DAYS = 84
+/**
+ * Fixed trailing window for the activity heatmap, independent of the range
+ * toggle. 52 weeks × 7 days = a full GitHub-style year grid (52 columns).
+ */
+export const HEATMAP_DAYS = 364
 
 export const ModelUsageSchema = z.object({
   model: z.string(),
