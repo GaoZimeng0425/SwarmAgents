@@ -40,21 +40,18 @@ export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element
   const isHigh = prompt.risk === 'high'
 
   return (
-    <div
+    <section
       aria-label="Action requires confirmation"
       className={cn(
         'mx-3 mb-2 max-h-[50vh] shrink-0 overflow-auto rounded-xl border bg-popover/95 px-4 py-3 shadow-lg',
-        'duration-200 animate-in fade-in-0 slide-in-from-bottom-3',
+        'fade-in-0 slide-in-from-bottom-3 animate-in duration-200',
         isHigh ? 'border-destructive/50 ring-1 ring-destructive/30' : 'border-border'
       )}
       data-risk={prompt.risk}
-      role="region"
     >
       <div className="flex flex-col gap-3">
         <header>
-          <h2 className={cn('font-medium text-base', isHigh && 'text-destructive')}>
-            Action requires confirmation
-          </h2>
+          <h2 className={cn('font-medium text-base', isHigh && 'text-destructive')}>Action requires confirmation</h2>
           <p className="text-muted-foreground text-sm">
             Task {prompt.taskId} · risk: <strong>{prompt.risk}</strong>
           </p>
@@ -90,6 +87,6 @@ export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element
           </Button>
         </footer>
       </div>
-    </div>
+    </section>
   )
 }

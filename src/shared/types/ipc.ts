@@ -85,4 +85,3 @@ export const AccentColorSchema = z.object({
   hex: z.string().regex(/^[0-9a-fA-F]{6,8}$/),
 })
 export type AccentColor = z.infer<typeof AccentColorSchema>
-
