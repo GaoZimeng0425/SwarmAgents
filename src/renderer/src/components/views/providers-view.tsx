@@ -135,9 +135,14 @@ function ProviderDetail({
         <div className="flex items-center gap-3">
           <h2 className="font-medium text-lg">{name}</h2>
           {isActive ? (
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
-              已启用
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
+                已启用
+              </span>
+              <Button onClick={() => void window.swarm.providers.setActive(null)} size="sm" variant="outline">
+                停用
+              </Button>
+            </div>
           ) : (
             <Button onClick={() => void window.swarm.providers.setActive(id)} size="sm" variant="outline">
               启用

@@ -36,7 +36,12 @@ export function setupMenu(args: { onOpenSettings: () => void }): void {
         ],
       }
 
-  const template: Electron.MenuItemConstructorOptions[] = [appMenu, { role: 'editMenu' }, { role: 'windowMenu' }]
+  const viewMenu: Electron.MenuItemConstructorOptions = {
+    label: 'View',
+    submenu: [{ role: 'toggleDevTools' }],
+  }
+
+  const template: Electron.MenuItemConstructorOptions[] = [appMenu, { role: 'editMenu' }, viewMenu, { role: 'windowMenu' }]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
