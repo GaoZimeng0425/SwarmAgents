@@ -6,7 +6,7 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { math } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
-import type { UIMessage } from 'ai'
+import type { UIMessage } from './types'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { type Components, defaultRemarkPlugins, defaultUrlTransform, Streamdown, type UrlTransform } from 'streamdown'
 

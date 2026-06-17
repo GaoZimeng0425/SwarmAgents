@@ -1,4 +1,4 @@
-import type { Attachment, PlanTodo, ResourceBudget } from '@shared/types/task'
+import type { Attachment, ConsumedResources, PlanTodo } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
@@ -12,7 +12,7 @@ export type TaskRecord = {
   summary: string | null
   startedAt: number
   attachments: Attachment[]
-  used?: ResourceBudget
+  used?: ConsumedResources
   contextTokens?: number
   contextWindow?: number
   plan?: PlanTodo[]

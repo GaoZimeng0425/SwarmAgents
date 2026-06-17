@@ -2,7 +2,7 @@
 
 import type { ComponentProps, ReactNode } from 'react'
 import { isValidElement } from 'react'
-import type { DynamicToolUIPart, ToolUIPart } from 'ai'
+import type { DynamicToolUIPart, ToolUIPart } from './types'
 import { CheckCircleIcon, ChevronDownIcon, CircleIcon, ClockIcon, XCircleIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'

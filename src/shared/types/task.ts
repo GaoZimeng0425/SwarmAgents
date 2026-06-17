@@ -26,6 +26,27 @@ export type ResourceBudget = z.infer<typeof ResourceBudgetSchema>
 
 export const emptyBudget = (): ResourceBudget => ({ tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
 
+// Consumed resources extend the budget counters with prompt-cache breakdown.
+// Kept separate from ResourceBudget so cache fields never leak into the budget
+// *limits* config (which only caps tokens/calls/wallMs/usdCents). cacheRead is
+// the cache-hit (read) token count, cacheWrite the cache-creation token count.
+// Both are latest-turn snapshots, mirroring `tokens` (see replay.ts). Defaults
+// keep legacy persisted rows (without the fields) parseable.
+export const ConsumedResourcesSchema = ResourceBudgetSchema.extend({
+  cacheRead: z.number().int().nonnegative().default(0),
+  cacheWrite: z.number().int().nonnegative().default(0),
+})
+export type ConsumedResources = z.infer<typeof ConsumedResourcesSchema>
+
+export const emptyUsed = (): ConsumedResources => ({
+  tokens: 0,
+  calls: 0,
+  wallMs: 0,
+  usdCents: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+})
+
 export const planStatusValues = ['pending', 'in_progress', 'completed'] as const
 export const PlanTodoSchema = z.object({
   content: z.string(),
@@ -93,7 +114,7 @@ export const TaskSchema = z.object({
   assignedWorkerId: z.string().nullable(),
   toolAllowlist: z.array(z.string()),
   budget: ResourceBudgetSchema,
-  used: ResourceBudgetSchema,
+  used: ConsumedResourcesSchema,
   history: z.array(TaskEventSchema),
   attachments: z.array(AttachmentSchema).default([]),
   plan: z.array(PlanTodoSchema).default([]),

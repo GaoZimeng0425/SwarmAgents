@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { UsageRange, UsageStats } from '@shared/types/usage'
-import { Activity, BarChart3, CalendarCheck, CalendarDays, Flame, MessageSquare, MessagesSquare } from 'lucide-react'
+import {
+  Activity,
+  BarChart3,
+  CalendarCheck,
+  CalendarDays,
+  DatabaseZap,
+  Flame,
+  MessageSquare,
+  MessagesSquare,
+} from 'lucide-react'
 import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, XAxis } from 'recharts'
 
 import {
@@ -247,6 +256,16 @@ export function UsageView(): React.JSX.Element {
         {stats ? (
           <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             <StatCard icon={<Flame size={15} />} label="tokens 用量" value={formatCount(stats.totals.tokens)} />
+            <StatCard
+              icon={<DatabaseZap size={15} />}
+              label="缓存命中 token"
+              sub={
+                stats.totals.tokens > 0 ? (
+                  <span>命中率 {Math.round((stats.totals.cacheRead / stats.totals.tokens) * 100)}%</span>
+                ) : undefined
+              }
+              value={formatCount(stats.totals.cacheRead)}
+            />
             <StatCard
               icon={<BarChart3 size={15} />}
               label="花费"

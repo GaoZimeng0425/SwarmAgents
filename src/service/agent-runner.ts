@@ -11,7 +11,7 @@ import {
   DEFAULT_CONTEXT_WINDOW,
   OPENAI_MODEL_SUGGESTIONS,
 } from '@shared/types/provider'
-import { emptyBudget, type ResourceBudget, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
+import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
 import type { AskRegistry } from './ask-registry'
 import type { PermissionRegistry } from './permission-registry'
@@ -99,7 +99,7 @@ export type AgentRunnerDeps = {
   /** Aborts the run when fired. The manager wires this to cancelTask. */
   signal?: AbortSignal
   /** Persist the conversation + usage at each turn boundary so they survive an interrupt. */
-  saveSnapshot?(messages: AgentMessage[], used: ResourceBudget, contextWindow?: number): void
+  saveSnapshot?(messages: AgentMessage[], used: ConsumedResources, contextWindow?: number): void
   spawnChild(
     parentTaskId: string,
     newGoal: string,
@@ -114,7 +114,7 @@ export type AgentRunner = {
     status: 'completed' | 'failed' | 'cancelled'
     summary: string
     messages: AgentMessage[]
-    used: ResourceBudget
+    used: ConsumedResources
   }>
 }
 
@@ -269,7 +269,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '', messages: initialMessages, used: emptyBudget() }
+        return { status: 'failed', summary: '', messages: initialMessages, used: emptyUsed() }
       }
 
       let tools: AgentTool[]
@@ -308,7 +308,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           },
           ts: Date.now(),
         })
-        return { status: 'failed', summary: '', messages: initialMessages, used: emptyBudget() }
+        return { status: 'failed', summary: '', messages: initialMessages, used: emptyUsed() }
       }
 
       taskLog.info({
@@ -325,7 +325,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
 
       const budget = task.budget
       const startedAt = Date.now()
-      const used = { calls: 0, tokens: 0, usdCents: 0 }
+      const used = { calls: 0, tokens: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 }
       // Latest turn's context occupancy (a snapshot, refreshed each turn_end).
       // This — not cumulative token spend — decides when the conversation no
       // longer fits the model window. `budget.tokens` is intentionally NOT
@@ -346,11 +346,13 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         return null
       }
 
-      const snapshotUsed = (): ResourceBudget => ({
+      const snapshotUsed = (): ConsumedResources => ({
         tokens: used.tokens,
         calls: used.calls,
         wallMs: Date.now() - startedAt,
         usdCents: used.usdCents,
+        cacheRead: used.cacheRead,
+        cacheWrite: used.cacheWrite,
       })
 
       // The human-readable cause of an early stop, mirroring the task-level
@@ -465,6 +467,10 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
             // summing across turns would double-count.
             used.tokens = usage.totalTokens
             used.usdCents += Math.round(usage.cost.total * 100)
+            // Cache-hit/creation tokens for this turn. Snapshots (like tokens),
+            // not running totals: they describe the latest turn's context.
+            used.cacheRead = usage.cacheRead
+            used.cacheWrite = usage.cacheWrite
             // Latest turn's prompt+completion ≈ how full the context window is
             // now. This snapshot is what gates the run (see beforeToolCall).
             contextTokens = usage.input + usage.cacheRead + usage.cacheWrite + usage.output

@@ -376,13 +376,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const totalsRow = db
           .prepare(
             `SELECT
-               COALESCE(SUM(json_extract(used, '$.tokens')), 0)   AS tokens,
-               COALESCE(SUM(json_extract(used, '$.usdCents')), 0)  AS usdCents,
-               COUNT(DISTINCT session_id)                          AS sessions,
+               COALESCE(SUM(json_extract(used, '$.tokens')), 0)     AS tokens,
+               COALESCE(SUM(json_extract(used, '$.cacheRead')), 0)  AS cacheRead,
+               COALESCE(SUM(json_extract(used, '$.usdCents')), 0)   AS usdCents,
+               COUNT(DISTINCT session_id)                           AS sessions,
                COUNT(DISTINCT date(created_at/1000,'unixepoch','localtime')) AS activeDays
              FROM tasks WHERE created_at >= ?`
           )
-          .get(cutoff) as { tokens: number; usdCents: number; sessions: number; activeDays: number }
+          .get(cutoff) as { tokens: number; cacheRead: number; usdCents: number; sessions: number; activeDays: number }
 
         const messagesRow = db
           .prepare(
@@ -444,6 +445,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
           rangeDays: range,
           totals: {
             tokens: totalTokens,
+            cacheRead: totalsRow.cacheRead,
             usdCents: totalsRow.usdCents,
             sessions: totalsRow.sessions,
             messages: messagesRow.n,

@@ -9,18 +9,24 @@ type Props = {
   window: number
   /** Cumulative spend in USD cents, for the tooltip. */
   usdCents?: number
+  /** Latest turn's cache-hit (read) tokens, for the tooltip. */
+  cacheRead?: number
 }
 
 const R = 7
 const CIRC = 2 * Math.PI * R
 
 /** Circular progress ring showing how full the model's context window is. */
-export function ContextRing({ used, window, usdCents }: Props): React.JSX.Element | null {
+export function ContextRing({ used, window, usdCents, cacheRead }: Props): React.JSX.Element | null {
   if (!window) return null
   const pct = Math.min(1, used / window)
   const color = pct > 0.9 ? 'text-red-500' : pct > 0.75 ? 'text-amber-500' : 'text-primary'
 
   const tip = [`${formatTokens(used)} / ${formatTokens(window)} tokens (${Math.round(pct * 100)}%)`]
+  // Share of the current context served from cache (cache-hit rate this turn).
+  if (cacheRead && cacheRead > 0 && used > 0) {
+    tip.push(`${formatTokens(cacheRead)} cached (${Math.round((cacheRead / used) * 100)}%)`)
+  }
   if (usdCents && usdCents > 0) tip.push(`$${(usdCents / 100).toFixed(2)}`)
 
   return (

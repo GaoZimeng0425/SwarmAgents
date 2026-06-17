@@ -8,6 +8,7 @@ describe('UsageStatsSchema', () => {
       rangeDays: 30,
       totals: {
         tokens: 100,
+        cacheRead: 40,
         usdCents: 5,
         sessions: 2,
         messages: 8,

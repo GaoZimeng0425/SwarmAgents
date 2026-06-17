@@ -35,6 +35,8 @@ export const UsageStatsSchema = z.object({
   rangeDays: UsageRangeSchema,
   totals: z.object({
     tokens: z.number().int().nonnegative(),
+    /** Sum of cache-hit (read) tokens across tasks in range. */
+    cacheRead: z.number().int().nonnegative(),
     usdCents: z.number().int().nonnegative(),
     sessions: z.number().int().nonnegative(),
     messages: z.number().int().nonnegative(),

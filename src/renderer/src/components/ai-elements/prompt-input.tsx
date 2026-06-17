@@ -16,7 +16,7 @@ import type {
 } from 'react'
 import { Children, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { BaseUIEvent } from '@base-ui/react/types'
-import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from 'ai'
+import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from './types'
 import { CornerDownLeftIcon, ImageIcon, Monitor, PlusIcon, SquareIcon, XIcon } from 'lucide-react'
 import { nanoid } from 'nanoid'
 

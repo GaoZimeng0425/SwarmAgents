@@ -65,6 +65,7 @@ export function TasksView(): React.JSX.Element {
         />
         <AskPanel key={askPrompt?.askId ?? 'none'} onAnswer={answerAsk} onChat={chatAboutAsk} prompt={askPrompt} />
         <ChatInput
+          cacheReadTokens={latestTask?.used?.cacheRead}
           contextTokens={latestTask?.contextTokens}
           contextWindow={latestTask?.contextWindow}
           disabled={!ready}

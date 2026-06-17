@@ -13,7 +13,7 @@ import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverri
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
-import type { Attachment, PlanTodo, ResourceBudget, TaskEvent, TaskResult } from './task'
+import type { Attachment, ConsumedResources, PlanTodo, TaskEvent, TaskResult } from './task'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
 export type UIEvent =
@@ -56,7 +56,7 @@ export type UIEvent =
       kind: 'task.usage'
       sessionId: string
       taskId: string
-      used: ResourceBudget
+      used: ConsumedResources
       /** Latest turn's context occupancy and the model's context-window size (for the composer ring). */
       contextTokens?: number
       contextWindow?: number

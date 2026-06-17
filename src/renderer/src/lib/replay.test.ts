@@ -12,7 +12,7 @@ const baseTask = (over: Partial<Task>): Task => ({
   assignedWorkerId: null,
   toolAllowlist: [],
   budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-  used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+  used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
   history: [],
   plan: [],
   attachments: [],
@@ -70,9 +70,19 @@ describe('tasksToRecords', () => {
 
   it('restores usage + context numbers so the display survives a reload', () => {
     const records = tasksToRecords('ses-1', [
-      baseTask({ used: { tokens: 16_000, calls: 8, wallMs: 1000, usdCents: 18 }, contextWindow: 200_000 }),
+      baseTask({
+        used: { tokens: 16_000, calls: 8, wallMs: 1000, usdCents: 18, cacheRead: 12_000, cacheWrite: 2000 },
+        contextWindow: 200_000,
+      }),
     ])
-    expect(records[0].used).toEqual({ tokens: 16_000, calls: 8, wallMs: 1000, usdCents: 18 })
+    expect(records[0].used).toEqual({
+      tokens: 16_000,
+      calls: 8,
+      wallMs: 1000,
+      usdCents: 18,
+      cacheRead: 12_000,
+      cacheWrite: 2000,
+    })
     expect(records[0].contextTokens).toBe(16_000) // ring numerator = last snapshot
     expect(records[0].contextWindow).toBe(200_000)
   })

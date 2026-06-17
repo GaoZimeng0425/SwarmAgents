@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@shared/types/provider'
 import type { Attachment } from '@shared/types/task'
-import type { ChatStatus } from 'ai'
 import { FileText, Paperclip, X } from 'lucide-react'
 
 import {
@@ -20,6 +19,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
+import type { ChatStatus } from '@/components/ai-elements/types'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
 import { useProviders } from '@/hooks/use-providers'
@@ -35,6 +35,7 @@ type Props = {
   contextTokens?: number
   contextWindow?: number
   usdCents?: number
+  cacheReadTokens?: number
   placeholder?: string
 }
 
@@ -132,6 +133,7 @@ export function ChatInput({
   contextTokens,
   contextWindow,
   usdCents,
+  cacheReadTokens,
   placeholder,
 }: Props): React.JSX.Element {
   const { state } = useProviders()
@@ -219,7 +221,12 @@ export function ChatInput({
           </PromptInputTools>
           <div className="flex items-center gap-3">
             {contextTokens !== undefined && contextWindow !== undefined && (
-              <ContextRing usdCents={usdCents} used={contextTokens} window={contextWindow} />
+              <ContextRing
+                cacheRead={cacheReadTokens}
+                usdCents={usdCents}
+                used={contextTokens}
+                window={contextWindow}
+              />
             )}
             <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
           </div>

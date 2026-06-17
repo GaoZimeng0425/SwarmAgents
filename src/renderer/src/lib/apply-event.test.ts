@@ -172,7 +172,7 @@ describe('applyEvent', () => {
         events: [],
       },
     ]
-    const used = { tokens: 900, calls: 2, wallMs: 1500, usdCents: 3 }
+    const used = { tokens: 900, calls: 2, wallMs: 1500, usdCents: 3, cacheRead: 0, cacheWrite: 0 }
     const next = applyEvent(seed, {
       kind: 'task.usage',
       ...baseEvent,
