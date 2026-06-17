@@ -11,10 +11,6 @@ import type {
   Item,
   Theme,
 } from "@glideapps/glide-data-grid"
-import {
-  CompactSelection,
-  emptyGridSelection,
-} from "@glideapps/glide-data-grid"
 
 import "@glideapps/glide-data-grid/dist/index.css"
 
@@ -109,12 +105,15 @@ function cellMatchesQuery(displayValue: string, query: string) {
   return displayValue.toLowerCase().includes(query)
 }
 
-function createSingleCellSelection(cell: Item): GridSelection {
+function createSingleCellSelection(
+  glide: GlideDataGridModule,
+  cell: Item
+): GridSelection {
   const [col, row] = cell
 
   return {
-    columns: CompactSelection.empty(),
-    rows: CompactSelection.empty(),
+    columns: glide.CompactSelection.empty(),
+    rows: glide.CompactSelection.empty(),
     current: {
       cell,
       range: { x: col, y: row, width: 1, height: 1 },
@@ -328,6 +327,7 @@ function ToolbarTooltip({
 }
 
 function CsvSearchPopover({
+  glide,
   headers,
   rows,
   gridRef,
@@ -335,12 +335,13 @@ function CsvSearchPopover({
   controlsDisabled,
   onGridSelectionChange,
 }: {
+  glide: GlideDataGridModule | null
   headers: string[]
   rows: string[][]
   gridRef: React.RefObject<DataEditorRef | null>
   dataIdentity: string
   controlsDisabled: boolean
-  onGridSelectionChange: (selection: GridSelection) => void
+  onGridSelectionChange: (selection: GridSelection | null) => void
 }) {
   const [searchDraft, setSearchDraft] = React.useState("")
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -421,7 +422,7 @@ function CsvSearchPopover({
     setActiveResultIndex(0)
     setIsSearching(false)
     appliedResultKeyRef.current = ""
-    onGridSelectionChange(emptyGridSelection)
+    onGridSelectionChange(null)
   }, [onGridSelectionChange])
 
   const goToRelativeResult = React.useCallback(
@@ -446,17 +447,17 @@ function CsvSearchPopover({
     setActiveResultIndex(0)
     setIsSearching(false)
     appliedResultKeyRef.current = ""
-    onGridSelectionChange(emptyGridSelection)
+    onGridSelectionChange(null)
   }, [dataIdentity, onGridSelectionChange])
 
   React.useEffect(() => {
-    if (!activeResult) return
+    if (!activeResult || !glide) return
 
     if (appliedResultKeyRef.current === activeResultKey) return
     appliedResultKeyRef.current = activeResultKey
 
     const cell: Item = [activeResult.col, activeResult.row]
-    onGridSelectionChange(createSingleCellSelection(cell))
+    onGridSelectionChange(createSingleCellSelection(glide, cell))
 
     const frame = window.requestAnimationFrame(() => {
       gridRef.current?.scrollTo(
@@ -473,7 +474,7 @@ function CsvSearchPopover({
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [activeResult, activeResultKey, gridRef, onGridSelectionChange])
+  }, [activeResult, activeResultKey, glide, gridRef, onGridSelectionChange])
 
   return (
     <Popover>
@@ -610,7 +611,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
   const [glide, setGlide] = React.useState<GlideDataGridModule | null>(null)
   const [zoom, setZoom] = React.useState<(typeof ZOOM_OPTIONS)[number]>(1)
   const [gridSelection, setGridSelection] =
-    React.useState<GridSelection>(emptyGridSelection)
+    React.useState<GridSelection | null>(null)
   const [parsed, setParsed] = React.useState(() =>
     data ? parseDelimitedText(data) : { headers: [], rows: [], error: null }
   )
@@ -627,7 +628,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
   )
 
   const handleGridSelectionChange = React.useCallback(
-    (selection: GridSelection) => {
+    (selection: GridSelection | null) => {
       setGridSelection(selection)
     },
     []
@@ -643,7 +644,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
 
   React.useEffect(() => {
     if (!search) {
-      setGridSelection(emptyGridSelection)
+      setGridSelection(null)
     }
   }, [search])
 
@@ -837,6 +838,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
                   className="mx-1 h-4 self-center"
                 />
                 <CsvSearchPopover
+                  glide={glide}
                   headers={parsed.headers}
                   rows={parsed.rows}
                   gridRef={gridRef}
@@ -914,7 +916,9 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
             getCellContent={getCellContent}
             rowMarkers="number"
             rowSelectionMode="multi"
-            gridSelection={search ? gridSelection : undefined}
+            gridSelection={
+              search ? (gridSelection ?? glide.emptyGridSelection) : undefined
+            }
             onGridSelectionChange={
               search ? handleGridSelectionChange : undefined
             }
