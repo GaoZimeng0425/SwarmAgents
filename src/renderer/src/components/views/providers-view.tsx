@@ -10,6 +10,17 @@ import {
 } from '@shared/types/provider'
 import type { ProvidersTestResult } from '@shared/types/ui'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useProviders } from '@/hooks/use-providers'
@@ -374,24 +385,30 @@ function TestRow({ id }: { id: string }): React.JSX.Element {
 }
 
 function DeleteButton({ id, name, onDeleted }: { id: string; name: string; onDeleted: () => void }): React.JSX.Element {
-  const remove = async (): Promise<void> => {
-    const decision = await window.swarm.showConfirm({
-      title: `删除供应商 ${name}?`,
-      message: '这会移除该供应商及其 API Key。',
-      risk: 'high',
-      buttons: [
-        { label: '删除', role: 'grant', destructive: true },
-        { label: '取消', role: 'deny' },
-      ],
-    })
-    if (decision !== 'grant') return
+  const [open, setOpen] = useState(false)
+  const confirmDelete = async (): Promise<void> => {
     const r = await window.swarm.providers.removeCustomProvider(id)
-    if (r.ok) onDeleted()
+    if (r.ok) {
+      onDeleted()
+      setOpen(false)
+    }
   }
   return (
-    <Button onClick={() => void remove()} size="sm" variant="outline">
-      删除
-    </Button>
+    <AlertDialog onOpenChange={setOpen} open={open}>
+      <AlertDialogTrigger render={<Button size="sm" variant="outline" />}>删除</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>删除供应商 {name}?</AlertDialogTitle>
+          <AlertDialogDescription>这会移除该供应商及其 API Key。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction onClick={() => void confirmDelete()} variant="destructive">
+            删除
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
