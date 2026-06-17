@@ -1,7 +1,14 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
+import type { UsageStats } from '@shared/types/usage'
+import { HEATMAP_DAYS } from '@shared/types/usage'
 import Database from 'better-sqlite3'
+
+import { currentStreak, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './usage-stats'
+
+const log = createLogger({ process: 'service' }).child({ component: 'conversation-store' })
 
 export type StoredSession = {
   id: string
@@ -41,6 +48,7 @@ export type ConversationStore = {
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
   saveTaskUsage(taskId: string, used: Task['used'], contextWindow?: number): void
   getSessionTasks(sessionId: string): Task[]
+  getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
   saveToolState(sessionId: string, key: string, value: unknown): void
   getToolState(sessionId: string, key: string): unknown
   saveCronJob(job: StoredCronJob): void
@@ -355,6 +363,94 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     getSessionTasks(sessionId) {
       return (stmtGetTasks.all(sessionId) as Record<string, unknown>[]).map(rowToTask)
+    },
+    getUsageStats(rangeDays) {
+      const t0 = Date.now()
+      const range: 7 | 30 = rangeDays === 7 ? 7 : 30
+      log.info({ msg: 'getUsageStats', rangeDays: range })
+      try {
+        const now = new Date()
+        const cutoff = rangeCutoffMs(now, range)
+        const heatmapCutoff = rangeCutoffMs(now, HEATMAP_DAYS)
+
+        const totalsRow = db
+          .prepare(
+            `SELECT
+               COALESCE(SUM(json_extract(used, '$.tokens')), 0)   AS tokens,
+               COALESCE(SUM(json_extract(used, '$.usdCents')), 0)  AS usdCents,
+               COUNT(DISTINCT session_id)                          AS sessions,
+               COUNT(DISTINCT date(created_at/1000,'unixepoch','localtime')) AS activeDays
+             FROM tasks WHERE created_at >= ?`
+          )
+          .get(cutoff) as { tokens: number; usdCents: number; sessions: number; activeDays: number }
+
+        const messagesRow = db
+          .prepare(
+            `SELECT COUNT(*) AS n FROM task_events
+             WHERE ts >= ? AND json_extract(event, '$.kind') = 'llm.message'`
+          )
+          .get(cutoff) as { n: number }
+
+        const modelRows = db
+          .prepare(
+            `SELECT json_extract(s.provider_snapshot, '$.model') AS model,
+                    COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) AS tokens
+             FROM tasks t JOIN sessions s ON s.id = t.session_id
+             WHERE t.created_at >= ?
+             GROUP BY model
+             HAVING tokens > 0
+             ORDER BY tokens DESC`
+          )
+          .all(cutoff) as { model: string; tokens: number }[]
+
+        const dailyRows = db
+          .prepare(
+            `SELECT date(created_at/1000,'unixepoch','localtime') AS date,
+                    COALESCE(SUM(json_extract(used, '$.tokens')), 0) AS tokens
+             FROM tasks WHERE created_at >= ? GROUP BY date`
+          )
+          .all(heatmapCutoff) as { date: string; tokens: number }[]
+
+        const totalTokens = totalsRow.tokens
+        const byModel = modelRows.map((r) => ({
+          model: r.model ?? 'unknown',
+          tokens: r.tokens,
+          pct: totalTokens > 0 ? Math.round((r.tokens / totalTokens) * 1000) / 10 : 0,
+        }))
+
+        const rangeKeys = dayKeysEndingAt(now, range)
+        const rangeKeySet = new Set(rangeKeys)
+        const heatmapKeys = dayKeysEndingAt(now, HEATMAP_DAYS)
+        const activeKeys = new Set(dailyRows.filter((r) => r.tokens > 0).map((r) => r.date))
+
+        const result: UsageStats = {
+          rangeDays: range,
+          totals: {
+            tokens: totalTokens,
+            usdCents: totalsRow.usdCents,
+            sessions: totalsRow.sessions,
+            messages: messagesRow.n,
+            activeDays: totalsRow.activeDays,
+            currentStreak: currentStreak(activeKeys, now),
+            topModel: byModel[0] ?? null,
+          },
+          daily: zeroFillDaily(
+            dailyRows.filter((r) => rangeKeySet.has(r.date)),
+            rangeKeys
+          ),
+          byModel,
+          heatmap: zeroFillDaily(dailyRows, heatmapKeys),
+        }
+        log.info({ msg: 'getUsageStats ok', rangeDays: range, tokens: totalTokens, durationMs: Date.now() - t0 })
+        return result
+      } catch (err) {
+        log.error({
+          msg: 'getUsageStats failed',
+          rangeDays: range,
+          err: err instanceof Error ? err.message : String(err),
+        })
+        throw err
+      }
     },
     saveToolState(sessionId, key, value) {
       stmtUpsertToolState.run(sessionId, key, JSON.stringify(value), Date.now())

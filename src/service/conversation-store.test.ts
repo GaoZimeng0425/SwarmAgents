@@ -417,4 +417,70 @@ describe('ConversationStore', () => {
     expect(store.listCronJobs().length).toBe(0)
     store.close()
   })
+
+  it('aggregates usage stats over the range', () => {
+    const store = createConversationStore(dbPath)
+    const anthropic = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const glm = { id: 'custom' as const, model: 'GLM-5.2', apiKey: 'k' }
+    store.createSession('ses-a', anthropic)
+    store.createSession('ses-b', glm)
+
+    const now = Date.now()
+    const day = 86_400_000
+    const mkTask = (id: string, sessionId: string, tokens: number, usdCents: number, createdAt: number) => {
+      store.saveTask(
+        {
+          id,
+          parentId: null,
+          agentDefId: 'default',
+          goal: 'g',
+          status: 'completed',
+          assignedWorkerId: null,
+          toolAllowlist: [],
+          budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+          used: { tokens, calls: 1, wallMs: 1, usdCents },
+          history: [],
+          attachments: [],
+          plan: [],
+          result: null,
+          createdAt,
+          startedAt: createdAt,
+          endedAt: createdAt,
+        },
+        sessionId
+      )
+    }
+    mkTask('t-recent-a', 'ses-a', 1000, 12, now)
+    mkTask('t-recent-b', 'ses-b', 500, 0, now - day)
+    mkTask('t-old', 'ses-a', 9999, 99, now - 40 * day) // outside 30d
+
+    store.appendTaskEvent('t-recent-a', { kind: 'llm.message', role: 'assistant', content: 'hi', ts: now })
+    store.appendTaskEvent('t-recent-a', { kind: 'llm.message', role: 'user', content: 'yo', ts: now })
+    store.appendTaskEvent('t-recent-a', { kind: 'reasoning', content: 'think', ts: now }) // not a message
+
+    const stats = store.getUsageStats(30)
+    expect(stats.rangeDays).toBe(30)
+    expect(stats.totals.tokens).toBe(1500) // old task excluded
+    expect(stats.totals.usdCents).toBe(12)
+    expect(stats.totals.sessions).toBe(2)
+    expect(stats.totals.messages).toBe(2)
+    expect(stats.totals.activeDays).toBe(2)
+    expect(stats.byModel.map((m) => m.model).sort()).toEqual(['GLM-5.2', 'claude-sonnet-4-5'])
+    expect(stats.byModel.find((m) => m.model === 'claude-sonnet-4-5')?.tokens).toBe(1000)
+    expect(stats.totals.topModel?.model).toBe('claude-sonnet-4-5')
+    expect(stats.daily.length).toBe(30)
+    expect(stats.heatmap.length).toBe(84)
+    store.close()
+  })
+
+  it('returns an empty-but-shaped result with no data', () => {
+    const store = createConversationStore(dbPath)
+    const stats = store.getUsageStats(7)
+    expect(stats.totals.tokens).toBe(0)
+    expect(stats.totals.topModel).toBeNull()
+    expect(stats.byModel).toEqual([])
+    expect(stats.daily.length).toBe(7)
+    expect(stats.heatmap.length).toBe(84)
+    store.close()
+  })
 })
