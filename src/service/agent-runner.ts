@@ -104,7 +104,8 @@ export type AgentRunnerDeps = {
     parentTaskId: string,
     newGoal: string,
     suggestedTools?: string[],
-    providerKey?: string
+    providerKey?: string,
+    agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
 }
 
@@ -278,7 +279,8 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         const runCtx: ToolRunContext = {
           sessionId,
           taskId: task.id,
-          spawnChild: (goal, suggestedTools, providerKey) => spawnChild(task.id, goal, suggestedTools, providerKey),
+          spawnChild: (goal, suggestedTools, providerKey, agentType) =>
+            spawnChild(task.id, goal, suggestedTools, providerKey, agentType),
           send: () => undefined,
           // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
           // This stub satisfies the ToolRunContext type without creating a second gate.

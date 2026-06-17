@@ -1,10 +1,12 @@
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { builtinAgents } from '@shared/agents/builtins'
 import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceRequest } from '@shared/types/service-ipc'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
+import { createAgentStore } from './agents/store'
 import { createBroadcaster } from './broadcaster'
 import { createConversationStore } from './conversation-store'
 import { createCronScheduler } from './cron-scheduler'
@@ -35,6 +37,7 @@ if (!parentPort) {
 const dbPath = process.env.SWARM_SERVICE_DB_PATH ?? join(tmpdir(), 'swarm-agent-service.db')
 const memoryPath = process.env.SWARM_SERVICE_MEMORY_PATH ?? join(tmpdir(), 'swarm-agent-memory.json')
 const skillsPath = process.env.SWARM_SERVICE_SKILLS_PATH ?? join(tmpdir(), 'swarm-agent-skills')
+const agentsPath = process.env.SWARM_SERVICE_AGENTS_PATH ?? join(tmpdir(), 'swarm-agent-agents')
 
 const store = createConversationStore(dbPath)
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
@@ -43,6 +46,7 @@ const memoryStore = createMemoryStore(memoryPath, () => broadcaster.broadcast('m
 // so the operations manual can cite its real path without a separate env var.
 const mcpConfigPath = join(dirname(skillsPath), 'mcp-servers.json')
 const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({ mcpConfigPath }) })
+const agentStore = createAgentStore({ dir: agentsPath, builtins: builtinAgents })
 
 const toolRegistry = createToolRegistry()
 
@@ -59,6 +63,7 @@ const manager = createSessionManager({
   getProvider: (key) => providerRegistry.get(key),
   toolRegistry,
   skillStore,
+  agentStore,
 })
 
 const scheduler = createCronScheduler({

@@ -33,6 +33,7 @@ describe('IPC schemas', () => {
       agentDefinition: {
         id: 'default',
         name: 'Default Agent',
+        description: 'Catch-all fallback.',
         systemPrompt: 'test',
         toolScope: 'all',
         maxIterations: 25,
@@ -113,6 +114,7 @@ describe('Inbound task.assign provider field', () => {
       agentDefinition: {
         id: 'default',
         name: 'Default Agent',
+        description: 'Catch-all fallback.',
         systemPrompt: 'test',
         toolScope: 'all',
         maxIterations: 25,

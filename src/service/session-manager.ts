@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { DEFAULT_SYSTEM_PROMPT } from '@shared/agents/default-prompt'
+import { DEFAULT_AGENT_DEF } from '@shared/agents/builtins'
 import { createLogger } from '@shared/logger'
 import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
@@ -9,6 +9,8 @@ import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
 import { createAgentRunner } from './agent-runner'
+import { withAgentTypes } from './agents/prompt'
+import type { AgentStore } from './agents/store'
 import { type AskRegistry, createAskRegistry } from './ask-registry'
 import type { Broadcaster } from './broadcaster'
 import type { ConversationStore } from './conversation-store'
@@ -36,6 +38,7 @@ type SessionManagerConfig = {
   getProvider(key: string): ProviderInjection | undefined
   toolRegistry?: ToolRegistry
   skillStore?: SkillStore
+  agentStore?: AgentStore
 }
 
 export type SessionManager = {
@@ -58,14 +61,6 @@ export type SessionManager = {
   getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
 }
 
-const DEFAULT_AGENT_DEF: AgentDefinition = {
-  id: 'default',
-  name: 'Default Agent',
-  systemPrompt: DEFAULT_SYSTEM_PROMPT,
-  toolScope: 'all',
-  maxIterations: 25,
-}
-
 // session-manager owns sensible defaults for the agent-execution subsystem
 // (cf. DEFAULT_AGENT_DEF). In production index.ts injects a shared registry;
 // this default keeps createSessionManager usable for tests/scripts that omit it.
@@ -80,10 +75,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const toolRegistry = cfg.toolRegistry ?? buildDefaultRegistry()
   const sessions = new Map<string, Session>()
 
-  // Inject the available-skills list into the agent's system prompt at task
-  // time, so newly-added skills appear without restarting.
-  const withSkillPrompt = (def: AgentDefinition): AgentDefinition =>
-    cfg.skillStore ? { ...def, systemPrompt: withSkills(def.systemPrompt, cfg.skillStore.list()) } : def
+  // Inject the available-skills list and sub-agent-type catalog into the agent's
+  // system prompt at task time, so newly-added skills/agents appear without a restart.
+  const withPrompt = (def: AgentDefinition): AgentDefinition => {
+    let systemPrompt = def.systemPrompt
+    if (cfg.skillStore) systemPrompt = withSkills(systemPrompt, cfg.skillStore.list())
+    if (cfg.agentStore) systemPrompt = withAgentTypes(systemPrompt, cfg.agentStore.list())
+    return { ...def, systemPrompt }
+  }
 
   let activeRunners = 0
   const waitQueue: Array<() => void> = []
@@ -142,27 +141,36 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     parentTaskId: string,
     newGoal: string,
     suggestedTools?: string[],
-    providerKey?: string
+    providerKey?: string,
+    agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }> => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
+
+    // Resolve the sub-agent type; an unknown type falls back to the default.
+    const def = (agentType ? cfg.agentStore?.get(agentType) : undefined) ?? DEFAULT_AGENT_DEF
+    if (agentType && def.id !== agentType) {
+      log.warn({ msg: 'agentType not found, falling back to default', agentType })
+    }
 
     const lookedUp = providerKey ? cfg.getProvider(providerKey) : undefined
     if (providerKey && !lookedUp) {
       log.warn({ msg: 'providerKey not found, falling back to session provider', providerKey })
     }
-    const resolvedProvider = lookedUp ?? session.provider
+    // The agent type may pin a specific model; otherwise inherit the provider's.
+    const baseProvider = lookedUp ?? session.provider
+    const resolvedProvider = def.model ? { ...baseProvider, model: def.model } : baseProvider
 
     const childTaskId = ulid()
     const now = Date.now()
     const childTask: Task = {
       id: childTaskId,
       parentId: parentTaskId,
-      agentDefId: 'default',
+      agentDefId: def.id,
       goal: newGoal,
       status: 'pending',
       assignedWorkerId: null,
-      toolAllowlist: suggestedTools ?? ['peekaboo.*', 'agent.*'],
+      toolAllowlist: suggestedTools ?? deriveAllowlist(def.toolScope),
       budget: { tokens: 50_000, calls: 25, wallMs: 300_000, usdCents: 100 },
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
       history: [],
@@ -173,6 +181,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       endedAt: null,
     }
     store.saveTask(childTask, sessionId)
+    log.info({ msg: 'child spawned', sessionId, parentTaskId, childTaskId, agentDefId: def.id })
 
     broadcaster.broadcast('task.handoff.spawned', { sessionId, parentTaskId, childTaskId, ts: now })
 
@@ -184,7 +193,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const runner = createAgentRunner({
           task: childTask,
           provider: resolvedProvider,
-          agentDefinition: withSkillPrompt(DEFAULT_AGENT_DEF),
+          agentDefinition: withPrompt(def),
           sessionId,
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
@@ -192,7 +201,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           toolRegistry,
           initialMessages: [],
           signal: abort.signal,
-          spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
+          spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
         })
         try {
           const { summary } = await runner.run()
@@ -285,7 +294,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const runner = createAgentRunner({
           task,
           provider: session.provider,
-          agentDefinition: withSkillPrompt(agentDef),
+          agentDefinition: withPrompt(agentDef),
           sessionId,
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
@@ -298,7 +307,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             store.saveTaskUsage(taskId, used, contextWindow)
           },
           signal: abort.signal,
-          spawnChild: (pt, ng, st, pk) => spawnChild(sessionId, pt, ng, st, pk),
+          spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
         })
         try {
           const { status } = await runner.run()

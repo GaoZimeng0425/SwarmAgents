@@ -64,6 +64,7 @@ app.whenReady().then(async () => {
       SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),
       SWARM_SERVICE_MEMORY_PATH: join(app.getPath('userData'), 'agent-memory.json'),
       SWARM_SERVICE_SKILLS_PATH: join(app.getPath('userData'), 'skills'),
+      SWARM_SERVICE_AGENTS_PATH: join(app.getPath('userData'), 'agents'),
     },
   })
 

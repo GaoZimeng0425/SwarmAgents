@@ -17,7 +17,8 @@ export interface ToolRunContext {
   spawnChild(
     goal: string,
     suggestedTools?: string[],
-    providerKey?: string
+    providerKey?: string,
+    agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
   send: (msg: Outbound) => void
   requestPermission: (args: {

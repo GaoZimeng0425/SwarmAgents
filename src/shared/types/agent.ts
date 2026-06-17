@@ -3,19 +3,29 @@ import { z } from 'zod'
 export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'all'])
 export type ToolScope = z.infer<typeof ToolScopeSchema>
 
-export const ModelHintSchema = z.enum(['inherit', 'fast', 'reasoning', 'coding'])
-export type ModelHint = z.infer<typeof ModelHintSchema>
-
 export const AgentDefinitionSchema = z.object({
-  id: z.string(),
+  // id is also the on-disk folder name, so it follows the skill name convention:
+  // lowercase a-z/0-9 with single hyphens, ≤64 chars.
+  id: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      'Lowercase a-z, 0-9 and single hyphens only; no leading, trailing or doubled hyphens.'
+    ),
   name: z.string(),
+  /**
+   * One-line purpose shown to the parent agent in its sub-agent catalog and used
+   * to decide when to delegate. Authoring convention: write it trigger-first
+   * ("Use when …"), not feature-first, so the model matches on when to delegate.
+   */
+  description: z.string().min(1).max(1024),
   systemPrompt: z.string(),
   toolScope: ToolScopeSchema,
   maxIterations: z.number().int().positive().default(25),
   /** Override the provider's default model for this agent type. */
   model: z.string().optional(),
-  /** Routing hint — determines which provider/model to use for this agent type. */
-  modelHint: ModelHintSchema.optional(),
 })
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
 
