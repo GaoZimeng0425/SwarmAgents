@@ -6,9 +6,10 @@
 ## Goal
 
 Add an in-app usage dashboard (`/usage`) that surfaces token/session/message
-activity over a selectable time range, modelled on the reference mockups: six
+activity over a selectable time range, modelled on the reference mockups: seven
 summary cards, an activity heatmap, a daily-token bar trend, and a per-model
-donut. Read-only — it reports on data SwarmAgents already persists.
+donut. Read-only — it reports on data SwarmAgents already persists. Labels are
+in Chinese, matching the reference mockups.
 
 ## Key constraint: no new tracking
 
@@ -20,9 +21,18 @@ new instrumentation:
 - `sessions.provider_snapshot.model` — per-model attribution (a session keeps
   one provider snapshot, so tasks attribute to their session's model).
 - `task_events` (kind `llm.message`, with `ts`) — message counts.
+- `tasks.used.usdCents` — cost. Populated in `agent-runner.ts` from pi-ai's
+  per-model price table (`usage.cost.total`).
 
-`usdCents` exists but is **not** surfaced — it is unreliable/zero for custom
-providers (e.g. GLM), so a cost card would show misleading data. Omitted.
+### Cost caveat (the "估算" label)
+
+`usdCents` is accurate for built-in Anthropic/OpenAI providers but **estimated**
+for custom providers: `resolveModel` clones a built-in *template* model
+(gpt-4o / fallback) to get a request shape, so cost is computed at the
+template's rates, not the custom model's real pricing. The dashboard therefore
+shows the cost card **always**, but labels it "估算" (estimated) with a note that
+custom-provider pricing may be inaccurate — rather than hiding it or presenting
+it as exact.
 
 ## Architecture & data flow
 
@@ -54,6 +64,7 @@ export type UsageStats = {
   rangeDays: 7 | 30
   totals: {
     tokens: number
+    usdCents: number       // summed cost; estimated for custom providers (see caveat)
     sessions: number       // distinct sessions with ≥1 task in range
     messages: number       // llm.message events in range
     activeDays: number     // distinct local dates with a task in range
@@ -79,6 +90,7 @@ columns read via `json_extract`.
   range includes today plus the prior six full local days.
 - **tokens**: `SUM(json_extract(used,'$.tokens'))` over `tasks` where
   `created_at ≥ cutoff`.
+- **usdCents**: `SUM(json_extract(used,'$.usdCents'))` over `tasks` in range.
 - **sessions**: `COUNT(DISTINCT session_id)` over `tasks` where
   `created_at ≥ cutoff`.
 - **messages**: `COUNT(*)` over `task_events` joined to `tasks` (for range),
@@ -109,22 +121,27 @@ Mirrors the `routes/skills.tsx → components/views/skills-view.tsx` pattern.
   state (7 | 30, default 30), fetches on mount and on toggle change, and
   composes the sections. Handles loading / error / empty.
 - Subcomponents (same file or co-located):
-  - `StatCard` ×6 — icon + label + value. Numbers via
-    `Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })`.
-    Cards: tokens, sessions, messages, active days, current streak, top model
-    (model name + share %).
-  - `DailyTokenChart` — recharts `BarChart` over `daily`, wrapped in the shadcn
-    `ui/chart.tsx` `ChartContainer`.
-  - `ModelUsageDonut` — recharts `PieChart` (inner radius for the donut hole,
-    center total) + legend rows (color dot, model, tokens, pct).
-  - `ActivityHeatmap` — CSS-grid GitHub-style calendar over `heatmap`; 5 shade
-    buckets by token quantile. No new dependency (recharts has no calendar).
+  - `StatCard` ×7 — icon + label + value. Counts/tokens via
+    `Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 })`
+    (yields 万/亿 units, matching the mockup's "241.8万"). Cards: tokens
+    (tokens 用量), cost (花费 — value via currency format, with an "估算" badge and
+    tooltip noting custom-provider pricing may be inaccurate), sessions
+    (会话数量), messages (消息数量), active days (活跃天数), current streak
+    (当前连续天数), top model (最常用模型 — model name + 占比 %).
+  - `DailyTokenChart` (按天 Token 趋势) — recharts `BarChart` over `daily`,
+    wrapped in the shadcn `ui/chart.tsx` `ChartContainer`.
+  - `ModelUsageDonut` (模型用量) — recharts `PieChart` (inner radius for the
+    donut hole, center total) + legend rows (color dot, model, tokens, pct).
+  - `ActivityHeatmap` (活跃热力图) — CSS-grid GitHub-style calendar over
+    `heatmap`; 5 shade buckets by token quantile, with 较少/较多 legend. No new
+    dependency (recharts has no calendar).
+- Time-range toggle labels: 最近 7 天 / 最近 30 天. Section header: 时间范围.
 - **Sidebar** (`src/renderer/src/components/app-sidebar.tsx`) — new footer
   `SidebarMenuItem` above Skills, `BarChart3` icon (lucide), `to="/usage"`,
-  label "Usage", following the existing `Link` + `activeProps` pattern.
+  label "用量统计", following the existing `Link` + `activeProps` pattern.
 
-Labels are English to match the rest of the app (no i18n library present); the
-Chinese mockups are visual references only.
+Labels are in Chinese (hardcoded literals), matching the reference mockups.
+There is no i18n library; the rest of the app's chrome stays English.
 
 ## Error / empty handling
 
@@ -137,9 +154,9 @@ Chinese mockups are visual references only.
 
 - **`conversation-store.test.ts`** — seed sessions (varied models), tasks
   (varied `used.tokens`, `created_at` inside and outside the range), and
-  `llm.message` events; assert: range-filtered token total, session count,
-  message count, active-day count, multi-model `byModel` grouping + ordering,
-  `daily` zero-fill length, and `heatmap` 84-bucket length.
+  `llm.message` events; assert: range-filtered token total, cost (usdCents)
+  total, session count, message count, active-day count, multi-model `byModel`
+  grouping + ordering, `daily` zero-fill length, and `heatmap` 84-bucket length.
 - **`currentStreak` helper** — unit tests: today-active streak, gap breaks
   streak, empty set → 0, streak not counting future-only days.
 - **`dispatcher.test.ts`** (or inline) — `getUsageStats` routes to the manager
@@ -147,8 +164,8 @@ Chinese mockups are visual references only.
 
 ## Out of scope (v1)
 
-- Cost / `usdCents` surfacing.
+- Accurate cost for custom providers (shown as 估算 only).
 - Per-session drill-down from the dashboard.
 - Export / CSV.
-- i18n / Chinese labels.
+- A full i18n framework (labels are hardcoded Chinese literals).
 - Custom date-range picker beyond the 7/30 toggle.
