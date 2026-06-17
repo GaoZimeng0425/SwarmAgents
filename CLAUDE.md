@@ -5,6 +5,15 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## 0. Language
+
+**Reply in Chinese. Japanese is forbidden.** All conversational responses and explanations
+default to Chinese. Never use Japanese under any circumstances.
+
+**Code comments and commit messages must always be in English.** No exceptions — this applies
+to every comment written in source files and every Git commit message, regardless of the
+conversation language.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
