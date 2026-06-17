@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { ScrollArea as ScrollAreaPrimitive } from '@base-ui/react/scroll-area'
 import type { UsageRange, UsageStats } from '@shared/types/usage'
 import { Activity, BarChart3, CalendarCheck, CalendarDays, Flame, MessageSquare, MessagesSquare } from 'lucide-react'
 import { Bar, BarChart, Cell, Pie, PieChart, XAxis } from 'recharts'
@@ -22,25 +21,23 @@ function ActivityHeatmap({ days }: { days: { date: string; tokens: number }[] })
       {/* 52-week (one year) grid; column-major 7-row fill = one column per week.
           Wider than the card on narrow windows, so scroll the grid horizontally. */}
       <TooltipProvider>
-        <ScrollAreaPrimitive.Root className="relative w-full">
-          <ScrollAreaPrimitive.Viewport className="w-full rounded-[inherit]">
-            <div className="grid w-max grid-flow-col grid-rows-7 gap-1 pb-2">
-              {days.map((d) => (
-                <Tooltip key={d.date}>
-                  <TooltipTrigger
-                    className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
-                    render={<div />}
-                  />
-                  <TooltipContent className="flex-col items-start gap-0.5">
-                    <span>{d.date}</span>
-                    <span>{formatCount(d.tokens)} tokens</span>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          </ScrollAreaPrimitive.Viewport>
+        <ScrollArea className="w-full">
+          <div className="grid w-max grid-flow-col grid-rows-7 gap-1 pb-2">
+            {days.map((d) => (
+              <Tooltip key={d.date}>
+                <TooltipTrigger
+                  className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
+                  render={<div />}
+                />
+                <TooltipContent className="flex-col items-start gap-0.5">
+                  <span>{d.date}</span>
+                  <span>{formatCount(d.tokens)} tokens</span>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
           <ScrollBar orientation="horizontal" />
-        </ScrollAreaPrimitive.Root>
+        </ScrollArea>
       </TooltipProvider>
       <div className="mt-2 flex items-center justify-end gap-1 text-muted-foreground text-xs">
         <span>较少</span>
