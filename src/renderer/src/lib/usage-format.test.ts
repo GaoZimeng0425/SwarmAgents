@@ -17,6 +17,8 @@ describe('usage-format', () => {
     expect(heatmapShade(0, 100)).toBe(0)
     expect(heatmapShade(100, 100)).toBe(4)
     expect(heatmapShade(1, 100)).toBe(1)
+    expect(heatmapShade(30, 100)).toBe(2)
+    expect(heatmapShade(60, 100)).toBe(3)
     expect(heatmapShade(50, 0)).toBe(0) // guard divide-by-zero
   })
 })

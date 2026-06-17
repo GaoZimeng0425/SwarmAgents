@@ -44,7 +44,7 @@ function DailyTokenChart({ daily }: { daily: { date: string; tokens: number }[] 
         <BarChart data={daily}>
           <XAxis dataKey="date" hide />
           <ChartTooltip content={<ChartTooltipContent />} />
-          <Bar dataKey="tokens" fill="var(--color-tokens)" radius={2} />
+          <Bar dataKey="tokens" fill="var(--color-tokens)" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ChartContainer>
     </div>
@@ -58,11 +58,14 @@ function ModelUsageDonut({
   byModel: { model: string; tokens: number; pct: number }[]
   total: number
 }): React.JSX.Element {
+  const chartConfig = Object.fromEntries(
+    byModel.map((m, i) => [m.model, { label: m.model, color: SLICE_COLORS[i % SLICE_COLORS.length] }])
+  )
   return (
     <div className="rounded-xl border bg-card p-4">
       <h3 className="mb-3 font-medium text-sm">模型用量</h3>
       <div className="flex items-center gap-6">
-        <ChartContainer className="h-[200px] w-[200px]" config={{}}>
+        <ChartContainer className="h-[200px] w-[200px]" config={chartConfig}>
           <PieChart>
             <ChartTooltip content={<ChartTooltipContent />} />
             <Pie data={byModel} dataKey="tokens" innerRadius={60} nameKey="model" outerRadius={90} strokeWidth={2}>
@@ -121,6 +124,7 @@ export function UsageView(): React.JSX.Element {
 
   useEffect(() => {
     let active = true
+    setStats(null)
     setLoading(true)
     setError(null)
     swarmApi
