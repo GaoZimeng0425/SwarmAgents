@@ -468,6 +468,7 @@ describe('ConversationStore', () => {
     expect(stats.byModel.map((m) => m.model).sort()).toEqual(['GLM-5.2', 'claude-sonnet-4-5'])
     expect(stats.byModel.find((m) => m.model === 'claude-sonnet-4-5')?.tokens).toBe(1000)
     expect(stats.totals.topModel?.model).toBe('claude-sonnet-4-5')
+    expect(stats.totals.currentStreak).toBe(2) // today + yesterday both have tasks
     expect(stats.daily.length).toBe(30)
     expect(stats.heatmap.length).toBe(84)
     store.close()
@@ -478,6 +479,7 @@ describe('ConversationStore', () => {
     const stats = store.getUsageStats(7)
     expect(stats.totals.tokens).toBe(0)
     expect(stats.totals.topModel).toBeNull()
+    expect(stats.totals.currentStreak).toBe(0)
     expect(stats.byModel).toEqual([])
     expect(stats.daily.length).toBe(7)
     expect(stats.heatmap.length).toBe(84)

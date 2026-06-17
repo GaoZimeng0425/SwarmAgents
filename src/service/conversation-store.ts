@@ -48,7 +48,7 @@ export type ConversationStore = {
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
   saveTaskUsage(taskId: string, used: Task['used'], contextWindow?: number): void
   getSessionTasks(sessionId: string): Task[]
-  getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
+  getUsageStats(rangeDays: number): UsageStats
   saveToolState(sessionId: string, key: string, value: unknown): void
   getToolState(sessionId: string, key: string): unknown
   saveCronJob(job: StoredCronJob): void
@@ -421,7 +421,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const rangeKeys = dayKeysEndingAt(now, range)
         const rangeKeySet = new Set(rangeKeys)
         const heatmapKeys = dayKeysEndingAt(now, HEATMAP_DAYS)
-        const activeKeys = new Set(dailyRows.filter((r) => r.tokens > 0).map((r) => r.date))
+        const activeDateRows = db
+          .prepare(`SELECT DISTINCT date(created_at/1000,'unixepoch','localtime') AS date FROM tasks`)
+          .all() as { date: string }[]
+        const activeKeys = new Set(activeDateRows.map((r) => r.date))
 
         const result: UsageStats = {
           rangeDays: range,
