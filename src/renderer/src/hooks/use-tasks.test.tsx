@@ -6,6 +6,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as api from '../lib/api'
+import { usePermissionStore } from '../stores/permission'
 import { useSessionsStore } from '../stores/sessions'
 import { useEventsSubscription } from './use-events-subscription'
 import { useDecidePermission, useSubmitGoal, useTasks } from './use-tasks'
@@ -18,6 +19,7 @@ function makeWrapper(qc: QueryClient) {
 
 beforeEach(() => {
   useSessionsStore.setState({ sessions: [], selectedSessionId: null })
+  usePermissionStore.setState({ queue: [] })
 })
 
 afterEach(() => {
@@ -52,6 +54,36 @@ describe('use-tasks + use-events-subscription', () => {
     await waitFor(() => expect(view.result.current).toHaveLength(1))
     expect(view.result.current[0].id).toBe('t1')
     expect(view.result.current[0].sessionId).toBe('ses-1')
+  })
+
+  it('a high-risk permission_request goes into the permission store (no native dialog)', async () => {
+    let emit: (e: UIEvent) => void = () => {}
+    vi.spyOn(api.swarmApi, 'subscribeEvents').mockImplementation((cb) => {
+      emit = cb
+      return () => {}
+    })
+
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } } })
+    renderHook(() => useEventsSubscription(), { wrapper: makeWrapper(qc) })
+
+    act(() => {
+      emit({
+        kind: 'task.permission_request',
+        ts: 1,
+        sessionId: 'sess-1',
+        taskId: 'task-1',
+        workerId: null,
+        actionId: 'act-9',
+        risk: 'high',
+        toolName: 'shell',
+        summary: 'rm -rf /tmp/x',
+        payload: { cmd: 'rm -rf /tmp/x' },
+      } as UIEvent)
+    })
+
+    await waitFor(() => {
+      expect(usePermissionStore.getState().queue.some((p) => p.actionId === 'act-9')).toBe(true)
+    })
   })
 })
 
