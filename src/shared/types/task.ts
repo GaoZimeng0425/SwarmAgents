@@ -101,5 +101,8 @@ export const TaskSchema = z.object({
   createdAt: z.number(),
   startedAt: z.number().nullable(),
   endedAt: z.number().nullable(),
+  // Resolved model context window (tokens), persisted so the usage display
+  // survives a restart. Set once the run starts; absent on legacy rows.
+  contextWindow: z.number().int().positive().optional(),
 })
 export type Task = z.infer<typeof TaskSchema>

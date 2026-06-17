@@ -39,7 +39,7 @@ export type ConversationStore = {
   saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
-  saveTaskUsage(taskId: string, used: Task['used']): void
+  saveTaskUsage(taskId: string, used: Task['used'], contextWindow?: number): void
   getSessionTasks(sessionId: string): Task[]
   saveToolState(sessionId: string, key: string, value: unknown): void
   getToolState(sessionId: string, key: string): unknown
@@ -82,6 +82,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       history             TEXT NOT NULL DEFAULT '[]',
       attachments         TEXT NOT NULL DEFAULT '[]',
       plan                TEXT NOT NULL DEFAULT '[]',
+      context_window      INTEGER,
       created_at          INTEGER NOT NULL,
       started_at          INTEGER,
       ended_at            INTEGER
@@ -119,6 +120,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     'ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
+    'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
   ]) {
     try {
       db.exec(stmt)
@@ -156,6 +158,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     createdAt: row.created_at as number,
     startedAt: (row.started_at as number | null) ?? null,
     endedAt: (row.ended_at as number | null) ?? null,
+    ...(row.context_window != null ? { contextWindow: row.context_window as number } : {}),
   })
 
   const rowToCronJob = (row: Record<string, unknown>): StoredCronJob => ({
@@ -199,7 +202,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
-  const stmtUpdateTaskUsage = db.prepare('UPDATE tasks SET used = ? WHERE id = ?')
+  // COALESCE keeps a previously-stored window when this call has none, so a
+  // turn that resolved no window can't wipe a good value.
+  const stmtUpdateTaskUsage = db.prepare(
+    'UPDATE tasks SET used = ?, context_window = COALESCE(?, context_window) WHERE id = ?'
+  )
   const stmtGetTasks = db.prepare('SELECT * FROM tasks WHERE session_id = ?')
   const stmtUpsertToolState = db.prepare(
     `INSERT OR REPLACE INTO tool_state_snapshots (session_id, key, value, updated_at)
@@ -343,8 +350,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
       const endedAt = terminalStatuses.has(status) ? Date.now() : null
       stmtUpdateTask.run(status, result ? JSON.stringify(result) : null, endedAt, taskId)
     },
-    saveTaskUsage(taskId, used) {
-      stmtUpdateTaskUsage.run(JSON.stringify(used), taskId)
+    saveTaskUsage(taskId, used, contextWindow) {
+      stmtUpdateTaskUsage.run(JSON.stringify(used), contextWindow ?? null, taskId)
     },
     getSessionTasks(sessionId) {
       return (stmtGetTasks.all(sessionId) as Record<string, unknown>[]).map(rowToTask)

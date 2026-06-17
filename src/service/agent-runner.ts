@@ -94,7 +94,7 @@ export type AgentRunnerDeps = {
   /** Aborts the run when fired. The manager wires this to cancelTask. */
   signal?: AbortSignal
   /** Persist the conversation + usage at each turn boundary so they survive an interrupt. */
-  saveSnapshot?(messages: AgentMessage[], used: ResourceBudget): void
+  saveSnapshot?(messages: AgentMessage[], used: ResourceBudget, contextWindow?: number): void
   spawnChild(
     parentTaskId: string,
     newGoal: string,
@@ -468,7 +468,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
             contextWindow: model.contextWindow,
             ts: Date.now(),
           })
-          deps.saveSnapshot?.(agent.state.messages, snapshotUsed())
+          deps.saveSnapshot?.(agent.state.messages, snapshotUsed(), model.contextWindow)
         }
         // When we abort for budget/context/cancel, pi-agent-core records the
         // interrupted tool call with a generic "Operation aborted". Rewrite it

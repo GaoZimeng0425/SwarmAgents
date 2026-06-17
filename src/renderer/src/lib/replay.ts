@@ -46,6 +46,11 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       startedAt: t.createdAt,
       attachments: t.attachments,
       plan: t.plan.length ? t.plan : undefined,
+      // Restore the usage display: `used` and the window were persisted, and
+      // used.tokens is the last turn's context snapshot (the ring's numerator).
+      used: t.used,
+      contextTokens: t.used.tokens,
+      contextWindow: t.contextWindow,
       events,
     }
   })

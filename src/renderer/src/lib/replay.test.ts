@@ -67,4 +67,13 @@ describe('tasksToRecords', () => {
     const records = tasksToRecords('ses-1', [baseTask({ plan: [] })])
     expect(records[0].plan).toBeUndefined()
   })
+
+  it('restores usage + context numbers so the display survives a reload', () => {
+    const records = tasksToRecords('ses-1', [
+      baseTask({ used: { tokens: 16_000, calls: 8, wallMs: 1000, usdCents: 18 }, contextWindow: 200_000 }),
+    ])
+    expect(records[0].used).toEqual({ tokens: 16_000, calls: 8, wallMs: 1000, usdCents: 18 })
+    expect(records[0].contextTokens).toBe(16_000) // ring numerator = last snapshot
+    expect(records[0].contextWindow).toBe(200_000)
+  })
 })

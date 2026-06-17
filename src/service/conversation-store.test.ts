@@ -281,9 +281,15 @@ describe('ConversationStore', () => {
       },
       'ses-u'
     )
-    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 })
+    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 }, 200_000)
     const task = store.getSessionTasks('ses-u').find((t) => t.id === '01HRX0000000000000000000U1')
     expect(task?.used).toEqual({ tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 })
+    expect(task?.contextWindow).toBe(200_000)
+
+    // A later call without a window must not wipe the stored one (COALESCE).
+    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1600, calls: 4, wallMs: 4300, usdCents: 8 })
+    const after = store.getSessionTasks('ses-u').find((t) => t.id === '01HRX0000000000000000000U1')
+    expect(after?.contextWindow).toBe(200_000)
     store.close()
   })
 
@@ -399,8 +405,13 @@ describe('ConversationStore', () => {
     const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
     store.createSession('ses-1', provider)
     store.saveCronJob({
-      id: 'job-1', sessionId: 'ses-1', name: null, cron: '* * * * *',
-      goal: 'g', createdAt: 1000, lastRunAt: null,
+      id: 'job-1',
+      sessionId: 'ses-1',
+      name: null,
+      cron: '* * * * *',
+      goal: 'g',
+      createdAt: 1000,
+      lastRunAt: null,
     })
     store.deleteSession('ses-1')
     expect(store.listCronJobs().length).toBe(0)
