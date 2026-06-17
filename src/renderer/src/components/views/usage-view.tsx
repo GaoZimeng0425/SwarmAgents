@@ -1,10 +1,94 @@
 import { useEffect, useState } from 'react'
 import type { UsageRange, UsageStats } from '@shared/types/usage'
 import { Activity, BarChart3, CalendarCheck, CalendarDays, Flame, MessageSquare, MessagesSquare } from 'lucide-react'
+import { Bar, BarChart, Cell, Pie, PieChart, XAxis } from 'recharts'
 
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { swarmApi } from '@/lib/api'
-import { formatCost, formatCount } from '@/lib/usage-format'
+import { formatCost, formatCount, heatmapShade } from '@/lib/usage-format'
 import { cn } from '@/lib/utils'
+
+const SHADE_CLASS = ['bg-muted', 'bg-primary/30', 'bg-primary/50', 'bg-primary/70', 'bg-primary'] as const
+const SLICE_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+
+function ActivityHeatmap({ days }: { days: { date: string; tokens: number }[] }): React.JSX.Element {
+  const max = Math.max(0, ...days.map((d) => d.tokens))
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="mb-3 font-medium text-sm">活跃热力图</h3>
+      <div className="grid grid-flow-col grid-rows-7 gap-1">
+        {days.map((d) => (
+          <div
+            className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
+            key={d.date}
+            title={`${d.date}: ${d.tokens}`}
+          />
+        ))}
+      </div>
+      <div className="mt-2 flex items-center justify-end gap-1 text-muted-foreground text-xs">
+        <span>较少</span>
+        {SHADE_CLASS.map((c) => (
+          <span className={cn('h-3 w-3 rounded-[3px]', c)} key={c} />
+        ))}
+        <span>较多</span>
+      </div>
+    </div>
+  )
+}
+
+function DailyTokenChart({ daily }: { daily: { date: string; tokens: number }[] }): React.JSX.Element {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="mb-3 font-medium text-sm">按天 Token 趋势</h3>
+      <ChartContainer className="h-[220px] w-full" config={{ tokens: { label: 'tokens', color: 'var(--chart-1)' } }}>
+        <BarChart data={daily}>
+          <XAxis dataKey="date" hide />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <Bar dataKey="tokens" fill="var(--color-tokens)" radius={2} />
+        </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+function ModelUsageDonut({
+  byModel,
+  total,
+}: {
+  byModel: { model: string; tokens: number; pct: number }[]
+  total: number
+}): React.JSX.Element {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="mb-3 font-medium text-sm">模型用量</h3>
+      <div className="flex items-center gap-6">
+        <ChartContainer className="h-[200px] w-[200px]" config={{}}>
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Pie data={byModel} dataKey="tokens" innerRadius={60} nameKey="model" outerRadius={90} strokeWidth={2}>
+              {byModel.map((m, i) => (
+                <Cell fill={SLICE_COLORS[i % SLICE_COLORS.length]} key={m.model} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        <ul className="flex flex-1 flex-col gap-2">
+          {byModel.map((m, i) => (
+            <li className="flex items-center gap-2 text-sm" key={m.model}>
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: SLICE_COLORS[i % SLICE_COLORS.length] }}
+              />
+              <span className="flex-1">{m.model}</span>
+              <span className="text-muted-foreground">{formatCount(m.tokens)} tokens</span>
+              <span className="w-12 text-right">{total > 0 ? m.pct : 0}%</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
 
 function StatCard({
   icon,
@@ -109,7 +193,13 @@ export function UsageView(): React.JSX.Element {
           />
         </section>
       ) : null}
-      {/* Task 6 inserts <ActivityHeatmap/>, <DailyTokenChart/>, <ModelUsageDonut/> here, gated on `stats`. */}
+      {stats && stats.totals.tokens > 0 ? (
+        <>
+          <ActivityHeatmap days={stats.heatmap} />
+          <DailyTokenChart daily={stats.daily} />
+          <ModelUsageDonut byModel={stats.byModel} total={stats.totals.tokens} />
+        </>
+      ) : null}
     </div>
   )
 }
