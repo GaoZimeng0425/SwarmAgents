@@ -14,7 +14,6 @@ import {
 import { emptyBudget, type ResourceBudget, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
 import type { AskRegistry } from './ask-registry'
-import type { McpRequestRegistry } from './mcp-request-registry'
 import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
 
@@ -90,7 +89,6 @@ export type AgentRunnerDeps = {
   emit: EmitFn
   permissionRegistry: PermissionRegistry
   askRegistry: AskRegistry
-  mcpRequests: McpRequestRegistry
   toolRegistry: ToolRegistry
   initialMessages: AgentMessage[]
   /** Aborts the run when fired. The manager wires this to cancelTask. */
@@ -280,7 +278,6 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           // This stub satisfies the ToolRunContext type without creating a second gate.
           requestPermission: () => Promise.resolve('grant' as const),
           askUser: (args) => deps.askRegistry.request({ taskId: task.id, ...args }),
-          addMcpServer: (config) => deps.mcpRequests.add(config),
         }
         const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
         tools = resolved.tools

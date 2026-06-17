@@ -1,5 +1,5 @@
 import { createLogger } from '@shared/logger'
-import type { McpAddResult, McpServerConfig, McpServerStatus } from '@shared/types/mcp'
+import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
@@ -41,7 +41,6 @@ export type ServiceClient = {
   cancelTask(sessionId: string, taskId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
-  respondMcpAdd(requestId: string, result: McpAddResult): Promise<void>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
   listSkills(): Promise<Skill[]>
   saveSkill(skill: Skill): Promise<SkillMutationResult>
@@ -124,9 +123,6 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     getMcpStatus() {
       return call('getMcpStatus', [])
-    },
-    async respondMcpAdd(requestId, result) {
-      await call('respondMcpAdd', [requestId, result])
     },
     async setWebSearchConfig(config) {
       await call('setWebSearchConfig', [config])

@@ -1,5 +1,6 @@
-// Entry point for the MCP-servers config subsystem. Wires the encrypted store,
-// the in-memory config service, and the renderer↔main config IPC. Must run after
+// Entry point for the MCP-servers config subsystem. Wires the plaintext store
+// (hand-editable mcp-servers.json), the in-memory config service, a file watcher
+// for live reload, and the renderer↔main config IPC. Must run after
 // app.whenReady() and before any BrowserWindow so the first render sees state.
 // (The service-process bridge — pushing configs + relaying live status — is
 // wired later in swarm-ipc, once the service client exists.)
@@ -7,7 +8,7 @@ import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { app } from 'electron'
 
-import { safeStorageAvailable, wireMcpConfigIpc } from './ipc'
+import { wireMcpConfigIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
 
@@ -19,18 +20,22 @@ export type McpServersHandle = {
 }
 
 export async function initMcpServers(): Promise<McpServersHandle> {
-  if (!safeStorageAvailable()) throw new Error('safeStorage unavailable')
-
-  const filePath = join(app.getPath('userData'), 'mcp-servers.enc')
+  const filePath = join(app.getPath('userData'), 'mcp-servers.json')
   const store = createStore({ filePath })
-  const loadResult = await store.loadOrRecover()
-  if (!loadResult.ok) log.warn({ msg: 'mcp config load failed at boot', reason: loadResult.reason })
 
   const service = await createService({ store })
-  const { dispose } = wireMcpConfigIpc({ service })
+  const { dispose: disposeIpc } = wireMcpConfigIpc({ service })
+  // Reload live when the file is hand-edited or rewritten by the agent's fs tools.
+  const offWatch = store.watch(() => void service.reload())
+  log.info({ msg: 'mcp config ready', path: filePath })
 
-  return { service, dispose }
+  return {
+    service,
+    dispose() {
+      offWatch()
+      disposeIpc()
+    },
+  }
 }
 
-export { applyAgentMcpAdd } from './agent-bridge'
 export type { Service } from './service'

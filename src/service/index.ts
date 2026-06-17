@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceRequest } from '@shared/types/service-ipc'
@@ -10,9 +10,9 @@ import { createConversationStore } from './conversation-store'
 import { createCronScheduler } from './cron-scheduler'
 import { createDispatcher } from './dispatcher'
 import { createMcpManager } from './mcp/manager'
-import { createMcpRequestRegistry } from './mcp-request-registry'
 import { createMemoryStore } from './memory-store'
 import { createSessionManager } from './session-manager'
+import { builtinSkills } from './skills/builtins'
 import { createSkillStore } from './skills/store'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry } from './tools/registry'
@@ -39,7 +39,10 @@ const skillsPath = process.env.SWARM_SERVICE_SKILLS_PATH ?? join(tmpdir(), 'swar
 const store = createConversationStore(dbPath)
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
 const memoryStore = createMemoryStore(memoryPath, () => broadcaster.broadcast('memory.changed', { ts: Date.now() }))
-const skillStore = createSkillStore({ dir: skillsPath })
+// The MCP config lives next to the skills dir under userData (see main wiring),
+// so the operations manual can cite its real path without a separate env var.
+const mcpConfigPath = join(dirname(skillsPath), 'mcp-servers.json')
+const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({ mcpConfigPath }) })
 
 const toolRegistry = createToolRegistry()
 
@@ -49,9 +52,6 @@ const providerRegistry = new Map<string, ProviderInjection>()
 // tool. Defaults to 'auto' (env-var fallback) until Main sends the persisted one.
 let webSearchConfig: WebSearchInjection = { provider: 'auto' }
 
-// Lets the mcp_add tool persist a server via Main (the config store lives there).
-const mcpRequests = createMcpRequestRegistry((event, data) => broadcaster.broadcast(event, data))
-
 const manager = createSessionManager({
   store,
   broadcaster,
@@ -59,7 +59,6 @@ const manager = createSessionManager({
   getProvider: (key) => providerRegistry.get(key),
   toolRegistry,
   skillStore,
-  mcpRequests,
 })
 
 const scheduler = createCronScheduler({
@@ -88,7 +87,6 @@ const dispatch = createDispatcher({
   },
   setMcpServers: (configs) => mcpManager.setServers(configs),
   getMcpStatus: () => mcpManager.getStatus(),
-  resolveMcpAdd: (requestId, result) => mcpRequests.resolve(requestId, result),
   setWebSearchConfig: (config) => {
     webSearchConfig = config
   },

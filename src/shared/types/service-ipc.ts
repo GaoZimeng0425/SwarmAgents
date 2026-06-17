@@ -15,7 +15,6 @@ export type ServiceMethod =
   | 'cancelTask'
   | 'setMcpServers'
   | 'getMcpStatus'
-  | 'respondMcpAdd'
   | 'setWebSearchConfig'
   | 'listSkills'
   | 'saveSkill'

@@ -80,4 +80,25 @@ describe('createSkillStore', () => {
     const fresh = createSkillStore({ dir })
     expect(fresh.list().map((s) => s.name)).toEqual(['persisted'])
   })
+
+  const builtin = { name: 'ops', description: 'manual', body: 'built-in body' }
+
+  it('always lists and resolves built-in skills', () => {
+    const store = createSkillStore({ dir, builtins: [builtin] })
+    expect(store.list().map((s) => s.name)).toEqual(['ops'])
+    expect(store.get('ops')?.body).toBe('built-in body')
+  })
+
+  it('cannot remove a built-in (no on-disk folder)', () => {
+    const store = createSkillStore({ dir, builtins: [builtin] })
+    expect(store.remove('ops').ok).toBe(false)
+    expect(store.get('ops')).toBeDefined()
+  })
+
+  it('a user skill of the same name overrides its built-in', () => {
+    const store = createSkillStore({ dir, builtins: [builtin] })
+    store.save({ name: 'ops', description: 'user', body: 'user body' })
+    expect(store.list().filter((s) => s.name === 'ops')).toHaveLength(1)
+    expect(store.get('ops')?.body).toBe('user body')
+  })
 })

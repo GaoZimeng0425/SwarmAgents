@@ -1,7 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type { Outbound } from '@shared/types/ipc'
-import type { McpAddResult, McpServerConfig } from '@shared/types/mcp'
 import type { TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
 
@@ -33,8 +32,6 @@ export interface ToolRunContext {
     options: { label: string; value?: string }[]
     mode: 'single' | 'multi'
   }) => Promise<string>
-  /** Persist + connect a new MCP server (the config store lives in Main). Resolves with the mutation result. */
-  addMcpServer: (config: Omit<McpServerConfig, 'id'>) => Promise<McpAddResult>
 }
 
 export interface ToolSpec {

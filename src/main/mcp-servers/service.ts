@@ -1,6 +1,7 @@
-// In-memory MCP config state machine over the encrypted store. CRUD setters
+// In-memory MCP config state machine over the plaintext store. CRUD setters
 // validate + persist, then notify listeners (main wiring pushes the new list to
-// the service process and broadcasts to renderer windows). Mirrors providers.
+// the service process and broadcasts to renderer windows). `reload` re-reads the
+// file after an external edit. Mirrors providers.
 import { createLogger } from '@shared/logger'
 import {
   type McpMutationResult,
@@ -8,9 +9,8 @@ import {
   McpServerConfigSchema,
   type McpToolOverride,
 } from '@shared/types/mcp'
-import { ulid } from 'ulid'
 
-import type { Store } from './store'
+import type { McpServersState, Store } from './store'
 
 const log = createLogger({ process: 'main' }).child({ component: 'mcp-servers-service' })
 
@@ -21,6 +21,8 @@ export type Service = {
   remove(id: string): Promise<McpMutationResult>
   setEnabled(id: string, enabled: boolean): Promise<McpMutationResult>
   setToolOverride(id: string, toolName: string, override: McpToolOverride | null): Promise<McpMutationResult>
+  /** Re-read the file after an external edit; emits only if the content changed. */
+  reload(): Promise<void>
   onChange(cb: (configs: McpServerConfig[]) => void): () => void
 }
 
@@ -30,22 +32,26 @@ function transportValid(c: McpServerConfig): string | null {
 }
 
 export async function createService(opts: { store: Store }): Promise<Service> {
-  let state = await opts.store.load()
+  let state: McpServersState = await opts.store.load()
   const listeners = new Set<(c: McpServerConfig[]) => void>()
   const emit = (): void => {
     for (const cb of listeners) cb([...state.servers])
   }
 
   const persist = async (servers: McpServerConfig[]): Promise<McpMutationResult> => {
-    const next = { version: 1 as const, servers }
+    const prev = state
+    // Optimistic: update + notify first so the UI is snappy and a subsequent
+    // self-triggered file-watch reload sees matching content and no-ops.
+    state = { servers }
+    emit()
     try {
-      await opts.store.save(next)
+      await opts.store.save(state)
     } catch (err) {
       log.error({ msg: 'failed to persist mcp servers', err: err instanceof Error ? err.message : String(err) })
+      state = prev
+      emit()
       return { ok: false, code: 'persist_failed', message: String(err) }
     }
-    state = next
-    emit()
     return { ok: true }
   }
 
@@ -67,7 +73,8 @@ export async function createService(opts: { store: Store }): Promise<Service> {
     list: () => [...state.servers],
 
     async add(input) {
-      const candidate: McpServerConfig = { ...input, id: ulid() }
+      // The server name is the on-disk map key, so it doubles as the id.
+      const candidate: McpServerConfig = { ...input, id: input.name }
       const err = validate(candidate)
       if (err) return err
       const result = await persist([...state.servers, candidate])
@@ -102,6 +109,15 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       if (override === null) delete overrides[toolName]
       else overrides[toolName] = override
       return persist(state.servers.map((s) => (s.id === id ? { ...s, toolOverrides: overrides } : s)))
+    },
+
+    async reload() {
+      const next = await opts.store.load()
+      // Skip our own writes / no-op edits so the watcher can't cause a feedback loop.
+      if (JSON.stringify(next.servers) === JSON.stringify(state.servers)) return
+      state = next
+      emit()
+      log.info({ msg: 'mcp config reloaded from disk', count: next.servers.length })
     },
 
     onChange(cb) {

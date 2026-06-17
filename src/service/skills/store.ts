@@ -42,9 +42,17 @@ export function serializeSkill(skill: Skill): string {
   return `---\nname: ${skill.name}\ndescription: ${skill.description}\n${flag}---\n\n${skill.body.trim()}\n`
 }
 
-export function createSkillStore(opts: { dir: string }): SkillStore {
+export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): SkillStore {
   const { dir } = opts
+  const builtins = opts.builtins ?? []
   let skills: Skill[] = []
+
+  // Built-ins ship with the app and are always available; a user skill of the
+  // same name overrides its built-in.
+  const merged = (): Skill[] => {
+    const userNames = new Set(skills.map((s) => s.name))
+    return [...builtins.filter((b) => !userNames.has(b.name)), ...skills]
+  }
 
   const reload = (): void => {
     skills = []
@@ -75,7 +83,7 @@ export function createSkillStore(opts: { dir: string }): SkillStore {
       return { ok: false, code: 'write_failed', message: String(err) }
     }
     reload()
-    return { ok: true, skills: [...skills] }
+    return { ok: true, skills: merged() }
   }
 
   const remove: SkillStore['remove'] = (name) => {
@@ -87,12 +95,12 @@ export function createSkillStore(opts: { dir: string }): SkillStore {
       return { ok: false, code: 'delete_failed', message: String(err) }
     }
     reload()
-    return { ok: true, skills: [...skills] }
+    return { ok: true, skills: merged() }
   }
 
   return {
-    list: () => [...skills],
-    get: (name) => skills.find((s) => s.name === name),
+    list: () => merged(),
+    get: (name) => skills.find((s) => s.name === name) ?? builtins.find((b) => b.name === name),
     reload,
     save,
     remove,

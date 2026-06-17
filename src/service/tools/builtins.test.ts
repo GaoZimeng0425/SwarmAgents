@@ -20,7 +20,6 @@ const ctx: ToolRunContext = {
   send: () => undefined,
   requestPermission: async () => 'grant',
   askUser: async () => '',
-  addMcpServer: async () => ({ ok: true }),
 }
 
 describe('registerBuiltinTools', () => {
@@ -45,7 +44,6 @@ describe('registerBuiltinTools', () => {
       'fs.list_dir',
       'fs.read_file',
       'fs.write_file',
-      'mcp.mcp_add',
       'peekaboo.click',
       'peekaboo.hotkey',
       'peekaboo.list_apps',

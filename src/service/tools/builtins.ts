@@ -6,7 +6,6 @@ import type { SkillStore } from '../skills/store'
 import { askUserSpec } from './ask'
 import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
-import { mcpAddSpec } from './mcp'
 import { memorySpecs } from './memory'
 import { buildPeekabooTools } from './peekaboo'
 import { updatePlanSpec } from './plan'
@@ -61,7 +60,6 @@ export function registerBuiltinTools(
   registry.register(webFetchSpec())
   // No config getter (e.g. tests) → 'auto' with env-var fallback inside web.ts.
   registry.register(webSearchSpec(deps?.getWebSearchConfig ?? (() => ({ provider: 'auto' }))))
-  registry.register(mcpAddSpec())
   for (const spec of fsSpecs()) registry.register(spec)
   // Memory tools need a backing store; registered only when one is injected.
   if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)

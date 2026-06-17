@@ -2,7 +2,7 @@ import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createToolRegistry } from '../tools/registry'
-import { createMcpManager, type McpClientLike } from './manager'
+import { createMcpManager, expandVars, type McpClientLike } from './manager'
 
 function fakeClient(over: Partial<McpClientLike> = {}): McpClientLike {
   return {
@@ -22,6 +22,23 @@ const stdio = (over: Partial<McpServerConfig> = {}): McpServerConfig => ({
   enabled: true,
   command: 'demo-server',
   ...over,
+})
+
+describe('expandVars', () => {
+  const env = { TOK: 'secret', EMPTY: '' }
+  it('expands ${VAR} from the env', () => {
+    expect(expandVars('Bearer ${TOK}', env)).toBe('Bearer secret')
+  })
+  it('uses ${VAR:-default} when unset or empty', () => {
+    expect(expandVars('${MISSING:-https://d}/mcp', env)).toBe('https://d/mcp')
+    expect(expandVars('${EMPTY:-fallback}', env)).toBe('fallback')
+  })
+  it('expands an unset var with no default to empty string', () => {
+    expect(expandVars('x${NOPE}y', env)).toBe('xy')
+  })
+  it('leaves text without refs untouched', () => {
+    expect(expandVars('http://127.0.0.1:8787/mcp', env)).toBe('http://127.0.0.1:8787/mcp')
+  })
 })
 
 describe('createMcpManager', () => {

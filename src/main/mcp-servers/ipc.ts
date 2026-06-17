@@ -1,15 +1,11 @@
 // Renderer ↔ Main IPC for MCP *config* CRUD. Status (live connection state)
 // comes from the service process and is wired separately in swarm-ipc.
 import { type McpServerConfig, McpServerConfigSchema, type McpToolOverride } from '@shared/types/mcp'
-import { BrowserWindow, ipcMain, safeStorage } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 
 import type { Service } from './service'
 
 export const MCP_CONFIG_CHANGED_CHANNEL = 'mcp:configChanged'
-
-export function safeStorageAvailable(): boolean {
-  return safeStorage.isEncryptionAvailable()
-}
 
 function broadcast(channel: string, payload: unknown): void {
   for (const w of BrowserWindow.getAllWindows()) {

@@ -5,7 +5,7 @@ import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
-import { applyAgentMcpAdd, initMcpServers } from './mcp-servers'
+import { initMcpServers } from './mcp-servers'
 import { initProviders } from './providers'
 import { createServiceClient, type ServiceTransport } from './service-client'
 import { setupAutoUpdate } from './system/auto-update'
@@ -14,6 +14,11 @@ import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
 import { openSettings } from './windows/settings-window'
+
+// productName in electron-builder.yml only renames packaged builds; in dev
+// app.name falls back to "Electron". Set it explicitly so the macOS app menu
+// label is correct everywhere.
+app.setName('SwarmAgents')
 
 // ship-readiness G.64: single-instance on Windows / Linux. Second launch
 // focuses the existing window instead of spawning a new process.
@@ -85,14 +90,6 @@ app.whenReady().then(async () => {
     serviceClient = createServiceClient({
       transport: serviceProcess as unknown as ServiceTransport,
       onEvent: (event, data) => {
-        // An agent tool asking to add an MCP server: validate + persist via the
-        // config service, then reply so the tool unblocks with the result.
-        if (event === 'mcp.config.add') {
-          void applyAgentMcpAdd(mcpServers.service, data)
-            .then((res) => res && serviceClient.respondMcpAdd(res.requestId, res.result))
-            .catch((err: unknown) => log.warn({ msg: 'applyAgentMcpAdd failed', err: String(err) }))
-          return
-        }
         // MCP status rides a dedicated channel — it isn't a task UIEvent and
         // must not reach applyEvent (which would create a phantom task stub).
         const channel = event.startsWith('mcp.') ? 'mcp:status' : 'swarm:event'

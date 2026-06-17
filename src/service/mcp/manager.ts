@@ -58,22 +58,38 @@ function textOf(content: TextOrImage[]): string {
     .trim()
 }
 
+/**
+ * Expand `${VAR}` and `${VAR:-default}` references against the process env, so
+ * secrets (tokens, keys) stay out of the on-disk config and live in the
+ * environment instead. An unset variable with no default expands to ''.
+ */
+export function expandVars(value: string, env: NodeJS.ProcessEnv = process.env): string {
+  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g, (_m, name: string, def?: string) => {
+    const v = env[name]
+    return v !== undefined && v !== '' ? v : (def ?? '')
+  })
+}
+
+const expandRecord = (rec: Record<string, string> | undefined): Record<string, string> | undefined =>
+  rec ? Object.fromEntries(Object.entries(rec).map(([k, v]) => [k, expandVars(v)])) : undefined
+
 /** Default connector — builds a real MCP SDK client + transport for a config. */
 export const defaultConnect: McpConnector = async (config) => {
   const client = new Client({ name: 'swarm-agents', version: '1.0.0' }, { capabilities: {} })
   if (config.transport === 'stdio') {
     if (!config.command) throw new Error('stdio server requires a command')
     const transport = new StdioClientTransport({
-      command: config.command,
-      args: config.args,
-      env: { ...getDefaultEnvironment(), ...(config.env ?? {}) },
+      command: expandVars(config.command),
+      args: config.args?.map((a) => expandVars(a)),
+      env: { ...getDefaultEnvironment(), ...(expandRecord(config.env) ?? {}) },
       cwd: config.cwd,
     })
     await client.connect(transport)
   } else {
     if (!config.url) throw new Error('remote server requires a url')
-    const url = new URL(config.url)
-    const opts = config.headers ? { requestInit: { headers: config.headers } } : undefined
+    const url = new URL(expandVars(config.url))
+    const headers = expandRecord(config.headers)
+    const opts = headers ? { requestInit: { headers } } : undefined
     const transport =
       config.transport === 'sse' ? new SSEClientTransport(url, opts) : new StreamableHTTPClientTransport(url, opts)
     await client.connect(transport)

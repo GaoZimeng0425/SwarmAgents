@@ -3,7 +3,7 @@
 // matching that lived in the HTTP server. No transport, no I/O — trivially
 // unit-testable.
 
-import type { McpAddResult, McpServerConfig, McpServerStatus } from '@shared/types/mcp'
+import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod } from '@shared/types/service-ipc'
@@ -18,7 +18,6 @@ type DispatcherConfig = {
   registerProvider(provider: ProviderInjection): void
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): McpServerStatus[]
-  resolveMcpAdd(requestId: string, result: McpAddResult): void
   setWebSearchConfig(config: WebSearchInjection): void
   listSkills(): Skill[]
   saveSkill(skill: Skill): SkillMutationResult
@@ -87,11 +86,6 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       }
       case 'getMcpStatus':
         return cfg.getMcpStatus()
-      case 'respondMcpAdd': {
-        const [requestId, result] = args as [string, McpAddResult]
-        cfg.resolveMcpAdd(requestId, result)
-        return { ok: true }
-      }
       case 'setWebSearchConfig': {
         const [config] = args as [WebSearchInjection]
         cfg.setWebSearchConfig(config)

@@ -18,7 +18,6 @@ function mockManager(): SessionManager {
 const mcpDeps = () => ({
   setMcpServers: vi.fn().mockResolvedValue(undefined),
   getMcpStatus: vi.fn().mockReturnValue([]),
-  resolveMcpAdd: vi.fn(),
   setWebSearchConfig: vi.fn(),
   listSkills: vi.fn().mockReturnValue([]),
   saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),

@@ -34,21 +34,39 @@ export const McpServerConfigSchema = z.object({
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),
   cwd: z.string().optional(),
-  // remote (http / sse) transport
-  url: z.string().url().optional(),
+  // remote (http / sse) transport. Not `.url()`: may hold a `${VAR}` reference
+  // that only becomes a valid URL after env expansion at connect time.
+  url: z.string().min(1).optional(),
   headers: z.record(z.string(), z.string()).optional(),
   // per-tool overrides keyed by the server's own tool name
   toolOverrides: z.record(z.string(), McpToolOverrideSchema).optional(),
 })
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>
 
-export const McpServersOnDiskSchema = z.object({
-  version: z.literal(1),
-  servers: z.array(McpServerConfigSchema).default([]),
+// --- on-disk format: a plaintext, hand-editable `mcp-servers.json` keyed by
+// server name (Claude Code's `.mcp.json` shape). Secrets are NOT stored here;
+// use `${VAR}` / `${VAR:-default}` references, expanded at connect time. The
+// server name is the map key, so it doubles as the stable id internally.
+export const McpServerEntrySchema = z.object({
+  // `type` is the Claude Code key; `transport` is accepted as an alias on read.
+  type: McpTransport.optional(),
+  transport: McpTransport.optional(),
+  command: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  cwd: z.string().optional(),
+  url: z.string().min(1).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  // app extensions beyond Claude Code's format; both optional (default enabled).
+  enabled: z.boolean().optional(),
+  toolOverrides: z.record(z.string(), McpToolOverrideSchema).optional(),
 })
-export type McpServersOnDisk = z.infer<typeof McpServersOnDiskSchema>
+export type McpServerEntry = z.infer<typeof McpServerEntrySchema>
 
-export const emptyMcpServers = (): McpServersOnDisk => ({ version: 1, servers: [] })
+export const McpServersFileSchema = z.object({
+  mcpServers: z.record(z.string(), McpServerEntrySchema).default({}),
+})
+export type McpServersFile = z.infer<typeof McpServersFileSchema>
 
 // --- live status (Service → Main → renderer) ---
 
@@ -72,6 +90,3 @@ export type McpServerStatus = {
 
 /** Result of an add/update/remove/toggle config mutation (mirrors providers). */
 export type McpMutationResult = { ok: true } | { ok: false; code: string; message: string }
-
-/** Result of an `add`, carrying the assigned id on success. */
-export type McpAddResult = McpMutationResult & { id?: string }
