@@ -411,6 +411,20 @@ export function createConversationStore(dbPath: string): ConversationStore {
           )
           .all(heatmapCutoff) as { date: string; tokens: number }[]
 
+        // Sparse per-day, per-model totals over the range; the renderer pivots
+        // these into a multi-line "tokens by model" trend.
+        const dailyModelRows = db
+          .prepare(
+            `SELECT date(t.created_at/1000,'unixepoch','localtime') AS date,
+                    json_extract(s.provider_snapshot, '$.model') AS model,
+                    COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) AS tokens
+             FROM tasks t JOIN sessions s ON s.id = t.session_id
+             WHERE t.created_at >= ?
+             GROUP BY date, model
+             HAVING tokens > 0`
+          )
+          .all(cutoff) as { date: string; model: string; tokens: number }[]
+
         const totalTokens = totalsRow.tokens
         const byModel = modelRows.map((r) => ({
           model: r.model ?? 'unknown',
@@ -441,6 +455,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
             dailyRows.filter((r) => rangeKeySet.has(r.date)),
             rangeKeys
           ),
+          dailyByModel: dailyModelRows.map((r) => ({
+            date: r.date,
+            model: r.model ?? 'unknown',
+            tokens: r.tokens,
+          })),
           byModel,
           heatmap: zeroFillDaily(dailyRows, heatmapKeys),
         }

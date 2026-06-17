@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { UsageRange, UsageStats } from '@shared/types/usage'
 import { Activity, BarChart3, CalendarCheck, CalendarDays, Flame, MessageSquare, MessagesSquare } from 'lucide-react'
-import { Bar, BarChart, Cell, Pie, PieChart, XAxis } from 'recharts'
+import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, XAxis } from 'recharts'
 
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { swarmApi } from '@/lib/api'
@@ -60,6 +66,57 @@ function DailyTokenChart({ daily }: { daily: { date: string; tokens: number }[] 
           <ChartTooltip content={<ChartTooltipContent />} />
           <Bar dataKey="tokens" fill="var(--color-tokens)" radius={[2, 2, 0, 0]} />
         </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+function ModelTrendChart({
+  daily,
+  byModel,
+  dailyByModel,
+}: {
+  daily: { date: string; tokens: number }[]
+  byModel: { model: string; tokens: number; pct: number }[]
+  dailyByModel: { date: string; model: string; tokens: number }[]
+}): React.JSX.Element {
+  const models = byModel.map((m) => m.model)
+  // Pivot the sparse (date, model, tokens) rows into wide rows keyed by date,
+  // over `daily`'s zero-filled date axis so gaps render as 0 per model.
+  const tokensByDate = new Map<string, Record<string, number>>()
+  for (const r of dailyByModel) {
+    const row = tokensByDate.get(r.date) ?? {}
+    row[r.model] = r.tokens
+    tokensByDate.set(r.date, row)
+  }
+  const data = daily.map((d) => {
+    const row: Record<string, number | string> = { date: d.date }
+    const cells = tokensByDate.get(d.date)
+    for (const model of models) row[model] = cells?.[model] ?? 0
+    return row
+  })
+  const config = Object.fromEntries(
+    models.map((m, i) => [m, { label: m, color: SLICE_COLORS[i % SLICE_COLORS.length] }])
+  )
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="mb-3 font-medium text-sm">按模型 Token 趋势</h3>
+      <ChartContainer className="h-[240px] w-full" config={config}>
+        <LineChart data={data}>
+          <XAxis dataKey="date" hide />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          {models.map((m, i) => (
+            <Line
+              dataKey={m}
+              dot={false}
+              key={m}
+              stroke={SLICE_COLORS[i % SLICE_COLORS.length]}
+              strokeWidth={2}
+              type="monotone"
+            />
+          ))}
+          <ChartLegend content={<ChartLegendContent />} />
+        </LineChart>
       </ChartContainer>
     </div>
   )
@@ -216,6 +273,7 @@ export function UsageView(): React.JSX.Element {
           <>
             <ActivityHeatmap days={stats.heatmap} />
             <DailyTokenChart daily={stats.daily} />
+            <ModelTrendChart byModel={stats.byModel} daily={stats.daily} dailyByModel={stats.dailyByModel} />
             <ModelUsageDonut byModel={stats.byModel} total={stats.totals.tokens} />
           </>
         ) : null}

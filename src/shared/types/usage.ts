@@ -19,6 +19,15 @@ export const DayBucketSchema = z.object({
 })
 export type DayBucket = z.infer<typeof DayBucketSchema>
 
+// Per-day, per-model token total (long/sparse format — only non-zero rows).
+// The renderer pivots this against `daily`'s date axis into a multi-line chart.
+export const DayModelBucketSchema = z.object({
+  date: z.string(), // 'YYYY-MM-DD' in local time
+  model: z.string(),
+  tokens: z.number().int().nonnegative(),
+})
+export type DayModelBucket = z.infer<typeof DayModelBucketSchema>
+
 export const UsageRangeSchema = z.union([z.literal(7), z.literal(30)])
 export type UsageRange = z.infer<typeof UsageRangeSchema>
 
@@ -34,6 +43,7 @@ export const UsageStatsSchema = z.object({
     topModel: ModelUsageSchema.nullable(),
   }),
   daily: z.array(DayBucketSchema),
+  dailyByModel: z.array(DayModelBucketSchema),
   byModel: z.array(ModelUsageSchema),
   heatmap: z.array(DayBucketSchema),
 })

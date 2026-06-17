@@ -471,6 +471,10 @@ describe('ConversationStore', () => {
     expect(stats.totals.currentStreak).toBe(2) // today + yesterday both have tasks
     expect(stats.daily.length).toBe(30)
     expect(stats.heatmap.length).toBe(364)
+    // Per-day, per-model rows: claude today (1000), GLM yesterday (500); old task excluded.
+    expect(stats.dailyByModel.length).toBe(2)
+    expect(stats.dailyByModel.find((r) => r.model === 'claude-sonnet-4-5')?.tokens).toBe(1000)
+    expect(stats.dailyByModel.find((r) => r.model === 'GLM-5.2')?.tokens).toBe(500)
     store.close()
   })
 
@@ -481,6 +485,7 @@ describe('ConversationStore', () => {
     expect(stats.totals.topModel).toBeNull()
     expect(stats.totals.currentStreak).toBe(0)
     expect(stats.byModel).toEqual([])
+    expect(stats.dailyByModel).toEqual([])
     expect(stats.daily.length).toBe(7)
     expect(stats.heatmap.length).toBe(364)
     store.close()
