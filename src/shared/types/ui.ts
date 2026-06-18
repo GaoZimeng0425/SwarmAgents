@@ -83,6 +83,7 @@ export type SessionSummary = {
   lastActiveAt: number
   taskCount: number
   pinned: boolean
+  sortOrder: number
 }
 
 export type PermissionDecision = 'grant' | 'deny' | 'skip'

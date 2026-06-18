@@ -418,6 +418,35 @@ describe('ConversationStore', () => {
     store.close()
   })
 
+  it('new sessions get descending sort_order so newest is first', () => {
+    const store = createConversationStore(':memory:')
+    store.createSession('ses-a', provider)
+    store.createSession('ses-b', provider)
+    const ids = store.listSessions().map((s) => s.id)
+    expect(ids).toEqual(['ses-b', 'ses-a']) // newest first by sort_order
+    store.close()
+  })
+
+  it('reorderSessions persists an explicit order', () => {
+    const store = createConversationStore(':memory:')
+    store.createSession('ses-a', provider)
+    store.createSession('ses-b', provider)
+    store.createSession('ses-c', provider)
+    store.reorderSessions(['ses-a', 'ses-c', 'ses-b'])
+    expect(store.listSessions().map((s) => s.id)).toEqual(['ses-a', 'ses-c', 'ses-b'])
+    store.close()
+  })
+
+  it('pinned sessions float above unpinned regardless of sort_order', () => {
+    const store = createConversationStore(':memory:')
+    store.createSession('ses-a', provider)
+    store.createSession('ses-b', provider)
+    store.reorderSessions(['ses-a', 'ses-b'])
+    store.setSessionPinned('ses-b', true)
+    expect(store.listSessions().map((s) => s.id)).toEqual(['ses-b', 'ses-a'])
+    store.close()
+  })
+
   it('aggregates usage stats over the range', () => {
     const store = createConversationStore(dbPath)
     const anthropic = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }

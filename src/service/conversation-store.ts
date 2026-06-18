@@ -39,6 +39,7 @@ export type ConversationStore = {
   listSessions(): import('@shared/types/ui').SessionSummary[]
   setSessionTitle(id: string, title: string): void
   setSessionPinned(id: string, pinned: boolean): void
+  reorderSessions(orderedIds: string[]): void
   deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
@@ -73,7 +74,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
       provider_snapshot TEXT NOT NULL,
       title             TEXT,
       agent_snapshot    TEXT NOT NULL DEFAULT '[]',
-      pinned            INTEGER NOT NULL DEFAULT 0
+      pinned            INTEGER NOT NULL DEFAULT 0,
+      sort_order        INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS tasks (
       id                  TEXT PRIMARY KEY,
@@ -126,6 +128,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     'ALTER TABLE sessions ADD COLUMN title TEXT',
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE sessions ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0',
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
@@ -135,6 +138,23 @@ export function createConversationStore(dbPath: string): ConversationStore {
     } catch {
       // Column already exists — fresh DBs get it from CREATE TABLE above.
     }
+  }
+
+  // One-time backfill: give pre-existing rows a sort_order matching the old
+  // recency order (newest = smallest). Rows already migrated keep their value.
+  try {
+    const needsBackfill = db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE sort_order = 0').get() as { n: number }
+    if (needsBackfill.n > 1) {
+      const rows = db.prepare('SELECT id FROM sessions ORDER BY last_active_at DESC').all() as { id: string }[]
+      const tx = db.transaction(() => {
+        for (let i = 0; i < rows.length; i += 1) {
+          db.prepare('UPDATE sessions SET sort_order = ? WHERE id = ?').run(i, rows[i].id)
+        }
+      })
+      tx()
+    }
+  } catch (err) {
+    log.error({ msg: 'sort_order backfill failed', err: err instanceof Error ? err.message : String(err) })
   }
 
   const rowToSession = (row: Record<string, unknown>): StoredSession => ({
@@ -189,8 +209,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtTouchCronJob = db.prepare('UPDATE cron_jobs SET last_run_at = ? WHERE id = ?')
 
   const stmtInsertSession = db.prepare(
-    `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot)
-     VALUES (?, ?, ?, 'active', ?, NULL, '[]')`
+    `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot, sort_order)
+     VALUES (?, ?, ?, 'active', ?, NULL, '[]',
+       COALESCE((SELECT MIN(sort_order) FROM sessions), 0) - 1)`
   )
   const stmtGetSession = db.prepare('SELECT * FROM sessions WHERE id = ?')
   const stmtUpdateStatus = db.prepare('UPDATE sessions SET status = ? WHERE id = ?')
@@ -224,6 +245,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
 
   const stmtSetTitle = db.prepare('UPDATE sessions SET title = ? WHERE id = ?')
   const stmtSetPinned = db.prepare('UPDATE sessions SET pinned = ? WHERE id = ?')
+  const stmtSetSortOrder = db.prepare('UPDATE sessions SET sort_order = ? WHERE id = ?')
   const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
   const stmtGetSnapshot = db.prepare('SELECT agent_snapshot FROM sessions WHERE id = ?')
   const stmtInsertTaskEvent = db.prepare('INSERT INTO task_events (task_id, event, ts) VALUES (?, ?, ?)')
@@ -231,11 +253,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
-    `SELECT s.id, s.title, s.status, s.pinned, s.last_active_at AS lastActiveAt,
+    `SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
      FROM sessions s
      WHERE s.status != 'ended'
-     ORDER BY s.pinned DESC, s.last_active_at DESC`
+     ORDER BY s.pinned DESC, s.sort_order ASC`
   )
 
   // Hard-delete a session and everything that references it (FK constraints
@@ -308,6 +330,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         lastActiveAt: r.lastActiveAt as number,
         taskCount: r.taskCount as number,
         pinned: Boolean(r.pinned),
+        sortOrder: r.sortOrder as number,
       }))
     },
     setSessionTitle(id, title) {
@@ -315,6 +338,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     setSessionPinned(id, pinned) {
       stmtSetPinned.run(pinned ? 1 : 0, id)
+    },
+    reorderSessions(orderedIds) {
+      const tx = db.transaction((ids: string[]) => {
+        for (let i = 0; i < ids.length; i += 1) {
+          stmtSetSortOrder.run(i, ids[i])
+        }
+      })
+      tx(orderedIds)
     },
     deleteSession(id) {
       deleteSessionTx(id)
