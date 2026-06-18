@@ -1,3 +1,4 @@
+import type { SessionSummary } from '@shared/types/ui'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useSessionsStore } from './sessions'
@@ -78,5 +79,34 @@ describe('sessions store', () => {
     useSessionsStore.getState().markUnread('b')
     useSessionsStore.getState().remove('b')
     expect(useSessionsStore.getState().unread).toEqual({})
+  })
+
+  it('setSessions orders by pinned then sortOrder', () => {
+    const s = (id: string, sortOrder: number, pinned = false): SessionSummary => ({
+      id,
+      title: id,
+      status: 'active',
+      lastActiveAt: 0,
+      taskCount: 0,
+      pinned,
+      sortOrder,
+    })
+    useSessionsStore.getState().setSessions([s('a', 2), s('b', 0), s('c', 1, true)])
+    expect(useSessionsStore.getState().sessions.map((x) => x.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('reorder reassigns sortOrder by index', () => {
+    const s = (id: string, sortOrder: number): SessionSummary => ({
+      id,
+      title: id,
+      status: 'active',
+      lastActiveAt: 0,
+      taskCount: 0,
+      pinned: false,
+      sortOrder,
+    })
+    useSessionsStore.getState().setSessions([s('a', 0), s('b', 1), s('c', 2)])
+    useSessionsStore.getState().reorder(['c', 'a', 'b'])
+    expect(useSessionsStore.getState().sessions.map((x) => x.id)).toEqual(['c', 'a', 'b'])
   })
 })

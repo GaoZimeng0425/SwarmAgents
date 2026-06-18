@@ -13,11 +13,12 @@ type SessionsStore = {
   select: (id: string | null) => void
   // Flag a background session as unread. No-op for the session being viewed.
   markUnread: (id: string) => void
+  reorder: (orderedIds: string[]) => void
 }
 
-// Pinned sessions float to the top; within each group, most-recently-active first.
-const byPinnedThenRecent = (a: SessionSummary, b: SessionSummary): number =>
-  Number(b.pinned) - Number(a.pinned) || b.lastActiveAt - a.lastActiveAt
+// Pinned sessions float to the top; within each group, manual sort_order ascending.
+const byPinnedThenSortOrder = (a: SessionSummary, b: SessionSummary): number =>
+  Number(b.pinned) - Number(a.pinned) || a.sortOrder - b.sortOrder
 
 // Immutably drop a key from the unread map (returns the same ref if absent).
 const clearUnread = (unread: Record<string, true>, id: string): Record<string, true> => {
@@ -30,11 +31,11 @@ export const useSessionsStore = create<SessionsStore>((set) => ({
   sessions: [],
   selectedSessionId: null,
   unread: {},
-  setSessions: (sessions) => set({ sessions: [...sessions].sort(byPinnedThenRecent) }),
+  setSessions: (sessions) => set({ sessions: [...sessions].sort(byPinnedThenSortOrder) }),
   upsert: (session) =>
     set((state) => {
       const rest = state.sessions.filter((s) => s.id !== session.id)
-      return { sessions: [session, ...rest].sort(byPinnedThenRecent) }
+      return { sessions: [session, ...rest].sort(byPinnedThenSortOrder) }
     }),
   remove: (id) =>
     set((state) => ({
@@ -50,4 +51,12 @@ export const useSessionsStore = create<SessionsStore>((set) => ({
     set((state) =>
       id === state.selectedSessionId || state.unread[id] ? state : { unread: { ...state.unread, [id]: true } }
     ),
+  reorder: (orderedIds) =>
+    set((state) => {
+      const pos = new Map(orderedIds.map((id, i) => [id, i]))
+      const sessions = state.sessions
+        .map((s) => (pos.has(s.id) ? { ...s, sortOrder: pos.get(s.id) as number } : s))
+        .sort(byPinnedThenSortOrder)
+      return { sessions }
+    }),
 }))
