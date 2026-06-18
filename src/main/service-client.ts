@@ -50,6 +50,9 @@ export type ServiceClient = {
   deleteSkill(name: string): Promise<SkillMutationResult>
   listMemory(namespace?: string): Promise<MemoryView[]>
   getUsageStats(rangeDays: number): Promise<import('@shared/types/usage').UsageStats>
+  listCronJobsForSession(sessionId: string): Promise<import('@shared/types/ui').CronJobSummary[]>
+  listAllCronJobs(): Promise<import('@shared/types/ui').ScheduledTask[]>
+  cancelCronJob(id: string): Promise<void>
 }
 
 export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
@@ -151,6 +154,15 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     getUsageStats(rangeDays) {
       return call('getUsageStats', [rangeDays])
+    },
+    listCronJobsForSession(sessionId) {
+      return call('listCronJobsForSession', [sessionId])
+    },
+    listAllCronJobs() {
+      return call('listAllCronJobs', [])
+    },
+    async cancelCronJob(id) {
+      await call('cancelCronJob', [id])
     },
   }
 }

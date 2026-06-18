@@ -108,6 +108,14 @@ const dispatch = createDispatcher({
   saveSkill: (skill) => skillStore.save(skill),
   deleteSkill: (name) => skillStore.remove(name),
   listMemory: (namespace) => memoryStore.list(namespace),
+  listCronJobsForSession: (sessionId) => scheduler.listForSession(sessionId),
+  listAllCronJobs: () => {
+    const titleById = new Map(store.listSessions().map((s) => [s.id, s.title]))
+    return scheduler.listAll().map((j) => ({ ...j, sessionTitle: titleById.get(j.sessionId) ?? null }))
+  },
+  cancelCronJob: (id) => {
+    scheduler.remove(id)
+  },
 })
 
 parentPort.on('message', async (e) => {

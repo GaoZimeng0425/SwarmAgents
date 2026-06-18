@@ -168,6 +168,14 @@ const swarm: SwarmBridge = {
     get: (rangeDays: number) =>
       ipcRenderer.invoke('swarm:getUsageStats', rangeDays) as Promise<import('../shared/types/usage').UsageStats>,
   },
+  cron: {
+    listForSession: (sessionId: string) =>
+      ipcRenderer.invoke('swarm:listCronJobsForSession', sessionId) as Promise<
+        import('../shared/types/ui').CronJobSummary[]
+      >,
+    listAll: () => ipcRenderer.invoke('swarm:listAllCronJobs') as Promise<import('../shared/types/ui').ScheduledTask[]>,
+    cancel: (id: string) => ipcRenderer.invoke('swarm:cancelCronJob', id) as Promise<void>,
+  },
   subscribeEvents: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: UIEvent): void => cb(payload)
     ipcRenderer.on(IPC_EVENT_CHANNEL, listener)

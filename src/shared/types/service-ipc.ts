@@ -23,6 +23,9 @@ export type ServiceMethod =
   | 'deleteSkill'
   | 'listMemory'
   | 'getUsageStats'
+  | 'listCronJobsForSession'
+  | 'listAllCronJobs'
+  | 'cancelCronJob'
 
 export type ServiceRequest = {
   kind: 'request'

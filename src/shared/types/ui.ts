@@ -86,6 +86,19 @@ export type SessionSummary = {
   sortOrder: number
 }
 
+export type CronJobSummary = {
+  id: string
+  sessionId: string
+  name: string | null
+  cron: string
+  goal: string
+  createdAt: number
+  lastRunAt: number | null
+  nextRun: number | null
+}
+
+export type ScheduledTask = CronJobSummary & { sessionTitle: string | null }
+
 export type PermissionDecision = 'grant' | 'deny' | 'skip'
 
 export type SubmitGoalResult = { taskId: string }
@@ -213,6 +226,11 @@ export type SwarmBridge = {
   }
   usage: {
     get(rangeDays: number): Promise<import('./usage').UsageStats>
+  }
+  cron: {
+    listForSession(sessionId: string): Promise<CronJobSummary[]>
+    listAll(): Promise<ScheduledTask[]>
+    cancel(id: string): Promise<void>
   }
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** Get the current system accent color (RRGGBBAA hex). Returns null on unsupported platforms. */

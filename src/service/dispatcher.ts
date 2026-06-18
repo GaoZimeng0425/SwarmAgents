@@ -25,6 +25,9 @@ type DispatcherConfig = {
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
   listMemory(namespace?: string): MemoryView[]
+  listCronJobsForSession(sessionId: string): import('@shared/types/ui').CronJobSummary[]
+  listAllCronJobs(): import('@shared/types/ui').ScheduledTask[]
+  cancelCronJob(id: string): void
 }
 
 export type Dispatcher = (method: ServiceMethod, args: unknown[]) => unknown
@@ -120,6 +123,17 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'getUsageStats': {
         const [rangeDays] = args as [number]
         return manager.getUsageStats(rangeDays)
+      }
+      case 'listCronJobsForSession': {
+        const [sessionId] = args as [string]
+        return cfg.listCronJobsForSession(sessionId)
+      }
+      case 'listAllCronJobs':
+        return cfg.listAllCronJobs()
+      case 'cancelCronJob': {
+        const [id] = args as [string]
+        cfg.cancelCronJob(id)
+        return { ok: true }
       }
       default:
         throw new Error(`unknown method: ${String(method)}`)
