@@ -27,12 +27,6 @@ export interface ToolRunContext {
     summary: string
     payload: unknown
   }) => Promise<PermissionDecision>
-  /** Ask the human a question with clickable options; resolves with the chosen answer text. */
-  askUser: (args: {
-    question: string
-    options: { label: string; value?: string }[]
-    mode: 'single' | 'multi'
-  }) => Promise<string>
 }
 
 export interface ToolSpec {

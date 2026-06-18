@@ -3,7 +3,6 @@ import type { WebSearchInjection } from '@shared/types/web-search'
 import type { CronScheduler } from '../cron-scheduler'
 import type { MemoryStore } from '../memory-store'
 import type { SkillStore } from '../skills/store'
-import { askUserSpec } from './ask'
 import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
@@ -56,7 +55,6 @@ export function registerBuiltinTools(
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
   registry.register(updatePlanSpec())
-  registry.register(askUserSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(webFetchSpec())

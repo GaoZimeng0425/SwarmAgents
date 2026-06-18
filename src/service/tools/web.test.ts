@@ -17,7 +17,6 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
-  askUser: async () => '',
 }
 const tool = () => webFetchSpec().build(ctx)
 

@@ -12,7 +12,6 @@ import { ulid } from 'ulid'
 import { createAgentRunner } from './agent-runner'
 import { withAgentTypes } from './agents/prompt'
 import type { AgentStore } from './agents/store'
-import { type AskRegistry, createAskRegistry } from './ask-registry'
 import type { Broadcaster } from './broadcaster'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
@@ -27,7 +26,6 @@ type Session = {
   id: string
   provider: ProviderInjection
   permissionRegistry: PermissionRegistry
-  askRegistry: AskRegistry
   messages: AgentMessage[]
   queue: Promise<void>
 }
@@ -53,7 +51,6 @@ export type SessionManager = {
     agentDef?: AgentDefinition
   ): { taskId: string }
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
-  resolveAsk(sessionId: string, askId: string, answer: string): void
   cancelTask(sessionId: string, taskId: string): void
   endSession(sessionId: string): void
   deleteSession(sessionId: string): void
@@ -205,7 +202,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           sessionId,
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
-          askRegistry: session.askRegistry,
           toolRegistry,
           initialMessages: [],
           signal: abort.signal,
@@ -232,7 +228,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       id: sessionId,
       provider: stored.providerSnapshot,
       permissionRegistry: createPermissionRegistry(makeEmit(sessionId)),
-      askRegistry: createAskRegistry(makeEmit(sessionId)),
       messages: store.getAgentSnapshot(sessionId),
       queue: Promise.resolve(),
     }
@@ -246,12 +241,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const sessionId = ulid()
       store.createSession(sessionId, provider)
       const permissionRegistry = createPermissionRegistry(makeEmit(sessionId))
-      const askRegistry = createAskRegistry(makeEmit(sessionId))
       sessions.set(sessionId, {
         id: sessionId,
         provider,
         permissionRegistry,
-        askRegistry,
         messages: [],
         queue: Promise.resolve(),
       })
@@ -306,7 +299,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           sessionId,
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
-          askRegistry: session.askRegistry,
           toolRegistry,
           initialMessages: session.messages,
           saveSnapshot: (messages, used, contextWindow) => {
@@ -350,15 +342,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       sessions.get(sessionId)?.permissionRegistry.resolve(actionId, decision)
     },
 
-    resolveAsk(sessionId, askId, answer) {
-      sessions.get(sessionId)?.askRegistry.resolve(askId, answer)
-    },
-
     cancelTask(sessionId, taskId) {
       log.info({ msg: 'task cancel requested', sessionId, taskId })
       runHandles.get(taskId)?.abort()
-      // Unblock any tool waiting on a human choice so the aborted run can settle.
-      sessions.get(sessionId)?.askRegistry.cancelAll('Cancelled by user.')
     },
 
     endSession(sessionId) {

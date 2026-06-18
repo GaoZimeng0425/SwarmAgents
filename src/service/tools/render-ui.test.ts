@@ -9,11 +9,10 @@ const ctx = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant' as const,
-  askUser: async () => '',
 } as unknown as ToolRunContext
 
 describe('render_ui', () => {
-  it('returns the spec as details without blocking on askUser', async () => {
+  it('returns the spec as details without blocking', async () => {
     const tool = renderUiSpec().build(ctx)
     const res = (await tool.execute('id', { type: 'weather', props: { city: 'SF', tempC: 18 } })) as {
       details: { type?: string; props?: unknown; error?: string }

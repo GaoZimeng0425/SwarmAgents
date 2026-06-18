@@ -14,7 +14,7 @@ const RenderUiParams = Type.Object({
 // Renders a typed UI card into the conversation. Non-blocking: the tool returns
 // immediately and the card rides the persisted tool-call event. Interactive
 // cards (e.g. 'choice') surface the user's click as a brand-new user message,
-// so there is no awaited promise here — unlike ask_user.
+// so there is no awaited promise here.
 export function renderUiSpec(): ToolSpec {
   return {
     group: 'ui',
@@ -27,7 +27,8 @@ export function renderUiSpec(): ToolSpec {
       description:
         'Render a typed UI card in the conversation (e.g. a weather card, a choice prompt). ' +
         "Non-blocking: returns immediately. If the card is interactive, the user's click arrives " +
-        'later as a new user message — do not wait on this call for an answer.',
+        'later as a new user message — do not wait on this call for an answer.' +
+        ' Use type "choice" with a question and options when you need the user to make a decision; their click is returned to you as a new user message.',
       parameters: RenderUiParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { type?: unknown; props?: unknown }

@@ -13,7 +13,6 @@ import {
 } from '@shared/types/provider'
 import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
-import type { AskRegistry } from './ask-registry'
 import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
 
@@ -93,7 +92,6 @@ export type AgentRunnerDeps = {
   sessionId: string
   emit: EmitFn
   permissionRegistry: PermissionRegistry
-  askRegistry: AskRegistry
   toolRegistry: ToolRegistry
   initialMessages: AgentMessage[]
   /** Aborts the run when fired. The manager wires this to cancelTask. */
@@ -285,7 +283,6 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
           // This stub satisfies the ToolRunContext type without creating a second gate.
           requestPermission: () => Promise.resolve('grant' as const),
-          askUser: (args) => deps.askRegistry.request({ taskId: task.id, ...args }),
         }
         const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
         tools = resolved.tools
