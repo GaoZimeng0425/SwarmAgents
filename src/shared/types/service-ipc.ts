@@ -12,7 +12,6 @@ export type ServiceMethod =
   | 'setSessionPinned'
   | 'reorderSessions'
   | 'decidePermission'
-  | 'respondAsk'
   | 'cancelTask'
   | 'setMcpServers'
   | 'getMcpStatus'

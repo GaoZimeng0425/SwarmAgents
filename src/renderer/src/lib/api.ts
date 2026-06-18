@@ -16,8 +16,6 @@ export const swarmApi = {
   cancelTask: (sessionId: string, taskId: string): Promise<void> => window.swarm.cancelTask(sessionId, taskId),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
-  respondAsk: (sessionId: string, askId: string, answer: string): Promise<void> =>
-    window.swarm.respondAsk(sessionId, askId, answer),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),
   listSessions: (): Promise<SessionSummary[]> => window.swarm.sessions.list(),
   createSession: (): Promise<{ sessionId: string }> => window.swarm.sessions.create(),

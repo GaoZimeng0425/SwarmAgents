@@ -204,7 +204,6 @@ export type SwarmBridge = {
   submitGoal(sessionId: string, goal: string, attachments?: Attachment[]): Promise<SubmitGoalResult>
   cancelTask(sessionId: string, taskId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
-  respondAsk(sessionId: string, askId: string, answer: string): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>
     create(): Promise<{ sessionId: string }>

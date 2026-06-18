@@ -39,7 +39,6 @@ export type ServiceClient = {
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
-  respondAsk(sessionId: string, askId: string, answer: string): Promise<void>
   cancelTask(sessionId: string, taskId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
@@ -121,9 +120,6 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     async decidePermission(sessionId, actionId, decision) {
       await call('decidePermission', [sessionId, actionId, decision])
-    },
-    async respondAsk(sessionId, askId, answer) {
-      await call('respondAsk', [sessionId, askId, answer])
     },
     async cancelTask(sessionId, taskId) {
       await call('cancelTask', [sessionId, taskId])

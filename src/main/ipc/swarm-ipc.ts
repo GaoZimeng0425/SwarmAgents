@@ -151,13 +151,6 @@ export function wireSwarmIpc(args: {
     log.info({ msg: 'permission decided', sessionId, actionId, decision })
   }
 
-  const respondAsk = (_e: Electron.IpcMainInvokeEvent, sessionId: string, askId: string, answer: string): void => {
-    void serviceClient
-      .respondAsk(sessionId, askId, answer)
-      .catch((err: unknown) => log.warn({ msg: 'respondAsk failed', err: String(err) }))
-    log.info({ msg: 'ask answered', sessionId, askId })
-  }
-
   const listCronJobsForSession = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
     serviceClient.listCronJobsForSession(sessionId)
   const listAllCronJobs = () => serviceClient.listAllCronJobs()
@@ -174,7 +167,6 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:submitGoal', submitGoal)
   ipcMain.handle('swarm:cancelTask', cancelTask)
   ipcMain.handle('swarm:decidePermission', decidePermission)
-  ipcMain.handle('swarm:respondAsk', respondAsk)
   ipcMain.handle('swarm:listCronJobsForSession', listCronJobsForSession)
   ipcMain.handle('swarm:listAllCronJobs', () => listAllCronJobs())
   ipcMain.handle('swarm:cancelCronJob', cancelCronJob)
@@ -261,7 +253,6 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')
       ipcMain.removeHandler('swarm:decidePermission')
-      ipcMain.removeHandler('swarm:respondAsk')
       ipcMain.removeHandler('swarm:listCronJobsForSession')
       ipcMain.removeHandler('swarm:listAllCronJobs')
       ipcMain.removeHandler('swarm:cancelCronJob')

@@ -150,8 +150,6 @@ const swarm: SwarmBridge = {
   cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
-  respondAsk: (sessionId, askId, answer) =>
-    ipcRenderer.invoke('swarm:respondAsk', sessionId, askId, answer) as Promise<void>,
   sessions: {
     list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('../shared/types/ui').SessionSummary[]>,
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
