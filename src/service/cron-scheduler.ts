@@ -11,6 +11,7 @@ export type CronScheduler = {
   add(input: { sessionId: string; cron: string; goal: string; name?: string }): { id: string; nextRun: number }
   remove(id: string): boolean
   listForSession(sessionId: string): Array<StoredCronJob & { nextRun: number | null }>
+  listAll(): Array<StoredCronJob & { nextRun: number | null }>
   /** Re-schedule every persisted job. Call once on startup. */
   start(): void
   /** Test seam: run a scheduled job's tick body immediately. */
@@ -82,6 +83,12 @@ export function createCronScheduler(deps: {
     remove,
     listForSession(sessionId) {
       return store.listCronJobsForSession(sessionId).map((j) => ({
+        ...j,
+        nextRun: live.get(j.id)?.nextDate().toMillis() ?? null,
+      }))
+    },
+    listAll() {
+      return store.listCronJobs().map((j) => ({
         ...j,
         nextRun: live.get(j.id)?.nextDate().toMillis() ?? null,
       }))
