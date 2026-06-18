@@ -1,6 +1,7 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
 
 import { TitleBar } from '@/components/title-bar'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export const Route = createRootRoute({ component: SettingsLayout })
 
@@ -32,8 +33,12 @@ function SettingsLayout(): React.JSX.Element {
           </Link>
         ))}
       </nav>
-      <main className="flex-1 overflow-auto p-6">
-        <Outlet />
+      <main className="min-h-0 flex-1">
+        <ScrollArea className="h-full">
+          <div className="p-6">
+            <Outlet />
+          </div>
+        </ScrollArea>
       </main>
     </div>
   )

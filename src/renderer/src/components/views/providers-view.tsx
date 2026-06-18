@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useProviders } from '@/hooks/use-providers'
 
 const ADD = '__add__'
@@ -58,17 +59,21 @@ export function ProvidersView(): React.JSX.Element {
   return (
     <div className="flex h-full gap-0">
       <Sidebar onAdd={() => setSelected(ADD)} onSelect={setSelected} selected={current} state={state} />
-      <main className="min-w-0 flex-1 overflow-auto p-6">
-        {decryptFailed && (
-          <div className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-            Saved keys could not be decrypted on this machine. Re-enter them to continue.
+      <main className="min-h-0 min-w-0 flex-1">
+        <ScrollArea className="h-full">
+          <div className="p-6">
+            {decryptFailed && (
+              <div className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+                Saved keys could not be decrypted on this machine. Re-enter them to continue.
+              </div>
+            )}
+            {current === ADD ? (
+              <AddProviderForm onCreated={(id) => setSelected(id)} />
+            ) : (
+              <ProviderDetail id={current} key={current} onDeleted={() => setSelected('anthropic')} state={state} />
+            )}
           </div>
-        )}
-        {current === ADD ? (
-          <AddProviderForm onCreated={(id) => setSelected(id)} />
-        ) : (
-          <ProviderDetail id={current} key={current} onDeleted={() => setSelected('anthropic')} state={state} />
-        )}
+        </ScrollArea>
       </main>
     </div>
   )

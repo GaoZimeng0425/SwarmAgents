@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react'
 import type { PermissionDecision } from '@shared/types/ui'
 
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import type { PermissionPrompt } from '@/stores/permission'
 
@@ -43,50 +44,52 @@ export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element
     <section
       aria-label="Action requires confirmation"
       className={cn(
-        'mx-3 mb-2 max-h-[50vh] shrink-0 overflow-auto rounded-xl border bg-popover/95 px-4 py-3 shadow-lg',
+        'mx-3 mb-2 flex max-h-[50vh] shrink-0 flex-col overflow-hidden rounded-xl border bg-popover/95 shadow-lg',
         'fade-in-0 slide-in-from-bottom-3 animate-in duration-200',
         isHigh ? 'border-destructive/50 ring-1 ring-destructive/30' : 'border-border'
       )}
       data-risk={prompt.risk}
     >
-      <div className="flex flex-col gap-3">
-        <header>
-          <h2 className={cn('font-medium text-base', isHigh && 'text-destructive')}>Action requires confirmation</h2>
-          <p className="text-muted-foreground text-sm">
-            Task {prompt.taskId} · risk: <strong>{prompt.risk}</strong>
-          </p>
-        </header>
-        <div className="text-sm">{prompt.summary}</div>
-        <pre className="max-h-40 overflow-auto rounded bg-muted p-3 font-mono text-xs">
-          {JSON.stringify(prompt.payload, null, 2)}
-        </pre>
-        <footer className="flex justify-end gap-2">
-          <Button
-            onClick={() => {
-              onDecide(prompt.actionId, 'skip')
-            }}
-            variant="secondary"
-          >
-            Skip
-          </Button>
-          <Button
-            onClick={() => {
-              onDecide(prompt.actionId, 'grant')
-            }}
-          >
-            Allow
-          </Button>
-          <Button
-            onClick={() => {
-              onDecide(prompt.actionId, 'deny')
-            }}
-            ref={denyRef}
-            variant="destructive"
-          >
-            Deny
-          </Button>
-        </footer>
-      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-3 px-4 py-3">
+          <header>
+            <h2 className={cn('font-medium text-base', isHigh && 'text-destructive')}>Action requires confirmation</h2>
+            <p className="text-muted-foreground text-sm">
+              Task {prompt.taskId} · risk: <strong>{prompt.risk}</strong>
+            </p>
+          </header>
+          <div className="text-sm">{prompt.summary}</div>
+          <ScrollArea className="max-h-40 rounded bg-muted">
+            <pre className="p-3 font-mono text-xs">{JSON.stringify(prompt.payload, null, 2)}</pre>
+          </ScrollArea>
+          <footer className="flex justify-end gap-2">
+            <Button
+              onClick={() => {
+                onDecide(prompt.actionId, 'skip')
+              }}
+              variant="secondary"
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={() => {
+                onDecide(prompt.actionId, 'grant')
+              }}
+            >
+              Allow
+            </Button>
+            <Button
+              onClick={() => {
+                onDecide(prompt.actionId, 'deny')
+              }}
+              ref={denyRef}
+              variant="destructive"
+            >
+              Deny
+            </Button>
+          </footer>
+        </div>
+      </ScrollArea>
     </section>
   )
 }

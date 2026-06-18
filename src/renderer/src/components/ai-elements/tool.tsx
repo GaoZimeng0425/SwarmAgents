@@ -2,13 +2,14 @@
 
 import type { ComponentProps, ReactNode } from 'react'
 import { isValidElement } from 'react'
-import type { DynamicToolUIPart, ToolUIPart } from './types'
 import { CheckCircleIcon, ChevronDownIcon, CircleIcon, ClockIcon, XCircleIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { CodeBlock } from './code-block'
+import type { DynamicToolUIPart, ToolUIPart } from './types'
 
 export type ToolProps = ComponentProps<typeof Collapsible>
 
@@ -124,15 +125,15 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
         {errorText ? 'Error' : 'Result'}
       </h4>
-      <div
+      <ScrollArea
         className={cn(
-          'overflow-x-auto rounded-md text-xs [&_table]:w-full',
+          'rounded-md text-xs [&_table]:w-full',
           errorText ? 'bg-destructive/10 text-destructive' : 'bg-muted/50 text-foreground'
         )}
       >
         {errorText && <div>{errorText}</div>}
         {Output}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

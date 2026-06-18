@@ -17,6 +17,7 @@ import {
   MessageResponse,
 } from '@/components/ai-elements/message'
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
@@ -214,9 +215,11 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
           <ChevronRight className="size-3.5 transition-transform duration-200 group-open:rotate-90" />
           <span className="font-semibold uppercase tracking-wider">{label}</span>
         </summary>
-        <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-background/50 p-3 font-mono text-[11px] text-muted-foreground leading-relaxed ring-1 ring-border/30">
-          {seg.detail}
-        </pre>
+        <ScrollArea className="mt-3 max-h-80 rounded-lg bg-background/50 ring-1 ring-border/30">
+          <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[11px] text-muted-foreground leading-relaxed">
+            {seg.detail}
+          </pre>
+        </ScrollArea>
       </details>
     )
   }
