@@ -67,6 +67,11 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         manager.setSessionPinned(sessionId, pinned)
         return { ok: true }
       }
+      case 'reorderSessions': {
+        const [orderedIds] = args as [string[]]
+        manager.reorderSessions(orderedIds)
+        return { ok: true }
+      }
       case 'decidePermission': {
         const [sessionId, actionId, decision] = args as [string, string, PermissionDecision]
         manager.resolvePermission(sessionId, actionId, decision)

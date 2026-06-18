@@ -72,6 +72,7 @@ export function useEventsSubscription(): void {
           lastActiveAt: 'lastActiveAt' in e ? e.lastActiveAt : e.ts,
           taskCount: existing?.taskCount ?? 0,
           pinned: existing?.pinned ?? false,
+          sortOrder: existing?.sortOrder ?? 0,
         })
       }
       if (e.kind === 'memory.changed') {

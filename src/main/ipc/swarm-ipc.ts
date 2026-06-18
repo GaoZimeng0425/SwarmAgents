@@ -112,6 +112,9 @@ export function wireSwarmIpc(args: {
   const setSessionPinned = (_e: Electron.IpcMainInvokeEvent, sessionId: string, pinned: boolean) =>
     serviceClient.setSessionPinned(sessionId, pinned)
 
+  const reorderSessions = (_e: Electron.IpcMainInvokeEvent, orderedIds: string[]) =>
+    serviceClient.reorderSessions(orderedIds)
+
   const submitGoal = async (
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
@@ -162,6 +165,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:deleteSession', deleteSession)
   ipcMain.handle('swarm:renameSession', renameSession)
   ipcMain.handle('swarm:setSessionPinned', setSessionPinned)
+  ipcMain.handle('swarm:reorderSessions', reorderSessions)
   ipcMain.handle('swarm:submitGoal', submitGoal)
   ipcMain.handle('swarm:cancelTask', cancelTask)
   ipcMain.handle('swarm:decidePermission', decidePermission)
@@ -245,6 +249,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:deleteSession')
       ipcMain.removeHandler('swarm:renameSession')
       ipcMain.removeHandler('swarm:setSessionPinned')
+      ipcMain.removeHandler('swarm:reorderSessions')
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')
       ipcMain.removeHandler('swarm:decidePermission')

@@ -19,6 +19,7 @@ export const swarmApi = {
   renameSession: (sessionId: string, title: string): Promise<void> => window.swarm.sessions.rename(sessionId, title),
   setSessionPinned: (sessionId: string, pinned: boolean): Promise<void> =>
     window.swarm.sessions.setPinned(sessionId, pinned),
+  reorderSessions: (orderedIds: string[]): Promise<void> => window.swarm.sessions.reorder(orderedIds),
   listMemory: (namespace?: string): Promise<MemoryView[]> => window.swarm.memory.list(namespace),
   getUsageStats: (rangeDays: number): Promise<UsageStats> => window.swarm.usage.get(rangeDays),
 }

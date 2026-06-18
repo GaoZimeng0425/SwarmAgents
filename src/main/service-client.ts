@@ -37,6 +37,7 @@ export type ServiceClient = {
   deleteSession(sessionId: string): Promise<void>
   renameSession(sessionId: string, title: string): Promise<void>
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>
+  reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   respondAsk(sessionId: string, askId: string, answer: string): Promise<void>
   cancelTask(sessionId: string, taskId: string): Promise<void>
@@ -111,6 +112,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     async setSessionPinned(sessionId, pinned) {
       await call('setSessionPinned', [sessionId, pinned])
+    },
+    async reorderSessions(orderedIds) {
+      await call('reorderSessions', [orderedIds])
     },
     async decidePermission(sessionId, actionId, decision) {
       await call('decidePermission', [sessionId, actionId, decision])

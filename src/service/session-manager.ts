@@ -59,6 +59,7 @@ export type SessionManager = {
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
   setSessionPinned(sessionId: string, pinned: boolean): void
+  reorderSessions(orderedIds: string[]): void
   listSessions(): import('@shared/types/ui').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
   getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
@@ -380,6 +381,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     setSessionPinned(sessionId, pinned) {
       store.setSessionPinned(sessionId, pinned)
+    },
+
+    reorderSessions(orderedIds) {
+      store.reorderSessions(orderedIds)
     },
 
     listSessions() {

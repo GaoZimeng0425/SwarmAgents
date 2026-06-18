@@ -36,7 +36,9 @@ function mount(): (e: UIEvent) => void {
 beforeEach(() => {
   vi.clearAllMocks()
   useSessionsStore.setState({
-    sessions: [{ id: 'bg', title: 'Background', status: 'active', lastActiveAt: 1, taskCount: 0, pinned: false }],
+    sessions: [
+      { id: 'bg', title: 'Background', status: 'active', lastActiveAt: 1, taskCount: 0, pinned: false, sortOrder: 0 },
+    ],
     selectedSessionId: 'current',
     unread: {},
   })

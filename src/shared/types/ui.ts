@@ -209,6 +209,7 @@ export type SwarmBridge = {
     delete(sessionId: string): Promise<void>
     rename(sessionId: string, title: string): Promise<void>
     setPinned(sessionId: string, pinned: boolean): Promise<void>
+    reorder(orderedIds: string[]): Promise<void>
   }
   usage: {
     get(rangeDays: number): Promise<import('./usage').UsageStats>

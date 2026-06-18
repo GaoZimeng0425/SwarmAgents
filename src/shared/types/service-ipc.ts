@@ -10,6 +10,7 @@ export type ServiceMethod =
   | 'deleteSession'
   | 'renameSession'
   | 'setSessionPinned'
+  | 'reorderSessions'
   | 'decidePermission'
   | 'respondAsk'
   | 'cancelTask'
