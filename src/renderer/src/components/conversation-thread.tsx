@@ -19,7 +19,7 @@ import {
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
-import { getUiRenderer } from '@/components/ui-renderers'
+import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
@@ -195,7 +195,7 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
         if (Renderer) {
           return (
             <div className="my-4" key={seg.key}>
-              <Renderer disabled={busy} onSend={onSend} props={spec.props} />
+              <Renderer disabled={busy} onSend={onSend} props={coerceProps(spec.props)} />
             </div>
           )
         }

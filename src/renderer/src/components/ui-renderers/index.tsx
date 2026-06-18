@@ -100,3 +100,14 @@ const REGISTRY: Record<string, UiRenderer> = {
 export function getUiRenderer(type: string): UiRenderer | undefined {
   return REGISTRY[type]
 }
+
+// Models sometimes send object-typed tool params as a JSON string. Coerce a
+// string that parses to an object/array into the value; otherwise return as-is.
+export function coerceProps(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return raw
+  }
+}
