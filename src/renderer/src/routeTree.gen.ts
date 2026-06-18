@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
 
@@ -22,6 +23,11 @@ const UsageRoute = UsageRouteImport.update({
 const SkillsRoute = SkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduledRoute = ScheduledRouteImport.update({
+  id: '/scheduled',
+  path: '/scheduled',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -37,12 +43,14 @@ const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/scheduled': typeof ScheduledRoute
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/scheduled': typeof ScheduledRoute
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
@@ -50,20 +58,28 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/scheduled': typeof ScheduledRoute
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/skills' | '/usage' | '/session/$sessionId'
+  fullPaths: '/' | '/scheduled' | '/skills' | '/usage' | '/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/skills' | '/usage' | '/session/$sessionId'
-  id: '__root__' | '/' | '/skills' | '/usage' | '/session/$sessionId'
+  to: '/' | '/scheduled' | '/skills' | '/usage' | '/session/$sessionId'
+  id:
+    | '__root__'
+    | '/'
+    | '/scheduled'
+    | '/skills'
+    | '/usage'
+    | '/session/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ScheduledRoute: typeof ScheduledRoute
   SkillsRoute: typeof SkillsRoute
   UsageRoute: typeof UsageRoute
   SessionSessionIdRoute: typeof SessionSessionIdRoute
@@ -85,6 +101,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/scheduled': {
+      id: '/scheduled'
+      path: '/scheduled'
+      fullPath: '/scheduled'
+      preLoaderRoute: typeof ScheduledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -104,6 +127,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ScheduledRoute: ScheduledRoute,
   SkillsRoute: SkillsRoute,
   UsageRoute: UsageRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,

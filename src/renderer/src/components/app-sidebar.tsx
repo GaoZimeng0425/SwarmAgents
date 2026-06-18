@@ -1,5 +1,5 @@
 import { Link, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, ArrowRight, BarChart3, Settings, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3, CalendarClock, Settings, Sparkles } from 'lucide-react'
 
 import { SessionList } from '@/components/session-list'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -51,6 +51,23 @@ export function AppSidebar(): React.JSX.Element {
       </SidebarContent>
       <SidebarFooter className="border-sidebar-border border-t">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={
+                <Link
+                  // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
+                  activeProps={{ 'data-active': 'true' } as any}
+                  className="flex items-center gap-2"
+                  // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over route const
+                  to={'/scheduled' as any}
+                >
+                  <CalendarClock />
+                  <span>定时任务</span>
+                </Link>
+              }
+              tooltip="定时任务"
+            />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               render={
