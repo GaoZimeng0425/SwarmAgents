@@ -55,7 +55,13 @@ export function TasksView(): React.JSX.Element {
   return (
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
-        <ConversationThread tasks={sessionTasks} />
+        <ConversationThread
+          onSend={(text) => {
+            if (!ready) return
+            void submitGoal.mutateAsync({ goal: text })
+          }}
+          tasks={sessionTasks}
+        />
         <PermissionDrawer
           onDecide={(actionId, decision) => {
             if (!currentPrompt) return

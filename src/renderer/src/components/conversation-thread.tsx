@@ -19,6 +19,7 @@ import {
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
+import { getUiRenderer } from '@/components/ui-renderers'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
@@ -26,7 +27,11 @@ import { formatUsage, usageTooltip } from '@/lib/format-usage'
 import { type Segment, taskSegments } from '@/lib/task-segments'
 import { cn } from '@/lib/utils'
 
-type Props = { tasks: TaskRecord[] }
+type Props = {
+  tasks: TaskRecord[]
+  /** Start a new user turn with the given text (used by interactive UI cards). */
+  onSend?: (text: string) => void
+}
 
 // ToolHeader needs an AI-SDK-shaped tool type + state; derive both from our segment.
 function toolState(ok: boolean | null): 'input-available' | 'output-available' | 'output-error' {
@@ -101,7 +106,7 @@ function ToolImage({ path, showName = true }: { path: string; showName?: boolean
   )
 }
 
-export function ConversationThread({ tasks }: Props): React.JSX.Element {
+export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element {
   const qc = useQueryClient()
   const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
 
@@ -184,6 +189,18 @@ export function ConversationThread({ tasks }: Props): React.JSX.Element {
       )
     }
     if (seg.kind === 'tool') {
+      if (seg.tool === 'render_ui') {
+        const spec = (seg.input ?? {}) as { type?: string; props?: unknown }
+        const Renderer = typeof spec.type === 'string' ? getUiRenderer(spec.type) : undefined
+        if (Renderer) {
+          return (
+            <div className="my-4" key={seg.key}>
+              <Renderer disabled={busy} onSend={onSend} props={spec.props} />
+            </div>
+          )
+        }
+        // Unknown type → fall through to the generic Tool card below.
+      }
       const preview = seg.output ? seg.output.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined
       return (
         <Tool key={seg.key}>
