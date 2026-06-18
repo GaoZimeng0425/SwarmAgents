@@ -320,7 +320,7 @@ export function SessionList(): React.JSX.Element {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{pendingDelete?.title ?? 'Untitled chat'}" and its history will be permanently removed. This cannot be
+              “{pendingDelete?.title ?? 'Untitled chat'}” and its history will be permanently removed. This cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
