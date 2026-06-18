@@ -28,6 +28,8 @@ function mount(): (e: UIEvent) => void {
     emit = cb
     return () => {}
   })
+  vi.spyOn(api.swarmApi, 'consumePendingDeepLink').mockResolvedValue(null)
+  vi.spyOn(api.swarmApi, 'onNavigateToSession').mockReturnValue(() => {})
   const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } } })
   renderHook(() => useEventsSubscription(), { wrapper: makeWrapper(qc) })
   return (e) => emit(e)

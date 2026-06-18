@@ -222,6 +222,10 @@ export type SwarmBridge = {
     cancel(id: string): Promise<void>
   }
   subscribeEvents(cb: (event: UIEvent) => void): () => void
+  /** A swarmagents://chat/<id> deep link routes here. Pushed when the app is already running. */
+  onNavigateToSession(cb: (sessionId: string) => void): () => void
+  /** Pull a chat deep link that arrived before the renderer subscribed (cold start). One-shot: clears after read. */
+  consumePendingDeepLink(): Promise<{ sessionId: string } | null>
   /** Get the current system accent color (RRGGBBAA hex). Returns null on unsupported platforms. */
   getAccent(): Promise<string | null>
   /** Subscribe to accent-color changes. Returns an unsubscribe function. */

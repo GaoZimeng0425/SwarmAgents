@@ -17,6 +17,8 @@ export const swarmApi = {
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),
+  onNavigateToSession: (cb: (sessionId: string) => void): (() => void) => window.swarm.onNavigateToSession(cb),
+  consumePendingDeepLink: (): Promise<{ sessionId: string } | null> => window.swarm.consumePendingDeepLink(),
   listSessions: (): Promise<SessionSummary[]> => window.swarm.sessions.list(),
   createSession: (): Promise<{ sessionId: string }> => window.swarm.sessions.create(),
   getSessionTasks: (sessionId: string): Promise<Task[]> => window.swarm.sessions.getTasks(sessionId),

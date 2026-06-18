@@ -10,6 +10,7 @@ import { initMcpServers } from './mcp-servers'
 import { initProviders } from './providers'
 import { createServiceClient, type ServiceTransport } from './service-client'
 import { setupAutoUpdate } from './system/auto-update'
+import { handleDeepLink, registerDeepLinkIpc } from './system/deep-link'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initWebSearch } from './web-search'
@@ -123,11 +124,12 @@ app.whenReady().then(async () => {
     return
   }
 
-  const handleDeepLink = (url: string): void => {
-    log.info({ msg: 'deep link received', url })
-    // v1: just log. Routing is a v1.1 extension (e.g., swarmagents://task/<id>).
-  }
+  registerDeepLinkIpc()
   registerUrlScheme('swarmagents', handleDeepLink)
+  // Cold start on Windows/Linux: the URL arrives in the first instance's argv
+  // (macOS cold start routes via the `open-url` event registered above).
+  const initialDeepLink = parseDeepLinkFromArgv(process.argv, 'swarmagents')
+  if (initialDeepLink) handleDeepLink(initialDeepLink)
   setupAutoUpdate()
 
   setupMenu({ onOpenSettings: openSettings })

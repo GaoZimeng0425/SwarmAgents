@@ -28,6 +28,7 @@ import type {
 import type { WebSearchConfigView, WebSearchProviderId } from '../shared/types/web-search'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
+const NAVIGATE_CHANNEL = 'swarm:navigate'
 const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
 const PROVIDERS_STATE_CHANNEL = 'providers:stateChanged'
 const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
@@ -181,6 +182,15 @@ const swarm: SwarmBridge = {
       ipcRenderer.removeListener(IPC_EVENT_CHANNEL, listener)
     }
   },
+  onNavigateToSession: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: { sessionId: string }): void => cb(payload.sessionId)
+    ipcRenderer.on(NAVIGATE_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(NAVIGATE_CHANNEL, listener)
+    }
+  },
+  consumePendingDeepLink: () =>
+    ipcRenderer.invoke('swarm:consumePendingDeepLink') as Promise<{ sessionId: string } | null>,
   getAccent: () => ipcRenderer.invoke('system:getAccent') as Promise<string | null>,
   onAccentChange: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: { hex: string }): void => cb(payload.hex)

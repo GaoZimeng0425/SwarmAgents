@@ -8,6 +8,7 @@ import { MEMORY_KEY } from '@/hooks/use-memory'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { applyEvent, type TaskRecord } from '@/lib/apply-event'
+import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -19,6 +20,14 @@ function activityMessage(kind: string, title: string): string {
   if (kind === 'task.created') return `「${title}」开始了新任务`
   if (kind === 'task.complete') return `「${title}」任务已完成`
   return `「${title}」需要你的回复` // task.permission_request
+}
+
+// Fire a native OS notification for a render_ui choice card. Guarded by the
+// browser permission; a no-op until the user grants it.
+function notifyChoice(title: string, body: string, taskId: string, onClick: () => void): void {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+  const n = new Notification(title, { body, tag: `choice-${taskId}` })
+  n.onclick = onClick
 }
 
 function buildPrompt(e: Extract<UIEvent, { kind: 'task.permission_request' }>): PermissionPrompt {
@@ -37,6 +46,25 @@ export function useEventsSubscription(): void {
   const qc = useQueryClient()
   const push = usePermissionStore((s) => s.push)
   const navigate = useNavigate()
+
+  // Ask once for OS-notification permission so choice cards can ping the user.
+  useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      void Notification.requestPermission()
+    }
+  }, [])
+
+  // swarmagents://chat/<id> deep links. Pull any link that arrived before this
+  // mount (cold start), then subscribe to links pushed while the app runs.
+  useEffect(() => {
+    const open = (sessionId: string): void => {
+      void navigate({ to: '/session/$sessionId', params: { sessionId } })
+    }
+    void swarmApi.consumePendingDeepLink().then((d) => {
+      if (d) open(d.sessionId)
+    })
+    return swarmApi.onNavigateToSession(open)
+  }, [navigate])
 
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
@@ -79,6 +107,21 @@ export function useEventsSubscription(): void {
       if (e.kind === 'task.permission_request') {
         // All risk levels (medium + high) surface in the inline permission panel.
         push(buildPrompt(e))
+      }
+
+      // A render_ui single/multi-select card pings the OS, but only when the
+      // user can't already see it: window unfocused, or a non-active session.
+      const choice = parseChoiceCard(e)
+      if (choice && 'sessionId' in e && e.sessionId && 'taskId' in e) {
+        const store = useSessionsStore.getState()
+        const sid = e.sessionId
+        if (!document.hasFocus() || sid !== store.selectedSessionId) {
+          const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
+          notifyChoice(title, choice.question, e.taskId, () => {
+            window.focus()
+            void navigate({ to: '/session/$sessionId', params: { sessionId: sid } })
+          })
+        }
       }
     })
   }, [qc, push, navigate])

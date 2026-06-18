@@ -11,6 +11,12 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+# Registers swarmagents:// as a default protocol client. electron-builder
+# writes the macOS CFBundleURLTypes (Info.plist) and Windows NSIS registry keys.
+protocols:
+  - name: SwarmAgents
+    schemes:
+      - swarmagents
 win:
   executableName: swarm-agents
   icon: resources/icon.ico
