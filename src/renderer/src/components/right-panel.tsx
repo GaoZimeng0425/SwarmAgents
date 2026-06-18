@@ -1,20 +1,28 @@
 import { useState } from 'react'
 import type { PlanTodo } from '@shared/types/task'
-import { Brain, ListChecks, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { Brain, CalendarClock, ListChecks, PanelRightClose, PanelRightOpen } from 'lucide-react'
 
+import { CronPanel } from '@/components/cron-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { PlanPanel } from '@/components/plan-panel'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useSessionCronJobs } from '@/hooks/use-cron'
 import { useMemory } from '@/hooks/use-memory'
+import { useSessionsStore } from '@/stores/sessions'
 
 type Props = { plan: PlanTodo[] }
 
 /** Collapsible right-hand panel hosting the Working Plan and Memory tabs. */
 export function RightPanel({ plan }: Props): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(true)
-  const [tab, setTab] = useState<'plan' | 'memory'>('plan')
+  const [tab, setTab] = useState<'plan' | 'memory' | 'scheduled'>('plan')
   const { entries, isError, refetch } = useMemory()
+  const sessionId = useSessionsStore((s) => s.selectedSessionId)
+  const { data: cronJobs = [], isLoading: cronLoading } = useSessionCronJobs(
+    sessionId,
+    !collapsed && tab === 'scheduled'
+  )
   const done = plan.filter((t) => t.status === 'completed').length
 
   if (collapsed) {
@@ -56,6 +64,17 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
         >
           <Brain className="size-5 text-primary/60" />
         </button>
+        <button
+          aria-label="Open scheduled tasks"
+          className="flex flex-col items-center gap-1"
+          onClick={() => {
+            setTab('scheduled')
+            setCollapsed(false)
+          }}
+          type="button"
+        >
+          <CalendarClock className="size-5 text-primary/60" />
+        </button>
       </div>
     )
   }
@@ -64,13 +83,14 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
     <div className="flex h-full w-80 shrink-0 flex-col border-l bg-sidebar/50 backdrop-blur-sm">
       <Tabs
         className="flex min-h-0 flex-1 flex-col gap-0"
-        onValueChange={(v) => setTab(v as 'plan' | 'memory')}
+        onValueChange={(v) => setTab(v as 'plan' | 'memory' | 'scheduled')}
         value={tab}
       >
         <div className="flex h-11 items-center justify-between border-border/40 border-b px-2">
           <TabsList className="bg-transparent">
             <TabsTrigger value="plan">Plan</TabsTrigger>
             <TabsTrigger value="memory">Memory</TabsTrigger>
+            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
           </TabsList>
           <Button
             aria-label="Collapse panel"
@@ -87,6 +107,9 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="memory">
           <MemoryPanel entries={entries} isError={isError} onRetry={refetch} />
+        </TabsContent>
+        <TabsContent className="flex min-h-0 flex-1 flex-col" value="scheduled">
+          <CronPanel isLoading={cronLoading} jobs={cronJobs} />
         </TabsContent>
       </Tabs>
     </div>
