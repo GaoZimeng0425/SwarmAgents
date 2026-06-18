@@ -51,6 +51,7 @@ describe('registerBuiltinTools', () => {
       'peekaboo.see_screen',
       'peekaboo.type',
       'shell.run_shell',
+      'ui.render_ui',
       'web.fetch',
       'web.web_search',
     ])

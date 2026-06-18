@@ -10,6 +10,7 @@ import { memorySpecs } from './memory'
 import { buildPeekabooTools } from './peekaboo'
 import { updatePlanSpec } from './plan'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
+import { renderUiSpec } from './render-ui'
 import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
 import { spawnAgentSpec } from './spawn'
@@ -56,6 +57,7 @@ export function registerBuiltinTools(
   registry.register(spawnAgentSpec())
   registry.register(updatePlanSpec())
   registry.register(askUserSpec())
+  registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(webFetchSpec())
   // No config getter (e.g. tests) → 'auto' with env-var fallback inside web.ts.
