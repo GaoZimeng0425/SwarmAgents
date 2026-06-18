@@ -39,6 +39,7 @@ function SortableSessionRow({ id, children }: { id: string; children: React.Reac
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
     <div
+      className="w-full min-w-0"
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
       {...attributes}
@@ -185,7 +186,7 @@ export function SessionList(): React.JSX.Element {
             <button
               aria-current={selected === s.id ? 'true' : undefined}
               className={cn(
-                'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sidebar-foreground/70 text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                'group relative flex w-full min-w-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sidebar-foreground/70 text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground',
                 selected === s.id && 'bg-sidebar-accent font-medium text-sidebar-foreground shadow-sm'
               )}
               onClick={() => onSelect(s.id)}
