@@ -20,7 +20,7 @@
 
 ## Line A — Session drag-to-reorder
 
-### Task A1: `sort_order` column, ordering, and `reorderSessions` in conversation-store
+### Task 1: `sort_order` column, ordering, and `reorderSessions` in conversation-store
 
 **Files:**
 - Modify: `src/service/conversation-store.ts`
@@ -182,13 +182,13 @@ git commit -m "feat(store): persist session sort_order and add reorderSessions"
 
 ---
 
-### Task A2: `reorderSessions` IPC chain + `SessionSummary.sortOrder`
+### Task 2: `reorderSessions` IPC chain + `SessionSummary.sortOrder`
 
 **Files:**
 - Modify: `src/shared/types/ui.ts`, `src/shared/types/service-ipc.ts`, `src/service/dispatcher.ts`, `src/service/session-manager.ts`, `src/main/service-client.ts`, `src/main/ipc/swarm-ipc.ts`, `src/preload/index.ts`, `src/renderer/src/lib/api.ts`
 
 **Interfaces:**
-- Consumes: `store.reorderSessions` (Task A1).
+- Consumes: `store.reorderSessions` (Task 1).
 - Produces: `swarmApi.reorderSessions(orderedIds: string[]): Promise<void>`; `SessionSummary` gains `sortOrder: number`.
 
 - [ ] **Step 1: Add `sortOrder` to `SessionSummary` and `reorderSessions` to `SwarmBridge`**
@@ -315,7 +315,7 @@ git commit -m "feat(ipc): add reorderSessions and SessionSummary.sortOrder"
 
 ---
 
-### Task A3: sessions store ordering + reorder action
+### Task 3: sessions store ordering + reorder action
 
 **Files:**
 - Modify: `src/renderer/src/stores/sessions.ts`
@@ -400,7 +400,7 @@ git commit -m "feat(store): order sessions by sortOrder and add reorder action"
 
 ---
 
-### Task A4: drag-to-reorder UI in SessionList
+### Task 4: drag-to-reorder UI in SessionList
 
 **Files:**
 - Modify: `src/renderer/src/components/session-list.tsx`
@@ -501,7 +501,7 @@ git commit -m "feat(sessions): drag-to-reorder the session list"
 
 ## Line B — Scheduled tasks (shared backend + two UIs)
 
-### Task B1: `listAll()` on the cron scheduler
+### Task 5: `listAll()` on the cron scheduler
 
 **Files:**
 - Modify: `src/service/cron-scheduler.ts`
@@ -565,13 +565,13 @@ git commit -m "feat(cron): add listAll to the scheduler"
 
 ---
 
-### Task B2: cron IPC chain (`listCronJobsForSession`, `listAllCronJobs`, `cancelCronJob`)
+### Task 6: cron IPC chain (`listCronJobsForSession`, `listAllCronJobs`, `cancelCronJob`)
 
 **Files:**
 - Modify: `src/shared/types/ui.ts`, `src/shared/types/service-ipc.ts`, `src/service/dispatcher.ts`, `src/service/index.ts`, `src/main/service-client.ts`, `src/main/ipc/swarm-ipc.ts`, `src/preload/index.ts`, `src/renderer/src/lib/api.ts`
 
 **Interfaces:**
-- Consumes: `scheduler.listForSession`, `scheduler.listAll`, `scheduler.remove`, `store.listSessions` (Task B1).
+- Consumes: `scheduler.listForSession`, `scheduler.listAll`, `scheduler.remove`, `store.listSessions` (Task 5).
 - Produces shared types and `swarmApi`:
   - `CronJobSummary = { id, sessionId, name: string|null, cron, goal, createdAt, lastRunAt: number|null, nextRun: number|null }`
   - `ScheduledTask = CronJobSummary & { sessionTitle: string | null }`
@@ -745,7 +745,7 @@ git commit -m "feat(ipc): expose cron jobs to the renderer (list/listAll/cancel)
 
 ---
 
-### Task B3: cron occurrence-expansion helper
+### Task 7: cron occurrence-expansion helper
 
 **Files:**
 - Create: `src/renderer/src/lib/cron-occurrences.ts`
@@ -832,7 +832,7 @@ git commit -m "feat(cron): client-side cron occurrence expansion helper"
 
 ---
 
-### Task B4: `use-cron` React Query hooks
+### Task 8: `use-cron` React Query hooks
 
 **Files:**
 - Create: `src/renderer/src/hooks/use-cron.ts`
@@ -903,7 +903,7 @@ git commit -m "feat(cron): React Query hooks for scheduled tasks"
 
 ---
 
-### Task B5: right-panel "Scheduled" tab + CronPanel
+### Task 9: right-panel "Scheduled" tab + CronPanel
 
 **Files:**
 - Create: `src/renderer/src/components/cron-panel.tsx`
@@ -1014,7 +1014,7 @@ git commit -m "feat(cron): right-panel scheduled-tasks tab for the current sessi
 
 ---
 
-### Task B6: `/scheduled` calendar route + sidebar entry
+### Task 10: `/scheduled` calendar route + sidebar entry
 
 **Files:**
 - Create: `src/renderer/src/routes/scheduled.tsx`
