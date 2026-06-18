@@ -40,16 +40,6 @@ export type UIEvent =
       payload: unknown
       ts: number
     }
-  | {
-      kind: 'task.ask'
-      sessionId: string
-      taskId: string
-      askId: string
-      question: string
-      options: { label: string; value?: string }[]
-      mode: 'single' | 'multi'
-      ts: number
-    }
   | { kind: 'task.complete'; sessionId: string; taskId: string; summary: string; ts: number }
   | { kind: 'task.error'; sessionId: string; taskId: string; error: unknown; ts: number }
   | {

@@ -86,7 +86,6 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       updated = { ...updated, plan: e.todos }
       break
     case 'task.permission_request':
-    case 'task.ask':
       updated = setStatus(updated, 'awaiting_user')
       break
     default:

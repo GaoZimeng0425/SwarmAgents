@@ -186,31 +186,6 @@ describe('applyEvent', () => {
     expect(next[0].status).toBe('running')
   })
 
-  it('flips to awaiting_user on task.ask', () => {
-    const seed: TaskRecord[] = [
-      {
-        id: 't1',
-        sessionId: 'ses-1',
-        goal: 'g',
-        status: 'running',
-        workerId: null,
-        summary: null,
-        startedAt: 1,
-        attachments: [],
-        events: [],
-      },
-    ]
-    const next = applyEvent(seed, {
-      kind: 'task.ask',
-      ...baseEvent,
-      askId: 'a1',
-      question: 'pick one',
-      options: [{ label: 'A' }],
-      mode: 'single',
-    })
-    expect(next[0].status).toBe('awaiting_user')
-  })
-
   it('stores the plan on task.plan and replaces it wholesale on the next plan', () => {
     const seed: TaskRecord[] = [
       {

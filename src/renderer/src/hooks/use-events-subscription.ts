@@ -8,18 +8,17 @@ import { MEMORY_KEY } from '@/hooks/use-memory'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { applyEvent, type TaskRecord } from '@/lib/apply-event'
-import { useAskStore } from '@/stores/ask'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
 // Milestone events that warrant a toast for a background session. Streaming
 // noise (progress/usage/tool_call/plan/dispatched) only marks unread.
-const TOAST_KINDS = new Set(['task.created', 'task.complete', 'task.ask', 'task.permission_request'])
+const TOAST_KINDS = new Set(['task.created', 'task.complete', 'task.permission_request'])
 
 function activityMessage(kind: string, title: string): string {
   if (kind === 'task.created') return `「${title}」开始了新任务`
   if (kind === 'task.complete') return `「${title}」任务已完成`
-  return `「${title}」需要你的回复` // task.ask / task.permission_request
+  return `「${title}」需要你的回复` // task.permission_request
 }
 
 function buildPrompt(e: Extract<UIEvent, { kind: 'task.permission_request' }>): PermissionPrompt {
@@ -37,7 +36,6 @@ function buildPrompt(e: Extract<UIEvent, { kind: 'task.permission_request' }>): 
 export function useEventsSubscription(): void {
   const qc = useQueryClient()
   const push = usePermissionStore((s) => s.push)
-  const pushAsk = useAskStore((s) => s.push)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -82,16 +80,6 @@ export function useEventsSubscription(): void {
         // All risk levels (medium + high) surface in the inline permission panel.
         push(buildPrompt(e))
       }
-      if (e.kind === 'task.ask') {
-        pushAsk({
-          askId: e.askId,
-          sessionId: e.sessionId,
-          taskId: e.taskId,
-          question: e.question,
-          options: e.options,
-          mode: e.mode,
-        })
-      }
     })
-  }, [qc, push, pushAsk, navigate])
+  }, [qc, push, navigate])
 }
