@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useProviders } from '@/hooks/use-providers'
 
@@ -109,7 +110,7 @@ function Sidebar({
   )
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col gap-1 border-r p-3">
+    <aside className="flex w-60 shrink-0 flex-col gap-1 p-3">
       <div className="px-3 py-1 text-muted-foreground text-xs">内置</div>
       {BUILTIN_IDS.map((bid) => item(bid, BUILTIN_DEFS[bid].name, providerViewById(state, bid) !== null))}
 
@@ -212,14 +213,20 @@ function NameField({ id, value }: { id: string; value: string }): React.JSX.Elem
 function ApiStyleField({ id, value }: { id: string; value: ApiStyle }): React.JSX.Element {
   return (
     <Section label="API 格式">
-      <select
-        className="w-full rounded border bg-background px-3 py-2 text-sm"
-        onChange={(e) => void window.swarm.providers.setApiStyle(id, e.target.value as ApiStyle)}
+      <Select
+        onValueChange={(v) => {
+          if (v) void window.swarm.providers.setApiStyle(id, v as ApiStyle)
+        }}
         value={value}
       >
-        <option value="anthropic">Anthropic Messages (/v1/messages)</option>
-        <option value="openai">OpenAI Chat Completions (/chat/completions)</option>
-      </select>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="anthropic">Anthropic Messages (/v1/messages)</SelectItem>
+          <SelectItem value="openai">OpenAI Chat Completions (/chat/completions)</SelectItem>
+        </SelectContent>
+      </Select>
     </Section>
   )
 }
@@ -335,17 +342,23 @@ function ModelList({ id, row }: { id: string; row: ProviderView }): React.JSX.El
 function ThinkingField({ id, row }: { id: string; row: ProviderView }): React.JSX.Element {
   return (
     <Section label="推理深度">
-      <select
-        className="w-full rounded border bg-background px-3 py-2 text-sm"
-        onChange={(e) => void window.swarm.providers.setThinkingLevel(id, e.target.value as ModelThinkingLevel)}
+      <Select
+        onValueChange={(v) => {
+          if (v) void window.swarm.providers.setThinkingLevel(id, v as ModelThinkingLevel)
+        }}
         value={row.thinkingLevel}
       >
-        {row.thinkingLevels.map((l) => (
-          <option key={l} value={l}>
-            {THINKING_LABELS[l]}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {row.thinkingLevels.map((l) => (
+            <SelectItem key={l} value={l}>
+              {THINKING_LABELS[l]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </Section>
   )
 }
@@ -478,14 +491,20 @@ function AddProviderForm({ onCreated }: { onCreated: (id: string) => void }): Re
         <Input onChange={(e) => setApiKey(e.target.value)} placeholder="输入 API Key" type="password" value={apiKey} />
       </Section>
       <Section label="API 格式">
-        <select
-          className="w-full rounded border bg-background px-3 py-2 text-sm"
-          onChange={(e) => setApiStyle(e.target.value as ApiStyle)}
+        <Select
+          onValueChange={(v) => {
+            if (v) setApiStyle(v as ApiStyle)
+          }}
           value={apiStyle}
         >
-          <option value="anthropic">Anthropic Messages (/v1/messages)</option>
-          <option value="openai">OpenAI Chat Completions (/chat/completions)</option>
-        </select>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="anthropic">Anthropic Messages (/v1/messages)</SelectItem>
+            <SelectItem value="openai">OpenAI Chat Completions (/chat/completions)</SelectItem>
+          </SelectContent>
+        </Select>
       </Section>
       <Section label="模型列表">
         {models.length > 0 && (

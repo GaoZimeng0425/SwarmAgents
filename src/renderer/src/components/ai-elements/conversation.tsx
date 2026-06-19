@@ -26,10 +26,16 @@ export type ConversationContentProps = ComponentProps<
 
 export const ConversationContent = ({
   className,
+  scrollClassName,
   ...props
 }: ConversationContentProps) => (
   <StickToBottom.Content
     className={cn("flex flex-col gap-8 p-4", className)}
+    // The scroll viewport must never scroll horizontally: long code blocks /
+    // unbroken URLs inside a message would otherwise drag the whole chat area
+    // sideways. Pin overflow-x to hidden and keep vertical scrolling on auto so
+    // the stick-to-bottom library keeps working.
+    scrollClassName={cn("overflow-x-hidden overflow-y-auto", scrollClassName)}
     {...props}
   />
 );

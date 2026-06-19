@@ -3,6 +3,7 @@ import type { WebSearchConfigView, WebSearchProviderId } from '@shared/types/web
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useWebSearch } from '@/hooks/use-web-search'
 
 const PROVIDER_OPTIONS: { value: WebSearchProviderId; label: string; hint: string }[] = [
@@ -45,28 +46,32 @@ export function WebSearchView(): React.JSX.Element {
 
 function ProviderPicker({ state }: { state: WebSearchConfigView }): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
-  const onChange = async (e: React.ChangeEvent<HTMLSelectElement>): Promise<void> => {
+  const onChange = async (value: string): Promise<void> => {
     setError(null)
-    const r = await window.swarm.webSearch.setProvider(e.target.value as WebSearchProviderId)
+    const r = await window.swarm.webSearch.setProvider(value as WebSearchProviderId)
     if (!r.ok) setError(r.message)
   }
   const hint = PROVIDER_OPTIONS.find((o) => o.value === state.provider)?.hint
   return (
     <div className="space-y-2">
       <div className="font-medium text-sm">Provider</div>
-      <select
-        className="w-full rounded border bg-background px-3 py-2 text-sm"
-        onChange={(e) => {
-          void onChange(e)
+      <Select
+        onValueChange={(v) => {
+          if (v) void onChange(v)
         }}
         value={state.provider}
       >
-        {PROVIDER_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PROVIDER_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
       {error && <p className="text-destructive text-xs">{error}</p>}
     </div>

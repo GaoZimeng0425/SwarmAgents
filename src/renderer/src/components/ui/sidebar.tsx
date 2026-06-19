@@ -199,7 +199,11 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          {/* pt-9 mirrors the desktop sidebar-inner offset: on macOS the
+              traffic lights (incl. the red close button) are native window
+              controls that render above all DOM, so content starting at the
+              top of the sheet overlaps them. Reserve the same top gap. */}
+          <div className="flex h-full w-full flex-col pt-9">{children}</div>
         </SheetContent>
       </Sheet>
     )
@@ -242,7 +246,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
+          className="flex size-full flex-col bg-sidebar pt-9 group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
         >
           {children}
         </div>

@@ -22,14 +22,14 @@ export function openSettings(opts: { initialRoute?: string } = {}): void {
     return
   }
 
-  const win = new BrowserWindow({
-    width: 720,
-    height: 520,
+ const win = new BrowserWindow({
+   // Native macOS System Settings proportions: wide enough for sidebar + content.
+    width: 820,
+    height: 620,
     show: false,
-    resizable: false,
     minimizable: false,
     maximizable: false,
-    autoHideMenuBar: true,
+   autoHideMenuBar: true,
     backgroundColor: isMac ? '#00000000' : '#1b1b1f',
     transparent: isMac,
     ...(isMac

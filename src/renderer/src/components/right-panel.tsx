@@ -27,7 +27,7 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
 
   if (collapsed) {
     return (
-      <div className="flex h-full w-12 shrink-0 flex-col items-center gap-3 border-l bg-sidebar/50 py-4 backdrop-blur-sm">
+      <div className="flex h-full w-12 shrink-0 flex-col items-center gap-3 border-border/60 border-l bg-[var(--window-content)] py-4">
         <Button
           aria-label="Expand panel"
           className="size-8 rounded-lg transition-colors hover:bg-primary/10 hover:text-primary"
@@ -80,14 +80,14 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full w-80 shrink-0 flex-col border-l bg-sidebar/50 backdrop-blur-sm">
+    <div className="flex h-full w-80 shrink-0 flex-col border-border/60 border-l bg-[var(--window-content)]">
       <Tabs
         className="flex min-h-0 flex-1 flex-col gap-0"
         onValueChange={(v) => setTab(v as 'plan' | 'memory' | 'scheduled')}
         value={tab}
       >
         <div className="flex h-11 items-center justify-between border-border/40 border-b px-2">
-          <TabsList className="bg-transparent">
+          <TabsList>
             <TabsTrigger value="plan">Plan</TabsTrigger>
             <TabsTrigger value="memory">Memory</TabsTrigger>
             <TabsTrigger value="scheduled">Scheduled</TabsTrigger>

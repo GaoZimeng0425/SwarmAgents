@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet, useRouter } from '@tanstack/react-router'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { EventsBridge } from '@/components/events-bridge'
-import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
+import { Button } from '@/components/ui/button'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { useLoadSessions } from '@/hooks/use-tasks'
 
@@ -28,12 +30,19 @@ function RootLayout(): React.JSX.Element {
   return (
     <SidebarProvider>
       <EventsBridge />
+      {/* Full-width unified toolbar spanning sidebar + content. The toggle
+          lives here so it never jumps position when the sidebar collapses —
+          matching native macOS toolbars (Finder, Mail). z-30 sits above the
+          sidebar's fixed container (z-10). */}
+      <TopBar />
       <AppSidebar />
-      <SidebarInset>
-        {/* 06 § Materials: content pane reads as more opaque than the
-            translucent vibrancy sidebar. --window-content is the material hook. */}
-        <main className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)]">
-          <ContentTopBar />
+      {/* min-w-0 lets this flex item shrink below its content's intrinsic
+          min-width; otherwise wide chat content (long URLs, tables, code
+          lines) forces the whole SidebarProvider row past the viewport and
+          creates a horizontal scrollbar that shoves the right panel
+          off-screen. overflow-hidden then clips whatever can't fit. */}
+      <SidebarInset className="min-w-0 overflow-hidden">
+        <main className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)] pt-9">
           <div className="min-h-0 flex-1">
             <Outlet />
           </div>
@@ -49,19 +58,39 @@ function RootLayout(): React.JSX.Element {
   )
 }
 
-// Draggable top strip for the content pane (replaces the old full-width TitleBar
-// overlay, which would have blocked the sidebar's toolbar buttons). When the
-// sidebar is collapsed it surfaces a toggle to reopen it, offset clear of the
-// macOS traffic lights since the content then spans the full window width.
-function ContentTopBar(): React.JSX.Element {
-  const { state } = useSidebar()
+function TopBar(): React.JSX.Element {
+  const router = useRouter()
   return (
-    <div className="flex h-9 shrink-0 items-center px-2" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-      {state === 'collapsed' && (
-        <div className="pl-[78px]" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <SidebarTrigger aria-label="Toggle sidebar" className="text-muted-foreground" />
-        </div>
-      )}
+    <div
+      className="fixed inset-x-0 top-0 z-30 flex h-9 shrink-0 items-center gap-0.5 bg-[var(--window-content)]/80 px-2 backdrop-blur-md"
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+    >
+      {/* Fixed control cluster, offset clear of the macOS traffic lights.
+         no-drag so the buttons are clickable; the rest of the strip drags. */}
+      <div
+        className="flex items-center gap-0.5 pl-[70px]"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
+        <SidebarTrigger aria-label="Toggle sidebar" className="text-muted-foreground" />
+        <Button
+          aria-label="Back"
+          className="text-muted-foreground"
+          onClick={() => router.history.back()}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <ArrowLeft />
+        </Button>
+        <Button
+          aria-label="Forward"
+          className="text-muted-foreground"
+          onClick={() => router.history.forward()}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <ArrowRight />
+        </Button>
+      </div>
     </div>
   )
 }
