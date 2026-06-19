@@ -2,15 +2,21 @@ import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 
 import { cn } from "@/lib/utils"
 
+type ScrollAreaProps = ScrollAreaPrimitive.Root.Props & {
+  /** Show top/bottom gradient edge fades when content overflows. */
+  edgeFade?: boolean
+}
+
 function ScrollArea({
   className,
   children,
+  edgeFade = false,
   ...props
-}: ScrollAreaPrimitive.Root.Props) {
+}: ScrollAreaProps) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn("relative", className)}
+      className={cn("group/scroll relative", className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
@@ -22,6 +28,37 @@ function ScrollArea({
       <ScrollBar />
       <ScrollBar orientation="horizontal" />
       <ScrollAreaPrimitive.Corner />
+      {edgeFade && (
+        <>
+          {/* Edge fade + backdrop blur. Content softens and blurs into the
+              window-content background at each scroll edge. base-ui toggles
+              data-overflow-y-start / -end on the root, so no JS scroll
+              tracking is needed. The mask makes both the blur and the color
+              fade taper together toward the content. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-9 opacity-0 transition-opacity duration-200 group-data-[overflow-y-start]/scroll:opacity-100"
+            style={{
+              background: "linear-gradient(to bottom, var(--window-content), transparent)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+              maskImage: "linear-gradient(to bottom, #000, transparent)",
+              WebkitMaskImage: "linear-gradient(to bottom, #000, transparent)",
+            }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-9 opacity-0 transition-opacity duration-200 group-data-[overflow-y-end]/scroll:opacity-100"
+            style={{
+              background: "linear-gradient(to top, var(--window-content), transparent)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+              maskImage: "linear-gradient(to top, #000, transparent)",
+              WebkitMaskImage: "linear-gradient(to top, #000, transparent)",
+            }}
+          />
+        </>
+      )}
     </ScrollAreaPrimitive.Root>
   )
 }

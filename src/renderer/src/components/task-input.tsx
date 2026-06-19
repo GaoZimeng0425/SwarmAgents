@@ -3,6 +3,7 @@ import { type ProvidersStateView, providerViewById } from '@shared/types/provide
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useProviders } from '@/hooks/use-providers'
 
 type Props = {
@@ -47,8 +48,8 @@ export function TaskInput({ onSubmit, disabled }: Props): React.JSX.Element {
     setValue('')
   }
 
-  const onPickModel = async (e: React.ChangeEvent<HTMLSelectElement>): Promise<void> => {
-    const opt = options.find((o) => o.key === e.target.value)
+  const onPickModel = async (key: string): Promise<void> => {
+    const opt = options.find((o) => o.key === key)
     if (!opt) return
     // Order matters: flip active first, then set its model. setModel requires
     // the row to exist; setActive does not, but doing it second would leave
@@ -64,20 +65,23 @@ export function TaskInput({ onSubmit, disabled }: Props): React.JSX.Element {
   return (
     <form className="flex shrink-0 items-center gap-2 border-b px-4 py-3" onSubmit={handleSubmit}>
       {options.length > 0 && (
-        <select
-          className="rounded border border-input bg-background px-2 py-1 text-sm"
-          onChange={(e) => {
-            void onPickModel(e)
+        <Select
+          onValueChange={(v) => {
+            if (v) void onPickModel(v)
           }}
-          title="Active model"
           value={currentKey}
         >
-          {options.map((o) => (
-            <option key={o.key} value={o.key}>
-              {o.modelId}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" title="Active model">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((o) => (
+              <SelectItem key={o.key} value={o.key}>
+                {o.modelId}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
       <Input
         className="flex-1"

@@ -1,15 +1,26 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* SKILL.md T3 — adopt the platform; don't compete with it.
+   Native macOS feel: system font cascade (no web font packages — D.34),
+   transparent body so the window vibrancy material shows through (D.31),
+   system accent color for --primary (D.33), light + dark follow the OS (D.32),
+   native-ish 0.625rem radius scale. Tokens live on :root / .dark so next-themes
+   can pin the class before paint. */
+
 /* Streamdown bakes its styling as utility classes; let Tailwind scan its dist. */
 @source "../../../../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* System font cascade — D.34. SF Pro on macOS, Segoe UI Variable on Windows.
+     Mono is reserved for true code, not chrome labels. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-heading: var(--font-sans);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -50,72 +61,84 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Codex web/desktop theme — flat, opaque, neutral surfaces; monochrome
-   high-contrast accent (no macOS system tint). */
+/* Native macOS palette over vibrancy. --background is transparent so the
+   `vibrancy: 'sidebar'` material set in main-window.ts paints through; content
+   panes layer a translucent material (--window-content) on top. */
 :root {
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.15 0 0);
+  --background: transparent;
+  --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0 0);
+  --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0 0);
-  --primary: oklch(0.55 0.18 260); /* Modern Indigo */
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.96 0.01 260);
-  --secondary-foreground: oklch(0.2 0.05 260);
-  --muted: oklch(0.96 0.01 260);
-  --muted-foreground: oklch(0.5 0.02 260);
-  --accent: oklch(0.94 0.02 260);
-  --accent-foreground: oklch(0.2 0.05 260);
-  --destructive: oklch(0.6 0.18 25);
-  --border: oklch(0.9 0.01 260);
-  --input: oklch(0.9 0.01 260);
-  --ring: oklch(0.55 0.18 260 / 0.3);
-  --chart-1: oklch(0.6 0.18 260);
-  --chart-2: oklch(0.5 0.15 200);
-  --chart-3: oklch(0.7 0.12 150);
-  --chart-4: oklch(0.8 0.1 100);
-  --chart-5: oklch(0.75 0.08 50);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.98 0.01 260);
-  --sidebar-foreground: oklch(0.2 0.05 260);
-  --sidebar-primary: oklch(0.55 0.18 260);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.94 0.02 260);
-  --sidebar-accent-foreground: oklch(0.2 0.05 260);
-  --sidebar-border: oklch(0.92 0.01 260);
-  --sidebar-ring: oklch(0.55 0.18 260 / 0.3);
-  --window-content: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  /* Translucent material layered over vibrancy — content reads as more opaque
+     than the sidebar, the way native split views do. */
+  --window-content: oklch(1 0 0 / 75%);
+  /* D.33: accent follows the system tint. --system-accent is written by the
+     preload accent bridge; accent-color lets native form controls follow it
+     too. Fallback is the macOS default blue. */
+  --system-accent: oklch(0.55 0.18 264);
+  --primary: var(--system-accent);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: var(--system-accent);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
 }
 
 .dark {
-  --background: oklch(0.12 0.01 260);
-  --foreground: oklch(0.95 0.01 260);
-  --card: oklch(0.16 0.02 260);
-  --card-foreground: oklch(0.95 0.01 260);
-  --popover: oklch(0.14 0.02 260);
-  --popover-foreground: oklch(0.95 0.01 260);
-  --primary: oklch(0.65 0.18 260); /* Brighter Indigo for Dark Mode */
-  --primary-foreground: oklch(0.12 0.01 260);
-  --secondary: oklch(0.2 0.03 260);
-  --secondary-foreground: oklch(0.95 0.01 260);
-  --muted: oklch(0.2 0.03 260);
-  --muted-foreground: oklch(0.6 0.02 260);
-  --accent: oklch(0.22 0.03 260);
-  --accent-foreground: oklch(0.95 0.01 260);
-  --destructive: oklch(0.45 0.15 25);
-  --border: oklch(0.25 0.03 260);
-  --input: oklch(0.25 0.03 260);
-  --ring: oklch(0.65 0.18 260 / 0.4);
-  --sidebar: oklch(0.1 0.01 260);
-  --sidebar-foreground: oklch(0.9 0.01 260);
-  --sidebar-primary: oklch(0.65 0.18 260);
-  --sidebar-primary-foreground: oklch(0.1 0.01 260);
-  --sidebar-accent: oklch(0.18 0.02 260);
-  --sidebar-accent-foreground: oklch(0.95 0.01 260);
-  --sidebar-border: oklch(0.18 0.02 260);
-  --sidebar-ring: oklch(0.65 0.18 260 / 0.4);
-  --window-content: oklch(0.12 0.01 260);
+  --background: transparent;
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+  --window-content: oklch(0.18 0 0 / 65%);
+  --primary: var(--system-accent, oklch(0.922 0 0));
+  --primary-foreground: oklch(0.205 0 0);
+  --sidebar-primary: var(--system-accent, oklch(0.488 0.243 264.376));
+  --sidebar-primary-foreground: oklch(0.985 0 0);
 }
 
 @layer base {
@@ -127,12 +150,6 @@
   }
   html {
     @apply font-sans;
-  }
-  /* Codex look is monochrome — native form controls follow the theme accent,
-     not the macOS system tint. */
-  input[type="checkbox"],
-  input[type="radio"] {
-    accent-color: var(--primary);
   }
 }
 
@@ -162,6 +179,19 @@ textarea,
 [contenteditable],
 [data-cursor="text"] {
   cursor: text;
+}
+
+/* D.31: body transparent so the window vibrancy / mica material shows through */
+html,
+body {
+  background: transparent;
+}
+
+/* C.25 / D.33: native form controls follow the system accent tint, not a
+   hardcoded brand color. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--primary);
 }
 
 /* D.39: honor reduced-motion */
