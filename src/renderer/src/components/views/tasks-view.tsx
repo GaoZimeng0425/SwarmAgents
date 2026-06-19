@@ -34,7 +34,7 @@ export function TasksView(): React.JSX.Element {
   const latestTask = byRecent[0]
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-w-0 overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col">
         <ConversationThread
           onSend={(text) => {
