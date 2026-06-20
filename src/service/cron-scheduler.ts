@@ -99,6 +99,8 @@ export function createCronScheduler(deps: {
     for (const run of store.listRunningCronRuns()) {
       const task = run.taskId ? store.getTask(run.taskId) : undefined
       if (task && terminal.has(task.status)) {
+        // error stays null here: a reconciled failure's message lives on the
+        // task (reachable via taskId), unlike the live onComplete path.
         store.finishCronRun(run.id, { status: task.status, error: null, endedAt: task.endedAt ?? Date.now() })
         log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status: task.status })
       } else {

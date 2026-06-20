@@ -623,6 +623,7 @@ describe('SessionManager', () => {
     manager.submitGoal(sessionId, 'do it', [], undefined, onComplete)
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
+    expect(onComplete).toHaveBeenCalledTimes(1)
     expect(onComplete).toHaveBeenCalledWith('failed', 'boom')
     store.close()
   })

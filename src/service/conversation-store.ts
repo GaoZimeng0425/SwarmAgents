@@ -139,6 +139,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
       last_run_at  INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_cron_jobs_session ON cron_jobs(session_id);
+    -- No FK on job_id/session_id: runs survive job deletion (audit history);
+    -- session-delete cascade is handled in deleteSessionTx.
     CREATE TABLE IF NOT EXISTS cron_runs (
       id           TEXT PRIMARY KEY,
       job_id       TEXT NOT NULL,
