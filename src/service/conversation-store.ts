@@ -30,6 +30,17 @@ export type StoredCronJob = {
   lastRunAt: number | null
 }
 
+export type StoredCronRun = {
+  id: string
+  jobId: string
+  sessionId: string
+  taskId: string | null
+  status: string
+  triggeredAt: number
+  endedAt: number | null
+  error: string | null
+}
+
 export type ConversationStore = {
   createSession(id: string, provider: ProviderInjection): StoredSession
   getSession(id: string): StoredSession | undefined
@@ -57,6 +68,12 @@ export type ConversationStore = {
   listCronJobsForSession(sessionId: string): StoredCronJob[]
   deleteCronJob(id: string): void
   touchCronJob(id: string, lastRunAt: number): void
+  saveCronRun(run: StoredCronRun): void
+  attachCronRunTask(runId: string, taskId: string): void
+  finishCronRun(runId: string, outcome: { status: string; error: string | null; endedAt: number }): void
+  listCronRunsForJob(jobId: string): StoredCronRun[]
+  listRunningCronRuns(): StoredCronRun[]
+  getTask(taskId: string): Task | undefined
   close(): void
 }
 
@@ -122,6 +139,17 @@ export function createConversationStore(dbPath: string): ConversationStore {
       last_run_at  INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_cron_jobs_session ON cron_jobs(session_id);
+    CREATE TABLE IF NOT EXISTS cron_runs (
+      id           TEXT PRIMARY KEY,
+      job_id       TEXT NOT NULL,
+      session_id   TEXT NOT NULL,
+      task_id      TEXT,
+      status       TEXT NOT NULL,
+      triggered_at INTEGER NOT NULL,
+      ended_at     INTEGER,
+      error        TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(job_id);
   `)
 
   for (const stmt of [
@@ -199,6 +227,17 @@ export function createConversationStore(dbPath: string): ConversationStore {
     lastRunAt: (row.last_run_at as number | null) ?? null,
   })
 
+  const rowToCronRun = (row: Record<string, unknown>): StoredCronRun => ({
+    id: row.id as string,
+    jobId: row.job_id as string,
+    sessionId: row.session_id as string,
+    taskId: (row.task_id as string | null) ?? null,
+    status: row.status as string,
+    triggeredAt: row.triggered_at as number,
+    endedAt: (row.ended_at as number | null) ?? null,
+    error: (row.error as string | null) ?? null,
+  })
+
   const stmtInsertCronJob = db.prepare(
     `INSERT OR REPLACE INTO cron_jobs (id, session_id, name, cron, goal, created_at, last_run_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -207,6 +246,21 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtListCronJobsForSession = db.prepare('SELECT * FROM cron_jobs WHERE session_id = ?')
   const stmtDeleteCronJob = db.prepare('DELETE FROM cron_jobs WHERE id = ?')
   const stmtTouchCronJob = db.prepare('UPDATE cron_jobs SET last_run_at = ? WHERE id = ?')
+
+  const stmtInsertCronRun = db.prepare(
+    `INSERT INTO cron_runs (id, job_id, session_id, task_id, status, triggered_at, ended_at, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  const stmtPruneCronRuns = db.prepare(
+    `DELETE FROM cron_runs WHERE job_id = ? AND id NOT IN (
+       SELECT id FROM cron_runs WHERE job_id = ? ORDER BY triggered_at DESC LIMIT 100
+     )`
+  )
+  const stmtAttachCronRunTask = db.prepare('UPDATE cron_runs SET task_id = ? WHERE id = ?')
+  const stmtFinishCronRun = db.prepare('UPDATE cron_runs SET status = ?, error = ?, ended_at = ? WHERE id = ?')
+  const stmtListCronRunsForJob = db.prepare('SELECT * FROM cron_runs WHERE job_id = ? ORDER BY triggered_at DESC')
+  const stmtListRunningCronRuns = db.prepare("SELECT * FROM cron_runs WHERE status = 'running'")
+  const stmtGetTask = db.prepare('SELECT * FROM tasks WHERE id = ?')
 
   const stmtInsertSession = db.prepare(
     `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot, sort_order)
@@ -263,6 +317,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   // Hard-delete a session and everything that references it (FK constraints
   // forbid orphaning tasks / tool-state rows).
   const deleteSessionTx = db.transaction((id: string) => {
+    db.prepare('DELETE FROM cron_runs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM task_events WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)').run(id)
@@ -536,6 +591,29 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     touchCronJob(id, lastRunAt) {
       stmtTouchCronJob.run(lastRunAt, id)
+    },
+    saveCronRun(run) {
+      stmtInsertCronRun.run(
+        run.id, run.jobId, run.sessionId, run.taskId ?? null,
+        run.status, run.triggeredAt, run.endedAt ?? null, run.error ?? null
+      )
+      stmtPruneCronRuns.run(run.jobId, run.jobId)
+    },
+    attachCronRunTask(runId, taskId) {
+      stmtAttachCronRunTask.run(taskId, runId)
+    },
+    finishCronRun(runId, outcome) {
+      stmtFinishCronRun.run(outcome.status, outcome.error ?? null, outcome.endedAt, runId)
+    },
+    listCronRunsForJob(jobId) {
+      return (stmtListCronRunsForJob.all(jobId) as Record<string, unknown>[]).map(rowToCronRun)
+    },
+    listRunningCronRuns() {
+      return (stmtListRunningCronRuns.all() as Record<string, unknown>[]).map(rowToCronRun)
+    },
+    getTask(taskId) {
+      const row = stmtGetTask.get(taskId) as Record<string, unknown> | undefined
+      return row ? rowToTask(row) : undefined
     },
     close() {
       db.close()

@@ -519,4 +519,94 @@ describe('ConversationStore', () => {
     expect(stats.heatmap.length).toBe(364)
     store.close()
   })
+
+  it('records, attaches, and finishes a cron run', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+
+    store.saveCronRun({
+      id: 'run-1',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: null,
+      status: 'running',
+      triggeredAt: 100,
+      endedAt: null,
+      error: null,
+    })
+    store.attachCronRunTask('run-1', 'task-1')
+    store.finishCronRun('run-1', { status: 'completed', error: null, endedAt: 200 })
+
+    const runs = store.listCronRunsForJob('job-1')
+    expect(runs).toHaveLength(1)
+    expect(runs[0]).toMatchObject({
+      id: 'run-1',
+      taskId: 'task-1',
+      status: 'completed',
+      endedAt: 200,
+    })
+    store.close()
+  })
+
+  it('lists running cron runs only', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+    store.saveCronRun({ id: 'r-run', jobId: 'j', sessionId: 'ses-1', taskId: 't', status: 'running', triggeredAt: 1, endedAt: null, error: null })
+    store.saveCronRun({ id: 'r-done', jobId: 'j', sessionId: 'ses-1', taskId: 't2', status: 'completed', triggeredAt: 2, endedAt: 3, error: null })
+
+    const running = store.listRunningCronRuns()
+    expect(running.map((r) => r.id)).toEqual(['r-run'])
+    store.close()
+  })
+
+  it('keeps only the latest 100 runs per job', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+    for (let i = 0; i < 105; i++) {
+      store.saveCronRun({ id: `run-${i}`, jobId: 'job-1', sessionId: 'ses-1', taskId: null, status: 'running', triggeredAt: i, endedAt: null, error: null })
+    }
+    const runs = store.listCronRunsForJob('job-1')
+    expect(runs).toHaveLength(100)
+    // newest first; oldest five (triggeredAt 0..4) pruned
+    expect(runs[0].triggeredAt).toBe(104)
+    expect(runs.at(-1)?.triggeredAt).toBe(5)
+    store.close()
+  })
+
+  it('cascades cron_runs on session delete but keeps them after job removal', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+    store.saveCronJob({ id: 'job-1', sessionId: 'ses-1', name: null, cron: '0 0 * * *', goal: 'g', createdAt: 1, lastRunAt: null })
+    store.saveCronRun({ id: 'run-1', jobId: 'job-1', sessionId: 'ses-1', taskId: null, status: 'running', triggeredAt: 1, endedAt: null, error: null })
+
+    store.deleteCronJob('job-1')
+    expect(store.listCronRunsForJob('job-1')).toHaveLength(1) // job removal keeps history
+
+    store.deleteSession('ses-1')
+    expect(store.listCronRunsForJob('job-1')).toHaveLength(0) // session delete cascades
+    store.close()
+  })
+
+  it('getTask returns a saved task or undefined', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-1', provider)
+    const now = Date.now()
+    store.saveTask(
+      {
+        id: 'task-1', parentId: null, agentDefId: 'a', goal: 'g', status: 'pending',
+        assignedWorkerId: null, toolAllowlist: [], budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 }, history: [], attachments: [],
+        result: null, createdAt: now, startedAt: null, endedAt: null,
+      },
+      'ses-1'
+    )
+    expect(store.getTask('task-1')?.goal).toBe('g')
+    expect(store.getTask('missing')).toBeUndefined()
+    store.close()
+  })
 })
