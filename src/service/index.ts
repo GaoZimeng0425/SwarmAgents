@@ -74,9 +74,7 @@ const manager = createSessionManager({
 
 const scheduler = createCronScheduler({
   store,
-  fire: (sessionId, goal) => {
-    manager.submitGoal(sessionId, goal)
-  },
+  fire: (sessionId, goal, onComplete) => manager.submitGoal(sessionId, goal, [], undefined, onComplete),
 })
 registerBuiltinTools(toolRegistry, {
   memoryStore,

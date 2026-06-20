@@ -21,7 +21,7 @@ export type CronScheduler = {
 
 export function createCronScheduler(deps: {
   store: ConversationStore
-  fire: (sessionId: string, goal: string) => void
+  fire: (sessionId: string, goal: string, onComplete: (status: string, error?: string) => void) => { taskId: string }
 }): CronScheduler {
   const { store, fire } = deps
   const live = new Map<string, CronJob>()
@@ -29,15 +29,42 @@ export function createCronScheduler(deps: {
   // The body that runs each time a job ticks. Lazy-cleans jobs whose session
   // was deleted; otherwise records the run and fires the goal.
   const tick = (job: StoredCronJob): void => {
+    if (!store.getSession(job.sessionId)) {
+      remove(job.id)
+      return
+    }
+    const runId = ulid()
+    const triggeredAt = Date.now()
+    const runLog = log.child({ jobId: job.id, runId })
+    store.touchCronJob(job.id, triggeredAt)
+    store.saveCronRun({
+      id: runId,
+      jobId: job.id,
+      sessionId: job.sessionId,
+      taskId: null,
+      status: 'running',
+      triggeredAt,
+      endedAt: null,
+      error: null,
+    })
+    runLog.info({ msg: 'cron run started', sessionId: job.sessionId })
     try {
-      if (!store.getSession(job.sessionId)) {
-        remove(job.id)
-        return
-      }
-      store.touchCronJob(job.id, Date.now())
-      fire(job.sessionId, job.goal)
+      const { taskId } = fire(job.sessionId, job.goal, (status, error) => {
+        store.finishCronRun(runId, { status, error: error ?? null, endedAt: Date.now() })
+        runLog.info({
+          msg: 'cron run finished',
+          taskId,
+          status,
+          durationMs: Date.now() - triggeredAt,
+          ...(error ? { error } : {}),
+        })
+      })
+      store.attachCronRunTask(runId, taskId)
+      runLog.info({ msg: 'cron run dispatched', taskId })
     } catch (err) {
-      log.error({ msg: 'cron tick failed', id: job.id, err: err instanceof Error ? err.message : String(err) })
+      const message = err instanceof Error ? err.message : String(err)
+      store.finishCronRun(runId, { status: 'error', error: message, endedAt: Date.now() })
+      runLog.error({ msg: 'cron run dispatch failed', err: message })
     }
   }
 
@@ -62,6 +89,23 @@ export function createCronScheduler(deps: {
     }
     store.deleteCronJob(id)
     return !!cj
+  }
+
+  // Finalize runs left 'running' by a crash/restart: their in-memory onComplete
+  // is gone, so derive the outcome from the task's persisted status, or mark
+  // 'interrupted' when the task can't be confirmed.
+  const reconcile = (): void => {
+    const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
+    for (const run of store.listRunningCronRuns()) {
+      const task = run.taskId ? store.getTask(run.taskId) : undefined
+      if (task && terminal.has(task.status)) {
+        store.finishCronRun(run.id, { status: task.status, error: null, endedAt: task.endedAt ?? Date.now() })
+        log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status: task.status })
+      } else {
+        store.finishCronRun(run.id, { status: 'interrupted', error: null, endedAt: Date.now() })
+        log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status: 'interrupted' })
+      }
+    }
   }
 
   return {
@@ -101,6 +145,7 @@ export function createCronScheduler(deps: {
           log.error({ msg: 'failed to reschedule cron job', id: job.id, err: String(err) })
         }
       }
+      reconcile()
     },
     runJobNow(id) {
       const stored = store.listCronJobs().find((j) => j.id === id)
