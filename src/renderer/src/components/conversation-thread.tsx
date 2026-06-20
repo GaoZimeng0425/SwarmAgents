@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Brain, ChevronRight, Copy, ExternalLink, MessagesSquare, Trash2 } from 'lucide-react'
+import { Bot, Brain, ChevronRight, Copy, ExternalLink, MessagesSquare, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -106,6 +106,49 @@ function ToolImage({ path, showName = true }: { path: string; showName?: boolean
   )
 }
 
+// Collapsible block grouping one spawned sub-agent's segments. Open while the
+// sub-agent runs (so its progress is visible), shows a spinner on the right,
+// then auto-collapses once it finishes — matching the ReasoningBlock idiom.
+// The user can still toggle it via the chevron.
+function SubagentBlock({
+  task,
+  segs,
+  lastKey,
+  renderSegment,
+}: {
+  task: TaskRecord
+  segs: Segment[]
+  lastKey: string | undefined
+  renderSegment: (seg: Segment, isLiveTail: boolean) => React.JSX.Element
+}): React.JSX.Element {
+  const running = task.status === 'running' || task.status === 'pending'
+  const [open, setOpen] = useState(running)
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running) setOpen(false)
+    wasRunning.current = running
+  }, [running])
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-border/60 border-l-2 border-l-primary/50 bg-muted/20 py-3 pr-3 pl-4">
+      <button
+        className="flex w-full items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
+        onClick={() => setOpen((v) => !v)}
+        type="button"
+      >
+        <Bot className="size-3.5" />
+        <span className="font-medium">Subagent</span>
+        {task.agentDefId && <span className="font-mono text-muted-foreground/70">· {task.agentDefId}</span>}
+        <span className="ml-auto flex items-center gap-1.5">
+          {running && <Spinner className="size-3.5 text-primary" />}
+          <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
+        </span>
+      </button>
+      {open && segs.map((seg) => renderSegment(seg, seg.key === lastKey))}
+    </div>
+  )
+}
+
 export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element {
   const qc = useQueryClient()
   const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
@@ -194,9 +237,9 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
         const Renderer = typeof spec.type === 'string' ? getUiRenderer(spec.type) : undefined
         if (Renderer) {
           return (
-            <div className="my-4" key={seg.key}>
+            <Message className="group" from="assistant" key={seg.key}>
               <Renderer disabled={busy} onSend={onSend} props={coerceProps(spec.props)} />
-            </div>
+            </Message>
           )
         }
         // Unknown type → fall through to the generic Tool card below.
@@ -246,8 +289,41 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
       {/* user-content re-enables text selection (globals.css disables it on chrome by default). */}
       <ConversationContent className="user-content mx-auto max-w-3xl">
         {(() => {
-          const segs = ordered.flatMap((t) => taskSegments(t))
-          return segs.map((seg, i) => renderSegment(seg, i === segs.length - 1))
+          // Interleave segments across tasks in true causal order: a top-level
+          // task contributes its segments individually (sorted by their own ts),
+          // while a spawned sub-agent contributes ONE grouped block positioned at
+          // its spawn time (startedAt). This keeps a sub-agent's block at the
+          // point it was spawned and the parent's final reply after it — instead
+          // of dumping whole child tasks below the parent. isLiveTail is the
+          // chronologically last segment, so live streaming styling stays correct.
+          const taskSegs = ordered.map((t) => ({ t, segs: taskSegments(t) }))
+          let lastKey: string | undefined
+          let lastTs = Number.NEGATIVE_INFINITY
+          for (const { segs } of taskSegs) {
+            for (const s of segs) {
+              if (s.ts >= lastTs) {
+                lastTs = s.ts
+                lastKey = s.key
+              }
+            }
+          }
+          const items: Array<{ ts: number; order: number; node: React.JSX.Element }> = []
+          let order = 0
+          for (const { t, segs } of taskSegs) {
+            if (t.parentTaskId) {
+              items.push({
+                ts: t.startedAt,
+                order: order++,
+                node: <SubagentBlock key={t.id} lastKey={lastKey} renderSegment={renderSegment} segs={segs} task={t} />,
+              })
+            } else {
+              for (const seg of segs) {
+                items.push({ ts: seg.ts, order: order++, node: renderSegment(seg, seg.key === lastKey) })
+              }
+            }
+          }
+          items.sort((a, b) => a.ts - b.ts || a.order - b.order)
+          return items.map((it) => it.node)
         })()}
         {busy && (
           <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">
