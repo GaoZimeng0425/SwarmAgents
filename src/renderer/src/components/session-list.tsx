@@ -276,7 +276,7 @@ export function SessionList(): React.JSX.Element {
           Search
         </button>
       )}
-      <ScrollArea className="mt-2 flex-1">
+      <ScrollArea className="mt-2 min-h-0 flex-1">
         {query.trim() ? (
           // Search active: render plain list without drag (reorder during filter is out of scope).
           <div className="flex flex-col gap-1">

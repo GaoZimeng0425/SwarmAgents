@@ -3,10 +3,13 @@ import type { UIEvent } from '@shared/types/ui'
 
 import type { TaskRecord } from './apply-event'
 
+// Every segment carries the timestamp of the event that produced it so the
+// renderer can interleave segments across tasks in true causal order (a spawned
+// sub-agent's block lands at its spawn point, not appended after the parent).
 export type Segment =
-  | { kind: 'user'; text: string; attachments: Attachment[]; key: string; taskId: string }
-  | { kind: 'assistant'; text: string; key: string; taskId: string }
-  | { kind: 'reasoning'; text: string; key: string; taskId: string }
+  | { kind: 'user'; text: string; attachments: Attachment[]; key: string; taskId: string; ts: number }
+  | { kind: 'assistant'; text: string; key: string; taskId: string; ts: number }
+  | { kind: 'reasoning'; text: string; key: string; taskId: string; ts: number }
   | {
       kind: 'tool'
       tool: string
@@ -17,9 +20,10 @@ export type Segment =
       imagePath?: string
       key: string
       taskId: string
+      ts: number
     }
-  | { kind: 'event'; label: string; detail: string; key: string; taskId: string }
-  | { kind: 'error'; label: 'error' | 'stopped'; detail: string; key: string; taskId: string }
+  | { kind: 'event'; label: string; detail: string; key: string; taskId: string; ts: number }
+  | { kind: 'error'; label: 'error' | 'stopped'; detail: string; key: string; taskId: string; ts: number }
 
 function toolDetail(payload: unknown): string {
   const p = payload as { text?: string } | undefined
@@ -34,19 +38,27 @@ function toolImagePath(payload: unknown): string | undefined {
 /** Flatten a task's UIEvents into ordered render segments. Pure; unit-tested. */
 export function taskSegments(task: TaskRecord): Segment[] {
   const out: Segment[] = [
-    { kind: 'user', text: task.goal, attachments: task.attachments ?? [], key: `${task.id}-goal`, taskId: task.id },
+    {
+      kind: 'user',
+      text: task.goal,
+      attachments: task.attachments ?? [],
+      key: `${task.id}-goal`,
+      taskId: task.id,
+      ts: task.startedAt,
+    },
   ]
 
-  const pushAssistant = (text: string, key: string): void => {
+  // Appended chunks keep the first chunk's ts (the segment's causal position).
+  const pushAssistant = (text: string, key: string, ts: number): void => {
     const last = out[out.length - 1]
     if (last && last.kind === 'assistant') last.text += text
-    else out.push({ kind: 'assistant', text, key, taskId: task.id })
+    else out.push({ kind: 'assistant', text, key, taskId: task.id, ts })
   }
 
-  const pushReasoning = (text: string, key: string): void => {
+  const pushReasoning = (text: string, key: string, ts: number): void => {
     const last = out[out.length - 1]
     if (last && last.kind === 'reasoning') last.text += text
-    else out.push({ kind: 'reasoning', text, key, taskId: task.id })
+    else out.push({ kind: 'reasoning', text, key, taskId: task.id, ts })
   }
 
   // update_plan is rendered by PlanPanel, so its call AND following result are dropped.
@@ -59,9 +71,9 @@ export function taskSegments(task: TaskRecord): Segment[] {
     if (e.kind === 'task.progress') {
       const ev = e.event
       if (ev.kind === 'llm.message' && ev.role === 'assistant') {
-        pushAssistant(typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content), key)
+        pushAssistant(typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content), key, e.ts)
       } else if (ev.kind === 'reasoning') {
-        pushReasoning(ev.content, key)
+        pushReasoning(ev.content, key, e.ts)
       } else if (ev.kind === 'tool.call') {
         // A new call supersedes any unresolved prior call: drop a stale skip flag
         // and stop pairing a previous call (it stays in `out`, shown as running).
@@ -79,6 +91,7 @@ export function taskSegments(task: TaskRecord): Segment[] {
           output: null,
           key,
           taskId: task.id,
+          ts: e.ts,
         }
         out.push(pendingTool)
       } else if (ev.kind === 'tool.result') {
@@ -98,19 +111,20 @@ export function taskSegments(task: TaskRecord): Segment[] {
             detail: toolDetail(ev.payload),
             key,
             taskId: task.id,
+            ts: e.ts,
           })
         }
       } else if (ev.kind === 'error') {
         const label = ev.error.code === 'cancelled' ? 'stopped' : 'error'
-        out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, taskId: task.id })
+        out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, taskId: task.id, ts: e.ts })
       }
     } else if (e.kind === 'task.permission_request') {
-      out.push({ kind: 'event', label: `permission (${e.risk})`, detail: e.summary, key, taskId: task.id })
+      out.push({ kind: 'event', label: `permission (${e.risk})`, detail: e.summary, key, taskId: task.id, ts: e.ts })
     } else if (e.kind === 'task.error') {
       const err = typeof e.error === 'object' && e.error ? (e.error as { message?: unknown; code?: unknown }) : null
       const msg = err && 'message' in err ? String(err.message) : 'error'
       const label = err?.code === 'cancelled' ? 'stopped' : 'error'
-      out.push({ kind: 'error', label, detail: msg, key, taskId: task.id })
+      out.push({ kind: 'error', label, detail: msg, key, taskId: task.id, ts: e.ts })
     }
   })
 

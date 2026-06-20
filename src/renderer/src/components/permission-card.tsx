@@ -1,9 +1,10 @@
-// src/renderer/src/components/permission-drawer.tsx
+// src/renderer/src/components/permission-card.tsx
 //
-// 权限申请面板。渲染为 chat 列内、紧贴 composer 上方的内联滑出面板(非模态、
-// 无 backdrop),进场上滑淡入。所有风险等级(medium/high)都经此面板决策;
-// low 由主进程 permission gate 自动放行,不到渲染层。高风险仅做视觉区分
-// (destructive 样式 + 默认焦点落在 Deny),不加二次确认门槛。Escape = skip。
+// 单个权限申请卡片(非模态、无 backdrop)。由 ComposerOverlay 叠加渲染:多个
+// 待决申请时一个 prompt 一张卡。所有风险等级(medium/high)都经此卡决策;low
+// 由主进程 permission gate 自动放行,不到渲染层。高风险仅做视觉区分
+// (destructive 样式 + 栈顶卡默认焦点落在 Deny),不加二次确认门槛。Escape
+// 处理(skip 栈顶)上移到 ComposerOverlay。
 import { useEffect, useRef } from 'react'
 import type { PermissionDecision } from '@shared/types/ui'
 
@@ -13,38 +14,25 @@ import { cn } from '@/lib/utils'
 import type { PermissionPrompt } from '@/stores/permission'
 
 type Props = {
-  prompt: PermissionPrompt | null
+  prompt: PermissionPrompt
   onDecide: (actionId: string, decision: PermissionDecision) => void
+  /** Top-of-stack card parks focus on Deny so the safe choice is the default. */
+  autoFocusDeny?: boolean
 }
 
-export function PermissionDrawer({ prompt, onDecide }: Props): React.JSX.Element | null {
+export function PermissionCard({ prompt, onDecide, autoFocusDeny = false }: Props): React.JSX.Element {
   const denyRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!prompt) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onDecide(prompt.actionId, 'skip')
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [prompt, onDecide])
-
-  // High-risk: park focus on Deny so the safe choice is the default.
-  useEffect(() => {
-    if (prompt?.risk === 'high') denyRef.current?.focus()
-  }, [prompt])
-
-  if (!prompt) return null
-
   const isHigh = prompt.risk === 'high'
+
+  useEffect(() => {
+    if (autoFocusDeny && isHigh) denyRef.current?.focus()
+  }, [autoFocusDeny, isHigh])
 
   return (
     <section
       aria-label="Action requires confirmation"
       className={cn(
-        'mx-3 mb-2 flex max-h-[50vh] shrink-0 flex-col overflow-hidden rounded-xl border bg-popover/95 shadow-lg',
+        'flex max-h-[50vh] shrink-0 flex-col overflow-hidden rounded-xl border bg-popover/95 shadow-lg',
         'fade-in-0 slide-in-from-bottom-3 animate-in duration-200',
         isHigh ? 'border-destructive/50 ring-1 ring-destructive/30' : 'border-border'
       )}

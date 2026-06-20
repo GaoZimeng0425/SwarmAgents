@@ -188,6 +188,19 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.saveTask(childTask, sessionId)
     log.info({ msg: 'child spawned', sessionId, parentTaskId, childTaskId, agentDefId: def.id })
 
+    // A child needs its own task.created so the renderer builds a real task
+    // record; without it the child's later events arrive for an unknown taskId
+    // and degrade into an "(unknown task)" stub. parentTaskId/agentDefId let the
+    // UI group it as a distinct sub-agent block.
+    broadcaster.broadcast('task.created', {
+      sessionId,
+      taskId: childTaskId,
+      goal: newGoal,
+      attachments: [],
+      parentTaskId,
+      agentDefId: def.id,
+      ts: now,
+    })
     broadcaster.broadcast('task.handoff.spawned', { sessionId, parentTaskId, childTaskId, ts: now })
 
     return new Promise<{ childTaskId: string; result: TaskResult }>((resolve) => {
@@ -208,8 +221,35 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
         })
         try {
-          const { summary } = await runner.run()
+          const { status, summary } = await runner.run()
+          // Persist the child's terminal status. Without this the child row stays
+          // 'pending' forever (only submitGoal updated status before), so on
+          // rehydrate the finished sub-agent reads as still-running and the chat
+          // looks stuck executing.
+          store.updateTaskStatus(childTaskId, status)
           resolve({ childTaskId, result: { summary, artifacts: [] } })
+        } catch (err) {
+          log.error({
+            msg: 'spawnChild run failed',
+            childTaskId,
+            err: err instanceof Error ? err.message : String(err),
+          })
+          try {
+            store.appendTaskEvent(childTaskId, {
+              kind: 'error',
+              error: { code: 'run_failed', message: err instanceof Error ? err.message : String(err), tier: 'fatal' },
+              ts: Date.now(),
+            })
+          } catch (appendErr) {
+            log.error({ msg: 'failed to persist child error event', childTaskId, err: String(appendErr) })
+          }
+          try {
+            store.updateTaskStatus(childTaskId, 'failed')
+          } catch (statusErr) {
+            log.error({ msg: 'failed to mark child failed', childTaskId, err: String(statusErr) })
+          }
+          // Resolve (not reject) so the parent's spawn tool gets a result and continues.
+          resolve({ childTaskId, result: { summary: '', artifacts: [] } })
         } finally {
           runHandles.delete(childTaskId)
           releaseSlot()

@@ -11,6 +11,17 @@ describe('applyEvent', () => {
     expect(next[0]).toMatchObject({ id: 't1', goal: 'do x', status: 'pending' })
   })
 
+  it('carries parentTaskId + agentDefId for a spawned sub-agent task.created', () => {
+    const next = applyEvent([], {
+      kind: 'task.created',
+      ...baseEvent,
+      goal: 'sub goal',
+      parentTaskId: 'parent-1',
+      agentDefId: 'researcher',
+    })
+    expect(next[0]).toMatchObject({ id: 't1', parentTaskId: 'parent-1', agentDefId: 'researcher' })
+  })
+
   it('marks running on task.dispatched', () => {
     const seed: TaskRecord[] = [
       {
@@ -145,6 +156,12 @@ describe('applyEvent', () => {
     const next = applyEvent([], { kind: 'task.dispatched', ...baseEvent, workerId: 'w1' })
     expect(next).toHaveLength(1)
     expect(next[0].id).toBe('t1')
+  })
+
+  it('applies a terminal event to a freshly-stubbed unknown task (no stuck running)', () => {
+    const next = applyEvent([], { kind: 'task.complete', ...baseEvent, summary: 'done' })
+    expect(next).toHaveLength(1)
+    expect(next[0]).toMatchObject({ id: 't1', status: 'completed', summary: 'done' })
   })
 
   it('stamps sessionId onto the created record', () => {

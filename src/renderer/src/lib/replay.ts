@@ -22,7 +22,16 @@ const STORED_TO_UI_STATUS: Partial<Record<Task['status'], TaskStatus>> = {
 export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
   const records = tasks.map((t): TaskRecord => {
     const events: UIEvent[] = [
-      { kind: 'task.created', sessionId, taskId: t.id, goal: t.goal, attachments: t.attachments, ts: t.createdAt },
+      {
+        kind: 'task.created',
+        sessionId,
+        taskId: t.id,
+        goal: t.goal,
+        attachments: t.attachments,
+        parentTaskId: t.parentId ?? undefined,
+        agentDefId: t.agentDefId,
+        ts: t.createdAt,
+      },
     ]
     for (const ev of t.history) {
       events.push({ kind: 'task.progress', sessionId, taskId: t.id, event: ev, ts: ev.ts })
@@ -45,6 +54,8 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       summary: t.result?.summary ?? null,
       startedAt: t.createdAt,
       attachments: t.attachments,
+      parentTaskId: t.parentId ?? undefined,
+      agentDefId: t.agentDefId,
       plan: t.plan.length ? t.plan : undefined,
       // Restore the usage display: `used` and the window were persisted, and
       // used.tokens is the last turn's context snapshot (the ring's numerator).

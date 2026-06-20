@@ -28,6 +28,10 @@ function makeWrapper(qc: QueryClient) {
 beforeEach(() => {
   useSessionsStore.setState({ sessions: [], selectedSessionId: null, unread: {} })
   usePermissionStore.setState({ queue: [] })
+  // useEventsSubscription pulls deep links + subscribes to navigation on mount;
+  // stub both so tests that render it don't touch an undefined window.swarm.
+  vi.spyOn(api.swarmApi, 'consumePendingDeepLink').mockResolvedValue(null)
+  vi.spyOn(api.swarmApi, 'onNavigateToSession').mockReturnValue(() => {})
 })
 
 afterEach(() => {

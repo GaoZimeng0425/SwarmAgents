@@ -17,7 +17,18 @@ import type { Attachment, ConsumedResources, PlanTodo, TaskEvent, TaskResult } f
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
 export type UIEvent =
-  | { kind: 'task.created'; sessionId: string; taskId: string; goal: string; attachments?: Attachment[]; ts: number }
+  | {
+      kind: 'task.created'
+      sessionId: string
+      taskId: string
+      goal: string
+      attachments?: Attachment[]
+      /** Set when this task is a spawned sub-agent; links it to its parent for grouped rendering. */
+      parentTaskId?: string
+      /** Sub-agent definition id (e.g. 'researcher'), used to label the subagent block. */
+      agentDefId?: string
+      ts: number
+    }
   | { kind: 'task.dispatched'; sessionId: string; taskId: string; workerId: string; ts: number }
   | { kind: 'task.progress'; sessionId: string; taskId: string; event: TaskEvent; ts: number }
   | {

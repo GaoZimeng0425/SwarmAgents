@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { CheckIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export type UiRendererProps = {
   props: unknown
@@ -17,6 +19,16 @@ type ChoiceSpec = { question?: string; options?: ChoiceOption[]; mode?: 'single'
 
 const optionValue = (o: ChoiceOption): string => o.value ?? o.label
 
+// Flat, weather-card-like option row: subtle border, transparent fill, accent
+// border + tint on hover/selection — matches the surrounding card aesthetic
+// instead of the heavy filled Button look.
+const optionRow = (selected: boolean): string =>
+  cn(
+    'flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors',
+    'enabled:hover:border-primary/40 enabled:hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50',
+    selected ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-transparent text-foreground/90'
+  )
+
 const ChoiceCard: UiRenderer = ({ props, onSend, disabled }) => {
   const spec = (props ?? {}) as ChoiceSpec
   const options = (spec.options ?? []).filter((o) => typeof o?.label === 'string' && o.label.trim().length > 0)
@@ -32,41 +44,49 @@ const ChoiceCard: UiRenderer = ({ props, onSend, disabled }) => {
     })
 
   return (
-    <div className="rounded-xl border border-border bg-popover/95 px-4 py-3 shadow-sm">
+    <div className="w-full max-w-md rounded-xl border border-border bg-popover/95 px-4 py-3 shadow-sm">
       {spec.question && <p className="mb-3 font-medium text-sm">{spec.question}</p>}
       {mode === 'single' ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2">
           {options.map((o) => (
-            <Button
+            <button
+              className={optionRow(false)}
               disabled={disabled}
               key={optionValue(o)}
               onClick={() => onSend?.(optionValue(o))}
-              size="sm"
-              variant="secondary"
+              type="button"
             >
-              {o.label}
-            </Button>
+              <span className="flex-1">{o.label}</span>
+            </button>
           ))}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-2">
-            {options.map((o) => {
-              const v = optionValue(o)
-              return (
-                <Button
-                  disabled={disabled}
-                  key={v}
-                  onClick={() => toggle(v)}
-                  size="sm"
-                  variant={selected.has(v) ? 'default' : 'secondary'}
+          {options.map((o) => {
+            const v = optionValue(o)
+            const checked = selected.has(v)
+            return (
+              <button
+                className={optionRow(checked)}
+                disabled={disabled}
+                key={v}
+                onClick={() => toggle(v)}
+                type="button"
+              >
+                <span
+                  className={cn(
+                    'flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors',
+                    checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
+                  )}
                 >
-                  {o.label}
-                </Button>
-              )
-            })}
-          </div>
+                  {checked && <CheckIcon className="size-3" />}
+                </span>
+                <span className="flex-1">{o.label}</span>
+              </button>
+            )
+          })}
           <Button
+            className="mt-1 w-full"
             disabled={disabled || selected.size === 0}
             onClick={() => onSend?.([...selected].join(', '))}
             size="sm"

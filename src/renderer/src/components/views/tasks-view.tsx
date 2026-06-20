@@ -1,8 +1,8 @@
 import { providerViewById } from '@shared/types/provider'
 
 import { ChatInput } from '@/components/chat-input'
+import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
-import { PermissionDrawer } from '@/components/permission-drawer'
 import { RightPanel } from '@/components/right-panel'
 import { useProviders } from '@/hooks/use-providers'
 import { useCancelTask, useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
@@ -26,7 +26,7 @@ export function TasksView(): React.JSX.Element {
   const activeTask = sessionTasks.find(
     (t) => t.status === 'running' || t.status === 'pending' || t.status === 'awaiting_user'
   )
-  const currentPrompt = queue.find((p) => p.sessionId === selectedSessionId) ?? null
+  const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
   const byRecent = [...sessionTasks].sort((a, b) => b.startedAt - a.startedAt)
   // Most recent plan in the session (the agent replaces it wholesale).
   const activePlan = byRecent.find((t) => t.plan && t.plan.length > 0)?.plan
@@ -43,12 +43,15 @@ export function TasksView(): React.JSX.Element {
           }}
           tasks={sessionTasks}
         />
-        <PermissionDrawer
+        <ComposerOverlay
           onDecide={(actionId, decision) => {
-            if (!currentPrompt) return
-            decide.mutate({ sessionId: currentPrompt.sessionId, actionId, decision })
+            const p = sessionPrompts.find((x) => x.actionId === actionId)
+            if (!p) return
+            decide.mutate({ sessionId: p.sessionId, actionId, decision })
           }}
-          prompt={currentPrompt}
+          prompts={sessionPrompts}
+          running={!!activeTask}
+          todos={activePlan ?? []}
         />
         <ChatInput
           cacheReadTokens={latestTask?.used?.cacheRead}

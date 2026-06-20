@@ -16,6 +16,10 @@ export type TaskRecord = {
   contextTokens?: number
   contextWindow?: number
   plan?: PlanTodo[]
+  /** Set when this task is a spawned sub-agent (links to its parent). */
+  parentTaskId?: string
+  /** Sub-agent definition id, used to label the subagent block. */
+  agentDefId?: string
   events: UIEvent[]
 }
 
@@ -37,13 +41,21 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       summary: null,
       startedAt: e.ts,
       attachments: e.attachments ?? [],
+      parentTaskId: e.parentTaskId,
+      agentDefId: e.agentDefId,
       events: [e],
     }
     const without = tasks.filter((t) => t.id !== e.taskId)
     return [created, ...without]
   }
 
-  const idx = tasks.findIndex((t) => t.id === taskId)
+  // Event for a task we have no record of (e.g. forwarded out of order, or a
+  // sub-agent whose task.created was missed). Create a stub and then fall through
+  // to apply this event's semantics — crucially so a terminal event (complete/
+  // error) doesn't leave the stub stuck 'running', which would keep the composer
+  // in a loading state forever.
+  let workingTasks = tasks
+  let idx = tasks.findIndex((t) => t.id === taskId)
   if (idx === -1) {
     const stub: TaskRecord = {
       id: taskId,
@@ -54,12 +66,13 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       summary: null,
       startedAt: e.ts,
       attachments: [],
-      events: [e],
+      events: [],
     }
-    return [stub, ...tasks]
+    workingTasks = [stub, ...tasks]
+    idx = 0
   }
 
-  let updated: TaskRecord = { ...tasks[idx], events: [...tasks[idx].events, e] }
+  let updated: TaskRecord = { ...workingTasks[idx], events: [...workingTasks[idx].events, e] }
 
   switch (e.kind) {
     case 'task.dispatched':
@@ -92,7 +105,7 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       break
   }
 
-  const next = [...tasks]
+  const next = [...workingTasks]
   next[idx] = updated
   return next
 }
