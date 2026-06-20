@@ -5,7 +5,7 @@ import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
-import type { Task, TaskEvent, TaskResult } from '@shared/types/task'
+import type { Task, TaskEvent, TaskResult, TaskStatus } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
@@ -48,7 +48,8 @@ export type SessionManager = {
     sessionId: string,
     goal: string,
     attachments?: import('@shared/types/task').Attachment[],
-    agentDef?: AgentDefinition
+    agentDef?: AgentDefinition,
+    onComplete?: (status: TaskStatus, error?: string) => void
   ): { taskId: string }
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
@@ -293,7 +294,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       return { sessionId }
     },
 
-    submitGoal(sessionId, goal, attachments = [], agentDef = DEFAULT_AGENT_DEF) {
+    submitGoal(sessionId, goal, attachments = [], agentDef = DEFAULT_AGENT_DEF, onComplete) {
       const session = getOrRehydrate(sessionId)
       if (!session) throw new Error(`session ${sessionId} not found`)
 
@@ -352,12 +353,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         try {
           const { status } = await runner.run()
           store.updateTaskStatus(taskId, status)
+          onComplete?.(status)
         } catch (err) {
-          log.error({ msg: 'runTurn failed', taskId, err: err instanceof Error ? err.message : String(err) })
+          const message = err instanceof Error ? err.message : String(err)
+          log.error({ msg: 'runTurn failed', taskId, err: message })
           try {
             store.appendTaskEvent(taskId, {
               kind: 'error',
-              error: { code: 'run_failed', message: err instanceof Error ? err.message : String(err), tier: 'fatal' },
+              error: { code: 'run_failed', message, tier: 'fatal' },
               ts: Date.now(),
             })
           } catch (appendErr) {
@@ -368,6 +371,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           } catch (statusErr) {
             log.error({ msg: 'failed to mark task failed', taskId, err: String(statusErr) })
           }
+          onComplete?.('failed', message)
         } finally {
           runHandles.delete(taskId)
           releaseSlot()

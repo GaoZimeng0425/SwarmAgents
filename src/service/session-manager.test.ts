@@ -578,6 +578,55 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('invokes onComplete with the final status when the task turn ends', async () => {
+    mockCreate.mockImplementation(() => ({
+      run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }),
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+
+    const onComplete = vi.fn()
+    manager.submitGoal(sessionId, 'do it', [], undefined, onComplete)
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(onComplete).toHaveBeenCalledWith('completed')
+    store.close()
+  })
+
+  it('invokes onComplete with failed + message when the run throws', async () => {
+    mockCreate.mockImplementation(() => ({
+      run: vi.fn().mockRejectedValue(new Error('boom')),
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+
+    const onComplete = vi.fn()
+    manager.submitGoal(sessionId, 'do it', [], undefined, onComplete)
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(onComplete).toHaveBeenCalledWith('failed', 'boom')
+    store.close()
+  })
+
   it('lists sessions and returns a session tasks via the manager', () => {
     mockCreate.mockImplementation(() => ({
       run: async () => ({ status: 'completed' as const, summary: '', messages: [] }),
