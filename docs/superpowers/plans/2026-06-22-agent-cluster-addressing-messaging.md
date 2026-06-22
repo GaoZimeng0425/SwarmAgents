@@ -1015,6 +1015,11 @@ git commit -m "test(cluster): e2e sibling rpc messaging"
 - **占位符**:Task 7 因 dispatcher 文件名未定而留「实现时定位」——这是有意的核实步骤(记忆为旧快照),Step 1 给了 `git grep` 定位命令,非空泛占位。
 - **范围**:聚焦「可寻址 + 激活式消息」单一子系统,自成可测增量;常驻 run 循环已隔离为计划 B。
 
+## 计划 A 已知局限(延至计划 B)
+
+- **`maxConcurrent` 下的死锁**:激活持有调用方并发槽位的同时,`send_and_wait`(rpc)再请求一个槽位;rpc 链深度超过 `maxConcurrent`,或两个 actor 互相 rpc 且 session 的 `maxConcurrent` 较小时,可能永久死锁。此行为继承自现有的嵌套 `spawnChild`——计划 A 引入了新触发路径,但并非新机制。计划 B 的常驻 run 循环将解决此问题。
+- **fire-and-forget 崩溃孤儿**:对于 `kind:'send'`,消息仅在异步激活 resolve 后才标记为 `consumed`;若激活中途崩溃,消息会停留在 `consumed=0, dead=0` 状态。当前尚无 run 循环,没有任何机制重新排空它。计划 B 的收件箱排空循环将负责恢复。
+
 ## 计划 B 预告(不在本计划)
 
 `AgentRunner.run()` 跑完后 `await mailbox.receive()` —— 把 `runHandles` 升级为 `Map<address, { abort, deliver }>`,活着的 actor 不退出、直接消费排队消息(省去每条消息重新激活的开销),实现真正常驻虚拟 actor,支撑场景③事件驱动的低延迟与场景④长期状态。需单独 spec→plan。

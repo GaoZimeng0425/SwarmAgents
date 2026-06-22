@@ -19,6 +19,8 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => {},
+  sendAndWait: async () => '',
 }
 
 describe('registerBuiltinTools', () => {

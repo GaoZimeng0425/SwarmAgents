@@ -288,6 +288,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       toAddr: target?.address ?? toAddr,
       fromAddr,
       kind,
+      // correlationId is reserved for Plan B's run-loop reply matching; today an rpc reply is the inline-awaited activation result.
       correlationId: kind === 'rpc' ? msgId : null,
       payload,
       consumed: false,
