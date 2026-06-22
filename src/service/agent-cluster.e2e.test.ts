@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { createConversationStore } from './conversation-store'
 import { createSessionManager } from './session-manager'
 
-// Runner stub: an actor named 'reviewer' replies "LGTM"; everyone else echoes.
+// Runner stub: a "review" goal replies "LGTM"; everyone else echoes. The
+// resident loop drains the mailbox, marks consumed, and replies to rpc.
 vi.mock('./agent-runner', () => ({
   createAgentRunner: (deps: any) => ({
     run: async () => ({
@@ -13,6 +14,22 @@ vi.mock('./agent-runner', () => ({
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
     }),
   }),
+  buildAgentSession: () => ({}),
+  runResident: async (_deps: any, mailbox: any, hooks: any, _idleMs: number) => {
+    for (;;) {
+      let msg
+      try {
+        msg = await mailbox.receive({ idleMs: 5 })
+      } catch {
+        return
+      }
+      await hooks.acquireTurnSlot()
+      hooks.releaseTurnSlot()
+      hooks.onConsumed(msg.id)
+      const summary = msg.payload.includes('review') ? 'LGTM' : `echo:${msg.payload}`
+      if (msg.kind === 'rpc' && msg.correlationId) hooks.onReply(msg.correlationId, summary)
+    }
+  },
 }))
 
 const noopBroadcaster = { broadcast: () => {} }

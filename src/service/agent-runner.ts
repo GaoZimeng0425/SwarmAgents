@@ -107,7 +107,7 @@ export type AgentRunnerDeps = {
     providerKey?: string,
     agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
-  /** This run's actor address, when activated via activateActor. */
+  /** This run's actor address, when run as a resident actor. */
   selfAddress?: string
   /** Deliver a message to another actor. rpc awaits a reply; send is fire-and-forget. */
   sendMessage?(

@@ -10,18 +10,25 @@ import type { Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shar
 import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
-import { createAgentRunner } from './agent-runner'
+import { createMailbox } from './actor-mailbox'
+import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
 import { withAgentTypes } from './agents/prompt'
 import type { AgentStore } from './agents/store'
 import type { Broadcaster } from './broadcaster'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
+import { createReplyRegistry } from './reply-registry'
 import { withSkills } from './skills/prompt'
 import type { SkillStore } from './skills/store'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry, type ToolRegistry } from './tools/registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
+
+// A resident actor sleeps (its loop returns) after this long with an empty mailbox.
+const IDLE_TIMEOUT_MS = 30_000
+// How long an rpc caller waits for the resident's reply before resolving to ''.
+const RPC_TIMEOUT_MS = 120_000
 
 // Plan mode is read-only: it grants inspection tools but no shell, no fs writes,
 // and no peekaboo interactions, so the agent physically cannot mutate anything
@@ -124,6 +131,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const oneShotHandles = new Map<string, AbortController>()
   // Resident actor run-loops, keyed by actor address. Populated in Task 6.
   const residentHandles = new Map<string, { abort(): void; deliver(msg: ActorMessage): void }>()
+  // Matches inbound rpc replies (by correlationId) to their awaiting callers.
+  const replyRegistry = createReplyRegistry()
 
   async function acquireSlot(): Promise<void> {
     if (activeRunners < cfg.maxConcurrent) {
@@ -200,24 +209,27 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const resolveAddress = (sessionId: string, to: string): import('@shared/types/actor').Actor | undefined =>
     store.getActor(to) ?? store.getActorByName(sessionId, to)
 
-  // Run one activation of an addressable actor with `goal` as its input. Mirrors
-  // spawnChild's run path: acquire a slot, build a runner, execute once, persist
-  // the terminal status. Returns the run summary (the rpc reply).
-  const activateActor = async (
+  // Spawn ONE resident run-loop for an actor: create the residency Task, a
+  // mailbox, and an abort handle; register the handle synchronously (before
+  // runResident's first `await mailbox.receive()`) so a delivery issued right
+  // after spawn is queued and picked up on the first receive (no race). The
+  // loop drains messages one turn at a time and returns when it idles out or
+  // aborts, at which point the Task is marked terminal and the handle dropped.
+  const spawnResident = (
     sessionId: string,
-    actor: import('@shared/types/actor').Actor,
-    goal: string
-  ): Promise<string> => {
+    actor: import('@shared/types/actor').Actor
+  ): { abort(): void; deliver(msg: ActorMessage): void } => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
     const def = cfg.agentStore?.get(actor.agentDefId) ?? DEFAULT_AGENT_DEF
+    // One Task per residency (not per message).
     const taskId = ulid()
     const now = Date.now()
     const task: Task = {
       id: taskId,
       parentId: null,
       agentDefId: def.id,
-      goal,
+      goal: `actor:${actor.address}`,
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: deriveAllowlist(def.toolScope),
@@ -232,13 +244,29 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     store.saveTask(task, sessionId)
     store.upsertActor({ ...actor, lastTaskId: taskId, updatedAt: now })
-    broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments: [], agentDefId: def.id, ts: now })
-    log.info({ msg: 'actor activated', sessionId, address: actor.address, taskId, agentDefId: def.id })
+    broadcaster.broadcast('task.created', {
+      sessionId,
+      taskId,
+      goal: task.goal,
+      attachments: [],
+      agentDefId: def.id,
+      ts: now,
+    })
 
-    await acquireSlot()
+    const mailbox = createMailbox()
     const abort = new AbortController()
-    oneShotHandles.set(taskId, abort)
-    const runner = createAgentRunner({
+    const handle = { abort: () => abort.abort(), deliver: (m: ActorMessage) => mailbox.deliver(m) }
+    // Register synchronously so the immediately-following deliver is queued.
+    residentHandles.set(actor.address, handle)
+    log.info({ msg: 'resident spawned', sessionId, address: actor.address, taskId })
+
+    const hooks: ResidentHooks = {
+      acquireTurnSlot: () => acquireSlot(),
+      releaseTurnSlot: () => releaseSlot(),
+      onConsumed: (msgId) => store.markConsumed(msgId),
+      onReply: (correlationId, summary) => replyRegistry.resolve(correlationId, summary),
+    }
+    const deps: AgentRunnerDeps = {
       task,
       provider: def.model ? { ...session.provider, model: def.model } : session.provider,
       agentDefinition: withPrompt(def),
@@ -251,29 +279,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       selfAddress: actor.address,
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
-    })
-    try {
-      const { status, summary } = await runner.run()
-      store.updateTaskStatus(taskId, status)
-      return summary
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      log.error({ msg: 'actor activation failed', address: actor.address, taskId, err: message })
-      try {
-        store.appendTaskEvent(taskId, {
-          kind: 'error',
-          error: { code: 'run_failed', message, tier: 'fatal' },
-          ts: Date.now(),
-        })
-        store.updateTaskStatus(taskId, 'failed')
-      } catch (persistErr) {
-        log.error({ msg: 'failed to persist activation error', taskId, err: String(persistErr) })
-      }
-      return ''
-    } finally {
-      oneShotHandles.delete(taskId)
-      releaseSlot()
     }
+    void runResident(deps, mailbox, hooks, IDLE_TIMEOUT_MS)
+      .then(() => store.updateTaskStatus(taskId, 'completed'))
+      .catch((err) => {
+        log.error({ msg: 'resident loop failed', sessionId, address: actor.address, taskId, err: String(err) })
+        store.updateTaskStatus(taskId, 'failed')
+      })
+      .finally(() => residentHandles.delete(actor.address))
+    return handle
   }
 
   const sendMessage = async (
@@ -305,15 +319,22 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     log.info({ msg: 'message sent', sessionId, fromAddr, toAddr: target.address, kind, correlationId: msgId })
 
-    if (kind === 'rpc') {
-      const reply = await activateActor(sessionId, target, payload)
-      store.markConsumed(msgId)
-      return { reply }
-    }
-    // fire-and-forget: activate without blocking; mark consumed when done.
-    void activateActor(sessionId, target, payload)
-      .then(() => store.markConsumed(msgId))
-      .catch((err) => log.error({ msg: 'fire-and-forget activation rejected', msgId, err: String(err) }))
+    // Resolve-or-spawn the resident loop, then deliver. The payload is the raw
+    // goal text; runResident passes msg.payload straight to promptOnce.
+    const handle = residentHandles.get(target.address) ?? spawnResident(sessionId, target)
+    handle.deliver({
+      id: msgId,
+      toAddr: target.address,
+      fromAddr,
+      kind,
+      correlationId: kind === 'rpc' ? msgId : null,
+      payload,
+      consumed: false,
+      retries: 0,
+      dead: false,
+      ts: now,
+    })
+    if (kind === 'rpc') return { reply: await replyRegistry.awaitReply(msgId, RPC_TIMEOUT_MS) }
     return { delivered: true }
   }
 
