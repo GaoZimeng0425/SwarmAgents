@@ -30,7 +30,8 @@ export type ServiceClient = {
   submitGoal(
     sessionId: string,
     goal: string,
-    attachments?: import('@shared/types/task').Attachment[]
+    attachments?: import('@shared/types/task').Attachment[],
+    options?: import('@shared/types/task').TaskOptions
   ): Promise<{ taskId: string }>
   listSessions(): Promise<import('@shared/types/ui').SessionSummary[]>
   getSessionTasks(sessionId: string): Promise<import('@shared/types/task').Task[]>
@@ -97,8 +98,8 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     createSession(provider) {
       return call('createSession', [provider])
     },
-    submitGoal(sessionId, goal, attachments) {
-      return call('submitGoal', [sessionId, goal, attachments])
+    submitGoal(sessionId, goal, attachments, options) {
+      return call('submitGoal', [sessionId, goal, attachments, options])
     },
     listSessions() {
       return call('listSessions', [])

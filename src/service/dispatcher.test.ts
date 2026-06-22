@@ -47,8 +47,16 @@ describe('dispatcher', () => {
     const manager = mockManager()
     const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
     const result = dispatch('submitGoal', ['ses-1', 'do it'])
-    expect(manager.submitGoal).toHaveBeenCalledWith('ses-1', 'do it', undefined)
+    expect(manager.submitGoal).toHaveBeenCalledWith('ses-1', 'do it', undefined, undefined, undefined, undefined)
     expect(result).toEqual({ taskId: 'task-1' })
+  })
+
+  it('submitGoal forwards composer options to the manager', () => {
+    const manager = mockManager()
+    const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
+    const options = { cwd: '/w', permissionMode: 'full' as const, executionMode: 'plan' as const }
+    dispatch('submitGoal', ['ses-1', 'do it', undefined, options])
+    expect(manager.submitGoal).toHaveBeenCalledWith('ses-1', 'do it', undefined, undefined, undefined, options)
   })
 
   it('decidePermission routes to resolvePermission and returns ok', () => {

@@ -13,7 +13,7 @@ import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverri
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
-import type { Attachment, ConsumedResources, PlanTodo, TaskEvent, TaskResult } from './task'
+import type { Attachment, ConsumedResources, PlanTodo, TaskEvent, TaskOptions, TaskResult } from './task'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
 export type UIEvent =
@@ -212,7 +212,12 @@ export type MacPermissions = {
  * The shape exposed to the renderer via contextBridge as `window.swarm`.
  */
 export type SwarmBridge = {
-  submitGoal(sessionId: string, goal: string, attachments?: Attachment[]): Promise<SubmitGoalResult>
+  submitGoal(
+    sessionId: string,
+    goal: string,
+    attachments?: Attachment[],
+    options?: TaskOptions
+  ): Promise<SubmitGoalResult>
   cancelTask(sessionId: string, taskId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
@@ -251,6 +256,10 @@ export type SwarmBridge = {
   readImageFile(path: string): Promise<{ mimeType: string; data: string } | null>
   /** Open a local file with the OS default application. */
   openPath(path: string): Promise<void>
+  /** Show a native open dialog to pick a folder. Returns its absolute path, or null if cancelled. */
+  pickDirectory(): Promise<string | null>
+  /** Show a native open dialog to pick a file. Returns its absolute path, or null if cancelled. */
+  pickFile(): Promise<string | null>
   providers: ProvidersBridge
   mcp: McpBridge
   webSearch: WebSearchBridge

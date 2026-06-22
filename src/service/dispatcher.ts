@@ -42,12 +42,13 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         return manager.createSession(provider)
       }
       case 'submitGoal': {
-        const [sessionId, goal, attachments] = args as [
+        const [sessionId, goal, attachments, options] = args as [
           string,
           string,
           import('@shared/types/task').Attachment[] | undefined,
+          import('@shared/types/task').TaskOptions | undefined,
         ]
-        return manager.submitGoal(sessionId, goal, attachments)
+        return manager.submitGoal(sessionId, goal, attachments, undefined, undefined, options)
       }
       case 'listSessions':
         return manager.listSessions()

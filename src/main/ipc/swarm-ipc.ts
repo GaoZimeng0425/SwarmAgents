@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { BrowserWindow, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import type { Service as BudgetsService } from '../budgets'
 import type { Service as McpService } from '../mcp-servers'
@@ -119,14 +119,23 @@ export function wireSwarmIpc(args: {
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
     goal: string,
-    attachments?: import('@shared/types/task').Attachment[]
+    attachments?: import('@shared/types/task').Attachment[],
+    options?: import('@shared/types/task').TaskOptions
   ): Promise<{ taskId: string }> => {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
     }
     const trimmedGoal = goal.trim()
-    const { taskId } = await serviceClient.submitGoal(sessionId, trimmedGoal, attachments)
-    log.info({ msg: 'task submitted', sessionId, taskId, attachments: attachments?.length ?? 0 })
+    const { taskId } = await serviceClient.submitGoal(sessionId, trimmedGoal, attachments, options)
+    log.info({
+      msg: 'task submitted',
+      sessionId,
+      taskId,
+      attachments: attachments?.length ?? 0,
+      cwd: options?.cwd ?? null,
+      permissionMode: options?.permissionMode ?? 'ask',
+      executionMode: options?.executionMode ?? 'goal',
+    })
     return { taskId }
   }
 
@@ -220,6 +229,20 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:openPath', openPath)
 
+  // Native folder/file picker for the composer's working-directory and
+  // file-reference controls. Returns the chosen absolute path, or null when the
+  // user cancels (or picks nothing).
+  const pickPath = async (e: Electron.IpcMainInvokeEvent, kind: unknown): Promise<string | null> => {
+    const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const properties: Array<'openDirectory' | 'openFile'> = kind === 'directory' ? ['openDirectory'] : ['openFile']
+    const result = parent
+      ? await dialog.showOpenDialog(parent, { properties })
+      : await dialog.showOpenDialog({ properties })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  }
+  ipcMain.handle('system:pickPath', pickPath)
+
   ipcMain.handle('system:getMacPermissions', () => getMacPermissions())
   const handleOpenPrivacySettings = (_e: Electron.IpcMainInvokeEvent, pane: unknown): Promise<void> =>
     openPrivacySettings(pane === 'accessibility' ? 'accessibility' : 'screen')
@@ -239,6 +262,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:getMacPermissions')
       ipcMain.removeHandler('system:readImageFile')
       ipcMain.removeHandler('system:openPath')
+      ipcMain.removeHandler('system:pickPath')
       ipcMain.removeHandler('system:openSettings')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()

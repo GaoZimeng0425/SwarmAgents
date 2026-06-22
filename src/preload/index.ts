@@ -146,8 +146,8 @@ const memory: MemoryBridge = {
 }
 
 const swarm: SwarmBridge = {
-  submitGoal: (sessionId, goal, attachments) =>
-    ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments) as Promise<SubmitGoalResult>,
+  submitGoal: (sessionId, goal, attachments, options) =>
+    ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
   cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
@@ -205,6 +205,8 @@ const swarm: SwarmBridge = {
   readImageFile: (path: string) =>
     ipcRenderer.invoke('system:readImageFile', path) as Promise<{ mimeType: string; data: string } | null>,
   openPath: (path: string) => ipcRenderer.invoke('system:openPath', path) as Promise<void>,
+  pickDirectory: () => ipcRenderer.invoke('system:pickPath', 'directory') as Promise<string | null>,
+  pickFile: () => ipcRenderer.invoke('system:pickPath', 'file') as Promise<string | null>,
   providers,
   mcp,
   webSearch,
