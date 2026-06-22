@@ -83,6 +83,10 @@ export type ConversationStore = {
   allUnconsumedFor(address: string): ActorMessage[]
   listUnconsumedAddresses(): string[]
   markConsumed(id: string): void
+  // Atomically mark a message consumed AND persist the actor's conversation
+  // state, so consumption and memory never diverge across a crash. Targeted
+  // UPDATE on state/updated_at only — does not touch last_task_id/name.
+  consumeAndPersist(msgId: string, address: string, state: string, updatedAt: number): void
   markDead(id: string): void
   bumpRetries(id: string): number
   close(): void
@@ -326,6 +330,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
      WHERE m.consumed = 0 AND m.dead = 0`
   )
   const stmtMarkConsumed = db.prepare('UPDATE messages SET consumed = 1 WHERE id = ?')
+  const stmtPersistActorState = db.prepare('UPDATE actors SET state = ?, updated_at = ? WHERE address = ?')
+  const consumeAndPersistTx = db.transaction((msgId: string, address: string, state: string, updatedAt: number) => {
+    stmtMarkConsumed.run(msgId)
+    stmtPersistActorState.run(state, updatedAt, address)
+  })
   const stmtMarkDead = db.prepare('UPDATE messages SET dead = 1 WHERE id = ?')
   const stmtBumpRetries = db.prepare('UPDATE messages SET retries = retries + 1 WHERE id = ?')
   const stmtGetRetries = db.prepare('SELECT retries FROM messages WHERE id = ?')
@@ -762,6 +771,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     markConsumed(id) {
       stmtMarkConsumed.run(id)
     },
+    consumeAndPersist: (msgId, address, state, updatedAt) => consumeAndPersistTx(msgId, address, state, updatedAt),
     markDead(id) {
       stmtMarkDead.run(id)
     },

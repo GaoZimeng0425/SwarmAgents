@@ -26,7 +26,11 @@ vi.mock('@earendil-works/pi-agent-core', () => {
       this.subscriber?.({ type: 'agent_end' })
     }
   }
-  return { Agent }
+  return {
+    Agent,
+    shouldCompact: () => false,
+    DEFAULT_COMPACTION_SETTINGS: {},
+  }
 })
 
 import type { AgentRunnerDeps } from './agent-runner'
@@ -70,5 +74,12 @@ describe('buildAgentSession', () => {
     // Both prompts went to the SAME agent; its message history holds both turns.
     expect(prompts).toEqual(['first', 'second'])
     expect(s.agent.state.messages.map((m) => m.content)).toEqual(['first', 'ack:first', 'second', 'ack:second'])
+  })
+
+  it('exposes contextWindow and a getContextTokens snapshot', () => {
+    const s = buildAgentSession(deps())
+    expect(typeof s.contextWindow).toBe('number')
+    expect(s.contextWindow).toBeGreaterThan(0)
+    expect(s.getContextTokens()).toBe(0) // no turn run yet
   })
 })

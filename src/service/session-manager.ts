@@ -11,6 +11,7 @@ import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
 import { createMailbox } from './actor-mailbox'
+import { decodeActorState } from './actor-state'
 import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
 import { withAgentTypes } from './agents/prompt'
 import type { AgentStore } from './agents/store'
@@ -262,10 +263,28 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     residentHandles.set(actor.address, handle)
     log.info({ msg: 'resident spawned', sessionId, address: actor.address, taskId })
 
+    const restored = decodeActorState(actor.state)
+    if (actor.state && restored.length === 0) {
+      log.warn({
+        msg: 'actor state decode failed, starting fresh',
+        sessionId,
+        address: actor.address,
+        component: 'actor-state',
+      })
+    } else if (restored.length > 0) {
+      log.info({
+        msg: 'actor state replayed',
+        sessionId,
+        address: actor.address,
+        messageCount: restored.length,
+        component: 'actor-state',
+      })
+    }
+
     const hooks: ResidentHooks = {
       acquireTurnSlot: () => acquireSlot(),
       releaseTurnSlot: () => releaseSlot(),
-      onConsumed: (msgId) => store.markConsumed(msgId),
+      onConsumed: (msgId, state) => store.consumeAndPersist(msgId, actor.address, state, Date.now()),
       onReply: (correlationId, summary) => replyRegistry.resolve(correlationId, summary),
       // Per-message retry/deadletter: bump the retry count; once it exceeds the
       // limit, dead-letter so it stops being re-drained. The loop keeps running.
@@ -287,7 +306,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       emit: makeEmit(sessionId),
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
-      initialMessages: [],
+      initialMessages: restored,
       signal: abort.signal,
       selfAddress: actor.address,
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
