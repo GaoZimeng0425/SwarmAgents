@@ -78,6 +78,8 @@ export type SessionManager = {
   listSessions(): import('@shared/types/ui').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
   getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
+  /** @internal test hook */
+  __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@shared/types/actor').Actor
 }
 
 // session-manager owns sensible defaults for the agent-execution subsystem
@@ -158,6 +160,30 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       }
       broadcaster.broadcast(event, payload)
     }
+
+  // Resolve-or-create an addressable identity. With a name, an existing actor in
+  // the same session is reused (so `send('researcher-1', …)` keeps hitting the
+  // same identity); without a name a fresh ULID address is minted each time.
+  const ensureActor = (sessionId: string, agentDefId: string, name?: string): import('@shared/types/actor').Actor => {
+    if (name) {
+      const existing = store.getActorByName(sessionId, name)
+      if (existing) return existing
+    }
+    const now = Date.now()
+    const actor: import('@shared/types/actor').Actor = {
+      address: ulid(),
+      agentDefId,
+      sessionId,
+      name: name ?? null,
+      state: null,
+      lastTaskId: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+    store.upsertActor(actor)
+    log.info({ msg: 'actor created', sessionId, address: actor.address, agentDefId, name: name ?? null })
+    return actor
+  }
 
   const spawnChild = async (
     sessionId: string,
@@ -462,6 +488,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     getUsageStats(rangeDays) {
       return store.getUsageStats(rangeDays)
+    },
+
+    // Test-only: exercise actor resolution without driving a full run.
+    __ensureActorForTest(sessionId: string, agentDefId: string, name?: string) {
+      return ensureActor(sessionId, agentDefId, name)
     },
   }
 }
