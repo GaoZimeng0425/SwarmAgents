@@ -11,6 +11,8 @@ const MockAgent = vi.hoisted(() => vi.fn())
 // Mock pi-agent-core Agent class
 vi.mock('@earendil-works/pi-agent-core', () => ({
   Agent: MockAgent,
+  shouldCompact: () => false,
+  DEFAULT_COMPACTION_SETTINGS: {},
 }))
 
 // Mock pi-ai so resolveModel and the dynamic Type import succeed

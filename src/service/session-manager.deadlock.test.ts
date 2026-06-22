@@ -49,7 +49,11 @@ vi.mock('@earendil-works/pi-agent-core', () => {
       this.sub?.({ type: 'agent_end' })
     }
   }
-  return { Agent }
+  return {
+    Agent,
+    shouldCompact: () => false,
+    DEFAULT_COMPACTION_SETTINGS: {},
+  }
 })
 
 import { createConversationStore } from './conversation-store'

@@ -26,7 +26,11 @@ vi.mock('@earendil-works/pi-agent-core', () => {
       this.subscriber?.({ type: 'agent_end' })
     }
   }
-  return { Agent }
+  return {
+    Agent,
+    shouldCompact: () => false,
+    DEFAULT_COMPACTION_SETTINGS: {},
+  }
 })
 
 import type { AgentRunnerDeps } from './agent-runner'
