@@ -41,6 +41,28 @@ function fakeScheduler(): CronScheduler {
       endedAt: 1_700_000_000_500,
       error: null,
     })),
+    runsForJob: vi.fn(() => [
+      {
+        id: 'run-2',
+        jobId: 'job-1',
+        sessionId: 'ses-1',
+        taskId: 'task-2',
+        status: 'failed',
+        triggeredAt: 1_700_000_100_000,
+        endedAt: 1_700_000_101_000,
+        error: 'provider 503',
+      },
+      {
+        id: 'run-1',
+        jobId: 'job-1',
+        sessionId: 'ses-1',
+        taskId: 'task-1',
+        status: 'completed',
+        triggeredAt: 1_700_000_000_000,
+        endedAt: 1_700_000_000_500,
+        error: null,
+      },
+    ]),
   }
 }
 
@@ -52,12 +74,14 @@ describe('cronSpecs', () => {
     expect(specs.map((s) => `${s.group}.${s.name}`).sort()).toEqual([
       'cron.cancel_scheduled_task',
       'cron.list_scheduled_tasks',
+      'cron.list_task_runs',
       'cron.schedule_task',
     ])
     const risk = (n: string) => specs.find((s) => s.name === n)!.risk
     expect(risk('schedule_task')).toBe('medium')
     expect(risk('list_scheduled_tasks')).toBe('low')
     expect(risk('cancel_scheduled_task')).toBe('low')
+    expect(risk('list_task_runs')).toBe('low')
   })
 
   it('schedule_task binds to ctx.sessionId and returns the job id', async () => {
@@ -108,6 +132,53 @@ describe('cronSpecs', () => {
       .build(ctx)
     const res = await tool.execute('id', {})
     expect(text(res as never)).toContain('last never')
+  })
+
+  it('list_task_runs returns the run history for a job', async () => {
+    const sched = fakeScheduler()
+    const tool = cronSpecs(sched)
+      .find((s) => s.name === 'list_task_runs')!
+      .build(ctx)
+    const res = await tool.execute('id', { id: 'job-1' })
+    expect(sched.runsForJob).toHaveBeenCalledWith('job-1')
+    const out = text(res as never)
+    expect(out).toContain('failed')
+    expect(out).toContain('completed')
+    expect(out).toContain('provider 503')
+    expect(out).toContain('task-2')
+  })
+
+  it('list_task_runs requires an id', async () => {
+    const sched = fakeScheduler()
+    const tool = cronSpecs(sched)
+      .find((s) => s.name === 'list_task_runs')!
+      .build(ctx)
+    const res = await tool.execute('id', {})
+    expect(text(res as never)).toContain('error')
+  })
+
+  it('list_task_runs reports when a job has no runs', async () => {
+    const sched = fakeScheduler()
+    ;(sched.runsForJob as ReturnType<typeof vi.fn>).mockReturnValue([])
+    const tool = cronSpecs(sched)
+      .find((s) => s.name === 'list_task_runs')!
+      .build(ctx)
+    const res = await tool.execute('id', { id: 'job-9' })
+    expect(text(res as never)).toContain('no runs')
+  })
+
+  it('list_task_runs respects the limit', async () => {
+    const sched = fakeScheduler()
+    const tool = cronSpecs(sched)
+      .find((s) => s.name === 'list_task_runs')!
+      .build(ctx)
+    const res = await tool.execute('id', { id: 'job-1', limit: 1 })
+    const lines = text(res as never)
+      .split('\n')
+      .filter((l) => l.startsWith('- '))
+    expect(lines).toHaveLength(1)
+    // newest first: the failed run is kept, the older completed run dropped
+    expect(lines[0]).toContain('failed')
   })
 
   it('cancel_scheduled_task removes by id', async () => {

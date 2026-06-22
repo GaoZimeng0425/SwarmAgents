@@ -14,6 +14,8 @@ export type CronScheduler = {
   listAll(): Array<StoredCronJob & { nextRun: number | null }>
   /** The most recent run record for a job, or null if it has never fired. */
   latestRunForJob(id: string): StoredCronRun | null
+  /** Every persisted run record for a job, newest first. */
+  runsForJob(id: string): StoredCronRun[]
   /** Re-schedule every persisted job. Call once on startup. */
   start(): void
   /** Test seam: run a scheduled job's tick body immediately. */
@@ -144,6 +146,9 @@ export function createCronScheduler(deps: {
     latestRunForJob(id) {
       // listCronRunsForJob is ordered newest-first, so the head is the latest.
       return store.listCronRunsForJob(id)[0] ?? null
+    },
+    runsForJob(id) {
+      return store.listCronRunsForJob(id)
     },
     start() {
       for (const job of store.listCronJobs()) {

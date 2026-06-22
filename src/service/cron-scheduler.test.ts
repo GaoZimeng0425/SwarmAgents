@@ -190,4 +190,18 @@ describe('createCronScheduler', () => {
     expect(sched.latestRunForJob('job-1')?.id).toBe('r2')
     sched.dispose()
   })
+
+  it('runsForJob returns all runs for a job, newest first', () => {
+    const { store, sessions, runs } = fakeStore()
+    sessions.add('ses-1')
+    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }) })
+
+    expect(sched.runsForJob('job-1')).toEqual([])
+
+    runs.set('r1', { id: 'r1', jobId: 'job-1', sessionId: 'ses-1', taskId: 't1', status: 'completed', triggeredAt: 1, endedAt: 2, error: null })
+    runs.set('r2', { id: 'r2', jobId: 'job-1', sessionId: 'ses-1', taskId: 't2', status: 'failed', triggeredAt: 5, endedAt: 6, error: 'boom' })
+
+    expect(sched.runsForJob('job-1').map((r) => r.id)).toEqual(['r2', 'r1'])
+    sched.dispose()
+  })
 })

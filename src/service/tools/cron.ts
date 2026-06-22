@@ -23,6 +23,16 @@ const CancelParams = Type.Object({
   id: Type.String({ description: 'Id of the scheduled task to cancel (from list_scheduled_tasks).' }),
 })
 
+const DEFAULT_RUNS_LIMIT = 20
+const MAX_RUNS_LIMIT = 100
+
+const RunsParams = Type.Object({
+  id: Type.String({ description: 'Id of the scheduled task to inspect (from list_scheduled_tasks).' }),
+  limit: Type.Optional(
+    Type.Number({ description: `Max runs to return, newest first (default ${DEFAULT_RUNS_LIMIT}, max ${MAX_RUNS_LIMIT}).` })
+  ),
+})
+
 function scheduleTool(scheduler: CronScheduler, ctx: ToolRunContext): AgentTool {
   return {
     name: 'schedule_task',
@@ -103,9 +113,37 @@ function cancelTool(scheduler: CronScheduler): AgentTool {
   }
 }
 
+// Render one run record as a history line: when it fired, its outcome, how
+// long it took (or 'running' if unfinished), the produced task, and any error.
+function formatRun(run: ReturnType<CronScheduler['runsForJob']>[number]): string {
+  const when = new Date(run.triggeredAt).toISOString()
+  const took = run.endedAt != null ? `${run.endedAt - run.triggeredAt}ms` : 'running'
+  const task = run.taskId ?? '—'
+  const errSeg = run.error ? ` | ${run.error.length > 80 ? `${run.error.slice(0, 77)}...` : run.error}` : ''
+  return `- [${when}] ${run.status} | ${took} | task ${task}${errSeg}`
+}
+
+function runsTool(scheduler: CronScheduler): AgentTool {
+  return {
+    name: 'list_task_runs',
+    label: 'List task runs',
+    description:
+      'List the execution history (past runs) of one scheduled task by its id, newest first. Each run shows its outcome, duration, the task it produced, and any error.',
+    parameters: RunsParams,
+    execute: async (_id: string, params: unknown) => {
+      const p = params as { id?: string; limit?: number }
+      if (!p.id) return err('id is required')
+      const limit = Math.min(Math.max(Math.trunc(p.limit ?? DEFAULT_RUNS_LIMIT), 1), MAX_RUNS_LIMIT)
+      const runs = scheduler.runsForJob(p.id).slice(0, limit)
+      if (runs.length === 0) return ok(`no runs recorded for ${p.id}`, { id: p.id, count: 0, runs: [] })
+      return ok(runs.map(formatRun).join('\n'), { id: p.id, count: runs.length, runs })
+    },
+  }
+}
+
 // schedule_task is medium risk: it arms future autonomous agent runs, so it
-// goes through the central permission prompt (cf. spawn_sub_agent). list and
-// cancel are low risk — read/cleanup of internal bookkeeping.
+// goes through the central permission prompt (cf. spawn_sub_agent). list,
+// list_task_runs, and cancel are low risk — read/cleanup of internal bookkeeping.
 export function cronSpecs(scheduler: CronScheduler): ToolSpec[] {
   return [
     {
@@ -121,6 +159,13 @@ export function cronSpecs(scheduler: CronScheduler): ToolSpec[] {
       risk: 'low' as const,
       source: 'builtin' as const,
       build: (ctx) => listTool(scheduler, ctx),
+    },
+    {
+      group: 'cron',
+      name: 'list_task_runs',
+      risk: 'low' as const,
+      source: 'builtin' as const,
+      build: () => runsTool(scheduler),
     },
     {
       group: 'cron',
