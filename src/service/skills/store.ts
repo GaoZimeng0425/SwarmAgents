@@ -121,8 +121,11 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
       return { ok: false, code: 'invalid', message: 'Could not read SKILL.md.' }
     }
     const checked = SkillSchema.safeParse(parsed)
-    if (!checked.success)
-      return { ok: false, code: 'invalid', message: checked.error.issues[0]?.message ?? 'invalid skill' }
+    if (!checked.success) {
+      const message = checked.error.issues[0]?.message ?? 'invalid skill'
+      log.warn({ msg: 'importFolder invalid skill', sourceDir, err: message })
+      return { ok: false, code: 'invalid', message }
+    }
     const target = join(dir, checked.data.name)
     if (existsSync(target) && !overwrite) {
       log.warn({ msg: 'importFolder name exists', name: checked.data.name })
@@ -137,7 +140,8 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
       return { ok: false, code: 'write_failed', message: String(err) }
     }
     reload()
-    log.info({ msg: 'importFolder ok', name: checked.data.name, fileCount: listFilesRel(target).length })
+    const fileCount = skills.find((s) => s.name === checked.data.name)?.files?.length ?? 0
+    log.info({ msg: 'importFolder ok', name: checked.data.name, fileCount })
     return { ok: true, skills: merged() }
   }
 
