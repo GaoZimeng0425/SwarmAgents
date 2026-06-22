@@ -83,8 +83,26 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
     ts: z.number(),
   }),
   z.object({ kind: z.literal('reasoning'), content: z.string(), ts: z.number() }),
-  z.object({ kind: z.literal('tool.call'), server: z.string(), tool: z.string(), args: z.unknown(), ts: z.number() }),
-  z.object({ kind: z.literal('tool.result'), ok: z.boolean(), payload: z.unknown(), ts: z.number() }),
+  z.object({
+    kind: z.literal('tool.call'),
+    server: z.string(),
+    tool: z.string(),
+    args: z.unknown(),
+    ts: z.number(),
+    // Correlates a tool.result with its tool.call. Absent on legacy rows; the
+    // segment renderer falls back to FIFO pairing in that case. Required for
+    // correct pairing when several tools run in parallel (result emit order is
+    // completion order, not call order), so each card resolves to a terminal
+    // state instead of one staying "running" forever.
+    callId: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('tool.result'),
+    ok: z.boolean(),
+    payload: z.unknown(),
+    ts: z.number(),
+    callId: z.string().optional(),
+  }),
   z.object({
     kind: z.literal('permission'),
     actionId: z.string(),

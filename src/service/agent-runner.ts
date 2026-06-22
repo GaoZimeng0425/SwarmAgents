@@ -215,6 +215,9 @@ function createEventTranslator(
           tool: e.toolName ?? 'unknown',
           args: e.args ?? {},
           ts: Date.now(),
+          // Correlates start/end so results emitted in completion order (parallel
+          // tool execution) pair with the right call instead of the wrong one.
+          callId: e.toolCallId,
         }
         emit('task.progress', { taskId, event, ts: Date.now() })
         return
@@ -244,6 +247,7 @@ function createEventTranslator(
           ok,
           payload: { kind: 'text', text: payloadText.slice(0, 4000), ...(imagePath ? { imagePath } : {}) },
           ts: Date.now(),
+          callId: e.toolCallId,
         }
         emit('task.progress', { taskId, event, ts: Date.now() })
         return

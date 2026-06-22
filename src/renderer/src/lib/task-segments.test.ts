@@ -191,4 +191,39 @@ describe('taskSegments', () => {
     )
     expect(segs.find((s) => s.kind === 'tool')).toMatchObject({ output: '{\n  "count": 3\n}' })
   })
+
+  it('pairs parallel tool calls by callId even when results arrive out of order', () => {
+    const segs = taskSegments(
+      rec([
+        prog({ kind: 'tool.call', server: 'fs', tool: 'first', args: {}, callId: 'c1', ts: 1 }),
+        prog({ kind: 'tool.call', server: 'fs', tool: 'second', args: {}, callId: 'c2', ts: 2 }),
+        // Parallel execution: the second call finishes first.
+        prog({ kind: 'tool.result', ok: true, payload: { text: 'from second' }, callId: 'c2', ts: 3 }),
+        prog({ kind: 'tool.result', ok: true, payload: { text: 'from first' }, callId: 'c1', ts: 4 }),
+      ])
+    )
+    const tools = segs.filter((s) => s.kind === 'tool')
+    expect(tools).toHaveLength(2)
+    expect(tools[0]).toMatchObject({ tool: 'first', ok: true, output: 'from first' })
+    expect(tools[1]).toMatchObject({ tool: 'second', ok: true, output: 'from second' })
+    // No stray "tool result" rows: every result paired with its call.
+    expect(segs.some((s) => s.kind === 'event')).toBe(false)
+  })
+
+  it('falls back to FIFO pairing for calls without a callId', () => {
+    const segs = taskSegments(
+      rec([
+        prog({ kind: 'tool.call', server: 'fs', tool: 'first', args: {}, ts: 1 }),
+        prog({ kind: 'tool.call', server: 'fs', tool: 'second', args: {}, ts: 2 }),
+        prog({ kind: 'tool.result', ok: true, payload: { text: 'a' }, ts: 3 }),
+        prog({ kind: 'tool.result', ok: true, payload: { text: 'b' }, ts: 4 }),
+      ])
+    )
+    const tools = segs.filter((s) => s.kind === 'tool')
+    // Both resolve (no card stuck running), each to the FIFO-matched result.
+    expect(tools).toHaveLength(2)
+    expect(tools[0]).toMatchObject({ ok: true, output: 'a' })
+    expect(tools[1]).toMatchObject({ ok: true, output: 'b' })
+    expect(segs.some((s) => s.kind === 'event')).toBe(false)
+  })
 })

@@ -63,8 +63,12 @@ export function taskSegments(task: TaskRecord): Segment[] {
 
   // update_plan is rendered by PlanPanel, so its call AND following result are dropped.
   let skipNextToolResult = false
-  // The tool.call awaiting its tool.result, so the pair merges into one segment.
-  let pendingTool: Extract<Segment, { kind: 'tool' }> | null = null
+  // Tools awaiting their tool.result. Keyed by callId when the upstream events
+  // carry one: parallel tool execution emits results in completion order, not
+  // call order, so a single pending slot mispairs (one card stuck "running", a
+  // stray "tool result" row). Calls without a callId fall back to FIFO.
+  const pendingByCallId = new Map<string, Extract<Segment, { kind: 'tool' }>>()
+  const pendingFifo: Extract<Segment, { kind: 'tool' }>[] = []
 
   task.events.forEach((e: UIEvent, i) => {
     const key = `${task.id}-${i}`
@@ -75,15 +79,12 @@ export function taskSegments(task: TaskRecord): Segment[] {
       } else if (ev.kind === 'reasoning') {
         pushReasoning(ev.content, key, e.ts)
       } else if (ev.kind === 'tool.call') {
-        // A new call supersedes any unresolved prior call: drop a stale skip flag
-        // and stop pairing a previous call (it stays in `out`, shown as running).
-        skipNextToolResult = false
-        pendingTool = null
         if (ev.tool === 'update_plan') {
           skipNextToolResult = true
           return
         }
-        pendingTool = {
+        skipNextToolResult = false
+        const seg = {
           kind: 'tool',
           tool: ev.tool,
           ok: null,
@@ -92,18 +93,24 @@ export function taskSegments(task: TaskRecord): Segment[] {
           key,
           taskId: task.id,
           ts: e.ts,
-        }
-        out.push(pendingTool)
+        } as Extract<Segment, { kind: 'tool' }>
+        out.push(seg)
+        if (ev.callId) pendingByCallId.set(ev.callId, seg)
+        else pendingFifo.push(seg)
       } else if (ev.kind === 'tool.result') {
         if (skipNextToolResult) {
           skipNextToolResult = false
           return
         }
-        if (pendingTool) {
-          pendingTool.ok = ev.ok
-          pendingTool.output = toolDetail(ev.payload)
-          pendingTool.imagePath = toolImagePath(ev.payload)
-          pendingTool = null
+        // Prefer an exact callId match (parallel results arrive out of order);
+        // otherwise resolve the oldest call without an id (legacy / sequential).
+        const byId = ev.callId ? pendingByCallId.get(ev.callId) : undefined
+        const target = byId ?? pendingFifo.shift()
+        if (byId && ev.callId) pendingByCallId.delete(ev.callId)
+        if (target) {
+          target.ok = ev.ok
+          target.output = toolDetail(ev.payload)
+          target.imagePath = toolImagePath(ev.payload)
         } else {
           out.push({
             kind: 'event',

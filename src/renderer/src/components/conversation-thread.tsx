@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bot, Brain, ChevronRight, Copy, ExternalLink, MessagesSquare, Trash2 } from 'lucide-react'
+import {
+  Bot,
+  Brain,
+  CheckCircleIcon,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  MessagesSquare,
+  Trash2,
+  Wrench,
+  XCircleIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -24,6 +35,7 @@ import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
+import { groupSegments } from '@/lib/group-segments'
 import { type Segment, taskSegments } from '@/lib/task-segments'
 import { cn } from '@/lib/utils'
 
@@ -145,6 +157,53 @@ function SubagentBlock({
         </span>
       </button>
       {open && segs.map((seg) => renderSegment(seg, seg.key === lastKey))}
+    </div>
+  )
+}
+
+// Collapsible block grouping several tool calls from one turn into a single
+// row. Open while any tool is still running (progress visible), then
+// auto-collapses once every tool settles, matching the ReasoningBlock and
+// SubagentBlock idiom. The user can still toggle via the chevron.
+function ToolGroupBlock({
+  segs,
+  renderSegment,
+}: {
+  segs: Segment[]
+  renderSegment: (seg: Segment, isLiveTail: boolean) => React.JSX.Element
+}): React.JSX.Element {
+  const running = segs.some((s) => s.kind === 'tool' && s.ok === null)
+  const failed = segs.some((s) => s.kind === 'tool' && s.ok === false)
+  const [open, setOpen] = useState(running)
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running) setOpen(false)
+    wasRunning.current = running
+  }, [running])
+
+  const names = Array.from(new Set(segs.map((s) => (s.kind === 'tool' ? s.tool : ''))))
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+      <button
+        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
+        onClick={() => setOpen((v) => !v)}
+        type="button"
+      >
+        <Wrench className={cn('size-3.5', running && 'animate-pulse text-primary')} />
+        <span className="font-semibold uppercase tracking-wider">Tools</span>
+        <span className="text-muted-foreground/60">{segs.length}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground/60">{names.join(', ')}</span>
+        {running ? (
+          <Spinner className="size-3.5 text-primary" />
+        ) : failed ? (
+          <XCircleIcon className="size-3.5 text-red-600" />
+        ) : (
+          <CheckCircleIcon className="size-3.5 text-green-600" />
+        )}
+        <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
+      </button>
+      {open && <div className="mt-3 space-y-3 [&>*]:mb-0">{segs.map((seg) => renderSegment(seg, false))}</div>}
     </div>
   )
 }
@@ -317,8 +376,20 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
                 node: <SubagentBlock key={t.id} lastKey={lastKey} renderSegment={renderSegment} segs={segs} task={t} />,
               })
             } else {
-              for (const seg of segs) {
-                items.push({ ts: seg.ts, order: order++, node: renderSegment(seg, seg.key === lastKey) })
+              for (const item of groupSegments(segs)) {
+                if (item.kind === 'single') {
+                  const seg = item.seg
+                  items.push({ ts: seg.ts, order: order++, node: renderSegment(seg, seg.key === lastKey) })
+                } else {
+                  // A run of consecutive tools collapses into one row at the
+                  // first tool's timestamp; its members render inside the block.
+                  const first = item.segs[0]
+                  items.push({
+                    ts: first.ts,
+                    order: order++,
+                    node: <ToolGroupBlock key={first.key} renderSegment={renderSegment} segs={item.segs} />,
+                  })
+                }
               }
             }
           }
