@@ -20,6 +20,7 @@ export type ServiceMethod =
   | 'listSkills'
   | 'saveSkill'
   | 'deleteSkill'
+  | 'importSkill'
   | 'listMemory'
   | 'getUsageStats'
   | 'listCronJobsForSession'

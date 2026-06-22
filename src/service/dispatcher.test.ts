@@ -23,6 +23,7 @@ const mcpDeps = () => ({
   listSkills: vi.fn().mockReturnValue([]),
   saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   deleteSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
+  importSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   listMemory: vi.fn().mockReturnValue([]),
 })
 
@@ -125,5 +126,13 @@ describe('dispatcher', () => {
     const result = dispatch('getUsageStats', [7])
     expect(getUsageStats).toHaveBeenCalledWith(7)
     expect(result).toEqual({ rangeDays: 7 })
+  })
+
+  it('importSkill forwards sourceDir and overwrite to the store', () => {
+    const deps = mcpDeps()
+    const dispatch = createDispatcher({ manager: mockManager(), registerProvider: vi.fn(), ...deps })
+    const result = dispatch('importSkill', ['/tmp/my-skill', true])
+    expect(deps.importSkill).toHaveBeenCalledWith('/tmp/my-skill', true)
+    expect(result).toEqual({ ok: true, skills: [] })
   })
 })

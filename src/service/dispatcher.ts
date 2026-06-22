@@ -24,6 +24,7 @@ type DispatcherConfig = {
   listSkills(): Skill[]
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
+  importSkill(sourceDir: string, overwrite?: boolean): SkillMutationResult
   listMemory(namespace?: string): MemoryView[]
   listCronJobsForSession(sessionId: string): import('@shared/types/ui').CronJobSummary[]
   listAllCronJobs(): import('@shared/types/ui').ScheduledTask[]
@@ -111,6 +112,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'deleteSkill': {
         const [name] = args as [string]
         return cfg.deleteSkill(name)
+      }
+      case 'importSkill': {
+        const [sourceDir, overwrite] = args as [string, boolean | undefined]
+        return cfg.importSkill(sourceDir, overwrite)
       }
       case 'listMemory': {
         const [namespace] = args as [string | undefined]
