@@ -3,6 +3,7 @@ import { Agent } from '@earendil-works/pi-agent-core'
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
+import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import {
@@ -13,6 +14,7 @@ import {
 } from '@shared/types/provider'
 import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
+import { IdleTimeoutError, type Mailbox } from './actor-mailbox'
 import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
 
@@ -335,7 +337,10 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   // Session-level accumulators — fixed for the whole residency (one budget
   // envelope), persisting across `promptOnce` calls.
   const budget = task.budget
-  let startedAt = Date.now()
+  // wallMs baseline is set ONCE at residency construction, so the wall-clock
+  // budget is cumulative across every `promptOnce` turn (consistent with
+  // `used` calls/cost, which also accumulate over the residency).
+  const startedAt = Date.now()
   const used = { calls: 0, tokens: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 }
   // Latest turn's context occupancy (a snapshot, refreshed each turn_end).
   // This — not cumulative token spend — decides when the conversation no
@@ -591,11 +596,10 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
     goal: string,
     images?: ImageContent[]
   ): Promise<{ status: 'completed' | 'failed' | 'cancelled'; summary: string }> => {
-    // Each turn starts clean for cancel/budget/context detection and resets
-    // the wall-clock baseline used by `overBudget`, while `used` keeps
-    // accumulating across the residency.
+    // Each turn starts clean for cancel/budget/context detection, while
+    // `used` and the wall-clock baseline keep accumulating across the
+    // residency (one budget envelope per residency).
     stopCause = null
-    startedAt = Date.now()
 
     taskLog.info({ msg: 'agent.prompt starting', sessionId })
     const t0 = Date.now()
@@ -697,5 +701,67 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         used: session.getUsed(),
       }
     },
+  }
+}
+
+export type ResidentHooks = {
+  acquireTurnSlot(): Promise<void>
+  releaseTurnSlot(): void
+  onConsumed(msgId: string): void
+  onReply(correlationId: string, summary: string): void
+}
+
+/**
+ * A resident virtual actor: build the agent session once (so its conversation
+ * accumulates across messages), then drain the mailbox one message per turn.
+ * Returns when the mailbox idles out (sleep) or `deps.signal` aborts.
+ *
+ * Payload convention: the message `payload` is the raw goal text — passed
+ * straight to `promptOnce` (Task 6 enqueues the goal string as-is).
+ */
+export async function runResident(
+  deps: AgentRunnerDeps,
+  mailbox: Mailbox,
+  hooks: ResidentHooks,
+  idleMs: number
+): Promise<void> {
+  const residentLog = log.child({ component: 'actor-runtime' })
+  const session = buildAgentSession(deps)
+  residentLog.info({ msg: 'resident-start', address: deps.selfAddress, taskId: deps.task.id })
+  for (;;) {
+    if (deps.signal?.aborted) {
+      residentLog.info({ msg: 'resident aborted', address: deps.selfAddress })
+      return
+    }
+    let msg: ActorMessage
+    try {
+      msg = await mailbox.receive({ idleMs })
+    } catch (err) {
+      if (err instanceof IdleTimeoutError) {
+        residentLog.info({ msg: 'idle-sleep', address: deps.selfAddress })
+        return
+      }
+      throw err
+    }
+    await hooks.acquireTurnSlot()
+    try {
+      residentLog.info({ msg: 'turn-start', address: deps.selfAddress, msgId: msg.id, kind: msg.kind })
+      const { summary } = await session.promptOnce(msg.payload)
+      hooks.onConsumed(msg.id)
+      if (msg.kind === 'rpc' && msg.correlationId) hooks.onReply(msg.correlationId, summary)
+      residentLog.info({ msg: 'turn-end', address: deps.selfAddress, msgId: msg.id })
+    } catch (err) {
+      residentLog.error({
+        msg: 'resident turn failed',
+        address: deps.selfAddress,
+        msgId: msg.id,
+        err: err instanceof Error ? err.message : String(err),
+      })
+      // Surface the failure to the orchestrator; retry/deadletter is decided
+      // by the session-manager (see Task 6/8).
+      throw err
+    } finally {
+      hooks.releaseTurnSlot()
+    }
   }
 }
