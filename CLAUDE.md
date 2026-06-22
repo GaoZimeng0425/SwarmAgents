@@ -97,6 +97,23 @@ Rules:
 
 The test: pick any business path you touched; reading only the log lines, you can tell it ran, with what inputs, and exactly where it broke.
 
+## 6. Use Worktrees for Feature Work
+
+**Implement each feature in its own git worktree, so multiple tasks can run in parallel without colliding.**
+
+A worktree gives every task an isolated checkout on its own branch, sharing the same `.git`.
+This lets several features/fixes proceed simultaneously — independent edits, builds, and test
+runs — without one task's uncommitted changes contaminating another.
+
+Rules:
+- Start each feature or fix in a dedicated worktree on its own branch — don't pile unrelated
+  work onto a single working directory.
+- Keep tasks that touch overlapping files out of separate worktrees (they'd conflict on merge);
+  reserve parallel worktrees for genuinely independent work.
+- When a task is done, merge/PR its branch and remove the worktree to keep the tree clean.
+- Prefer this project's native worktree tooling when available; otherwise fall back to
+  `git worktree add`.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
