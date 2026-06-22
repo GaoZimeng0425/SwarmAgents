@@ -112,4 +112,92 @@ describe('actor persistence', () => {
     store.markDead('m1')
     expect(store.nextUnconsumedFor('ghost')).toBeUndefined() // dead excluded
   })
+
+  it('listUnconsumedAddresses returns distinct addrs with pending, non-dead messages', () => {
+    store.upsertActor({
+      address: 'a1',
+      agentDefId: 'default',
+      sessionId: 's1',
+      name: null,
+      state: null,
+      lastTaskId: null,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    store.enqueueMessage({
+      id: 'm1',
+      toAddr: 'a1',
+      fromAddr: null,
+      kind: 'send',
+      correlationId: null,
+      payload: 'x',
+      consumed: false,
+      retries: 0,
+      dead: false,
+      ts: 1,
+    })
+    store.enqueueMessage({
+      id: 'm2',
+      toAddr: 'a1',
+      fromAddr: null,
+      kind: 'send',
+      correlationId: null,
+      payload: 'y',
+      consumed: true,
+      retries: 0,
+      dead: false,
+      ts: 2,
+    })
+    expect(store.listUnconsumedAddresses()).toEqual(['a1'])
+  })
+
+  it('allUnconsumedFor returns all pending, non-dead messages in ts order', () => {
+    store.upsertActor({
+      address: 'a1',
+      agentDefId: 'default',
+      sessionId: 's1',
+      name: null,
+      state: null,
+      lastTaskId: null,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    store.enqueueMessage({
+      id: 'later',
+      toAddr: 'a1',
+      fromAddr: null,
+      kind: 'send',
+      correlationId: null,
+      payload: 'b',
+      consumed: false,
+      retries: 0,
+      dead: false,
+      ts: 20,
+    })
+    store.enqueueMessage({
+      id: 'earlier',
+      toAddr: 'a1',
+      fromAddr: null,
+      kind: 'send',
+      correlationId: null,
+      payload: 'a',
+      consumed: false,
+      retries: 0,
+      dead: false,
+      ts: 10,
+    })
+    store.enqueueMessage({
+      id: 'done',
+      toAddr: 'a1',
+      fromAddr: null,
+      kind: 'send',
+      correlationId: null,
+      payload: 'c',
+      consumed: true,
+      retries: 0,
+      dead: false,
+      ts: 30,
+    })
+    expect(store.allUnconsumedFor('a1').map((m) => m.id)).toEqual(['earlier', 'later'])
+  })
 })

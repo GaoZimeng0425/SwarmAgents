@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { createConversationStore } from './conversation-store'
 import { createSessionManager } from './session-manager'
 
-// Stub createAgentRunner so a "run" just echoes the goal as its summary.
+// Stub the agent-runner so a "turn" just echoes the delivered goal as its
+// summary. runResident drains the mailbox, marks each message consumed, and
+// replies to rpc messages via onReply — mirroring the real resident loop.
 vi.mock('./agent-runner', () => ({
   createAgentRunner: (deps: any) => ({
     run: async () => ({
@@ -13,6 +15,21 @@ vi.mock('./agent-runner', () => ({
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
     }),
   }),
+  buildAgentSession: () => ({}),
+  runResident: async (_deps: any, mailbox: any, hooks: any, _idleMs: number) => {
+    for (;;) {
+      let msg
+      try {
+        msg = await mailbox.receive({ idleMs: 5 })
+      } catch {
+        return
+      }
+      await hooks.acquireTurnSlot()
+      hooks.releaseTurnSlot()
+      hooks.onConsumed(msg.id)
+      if (msg.kind === 'rpc' && msg.correlationId) hooks.onReply(msg.correlationId, `ran:${msg.payload}`)
+    }
+  },
 }))
 
 const noopBroadcaster = { broadcast: () => {} }

@@ -1,6 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { DEFAULT_AGENT_DEF } from '@shared/agents/builtins'
 import { createLogger } from '@shared/logger'
+import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
@@ -9,18 +10,27 @@ import type { Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shar
 import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
-import { createAgentRunner } from './agent-runner'
+import { createMailbox } from './actor-mailbox'
+import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
 import { withAgentTypes } from './agents/prompt'
 import type { AgentStore } from './agents/store'
 import type { Broadcaster } from './broadcaster'
 import type { ConversationStore } from './conversation-store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
+import { createReplyRegistry } from './reply-registry'
 import { withSkills } from './skills/prompt'
 import type { SkillStore } from './skills/store'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry, type ToolRegistry } from './tools/registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
+
+// A resident actor sleeps (its loop returns) after this long with an empty mailbox.
+const IDLE_TIMEOUT_MS = 30_000
+// Max per-message turn failures before the message is dead-lettered.
+const MAX_RETRIES = 3
+// How long an rpc caller waits for the resident's reply before resolving to ''.
+const RPC_TIMEOUT_MS = 120_000
 
 // Plan mode is read-only: it grants inspection tools but no shell, no fs writes,
 // and no peekaboo interactions, so the agent physically cannot mutate anything
@@ -119,8 +129,12 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   let activeRunners = 0
   const waitQueue: Array<() => void> = []
-  // Live runs, keyed by taskId, so cancelTask can abort a specific in-flight run.
-  const runHandles = new Map<string, AbortController>()
+  // One-shot task runs, keyed by taskId, so cancelTask can abort a specific in-flight run.
+  const oneShotHandles = new Map<string, AbortController>()
+  // Resident actor run-loops, keyed by actor address. Populated in Task 6.
+  const residentHandles = new Map<string, { abort(): void; deliver(msg: ActorMessage): void }>()
+  // Matches inbound rpc replies (by correlationId) to their awaiting callers.
+  const replyRegistry = createReplyRegistry()
 
   async function acquireSlot(): Promise<void> {
     if (activeRunners < cfg.maxConcurrent) {
@@ -197,24 +211,27 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const resolveAddress = (sessionId: string, to: string): import('@shared/types/actor').Actor | undefined =>
     store.getActor(to) ?? store.getActorByName(sessionId, to)
 
-  // Run one activation of an addressable actor with `goal` as its input. Mirrors
-  // spawnChild's run path: acquire a slot, build a runner, execute once, persist
-  // the terminal status. Returns the run summary (the rpc reply).
-  const activateActor = async (
+  // Spawn ONE resident run-loop for an actor: create the residency Task, a
+  // mailbox, and an abort handle; register the handle synchronously (before
+  // runResident's first `await mailbox.receive()`) so a delivery issued right
+  // after spawn is queued and picked up on the first receive (no race). The
+  // loop drains messages one turn at a time and returns when it idles out or
+  // aborts, at which point the Task is marked terminal and the handle dropped.
+  const spawnResident = (
     sessionId: string,
-    actor: import('@shared/types/actor').Actor,
-    goal: string
-  ): Promise<string> => {
+    actor: import('@shared/types/actor').Actor
+  ): { abort(): void; deliver(msg: ActorMessage): void } => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
     const def = cfg.agentStore?.get(actor.agentDefId) ?? DEFAULT_AGENT_DEF
+    // One Task per residency (not per message).
     const taskId = ulid()
     const now = Date.now()
     const task: Task = {
       id: taskId,
       parentId: null,
       agentDefId: def.id,
-      goal,
+      goal: `actor:${actor.address}`,
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: deriveAllowlist(def.toolScope),
@@ -229,13 +246,40 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     store.saveTask(task, sessionId)
     store.upsertActor({ ...actor, lastTaskId: taskId, updatedAt: now })
-    broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments: [], agentDefId: def.id, ts: now })
-    log.info({ msg: 'actor activated', sessionId, address: actor.address, taskId, agentDefId: def.id })
+    broadcaster.broadcast('task.created', {
+      sessionId,
+      taskId,
+      goal: task.goal,
+      attachments: [],
+      agentDefId: def.id,
+      ts: now,
+    })
 
-    await acquireSlot()
+    const mailbox = createMailbox()
     const abort = new AbortController()
-    runHandles.set(taskId, abort)
-    const runner = createAgentRunner({
+    const handle = { abort: () => abort.abort(), deliver: (m: ActorMessage) => mailbox.deliver(m) }
+    // Register synchronously so the immediately-following deliver is queued.
+    residentHandles.set(actor.address, handle)
+    log.info({ msg: 'resident spawned', sessionId, address: actor.address, taskId })
+
+    const hooks: ResidentHooks = {
+      acquireTurnSlot: () => acquireSlot(),
+      releaseTurnSlot: () => releaseSlot(),
+      onConsumed: (msgId) => store.markConsumed(msgId),
+      onReply: (correlationId, summary) => replyRegistry.resolve(correlationId, summary),
+      // Per-message retry/deadletter: bump the retry count; once it exceeds the
+      // limit, dead-letter so it stops being re-drained. The loop keeps running.
+      onError: (msgId) => {
+        const n = store.bumpRetries(msgId)
+        if (n > MAX_RETRIES) {
+          store.markDead(msgId)
+          log.error({ msg: 'message dead-lettered', sessionId, address: actor.address, msgId, retries: n })
+        } else {
+          log.warn({ msg: 'message turn failed, will retry', sessionId, address: actor.address, msgId, retries: n })
+        }
+      },
+    }
+    const deps: AgentRunnerDeps = {
       task,
       provider: def.model ? { ...session.provider, model: def.model } : session.provider,
       agentDefinition: withPrompt(def),
@@ -248,29 +292,28 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       selfAddress: actor.address,
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
-    })
-    try {
-      const { status, summary } = await runner.run()
-      store.updateTaskStatus(taskId, status)
-      return summary
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      log.error({ msg: 'actor activation failed', address: actor.address, taskId, err: message })
-      try {
-        store.appendTaskEvent(taskId, {
-          kind: 'error',
-          error: { code: 'run_failed', message, tier: 'fatal' },
-          ts: Date.now(),
-        })
-        store.updateTaskStatus(taskId, 'failed')
-      } catch (persistErr) {
-        log.error({ msg: 'failed to persist activation error', taskId, err: String(persistErr) })
-      }
-      return ''
-    } finally {
-      runHandles.delete(taskId)
-      releaseSlot()
     }
+    void runResident(deps, mailbox, hooks, IDLE_TIMEOUT_MS)
+      .then(() => store.updateTaskStatus(taskId, 'completed'))
+      .catch((err) => {
+        log.error({ msg: 'resident loop failed', sessionId, address: actor.address, taskId, err: String(err) })
+        store.updateTaskStatus(taskId, 'failed')
+      })
+      .finally(() => {
+        // Close the idle-sleep vs live-deliver race: a sendMessage can fetch
+        // this still-registered handle and deliver() into the mailbox in the
+        // window AFTER runResident exited on idle-timeout but BEFORE we delete
+        // the handle here. Such a message would land in a mailbox with no
+        // receiver. But every message is enqueueMessage'd in the DB before
+        // delivery, so any "lost" delivery is still an unconsumed DB row.
+        // Delete the handle first, then re-drain: redrainAddress re-spawns only
+        // if unconsumed rows remain. Bounded: consumed rows are markConsumed'd
+        // and failing rows hit the 3-retry deadletter (markDead), so
+        // allUnconsumedFor eventually returns empty — no infinite loop.
+        residentHandles.delete(actor.address)
+        redrainAddress(actor.address)
+      })
+    return handle
   }
 
   const sendMessage = async (
@@ -302,15 +345,36 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     log.info({ msg: 'message sent', sessionId, fromAddr, toAddr: target.address, kind, correlationId: msgId })
 
+    // Resolve-or-spawn the resident loop, then deliver. The payload is the raw
+    // goal text; runResident passes msg.payload straight to promptOnce.
+    const handle = residentHandles.get(target.address) ?? spawnResident(sessionId, target)
+    handle.deliver({
+      id: msgId,
+      toAddr: target.address,
+      fromAddr,
+      kind,
+      correlationId: kind === 'rpc' ? msgId : null,
+      payload,
+      consumed: false,
+      retries: 0,
+      dead: false,
+      ts: now,
+    })
     if (kind === 'rpc') {
-      const reply = await activateActor(sessionId, target, payload)
-      store.markConsumed(msgId)
-      return { reply }
+      // The caller (fromAddr) is mid-turn and holds a turn-slot. Yield it while we
+      // await the reply so the callee can acquire a slot — this is what prevents
+      // deadlock under maxConcurrent. Re-acquire before returning to the caller's loop.
+      // Infer "caller holds a turn-slot" from "caller has a registered resident
+      // loop". Valid ONLY because a resident issues rpc exclusively from inside
+      // its slot-holding promptOnce, and issues them serially.
+      const callerHoldsSlot = !!fromAddr && residentHandles.has(fromAddr)
+      if (callerHoldsSlot) releaseSlot()
+      try {
+        return { reply: await replyRegistry.awaitReply(msgId, RPC_TIMEOUT_MS) }
+      } finally {
+        if (callerHoldsSlot) await acquireSlot()
+      }
     }
-    // fire-and-forget: activate without blocking; mark consumed when done.
-    void activateActor(sessionId, target, payload)
-      .then(() => store.markConsumed(msgId))
-      .catch((err) => log.error({ msg: 'fire-and-forget activation rejected', msgId, err: String(err) }))
     return { delivered: true }
   }
 
@@ -380,7 +444,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const startChild = async (): Promise<void> => {
         await acquireSlot()
         const abort = new AbortController()
-        runHandles.set(childTaskId, abort)
+        oneShotHandles.set(childTaskId, abort)
         const runner = createAgentRunner({
           task: childTask,
           provider: resolvedProvider,
@@ -424,7 +488,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           // Resolve (not reject) so the parent's spawn tool gets a result and continues.
           resolve({ childTaskId, result: { summary: '', artifacts: [] } })
         } finally {
-          runHandles.delete(childTaskId)
+          oneShotHandles.delete(childTaskId)
           releaseSlot()
         }
       }
@@ -447,6 +511,35 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(sessionId, 'active')
     sessions.set(sessionId, rehydrated)
     return rehydrated
+  }
+
+  // Re-activate an addressed actor and re-deliver ALL its pending (unconsumed)
+  // DB messages in ts order, so the resident loop drains them as it would live.
+  // Used both for startup crash recovery and for the post-completion re-drain
+  // that closes the idle-sleep vs live-deliver race (see spawnResident's
+  // .finally). Re-spawns only when unconsumed rows remain, so it is a no-op for
+  // an address whose mailbox is already empty.
+  //
+  // NOTE: after a crash/restart re-drain, an rpc message's original caller is
+  // gone (its awaitReply promise died with the previous process), so when the
+  // resident later calls replyRegistry.resolve it finds no waiter and warns
+  // ("rpc reply has no waiter (caller gone)") — this is expected, not a bug.
+  function redrainAddress(address: string): void {
+    const actor = store.getActor(address)
+    if (!actor || !actor.sessionId) return
+    const pending = store.allUnconsumedFor(address)
+    if (pending.length === 0) return
+    const session = getOrRehydrate(actor.sessionId)
+    if (!session) return
+    const handle = residentHandles.get(address) ?? spawnResident(actor.sessionId, actor)
+    for (const msg of pending) handle.deliver(msg)
+    log.info({ msg: 'redrain', address, sessionId: actor.sessionId, pending: pending.length })
+  }
+
+  // Crash recovery: a previous run may have left messages enqueued but never
+  // delivered. Re-drain each addressed actor on startup.
+  for (const address of store.listUnconsumedAddresses()) {
+    redrainAddress(address)
   }
 
   return {
@@ -528,7 +621,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const runTurn = async (): Promise<void> => {
         await acquireSlot()
         const abort = new AbortController()
-        runHandles.set(taskId, abort)
+        oneShotHandles.set(taskId, abort)
         const runner = createAgentRunner({
           task,
           provider: session.provider,
@@ -569,7 +662,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           }
           onComplete?.('failed', message)
         } finally {
-          runHandles.delete(taskId)
+          oneShotHandles.delete(taskId)
           releaseSlot()
         }
       }
@@ -584,7 +677,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     cancelTask(sessionId, taskId) {
       log.info({ msg: 'task cancel requested', sessionId, taskId })
-      runHandles.get(taskId)?.abort()
+      oneShotHandles.get(taskId)?.abort()
     },
 
     endSession(sessionId) {
@@ -596,7 +689,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     deleteSession(sessionId) {
       log.info({ msg: 'session deleted', sessionId })
       // Abort any in-flight runs for this session before dropping its rows.
-      for (const t of store.getSessionTasks(sessionId)) runHandles.get(t.id)?.abort()
+      for (const t of store.getSessionTasks(sessionId)) oneShotHandles.get(t.id)?.abort()
       sessions.delete(sessionId)
       store.deleteSession(sessionId)
     },
