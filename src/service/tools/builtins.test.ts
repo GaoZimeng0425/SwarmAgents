@@ -28,7 +28,7 @@ describe('registerBuiltinTools', () => {
     return r
   }
 
-  it('registers the two peekaboo tools and the spawn tool', () => {
+  it('registers the peekaboo, spawn, and messaging agent tools', () => {
     const ids = make()
       .list()
       .map((s) => `${s.group}.${s.name}`)

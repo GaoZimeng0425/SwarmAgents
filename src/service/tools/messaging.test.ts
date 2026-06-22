@@ -32,4 +32,10 @@ describe('messaging tools', () => {
     const res = await tool.execute('id', {})
     expect(res.content[0].text).toContain('me')
   })
+
+  it('whoami returns the fallback when selfAddress is absent', async () => {
+    const tool = whoamiSpec().build(ctx({ selfAddress: undefined }))
+    const res = await tool.execute('id', {})
+    expect(res.content[0].text).toContain('no address: this agent is not addressable')
+  })
 })
