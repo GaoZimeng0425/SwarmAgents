@@ -31,6 +31,16 @@ function fakeScheduler(): CronScheduler {
     start: vi.fn(),
     runJobNow: vi.fn(),
     dispose: vi.fn(),
+    latestRunForJob: vi.fn(() => ({
+      id: 'run-1',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: 'task-1',
+      status: 'completed',
+      triggeredAt: 1_700_000_000_000,
+      endedAt: 1_700_000_000_500,
+      error: null,
+    })),
   }
 }
 
@@ -85,6 +95,19 @@ describe('cronSpecs', () => {
     const res = await tool.execute('id', {})
     expect(sched.listForSession).toHaveBeenCalledWith('ses-1')
     expect(text(res as never)).toContain('nightly')
+    // execution status surfaced from the latest run
+    expect(sched.latestRunForJob).toHaveBeenCalledWith('job-1')
+    expect(text(res as never)).toContain('last completed')
+  })
+
+  it('list_scheduled_tasks shows "never" when a job has not run yet', async () => {
+    const sched = fakeScheduler()
+    ;(sched.latestRunForJob as ReturnType<typeof vi.fn>).mockReturnValue(null)
+    const tool = cronSpecs(sched)
+      .find((s) => s.name === 'list_scheduled_tasks')!
+      .build(ctx)
+    const res = await tool.execute('id', {})
+    expect(text(res as never)).toContain('last never')
   })
 
   it('cancel_scheduled_task removes by id', async () => {

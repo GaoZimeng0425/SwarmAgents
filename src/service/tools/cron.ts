@@ -55,20 +55,35 @@ function scheduleTool(scheduler: CronScheduler, ctx: ToolRunContext): AgentTool 
   }
 }
 
+// Render a job's most recent run as a compact status segment. Failed/error
+// runs append a truncated error so the cause is visible without a follow-up.
+function formatLastRun(run: ReturnType<CronScheduler['latestRunForJob']>): string {
+  if (!run) return 'last never'
+  const when = new Date(run.triggeredAt).toISOString()
+  if (run.error) {
+    const e = run.error.length > 60 ? `${run.error.slice(0, 57)}...` : run.error
+    return `last ${run.status} @ ${when} (${e})`
+  }
+  return `last ${run.status} @ ${when}`
+}
+
 function listTool(scheduler: CronScheduler, ctx: ToolRunContext): AgentTool {
   return {
     name: 'list_scheduled_tasks',
     label: 'List scheduled tasks',
-    description: 'List the scheduled (cron) tasks for this session.',
+    description: 'List the scheduled (cron) tasks for this session, each with its most recent execution status.',
     parameters: Type.Object({}),
     execute: async () => {
       const jobs = scheduler.listForSession(ctx.sessionId)
       if (jobs.length === 0) return ok('no scheduled tasks', { count: 0 })
-      const lines = jobs.map(
-        (j) =>
-          `- [${j.id}] ${j.name ?? '(unnamed)'} | ${j.cron} | next ${j.nextRun ? new Date(j.nextRun).toISOString() : 'n/a'} | ${j.goal}`
-      )
-      return ok(lines.join('\n'), { count: jobs.length })
+      const detailJobs: Array<{ id: string; lastRun: ReturnType<CronScheduler['latestRunForJob']> }> = []
+      const lines = jobs.map((j) => {
+        const lastRun = scheduler.latestRunForJob(j.id)
+        detailJobs.push({ id: j.id, lastRun })
+        const next = j.nextRun ? new Date(j.nextRun).toISOString() : 'n/a'
+        return `- [${j.id}] ${j.name ?? '(unnamed)'} | ${j.cron} | next ${next} | ${formatLastRun(lastRun)} | ${j.goal}`
+      })
+      return ok(lines.join('\n'), { count: jobs.length, jobs: detailJobs })
     },
   }
 }

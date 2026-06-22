@@ -2,7 +2,7 @@ import { createLogger } from '@shared/logger'
 import { CronJob } from 'cron'
 import { ulid } from 'ulid'
 
-import type { ConversationStore, StoredCronJob } from './conversation-store'
+import type { ConversationStore, StoredCronJob, StoredCronRun } from './conversation-store'
 
 const log = createLogger({ process: 'service' }).child({ component: 'cron-scheduler' })
 
@@ -12,6 +12,8 @@ export type CronScheduler = {
   remove(id: string): boolean
   listForSession(sessionId: string): Array<StoredCronJob & { nextRun: number | null }>
   listAll(): Array<StoredCronJob & { nextRun: number | null }>
+  /** The most recent run record for a job, or null if it has never fired. */
+  latestRunForJob(id: string): StoredCronRun | null
   /** Re-schedule every persisted job. Call once on startup. */
   start(): void
   /** Test seam: run a scheduled job's tick body immediately. */
@@ -138,6 +140,10 @@ export function createCronScheduler(deps: {
         ...j,
         nextRun: live.get(j.id)?.nextDate().toMillis() ?? null,
       }))
+    },
+    latestRunForJob(id) {
+      // listCronRunsForJob is ordered newest-first, so the head is the latest.
+      return store.listCronRunsForJob(id)[0] ?? null
     },
     start() {
       for (const job of store.listCronJobs()) {
