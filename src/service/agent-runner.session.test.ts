@@ -71,4 +71,11 @@ describe('buildAgentSession', () => {
     expect(prompts).toEqual(['first', 'second'])
     expect(s.agent.state.messages.map((m) => m.content)).toEqual(['first', 'ack:first', 'second', 'ack:second'])
   })
+
+  it('exposes contextWindow and a getContextTokens snapshot', () => {
+    const s = buildAgentSession(deps())
+    expect(typeof s.contextWindow).toBe('number')
+    expect(s.contextWindow).toBeGreaterThan(0)
+    expect(s.getContextTokens()).toBe(0) // no turn run yet
+  })
 })

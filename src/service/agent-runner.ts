@@ -144,6 +144,10 @@ export type AgentSession = {
   readonly agent: Agent
   getUsed(): ConsumedResources
   abort(): void
+  // Latest turn's context occupancy + the model window — drives the resident
+  // loop's compaction check (reuses the snapshot refreshed at each turn_end).
+  readonly contextWindow: number
+  getContextTokens(): number
 }
 
 /**
@@ -371,6 +375,8 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
     agent: { state: { messages: initialMessages } } as unknown as Agent,
     getUsed: () => emptyUsed(),
     abort: () => undefined,
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    getContextTokens: () => 0,
   })
 
   if (!provider.apiKey) {
@@ -681,6 +687,8 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
     agent,
     getUsed: snapshotUsed,
     abort: () => agent.abort(),
+    contextWindow: model.contextWindow,
+    getContextTokens: () => contextTokens,
   }
 }
 
