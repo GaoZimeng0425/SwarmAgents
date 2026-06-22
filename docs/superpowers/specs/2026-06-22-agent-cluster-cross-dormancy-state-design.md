@@ -94,24 +94,32 @@ if (actor.state && restored.length === 0)
 
 **hook 签名扩展**:`onConsumed(msgId)` → `onConsumed(msgId, state: string)`。`ResidentHooks` 仅 `runResident` 使用,改动内聚。
 
-**`runResident` 循环**,每轮 `promptOnce` 成功后(在 agent-runner,因 `compact()` 异步且 mutate agent):
+**复用既有 token 计量**:`buildAgentSession` 内部已在每个 `turn_end` 维护 `contextTokens`(`agent-runner.ts:562` = `usage.input + cacheRead + cacheWrite + output`)与 `model.contextWindow`。`AgentSession` 暴露二者即可,**不**重算(注意 pi 的 `calculateContextTokens(usage: Usage)` 接收的是 `Usage` 而非 messages,不直接适用)。`AgentSession` 加:
 
+```ts
+readonly contextWindow: number
+getContextTokens(): number   // 返回最近 turn_end 刷新的 contextTokens
 ```
+
+**`runResident` 循环**,每轮 `promptOnce` 成功后(在 agent-runner,因 `compact()` 异步且 mutate agent),`hooks.onConsumed(msg.id)` 改为带 state:
+
+```ts
 const { summary } = await session.promptOnce(msg.payload)
-// 压缩检查(失败不致命,见 §5)
+// 压缩检查(失败不致命,见 §5)。shouldCompact/DEFAULT_COMPACTION_SETTINGS 从
+// '@earendil-works/pi-agent-core' 包根 ESM 导入(与现有 Agent 同源)。
 try {
-  const tokens = calculateContextTokens(session.agent.state.messages)
-  if (shouldCompact(tokens, model.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
+  if (shouldCompact(session.getContextTokens(), session.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
     const { tokensBefore } = await session.agent.compact()
-    log.info({ msg: 'compacted', address, tokensBefore, component: 'actor-state' })
+    residentLog.info({ msg: 'compact', address: deps.selfAddress, tokensBefore, component: 'actor-state' })
   }
-} catch (err) { log.error({ msg: 'compact failed, persisting uncompacted', address, err: String(err), component: 'actor-state' }) }
+} catch (err) {
+  residentLog.error({ msg: 'compact-failed', address: deps.selfAddress, err: String(err), component: 'actor-state' })
+}
 const state = encodeActorState(session.agent.state.messages)
-hooks.onConsumed(msg.id, state)            // 原子 markConsumed + upsertActor
+hooks.onConsumed(msg.id, state)            // 原子:markConsumed + UPDATE actors.state
 if (msg.kind === 'rpc' && msg.correlationId) hooks.onReply(msg.correlationId, summary)
 ```
 
-- `model`/`contextWindow` 在 `buildAgentSession` 作用域内可得(`saveSnapshot` 已用),需经 `AgentSession` 暴露(如 `session.contextWindow`)或在循环内从 `session` 读取。
 - 空闲超时退出**无需**额外持久化:最后消费的 turn 已落库,之后无新 turn。
 
 ### 4.4 原子持久化(组件 4,改 `conversation-store` + `spawnResident` hook)
@@ -165,7 +173,7 @@ onConsumed: (msgId, state) =>
 - **编解码(`actor-state.ts`)**:`encode` 后 `decode` 往返一致;`null`/坏 JSON/`v` 不符 → `[]`,不抛。
 - **原子性(`consumeAndPersist`)**:成功后 `messages.consumed=1` 且 `actors.state` 已更新;事务内任一步抛错 → 二者皆回滚(消息仍 `consumed=0`)。
 - **重放连贯**:持久化 m1 对话 → 重新激活 → 第二条消息的 `promptOnce` 能看到 m1 历史(stub agent 记录收到的 `initialMessages`)。
-- **压缩**:`calculateContextTokens` 超阈值 → `agent.compact()` 被调、落库 state 的 messages 数变小;未超 → 不压缩。
+- **压缩**:`session.getContextTokens()` 超阈值(`shouldCompact` 真)→ `agent.compact()` 被调、落库 state 的 messages 数变小;未超 → 不压缩。
 - **压缩失败兜底**:`compact()` 抛错 → 仍持久化(未压缩)+ `error` 日志,循环不中断。
 - **解码失败重启**:坏 `actor.state` → `spawnResident` 以空历史启动 + `warn`,不崩。
 - **回归**:一次性 `run()` / 旧式 `spawnChild` / 顶层 `submitGoal` 不写 `actor.state`,行为不变;计划 A/B 全部测试在新 hook 签名下仍绿。
