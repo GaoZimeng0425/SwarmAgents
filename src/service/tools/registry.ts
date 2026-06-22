@@ -12,7 +12,7 @@ export type ToolSource = 'builtin' | 'mcp'
 export interface ToolRunContext {
   /** The session this task runs in. Tools that create session-scoped state (e.g. cron) bind to it. */
   sessionId: string
-  taskId: string
+  taskId?: string
   /**
    * Composer-chosen working directory for this task. Filesystem tools resolve
    * relative paths against it and shell runs there; absent → the user's home.
@@ -32,6 +32,12 @@ export interface ToolRunContext {
     summary: string
     payload: unknown
   }) => Promise<PermissionDecision>
+  /** This agent's stable address, if it was activated as an addressable actor. */
+  selfAddress?: string
+  /** Fire-and-forget message to another actor (by address or session-scoped name). */
+  sendMessage(to: string, payload: string): Promise<void>
+  /** RPC: deliver to another actor and await its reply summary. */
+  sendAndWait(to: string, payload: string): Promise<string>
 }
 
 export interface ToolSpec {

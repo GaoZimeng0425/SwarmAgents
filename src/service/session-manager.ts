@@ -248,7 +248,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       selfAddress: actor.address,
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
-    } as any)
+    })
     try {
       const { status, summary } = await runner.run()
       store.updateTaskStatus(taskId, status)

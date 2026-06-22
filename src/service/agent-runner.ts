@@ -105,6 +105,15 @@ export type AgentRunnerDeps = {
     providerKey?: string,
     agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
+  /** This run's actor address, when activated via activateActor. */
+  selfAddress?: string
+  /** Deliver a message to another actor. rpc awaits a reply; send is fire-and-forget. */
+  sendMessage?(
+    from: string | null,
+    to: string,
+    payload: string,
+    kind: 'send' | 'rpc'
+  ): Promise<{ reply: string } | { delivered: true }>
 }
 
 export type AgentRunner = {
@@ -114,6 +123,32 @@ export type AgentRunner = {
     messages: AgentMessage[]
     used: ConsumedResources
   }>
+}
+
+/**
+ * Assemble a ToolRunContext from AgentRunnerDeps.
+ * Exported for unit testing; callers should use createAgentRunner for production use.
+ */
+export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
+  return {
+    sessionId: deps.sessionId,
+    taskId: deps.task?.id,
+    cwd: deps.task?.cwd,
+    spawnChild: (goal, suggestedTools, providerKey, agentType) =>
+      deps.spawnChild(deps.task?.id ?? '', goal, suggestedTools, providerKey, agentType),
+    send: () => undefined,
+    // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
+    // This stub satisfies the ToolRunContext type without creating a second gate.
+    requestPermission: () => Promise.resolve('grant' as const),
+    selfAddress: deps.selfAddress,
+    sendMessage: async (to, payload) => {
+      await deps.sendMessage?.(deps.selfAddress ?? null, to, payload, 'send')
+    },
+    sendAndWait: async (to, payload) => {
+      const res = await deps.sendMessage?.(deps.selfAddress ?? null, to, payload, 'rpc')
+      return res && 'reply' in res ? res.reply : ''
+    },
+  }
 }
 
 /**
@@ -251,17 +286,8 @@ function composeSystemPrompt(base: string, task: Task): string {
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
     async run(): Promise<{ status: 'completed' | 'failed'; summary: string; messages: AgentMessage[] }> {
-      const {
-        task,
-        provider,
-        agentDefinition,
-        sessionId,
-        emit,
-        permissionRegistry,
-        spawnChild,
-        initialMessages,
-        toolRegistry,
-      } = deps
+      const { task, provider, agentDefinition, sessionId, emit, permissionRegistry, initialMessages, toolRegistry } =
+        deps
       const taskLog = log.child({ taskId: task.id })
       taskLog.info({
         msg: 'createAgentRunner.run entered',
@@ -292,17 +318,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       let riskOf: (name: string, args?: unknown) => ToolRisk
       let model: Model<Api>
       try {
-        const runCtx: ToolRunContext = {
-          sessionId,
-          taskId: task.id,
-          cwd: task.cwd,
-          spawnChild: (goal, suggestedTools, providerKey, agentType) =>
-            spawnChild(task.id, goal, suggestedTools, providerKey, agentType),
-          send: () => undefined,
-          // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
-          // This stub satisfies the ToolRunContext type without creating a second gate.
-          requestPermission: () => Promise.resolve('grant' as const),
-        }
+        const runCtx = buildToolContext(deps)
         const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
         tools = resolved.tools
         riskOf = resolved.riskOf
