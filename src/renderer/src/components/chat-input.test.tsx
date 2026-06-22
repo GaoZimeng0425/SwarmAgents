@@ -35,19 +35,30 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+// The execution-mode toggle (goal/plan) was folded into the "＋" add-menu in the
+// footer, so its label is only mounted once that menu is open. Open it via the
+// menu trigger (the icon-only button carrying aria-haspopup="menu").
+function openAddMenu() {
+  const trigger = document.querySelector('[aria-haspopup="menu"]')
+  if (!trigger) throw new Error('add-menu trigger not found')
+  fireEvent.click(trigger)
+}
+
 describe('ChatInput composer controls', () => {
-  it('renders the working-directory chip plus the permission and execution selects', () => {
+  it('renders the working-directory chip plus the permission select, and the execution mode in the add-menu', async () => {
     render(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
     expect(screen.getByText('工作目录')).toBeInTheDocument()
     expect(screen.getByText('询问权限')).toBeInTheDocument()
-    expect(screen.getByText('目标模式')).toBeInTheDocument()
+    openAddMenu()
+    await waitFor(() => expect(screen.getByText('目标模式')).toBeInTheDocument())
   })
 
-  it('reflects the current cwd basename and a non-default mode in the controls', () => {
+  it('reflects the current cwd basename and a non-default mode in the controls', async () => {
     render(<ChatInput cwd="/Users/me/project" executionMode="plan" onSubmit={vi.fn()} permissionMode="full" />)
     expect(screen.getByText('project')).toBeInTheDocument()
     expect(screen.getByText('完全操作权限')).toBeInTheDocument()
-    expect(screen.getByText('计划模式')).toBeInTheDocument()
+    openAddMenu()
+    await waitFor(() => expect(screen.getByText('计划模式')).toBeInTheDocument())
   })
 
   it('opens the native folder dialog and reports the chosen path via onCwdChange', async () => {
