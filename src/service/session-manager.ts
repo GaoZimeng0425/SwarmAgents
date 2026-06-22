@@ -299,7 +299,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         log.error({ msg: 'resident loop failed', sessionId, address: actor.address, taskId, err: String(err) })
         store.updateTaskStatus(taskId, 'failed')
       })
-      .finally(() => residentHandles.delete(actor.address))
+      .finally(() => {
+        // Close the idle-sleep vs live-deliver race: a sendMessage can fetch
+        // this still-registered handle and deliver() into the mailbox in the
+        // window AFTER runResident exited on idle-timeout but BEFORE we delete
+        // the handle here. Such a message would land in a mailbox with no
+        // receiver. But every message is enqueueMessage'd in the DB before
+        // delivery, so any "lost" delivery is still an unconsumed DB row.
+        // Delete the handle first, then re-drain: redrainAddress re-spawns only
+        // if unconsumed rows remain. Bounded: consumed rows are markConsumed'd
+        // and failing rows hit the 3-retry deadletter (markDead), so
+        // allUnconsumedFor eventually returns empty — no infinite loop.
+        residentHandles.delete(actor.address)
+        redrainAddress(actor.address)
+      })
     return handle
   }
 
@@ -351,6 +364,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       // The caller (fromAddr) is mid-turn and holds a turn-slot. Yield it while we
       // await the reply so the callee can acquire a slot — this is what prevents
       // deadlock under maxConcurrent. Re-acquire before returning to the caller's loop.
+      // Infer "caller holds a turn-slot" from "caller has a registered resident
+      // loop". Valid ONLY because a resident issues rpc exclusively from inside
+      // its slot-holding promptOnce, and issues them serially.
       const callerHoldsSlot = !!fromAddr && residentHandles.has(fromAddr)
       if (callerHoldsSlot) releaseSlot()
       try {
@@ -497,18 +513,33 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     return rehydrated
   }
 
-  // Crash recovery: a previous run may have left messages enqueued but never
-  // delivered. Re-activate each addressed actor and re-deliver ALL its pending
-  // messages in ts order, so the resident loop drains them as it would live.
-  for (const address of store.listUnconsumedAddresses()) {
+  // Re-activate an addressed actor and re-deliver ALL its pending (unconsumed)
+  // DB messages in ts order, so the resident loop drains them as it would live.
+  // Used both for startup crash recovery and for the post-completion re-drain
+  // that closes the idle-sleep vs live-deliver race (see spawnResident's
+  // .finally). Re-spawns only when unconsumed rows remain, so it is a no-op for
+  // an address whose mailbox is already empty.
+  //
+  // NOTE: after a crash/restart re-drain, an rpc message's original caller is
+  // gone (its awaitReply promise died with the previous process), so when the
+  // resident later calls replyRegistry.resolve it finds no waiter and warns
+  // ("rpc reply has no waiter (caller gone)") — this is expected, not a bug.
+  function redrainAddress(address: string): void {
     const actor = store.getActor(address)
-    if (!actor || !actor.sessionId) continue
-    const session = getOrRehydrate(actor.sessionId)
-    if (!session) continue
-    const handle = residentHandles.get(address) ?? spawnResident(actor.sessionId, actor)
+    if (!actor || !actor.sessionId) return
     const pending = store.allUnconsumedFor(address)
+    if (pending.length === 0) return
+    const session = getOrRehydrate(actor.sessionId)
+    if (!session) return
+    const handle = residentHandles.get(address) ?? spawnResident(actor.sessionId, actor)
     for (const msg of pending) handle.deliver(msg)
     log.info({ msg: 'redrain', address, sessionId: actor.sessionId, pending: pending.length })
+  }
+
+  // Crash recovery: a previous run may have left messages enqueued but never
+  // delivered. Re-drain each addressed actor on startup.
+  for (const address of store.listUnconsumedAddresses()) {
+    redrainAddress(address)
   }
 
   return {
