@@ -31,6 +31,7 @@
 | 回信语义 | **隐式:消息 turn 的结果即 rpc 回信**(经 `correlationId` 路由) | 延续计划 A,不引入显式 `reply` 工具 |
 | session 队列 | 顶层用户对话 turn **仍串行**;actor activation **并发**(仅受 turn-slot 限) | 解锁兄弟 actor 并行协作,同时保住用户主线程顺序 |
 | **跨休眠状态恢复** | **不做,留给阶段 3(场景④,`actors.state`)** | Plan B 仅保「一次常驻期内」记忆;跨休眠长期记忆需按 address 持久化对话 + 重放 + 上下文压缩,是独立一块,依赖尚未做的压缩 |
+| **常驻 actor ↔ Task 粒度** | **一次常驻期 = 一个 Task + 一个 agent**;多条消息是该 Task 下的 turn,共享一个 budget 包络 | agent 的 `task.id`/emit/budget 绑定在整次常驻期固定,无需逐 turn 重绑 → 实现大幅简化;上下文自然累积。actor 休眠(空闲超时)→ 该 Task 标 completed;再激活 = 新 Task |
 
 ### 非目标(YAGNI)
 
