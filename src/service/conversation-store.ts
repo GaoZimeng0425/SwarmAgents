@@ -80,6 +80,8 @@ export type ConversationStore = {
   getActorByName(sessionId: string, name: string): Actor | undefined
   enqueueMessage(msg: ActorMessage): void
   nextUnconsumedFor(address: string): ActorMessage | undefined
+  allUnconsumedFor(address: string): ActorMessage[]
+  listUnconsumedAddresses(): string[]
   markConsumed(id: string): void
   markDead(id: string): void
   bumpRetries(id: string): number
@@ -312,6 +314,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
   `)
   const stmtNextUnconsumed = db.prepare(
     'SELECT * FROM messages WHERE to_addr = ? AND consumed = 0 AND dead = 0 ORDER BY ts ASC LIMIT 1'
+  )
+  const stmtAllUnconsumedFor = db.prepare(
+    'SELECT * FROM messages WHERE to_addr = ? AND consumed = 0 AND dead = 0 ORDER BY ts ASC'
+  )
+  // Distinct destinations with pending, non-dead messages whose actor still
+  // exists — drives crash-recovery re-drain on session-manager init.
+  const stmtUnconsumedAddrs = db.prepare(
+    `SELECT DISTINCT m.to_addr AS addr FROM messages m
+     JOIN actors a ON a.address = m.to_addr
+     WHERE m.consumed = 0 AND m.dead = 0`
   )
   const stmtMarkConsumed = db.prepare('UPDATE messages SET consumed = 1 WHERE id = ?')
   const stmtMarkDead = db.prepare('UPDATE messages SET dead = 1 WHERE id = ?')
@@ -740,6 +752,12 @@ export function createConversationStore(dbPath: string): ConversationStore {
     nextUnconsumedFor(address) {
       const row = stmtNextUnconsumed.get(address) as MessageRow | undefined
       return row ? rowToMessage(row) : undefined
+    },
+    allUnconsumedFor(address) {
+      return (stmtAllUnconsumedFor.all(address) as MessageRow[]).map(rowToMessage)
+    },
+    listUnconsumedAddresses() {
+      return (stmtUnconsumedAddrs.all() as { addr: string }[]).map((r) => r.addr)
     },
     markConsumed(id) {
       stmtMarkConsumed.run(id)

@@ -709,6 +709,8 @@ export type ResidentHooks = {
   releaseTurnSlot(): void
   onConsumed(msgId: string): void
   onReply(correlationId: string, summary: string): void
+  /** A single turn failed: record retry/deadletter. The loop continues. */
+  onError(msgId: string): void
 }
 
 /**
@@ -757,9 +759,11 @@ export async function runResident(
         msgId: msg.id,
         err: err instanceof Error ? err.message : String(err),
       })
-      // Surface the failure to the orchestrator; retry/deadletter is decided
-      // by the session-manager (see Task 6/8).
-      throw err
+      // A single bad message must not kill the resident loop. Record the
+      // failure (retry/deadletter decided by the session-manager) and continue
+      // draining. The message is NOT marked consumed, so it stays pending for a
+      // future re-drain unless the session-manager dead-letters it.
+      hooks.onError(msg.id)
     } finally {
       hooks.releaseTurnSlot()
     }

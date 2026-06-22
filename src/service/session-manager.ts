@@ -27,6 +27,8 @@ const log = createLogger({ process: 'service' }).child({ component: 'session-man
 
 // A resident actor sleeps (its loop returns) after this long with an empty mailbox.
 const IDLE_TIMEOUT_MS = 30_000
+// Max per-message turn failures before the message is dead-lettered.
+const MAX_RETRIES = 3
 // How long an rpc caller waits for the resident's reply before resolving to ''.
 const RPC_TIMEOUT_MS = 120_000
 
@@ -265,6 +267,17 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       releaseTurnSlot: () => releaseSlot(),
       onConsumed: (msgId) => store.markConsumed(msgId),
       onReply: (correlationId, summary) => replyRegistry.resolve(correlationId, summary),
+      // Per-message retry/deadletter: bump the retry count; once it exceeds the
+      // limit, dead-letter so it stops being re-drained. The loop keeps running.
+      onError: (msgId) => {
+        const n = store.bumpRetries(msgId)
+        if (n > MAX_RETRIES) {
+          store.markDead(msgId)
+          log.error({ msg: 'message dead-lettered', sessionId, address: actor.address, msgId, retries: n })
+        } else {
+          log.warn({ msg: 'message turn failed, will retry', sessionId, address: actor.address, msgId, retries: n })
+        }
+      },
     }
     const deps: AgentRunnerDeps = {
       task,
@@ -482,6 +495,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(sessionId, 'active')
     sessions.set(sessionId, rehydrated)
     return rehydrated
+  }
+
+  // Crash recovery: a previous run may have left messages enqueued but never
+  // delivered. Re-activate each addressed actor and re-deliver ALL its pending
+  // messages in ts order, so the resident loop drains them as it would live.
+  for (const address of store.listUnconsumedAddresses()) {
+    const actor = store.getActor(address)
+    if (!actor || !actor.sessionId) continue
+    const session = getOrRehydrate(actor.sessionId)
+    if (!session) continue
+    const handle = residentHandles.get(address) ?? spawnResident(actor.sessionId, actor)
+    const pending = store.allUnconsumedFor(address)
+    for (const msg of pending) handle.deliver(msg)
+    log.info({ msg: 'redrain', address, sessionId: actor.sessionId, pending: pending.length })
   }
 
   return {

@@ -73,6 +73,7 @@ describe('runResident', () => {
         releaseTurnSlot: () => {},
         onConsumed: (id) => consumed.push(id),
         onReply: () => {},
+        onError: () => {},
       },
       20
     ) // tiny idle so the loop exits quickly after draining
@@ -93,6 +94,7 @@ describe('runResident', () => {
         releaseTurnSlot: () => {},
         onConsumed: () => {},
         onReply: (c, s) => replies.push([c, s]),
+        onError: () => {},
       },
       20
     )
