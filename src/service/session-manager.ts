@@ -265,7 +265,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const hooks: ResidentHooks = {
       acquireTurnSlot: () => acquireSlot(),
       releaseTurnSlot: () => releaseSlot(),
-      onConsumed: (msgId) => store.markConsumed(msgId),
+      onConsumed: (msgId, state) => store.consumeAndPersist(msgId, actor.address, state, Date.now()),
       onReply: (correlationId, summary) => replyRegistry.resolve(correlationId, summary),
       // Per-message retry/deadletter: bump the retry count; once it exceeds the
       // limit, dead-letter so it stops being re-drained. The loop keeps running.

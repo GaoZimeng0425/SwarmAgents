@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core'
-import { Agent } from '@earendil-works/pi-agent-core'
+import { Agent, DEFAULT_COMPACTION_SETTINGS, shouldCompact } from '@earendil-works/pi-agent-core'
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
@@ -15,6 +15,7 @@ import {
 import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
 import { IdleTimeoutError, type Mailbox } from './actor-mailbox'
+import { encodeActorState } from './actor-state'
 import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
 
@@ -715,7 +716,10 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
 export type ResidentHooks = {
   acquireTurnSlot(): Promise<void>
   releaseTurnSlot(): void
-  onConsumed(msgId: string): void
+  // Atomic: mark the message consumed AND persist the actor's conversation
+  // state (cross-dormancy memory). The loop serializes agent.state.messages
+  // after an optional compaction and hands the blob here.
+  onConsumed(msgId: string, state: string): void
   onReply(correlationId: string, summary: string): void
   /** A single turn failed: record retry/deadletter. The loop continues. */
   onError(msgId: string): void
@@ -757,7 +761,25 @@ export async function runResident(
     try {
       residentLog.info({ msg: 'turn-start', address: deps.selfAddress, msgId: msg.id, kind: msg.kind })
       const { summary } = await session.promptOnce(msg.payload)
-      hooks.onConsumed(msg.id)
+      // Compaction (off-the-shelf pi): keep persisted state bounded across
+      // many activations. Failure is non-fatal — persist uncompacted; keeping
+      // memory beats losing it.
+      try {
+        if (shouldCompact(session.getContextTokens(), session.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
+          const { tokensBefore } = await session.agent.compact()
+          residentLog.info({ msg: 'compact', address: deps.selfAddress, tokensBefore, component: 'actor-state' })
+        }
+      } catch (err) {
+        residentLog.error({
+          msg: 'compact-failed',
+          address: deps.selfAddress,
+          err: err instanceof Error ? err.message : String(err),
+          component: 'actor-state',
+        })
+      }
+      const state = encodeActorState(session.agent.state.messages)
+      residentLog.info({ msg: 'persist', address: deps.selfAddress, msgId: msg.id, component: 'actor-state' })
+      hooks.onConsumed(msg.id, state)
       if (msg.kind === 'rpc' && msg.correlationId) hooks.onReply(msg.correlationId, summary)
       residentLog.info({ msg: 'turn-end', address: deps.selfAddress, msgId: msg.id })
     } catch (err) {
