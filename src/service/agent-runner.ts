@@ -230,6 +230,24 @@ function createEventTranslator(
   return { handle, getFinalSummary }
 }
 
+// Prepend task-scoped context to the agent's base system prompt so the model
+// honors the composer's choices: the working directory (relative paths/commands
+// land there) and, in plan mode, the read-only "produce a plan first" constraint.
+function composeSystemPrompt(base: string, task: Task): string {
+  const prefix: string[] = []
+  if (task.cwd) {
+    prefix.push(
+      `Working directory: ${task.cwd}. Treat it as the base for relative paths and run commands there unless told otherwise.`
+    )
+  }
+  if (task.executionMode === 'plan') {
+    prefix.push(
+      'You are in PLAN mode. Investigate using read-only tools and produce a step-by-step plan with update_plan. Do NOT modify files or run mutating commands — you have no write tools.'
+    )
+  }
+  return prefix.length ? `${prefix.join('\n\n')}\n\n${base}` : base
+}
+
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
     async run(): Promise<{ status: 'completed' | 'failed'; summary: string; messages: AgentMessage[] }> {
@@ -277,6 +295,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         const runCtx: ToolRunContext = {
           sessionId,
           taskId: task.id,
+          cwd: task.cwd,
           spawnChild: (goal, suggestedTools, providerKey, agentType) =>
             spawnChild(task.id, goal, suggestedTools, providerKey, agentType),
           send: () => undefined,
@@ -311,6 +330,9 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       taskLog.info({
         msg: 'task starting',
         toolCount: tools.length,
+        cwd: task.cwd ?? null,
+        permissionMode: task.permissionMode ?? 'ask',
+        executionMode: task.executionMode ?? 'goal',
         resolvedModel: {
           id: model.id,
           provider: model.provider,
@@ -386,7 +408,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           })
         },
         initialState: {
-          systemPrompt: agentDefinition.systemPrompt,
+          systemPrompt: composeSystemPrompt(agentDefinition.systemPrompt, task),
           model,
           tools,
           messages: initialMessages,
@@ -423,7 +445,9 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
 
           const risk = riskOf(toolCall.name, args)
 
-          if (risk === 'low') return undefined
+          // 'full' permission mode bypasses every prompt; otherwise low-risk
+          // calls auto-run and medium/high escalate to the user.
+          if (risk === 'low' || task.permissionMode === 'full') return undefined
 
           const decision = await permissionRegistry.request({
             taskId: task.id,

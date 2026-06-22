@@ -272,6 +272,43 @@ describe('AgentRunner', () => {
     await p
   })
 
+  // An unknown tool name resolves to 'medium' risk (registry fail-safe), so the
+  // default 'ask' mode escalates it while 'full' must bypass the prompt. The two
+  // tests together prove the permissionMode branch — not just that nothing throws.
+  it('escalates medium/high-risk tools to permissionRegistry.request in the default ask mode', async () => {
+    const h = installAgent()
+    const request = vi.fn(async () => 'grant' as const)
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-ask')),
+      permissionRegistry: { request, resolve: vi.fn() },
+    })
+    const p = runner.run()
+
+    const result = await h.getBeforeToolCall()({ toolCall: { name: 'mutate' }, args: {} })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(result).toBeUndefined() // granted
+
+    h.resolvePrompt()
+    await p
+  })
+
+  it('bypasses the permission prompt for medium/high-risk tools when permissionMode is full', async () => {
+    const h = installAgent()
+    const request = vi.fn(async () => 'grant' as const)
+    const runner = createAgentRunner({
+      ...baseDeps({ ...mkTask('t-full'), permissionMode: 'full' }),
+      permissionRegistry: { request, resolve: vi.fn() },
+    })
+    const p = runner.run()
+
+    const result = await h.getBeforeToolCall()({ toolCall: { name: 'mutate' }, args: {} })
+    expect(result).toBeUndefined()
+    expect(request).not.toHaveBeenCalled()
+
+    h.resolvePrompt()
+    await p
+  })
+
   it('aborts the agent and returns status cancelled when the provided signal fires', async () => {
     const h = installAgent()
     const ac = new AbortController()
