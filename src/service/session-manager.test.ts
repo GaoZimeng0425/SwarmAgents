@@ -689,4 +689,77 @@ describe('SessionManager', () => {
     expect(manager.getSessionTasks(sessionId).length).toBeGreaterThanOrEqual(1)
     store.close()
   })
+
+  it('resolves options.agentType to the registered agent definition', () => {
+    mockCreate.mockImplementation(() => ({
+      run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }),
+    }))
+
+    const customDef = {
+      id: 'researcher',
+      name: 'Researcher',
+      description: 'Use when you need to research things.',
+      systemPrompt: 'You research things.',
+      toolScope: 'fs' as const,
+      maxIterations: 25,
+      model: undefined,
+    }
+    const agentStore = { get: (id: string) => (id === 'researcher' ? customDef : undefined), list: () => [customDef] }
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({
+      store,
+      broadcaster,
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+      agentStore,
+    })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+
+    manager.submitGoal(sessionId, 'research something', [], undefined, undefined, { agentType: 'researcher' })
+
+    const tasks = store.getSessionTasks(sessionId)
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0].agentDefId).toBe('researcher')
+    store.close()
+  })
+
+  it('falls back to default agent when options.agentType is unknown', () => {
+    mockCreate.mockImplementation(() => ({
+      run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }),
+    }))
+
+    const agentStore = { get: (_id: string) => undefined, list: () => [] }
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({
+      store,
+      broadcaster,
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+      agentStore,
+    })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+
+    manager.submitGoal(sessionId, 'do something', [], undefined, undefined, { agentType: 'nonexistent-agent' })
+
+    const tasks = store.getSessionTasks(sessionId)
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0].agentDefId).toBe('default')
+    store.close()
+  })
 })

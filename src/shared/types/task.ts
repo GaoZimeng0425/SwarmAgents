@@ -61,6 +61,9 @@ export const TaskOptionsSchema = z.object({
   cwd: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),
   executionMode: ExecutionModeSchema.optional(),
+  // Agent type id (from the agent store) to use for this top-level task.
+  // Resolved in session-manager; unknown ids fall back to DEFAULT_AGENT_DEF.
+  agentType: z.string().optional(),
 })
 export type TaskOptions = z.infer<typeof TaskOptionsSchema>
 

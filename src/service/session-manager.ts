@@ -470,7 +470,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       if (!session) throw new Error(`session ${sessionId} not found`)
 
       const attachments = attachmentsArg ?? []
-      const agentDef = agentDefArg ?? DEFAULT_AGENT_DEF
+      // Resolve agent definition: explicit arg wins, then options.agentType lookup,
+      // then DEFAULT_AGENT_DEF. Mirrors spawnChild's resolution logic.
+      const resolvedByType = options?.agentType ? cfg.agentStore?.get(options.agentType) : undefined
+      if (options?.agentType && !resolvedByType) {
+        log.warn({ msg: 'agentType not found, falling back to default', agentType: options.agentType })
+      }
+      const agentDef = agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF
 
       const taskId = ulid()
       const now = Date.now()
