@@ -1,5 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
+import type { Actor, ActorMessage } from '@shared/types/actor'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
 import type { UsageStats } from '@shared/types/usage'
@@ -74,6 +75,14 @@ export type ConversationStore = {
   listCronRunsForJob(jobId: string): StoredCronRun[]
   listRunningCronRuns(): StoredCronRun[]
   getTask(taskId: string): Task | undefined
+  upsertActor(actor: Actor): void
+  getActor(address: string): Actor | undefined
+  getActorByName(sessionId: string, name: string): Actor | undefined
+  enqueueMessage(msg: ActorMessage): void
+  nextUnconsumedFor(address: string): ActorMessage | undefined
+  markConsumed(id: string): void
+  markDead(id: string): void
+  bumpRetries(id: string): number
   close(): void
 }
 
@@ -152,6 +161,30 @@ export function createConversationStore(dbPath: string): ConversationStore {
       error        TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(job_id);
+    CREATE TABLE IF NOT EXISTS actors (
+      address       TEXT PRIMARY KEY,
+      agent_def_id  TEXT NOT NULL,
+      session_id    TEXT,
+      name          TEXT,
+      state         TEXT,
+      last_task_id  TEXT,
+      created_at    INTEGER NOT NULL,
+      updated_at    INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_actors_session_name ON actors(session_id, name);
+    CREATE TABLE IF NOT EXISTS messages (
+      id              TEXT PRIMARY KEY,
+      to_addr         TEXT NOT NULL,
+      from_addr       TEXT,
+      kind            TEXT NOT NULL,
+      correlation_id  TEXT,
+      payload         TEXT NOT NULL,
+      consumed        INTEGER NOT NULL DEFAULT 0,
+      retries         INTEGER NOT NULL DEFAULT 0,
+      dead            INTEGER NOT NULL DEFAULT 0,
+      ts              INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_addr, consumed, dead, ts);
   `)
 
   for (const stmt of [
@@ -263,6 +296,73 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtListCronRunsForJob = db.prepare('SELECT * FROM cron_runs WHERE job_id = ? ORDER BY triggered_at DESC')
   const stmtListRunningCronRuns = db.prepare("SELECT * FROM cron_runs WHERE status = 'running'")
   const stmtGetTask = db.prepare('SELECT * FROM tasks WHERE id = ?')
+
+  const stmtUpsertActor = db.prepare(`
+    INSERT INTO actors (address, agent_def_id, session_id, name, state, last_task_id, created_at, updated_at)
+    VALUES (@address, @agentDefId, @sessionId, @name, @state, @lastTaskId, @createdAt, @updatedAt)
+    ON CONFLICT(address) DO UPDATE SET
+      agent_def_id = excluded.agent_def_id, session_id = excluded.session_id, name = excluded.name,
+      state = excluded.state, last_task_id = excluded.last_task_id, updated_at = excluded.updated_at
+  `)
+  const stmtGetActor = db.prepare('SELECT * FROM actors WHERE address = ?')
+  const stmtGetActorByName = db.prepare('SELECT * FROM actors WHERE session_id = ? AND name = ?')
+  const stmtEnqueueMessage = db.prepare(`
+    INSERT INTO messages (id, to_addr, from_addr, kind, correlation_id, payload, consumed, retries, dead, ts)
+    VALUES (@id, @toAddr, @fromAddr, @kind, @correlationId, @payload, @consumed, @retries, @dead, @ts)
+  `)
+  const stmtNextUnconsumed = db.prepare(
+    'SELECT * FROM messages WHERE to_addr = ? AND consumed = 0 AND dead = 0 ORDER BY ts ASC LIMIT 1'
+  )
+  const stmtMarkConsumed = db.prepare('UPDATE messages SET consumed = 1 WHERE id = ?')
+  const stmtMarkDead = db.prepare('UPDATE messages SET dead = 1 WHERE id = ?')
+  const stmtBumpRetries = db.prepare('UPDATE messages SET retries = retries + 1 WHERE id = ?')
+  const stmtGetRetries = db.prepare('SELECT retries FROM messages WHERE id = ?')
+
+  type ActorRow = {
+    address: string
+    agent_def_id: string
+    session_id: string | null
+    name: string | null
+    state: string | null
+    last_task_id: string | null
+    created_at: number
+    updated_at: number
+  }
+  const rowToActor = (r: ActorRow): Actor => ({
+    address: r.address,
+    agentDefId: r.agent_def_id,
+    sessionId: r.session_id,
+    name: r.name,
+    state: r.state,
+    lastTaskId: r.last_task_id,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  })
+
+  type MessageRow = {
+    id: string
+    to_addr: string
+    from_addr: string | null
+    kind: string
+    correlation_id: string | null
+    payload: string
+    consumed: number
+    retries: number
+    dead: number
+    ts: number
+  }
+  const rowToMessage = (r: MessageRow): ActorMessage => ({
+    id: r.id,
+    toAddr: r.to_addr,
+    fromAddr: r.from_addr,
+    kind: r.kind as 'send' | 'rpc',
+    correlationId: r.correlation_id,
+    payload: r.payload,
+    consumed: !!r.consumed,
+    retries: r.retries,
+    dead: !!r.dead,
+    ts: r.ts,
+  })
 
   const stmtInsertSession = db.prepare(
     `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot, sort_order)
@@ -596,8 +696,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     saveCronRun(run) {
       stmtInsertCronRun.run(
-        run.id, run.jobId, run.sessionId, run.taskId ?? null,
-        run.status, run.triggeredAt, run.endedAt ?? null, run.error ?? null
+        run.id,
+        run.jobId,
+        run.sessionId,
+        run.taskId ?? null,
+        run.status,
+        run.triggeredAt,
+        run.endedAt ?? null,
+        run.error ?? null
       )
       stmtPruneCronRuns.run(run.jobId, run.jobId)
     },
@@ -616,6 +722,34 @@ export function createConversationStore(dbPath: string): ConversationStore {
     getTask(taskId) {
       const row = stmtGetTask.get(taskId) as Record<string, unknown> | undefined
       return row ? rowToTask(row) : undefined
+    },
+    upsertActor(actor) {
+      stmtUpsertActor.run(actor)
+    },
+    getActor(address) {
+      const row = stmtGetActor.get(address) as ActorRow | undefined
+      return row ? rowToActor(row) : undefined
+    },
+    getActorByName(sessionId, name) {
+      const row = stmtGetActorByName.get(sessionId, name) as ActorRow | undefined
+      return row ? rowToActor(row) : undefined
+    },
+    enqueueMessage(msg) {
+      stmtEnqueueMessage.run({ ...msg, consumed: msg.consumed ? 1 : 0, dead: msg.dead ? 1 : 0 })
+    },
+    nextUnconsumedFor(address) {
+      const row = stmtNextUnconsumed.get(address) as MessageRow | undefined
+      return row ? rowToMessage(row) : undefined
+    },
+    markConsumed(id) {
+      stmtMarkConsumed.run(id)
+    },
+    markDead(id) {
+      stmtMarkDead.run(id)
+    },
+    bumpRetries(id) {
+      stmtBumpRetries.run(id)
+      return (stmtGetRetries.get(id) as { retries: number } | undefined)?.retries ?? 0
     },
     close() {
       db.close()
