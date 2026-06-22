@@ -47,6 +47,23 @@ export const emptyUsed = (): ConsumedResources => ({
   cacheWrite: 0,
 })
 
+// Per-task execution controls chosen in the composer. `permissionMode` 'full'
+// bypasses every permission prompt; 'ask' keeps the default risk gate.
+// `executionMode` 'plan' restricts the agent to read-only tools and asks it to
+// produce a plan first; 'goal' executes autonomously.
+export const PermissionModeSchema = z.enum(['ask', 'full'])
+export type PermissionMode = z.infer<typeof PermissionModeSchema>
+export const ExecutionModeSchema = z.enum(['goal', 'plan'])
+export type ExecutionMode = z.infer<typeof ExecutionModeSchema>
+
+// Composer-supplied options threaded from the renderer to session-manager.
+export const TaskOptionsSchema = z.object({
+  cwd: z.string().optional(),
+  permissionMode: PermissionModeSchema.optional(),
+  executionMode: ExecutionModeSchema.optional(),
+})
+export type TaskOptions = z.infer<typeof TaskOptionsSchema>
+
 export const planStatusValues = ['pending', 'in_progress', 'completed'] as const
 export const PlanTodoSchema = z.object({
   content: z.string(),
@@ -125,5 +142,12 @@ export const TaskSchema = z.object({
   // Resolved model context window (tokens), persisted so the usage display
   // survives a restart. Set once the run starts; absent on legacy rows.
   contextWindow: z.number().int().positive().optional(),
+  // Composer-chosen working directory; relative tool paths resolve against it
+  // and shell runs there. Absent → the user's home directory.
+  cwd: z.string().optional(),
+  // Permission gate and execution mode for this task. Absent on legacy rows;
+  // consumers default to 'ask' / 'goal'.
+  permissionMode: PermissionModeSchema.optional(),
+  executionMode: ExecutionModeSchema.optional(),
 })
 export type Task = z.infer<typeof TaskSchema>
