@@ -67,6 +67,34 @@ describe('actor persistence', () => {
     expect(store.nextUnconsumedFor('addr-1')?.id).toBe('m2')
   })
 
+  it('upsertActor updates fields on conflict while preserving createdAt', () => {
+    store.upsertActor({
+      address: 'addr-up',
+      agentDefId: 'default',
+      sessionId: 's1',
+      name: null,
+      state: null,
+      lastTaskId: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    // Re-upsert same address with updated fields
+    store.upsertActor({
+      address: 'addr-up',
+      agentDefId: 'default',
+      sessionId: 's1',
+      name: null,
+      state: null,
+      lastTaskId: 'task-9',
+      createdAt: now,
+      updatedAt: now + 5,
+    })
+    const actor = store.getActor('addr-up')
+    expect(actor?.lastTaskId).toBe('task-9')
+    expect(actor?.updatedAt).toBe(now + 5)
+    expect(actor?.createdAt).toBe(now) // creation timestamp must not change
+  })
+
   it('marks dead and bumps retries', () => {
     store.enqueueMessage({
       id: 'm1',
