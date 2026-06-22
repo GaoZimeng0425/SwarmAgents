@@ -5,7 +5,7 @@ import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
-import type { Task, TaskEvent, TaskResult, TaskStatus } from '@shared/types/task'
+import type { Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
@@ -21,6 +21,22 @@ import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry, type ToolRegistry } from './tools/registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
+
+// Plan mode is read-only: it grants inspection tools but no shell, no fs writes,
+// and no peekaboo interactions, so the agent physically cannot mutate anything
+// while it produces a plan. Applies to the composer's main task only.
+const PLAN_READONLY_ALLOWLIST = [
+  'fs.read_file',
+  'fs.list_dir',
+  'fs.glob',
+  'fs.grep',
+  'web.fetch',
+  'web.search',
+  'peekaboo.see_screen',
+  'peekaboo.list_apps',
+  // update_plan only — exclude spawn_sub_agent, whose child could mutate.
+  'agent.update_plan',
+]
 
 type Session = {
   id: string
@@ -49,7 +65,8 @@ export type SessionManager = {
     goal: string,
     attachments?: import('@shared/types/task').Attachment[],
     agentDef?: AgentDefinition,
-    onComplete?: (status: TaskStatus, error?: string) => void
+    onComplete?: (status: TaskStatus, error?: string) => void,
+    options?: TaskOptions
   ): { taskId: string }
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
@@ -294,13 +311,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       return { sessionId }
     },
 
-    submitGoal(sessionId, goal, attachments = [], agentDef = DEFAULT_AGENT_DEF, onComplete) {
+    submitGoal(sessionId, goal, attachmentsArg, agentDefArg, onComplete, options) {
       const session = getOrRehydrate(sessionId)
       if (!session) throw new Error(`session ${sessionId} not found`)
+
+      const attachments = attachmentsArg ?? []
+      const agentDef = agentDefArg ?? DEFAULT_AGENT_DEF
 
       const taskId = ulid()
       const now = Date.now()
       const isFirst = store.getSessionTasks(sessionId).length === 0
+      // Plan mode forces the read-only tool set regardless of the agent's scope,
+      // so the agent can investigate but not mutate while planning.
+      const toolAllowlist =
+        options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : deriveAllowlist(agentDef.toolScope)
       const task: Task = {
         id: taskId,
         parentId: null,
@@ -308,7 +332,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         goal,
         status: 'pending',
         assignedWorkerId: null,
-        toolAllowlist: deriveAllowlist(agentDef.toolScope),
+        toolAllowlist,
         budget: budgets().main,
         used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
         history: [],
@@ -317,11 +341,22 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         createdAt: now,
         startedAt: null,
         endedAt: null,
+        cwd: options?.cwd,
+        permissionMode: options?.permissionMode,
+        executionMode: options?.executionMode,
       }
       store.saveTask(task, sessionId)
       broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
       store.updateSessionLastActive(sessionId)
-      log.info({ msg: 'goal submitted', sessionId, taskId, agentDefId: agentDef.id })
+      log.info({
+        msg: 'goal submitted',
+        sessionId,
+        taskId,
+        agentDefId: agentDef.id,
+        cwd: options?.cwd ?? null,
+        permissionMode: options?.permissionMode ?? 'ask',
+        executionMode: options?.executionMode ?? 'goal',
+      })
 
       if (isFirst) {
         const title = goal.slice(0, 60)

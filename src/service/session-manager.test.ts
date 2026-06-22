@@ -628,6 +628,48 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('stamps composer options on the task and applies the plan read-only allowlist', async () => {
+    let capturedTask: {
+      cwd?: string
+      permissionMode?: string
+      executionMode?: string
+      toolAllowlist: string[]
+    } | null = null
+    mockCreate.mockImplementation((deps: { task: typeof capturedTask }) => {
+      capturedTask = deps.task
+      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+
+    manager.submitGoal(sessionId, 'investigate', [], undefined, undefined, {
+      cwd: '/work/dir',
+      permissionMode: 'full',
+      executionMode: 'plan',
+    })
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(capturedTask?.cwd).toBe('/work/dir')
+    expect(capturedTask?.permissionMode).toBe('full')
+    expect(capturedTask?.executionMode).toBe('plan')
+    // Plan mode is read-only: no shell, no fs writes, no spawn.
+    expect(capturedTask?.toolAllowlist).not.toContain('*')
+    expect(capturedTask?.toolAllowlist).toContain('fs.read_file')
+    expect(capturedTask?.toolAllowlist).not.toContain('shell.run_shell')
+    expect(capturedTask?.toolAllowlist).not.toContain('fs.write_file')
+    expect(capturedTask?.toolAllowlist).not.toContain('agent.spawn_sub_agent')
+    store.close()
+  })
+
   it('lists sessions and returns a session tasks via the manager', () => {
     mockCreate.mockImplementation(() => ({
       run: async () => ({ status: 'completed' as const, summary: '', messages: [] }),
