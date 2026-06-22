@@ -34,8 +34,11 @@ describe('registerBuiltinTools', () => {
       .map((s) => `${s.group}.${s.name}`)
       .sort()
     expect(ids).toEqual([
+      'agent.send_and_wait',
+      'agent.send_message',
       'agent.spawn_sub_agent',
       'agent.update_plan',
+      'agent.whoami',
       'fs.edit_file',
       'fs.glob',
       'fs.grep',
