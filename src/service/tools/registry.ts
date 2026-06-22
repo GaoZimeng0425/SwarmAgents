@@ -13,6 +13,11 @@ export interface ToolRunContext {
   /** The session this task runs in. Tools that create session-scoped state (e.g. cron) bind to it. */
   sessionId: string
   taskId: string
+  /**
+   * Composer-chosen working directory for this task. Filesystem tools resolve
+   * relative paths against it and shell runs there; absent → the user's home.
+   */
+  cwd?: string
   // parentTaskId is bound externally when constructing the context (see agent-runner runCtx).
   spawnChild(
     goal: string,

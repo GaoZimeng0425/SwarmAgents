@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
+
 import type { ToolRunContext, ToolSpec } from './registry'
 
 const MAX_OUTPUT = 16_000
@@ -73,7 +74,7 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Shel
 
 const ShellParams = Type.Object({
   command: Type.String({ description: 'The shell command to run via /bin/sh -c.' }),
-  cwd: Type.Optional(Type.String({ description: 'Working directory. Defaults to the user home directory.' })),
+  cwd: Type.Optional(Type.String({ description: 'Working directory. Defaults to the task working directory.' })),
   timeoutMs: Type.Optional(Type.Number({ description: 'Timeout in milliseconds (default 30000, max 120000).' })),
 })
 
@@ -84,7 +85,7 @@ export function shellSpec(): ToolSpec {
     risk: 'low',
     riskFor: (args) => (isDangerousCommand((args as { command?: string }).command ?? '') ? 'high' : 'low'),
     source: 'builtin',
-    build: (_ctx: ToolRunContext): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'run_shell',
       label: 'Run shell command',
       description:
@@ -92,7 +93,7 @@ export function shellSpec(): ToolSpec {
       parameters: ShellParams,
       execute: async (_toolCallId: string, params: unknown) => {
         const p = params as { command: string; cwd?: string; timeoutMs?: number }
-        const cwd = p.cwd ?? homedir()
+        const cwd = p.cwd ?? ctx.cwd ?? homedir()
         const timeoutMs = Math.min(p.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS)
         const r = await runShell(p.command, cwd, timeoutMs)
 

@@ -1,8 +1,9 @@
-import { glob, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { glob, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, resolve, sep } from 'node:path'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
+
 import type { ToolRisk, ToolRunContext, ToolSpec } from './registry'
 
 const MAX_OUTPUT = 16_000
@@ -17,8 +18,7 @@ export function isSensitivePath(path: string | undefined): boolean {
   return !resolve(path).startsWith(home)
 }
 
-const writeRisk = (args: unknown): ToolRisk =>
-  isSensitivePath((args as { path?: string }).path) ? 'high' : 'low'
+const writeRisk = (args: unknown): ToolRisk => (isSensitivePath((args as { path?: string }).path) ? 'high' : 'low')
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
 const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
@@ -29,6 +29,14 @@ const err = (message: string): Result => ok(`error: ${message}`, { error: messag
 
 const truncate = (text: string): string =>
   text.length > MAX_OUTPUT ? `${text.slice(0, MAX_OUTPUT)}\n…[output truncated]` : text
+
+// Resolve a tool path argument against the task working directory: absolute
+// paths are used as-is; a relative path resolves against `cwd` (the composer's
+// working directory) or the home directory when unset. This is what lets the
+// agent "work in a folder" — relative paths land inside it.
+function resolvePath(path: string, cwd: string | undefined): string {
+  return isAbsolute(path) ? path : resolve(cwd ?? homedir(), path)
+}
 
 const ReadParams = Type.Object({
   path: Type.String({ description: 'Absolute path to the file to read.' }),
@@ -42,18 +50,18 @@ function readSpec(): ToolSpec {
     name: 'read_file',
     risk: 'low',
     source: 'builtin',
-    build: (_ctx: ToolRunContext): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'read_file',
       label: 'Read file',
       description:
-        'Read a UTF-8 text file and return its contents with 1-based line numbers. Supports `offset`/`limit` to page through large files. Requires an absolute path.',
+        'Read a UTF-8 text file and return its contents with 1-based line numbers. Supports `offset`/`limit` to page through large files. Path may be absolute or relative to the working directory.',
       parameters: ReadParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { path: string; offset?: number; limit?: number }
-        if (!isAbsolute(p.path)) return err(`path must be absolute: ${p.path}`)
+        const abs = resolvePath(p.path, ctx.cwd)
         let raw: string
         try {
-          raw = await readFile(p.path, 'utf8')
+          raw = await readFile(abs, 'utf8')
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))
         }
@@ -64,7 +72,7 @@ function readSpec(): ToolSpec {
           .slice(start - 1, end)
           .map((line, i) => `${start + i}\t${line}`)
           .join('\n')
-        return ok(truncate(body), { path: p.path, lines: lines.length })
+        return ok(truncate(body), { path: abs, lines: lines.length })
       },
     }),
   }
@@ -82,23 +90,23 @@ function writeSpec(): ToolSpec {
     risk: 'low',
     riskFor: writeRisk,
     source: 'builtin',
-    build: (_ctx: ToolRunContext): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'write_file',
       label: 'Write file',
       description:
-        'Write (overwrite or create) a UTF-8 text file, creating parent directories as needed. Requires an absolute path.',
+        'Write (overwrite or create) a UTF-8 text file, creating parent directories as needed. Path may be absolute or relative to the working directory.',
       parameters: WriteParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { path: string; content: string }
-        if (!isAbsolute(p.path)) return err(`path must be absolute: ${p.path}`)
+        const abs = resolvePath(p.path, ctx.cwd)
         try {
-          await mkdir(dirname(p.path), { recursive: true })
-          await writeFile(p.path, p.content, 'utf8')
+          await mkdir(dirname(abs), { recursive: true })
+          await writeFile(abs, p.content, 'utf8')
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))
         }
         const bytes = Buffer.byteLength(p.content, 'utf8')
-        return ok(`wrote ${bytes} bytes to ${p.path}`, { path: p.path, bytes })
+        return ok(`wrote ${bytes} bytes to ${abs}`, { path: abs, bytes })
       },
     }),
   }
@@ -108,7 +116,9 @@ const EditParams = Type.Object({
   path: Type.String({ description: 'Absolute path to the file to edit.' }),
   old_string: Type.String({ description: 'Exact text to replace. Must be unique unless replace_all is set.' }),
   new_string: Type.String({ description: 'Replacement text. Must differ from old_string.' }),
-  replace_all: Type.Optional(Type.Boolean({ description: 'Replace every occurrence instead of requiring uniqueness.' })),
+  replace_all: Type.Optional(
+    Type.Boolean({ description: 'Replace every occurrence instead of requiring uniqueness.' })
+  ),
 })
 
 function editSpec(): ToolSpec {
@@ -118,34 +128,36 @@ function editSpec(): ToolSpec {
     risk: 'low',
     riskFor: writeRisk,
     source: 'builtin',
-    build: (_ctx: ToolRunContext): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'edit_file',
       label: 'Edit file',
       description:
-        'Replace an exact string in a file. `old_string` must match uniquely unless `replace_all` is set. Requires an absolute path.',
+        'Replace an exact string in a file. `old_string` must match uniquely unless `replace_all` is set. Path may be absolute or relative to the working directory.',
       parameters: EditParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { path: string; old_string: string; new_string: string; replace_all?: boolean }
-        if (!isAbsolute(p.path)) return err(`path must be absolute: ${p.path}`)
+        const abs = resolvePath(p.path, ctx.cwd)
         if (p.old_string === p.new_string) return err('old_string and new_string are identical')
         let raw: string
         try {
-          raw = await readFile(p.path, 'utf8')
+          raw = await readFile(abs, 'utf8')
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))
         }
         const count = raw.split(p.old_string).length - 1
-        if (count === 0) return err(`old_string not found in ${p.path}`)
+        if (count === 0) return err(`old_string not found in ${abs}`)
         if (count > 1 && !p.replace_all)
           return err(`old_string is not unique (${count} matches); add context or set replace_all`)
-        const next = p.replace_all ? raw.split(p.old_string).join(p.new_string) : raw.replace(p.old_string, p.new_string)
+        const next = p.replace_all
+          ? raw.split(p.old_string).join(p.new_string)
+          : raw.replace(p.old_string, p.new_string)
         try {
-          await writeFile(p.path, next, 'utf8')
+          await writeFile(abs, next, 'utf8')
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))
         }
         const replacements = p.replace_all ? count : 1
-        return ok(`replaced ${replacements} occurrence(s) in ${p.path}`, { path: p.path, replacements })
+        return ok(`replaced ${replacements} occurrence(s) in ${abs}`, { path: abs, replacements })
       },
     }),
   }
@@ -164,17 +176,18 @@ function listSpec(): ToolSpec {
     name: 'list_dir',
     risk: 'low',
     source: 'builtin',
-    build: (_ctx: ToolRunContext): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'list_dir',
       label: 'List directory',
-      description: 'List the entries of a directory with their type (file/dir/symlink). Requires an absolute path.',
+      description:
+        'List the entries of a directory with their type (file/dir/symlink). Path may be absolute or relative to the working directory.',
       parameters: ListParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { path: string }
-        if (!isAbsolute(p.path)) return err(`path must be absolute: ${p.path}`)
+        const abs = resolvePath(p.path, ctx.cwd)
         let dirents: Awaited<ReturnType<typeof readdir>>
         try {
-          dirents = await readdir(p.path, { withFileTypes: true })
+          dirents = await readdir(abs, { withFileTypes: true })
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))
         }
@@ -182,7 +195,7 @@ function listSpec(): ToolSpec {
           .map((d) => ({ name: d.name, type: entryType(d) }))
           .sort((a, b) => a.name.localeCompare(b.name))
         const text = entries.map((e) => `[${e.type[0]}] ${e.name}`).join('\n')
-        return ok(truncate(text) || '(empty)', { path: p.path, entries })
+        return ok(truncate(text) || '(empty)', { path: abs, entries })
       },
     }),
   }
@@ -192,7 +205,9 @@ const MAX_GLOB = 1000
 
 const GlobParams = Type.Object({
   pattern: Type.String({ description: 'Glob pattern relative to `path`, e.g. "**/*.ts".' }),
-  path: Type.Optional(Type.String({ description: 'Absolute base directory to search (default: home directory).' })),
+  path: Type.Optional(
+    Type.String({ description: 'Base directory to search (default: the working directory). May be relative.' })
+  ),
 })
 
 function globSpec(): ToolSpec {
@@ -201,7 +216,7 @@ function globSpec(): ToolSpec {
     name: 'glob',
     risk: 'low',
     source: 'builtin',
-    build: (_ctx: ToolRunContext): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'glob',
       label: 'Find files',
       description:
@@ -209,8 +224,7 @@ function globSpec(): ToolSpec {
       parameters: GlobParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { pattern: string; path?: string }
-        const base = p.path ?? homedir()
-        if (!isAbsolute(base)) return err(`path must be absolute: ${base}`)
+        const base = p.path ? resolvePath(p.path, ctx.cwd) : (ctx.cwd ?? homedir())
         const matches: string[] = []
         try {
           for await (const m of glob(p.pattern, { cwd: base })) {
@@ -234,7 +248,9 @@ const MAX_GREP_FILE_BYTES = 2_000_000
 
 const GrepParams = Type.Object({
   pattern: Type.String({ description: 'Regular expression to search for, tested per line.' }),
-  path: Type.Optional(Type.String({ description: 'Absolute base directory to search (default: home directory).' })),
+  path: Type.Optional(
+    Type.String({ description: 'Base directory to search (default: the working directory). May be relative.' })
+  ),
   glob: Type.Optional(Type.String({ description: 'Glob to restrict which files are searched (default "**/*").' })),
   ignoreCase: Type.Optional(Type.Boolean({ description: 'Case-insensitive matching.' })),
 })
@@ -245,7 +261,7 @@ function grepSpec(): ToolSpec {
     name: 'grep',
     risk: 'low',
     source: 'builtin',
-    build: (_ctx: ToolRunContext): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'grep',
       label: 'Search file contents',
       description:
@@ -253,8 +269,7 @@ function grepSpec(): ToolSpec {
       parameters: GrepParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { pattern: string; path?: string; glob?: string; ignoreCase?: boolean }
-        const base = p.path ?? homedir()
-        if (!isAbsolute(base)) return err(`path must be absolute: ${base}`)
+        const base = p.path ? resolvePath(p.path, ctx.cwd) : (ctx.cwd ?? homedir())
         let re: RegExp
         try {
           re = new RegExp(p.pattern, p.ignoreCase ? 'i' : '')

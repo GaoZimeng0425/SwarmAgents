@@ -91,9 +91,14 @@ describe('read_file', () => {
     expect(res.content[0].text).toMatch(/error/i)
   })
 
-  it('rejects a relative path', async () => {
-    const res = await tool('read_file').execute('c', { path: 'rel.txt' })
-    expect((res.details as { error?: string }).error).toMatch(/absolute/i)
+  it('resolves a relative path against the working directory', async () => {
+    writeFileSync(join(dir, 'rel-read.txt'), 'hi')
+    const t = fsSpecs()
+      .find((s) => s.name === 'read_file')!
+      .build({ ...ctx, cwd: dir })
+    const res = await t.execute('c', { path: 'rel-read.txt' })
+    expect((res.details as { error?: string }).error).toBeFalsy()
+    expect(res.content[0].text).toContain('1\thi')
   })
 })
 
@@ -111,9 +116,13 @@ describe('write_file', () => {
     expect(existsSync(p)).toBe(true)
   })
 
-  it('rejects a relative path', async () => {
-    const res = await tool('write_file').execute('c', { path: 'rel.txt', content: 'x' })
-    expect((res.details as { error?: string }).error).toMatch(/absolute/i)
+  it('resolves a relative path against the working directory', async () => {
+    const t = fsSpecs()
+      .find((s) => s.name === 'write_file')!
+      .build({ ...ctx, cwd: dir })
+    const res = await t.execute('c', { path: 'rel-write.txt', content: 'x' })
+    expect((res.details as { error?: string }).error).toBeFalsy()
+    expect(readFileSync(join(dir, 'rel-write.txt'), 'utf8')).toBe('x')
   })
 })
 
@@ -196,9 +205,13 @@ describe('glob', () => {
     expect(res.content[0].text).toMatch(/no match/i)
   })
 
-  it('rejects a relative base path', async () => {
-    const res = await tool('glob').execute('c', { pattern: '*', path: 'rel' })
-    expect((res.details as { error?: string }).error).toMatch(/absolute/i)
+  it('uses the working directory as the default base', async () => {
+    const t = fsSpecs()
+      .find((s) => s.name === 'glob')!
+      .build({ ...ctx, cwd: gdir })
+    const res = await t.execute('c', { pattern: '**/*.ts' })
+    expect((res.details as { count: number }).count).toBe(2)
+    expect(res.content[0].text).toContain(join(gdir, 'a.ts'))
   })
 })
 
@@ -234,8 +247,11 @@ describe('grep', () => {
     expect((res.details as { error?: string }).error).toMatch(/regex|invalid/i)
   })
 
-  it('rejects a relative base path', async () => {
-    const res = await tool('grep').execute('c', { pattern: 'x', path: 'rel' })
-    expect((res.details as { error?: string }).error).toMatch(/absolute/i)
+  it('uses the working directory as the default base', async () => {
+    const t = fsSpecs()
+      .find((s) => s.name === 'grep')!
+      .build({ ...ctx, cwd: rdir })
+    const res = await t.execute('c', { pattern: 'TODO' })
+    expect((res.details as { count: number }).count).toBe(2)
   })
 })
