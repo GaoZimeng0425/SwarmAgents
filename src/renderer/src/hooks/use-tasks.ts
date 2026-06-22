@@ -24,9 +24,11 @@ export function useSubmitGoal() {
     mutationFn: async ({
       goal,
       attachments,
+      options,
     }: {
       goal: string
       attachments?: import('@shared/types/task').Attachment[]
+      options?: import('@shared/types/task').TaskOptions
     }) => {
       let sessionId = useSessionsStore.getState().selectedSessionId
       if (!sessionId) {
@@ -34,7 +36,7 @@ export function useSubmitGoal() {
         sessionId = created.sessionId
         useSessionsStore.getState().select(sessionId)
       }
-      return swarmApi.submitGoal(sessionId, goal, attachments)
+      return swarmApi.submitGoal(sessionId, goal, attachments, options)
     },
   })
 }

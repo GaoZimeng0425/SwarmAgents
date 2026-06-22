@@ -1,5 +1,5 @@
 import type { MemoryView } from '@shared/types/memory'
-import type { Attachment, Task } from '@shared/types/task'
+import type { Attachment, Task, TaskOptions } from '@shared/types/task'
 import type {
   CronJobSummary,
   PermissionDecision,
@@ -11,8 +11,12 @@ import type {
 import type { UsageStats } from '@shared/types/usage'
 
 export const swarmApi = {
-  submitGoal: (sessionId: string, goal: string, attachments?: Attachment[]): Promise<SubmitGoalResult> =>
-    window.swarm.submitGoal(sessionId, goal, attachments),
+  submitGoal: (
+    sessionId: string,
+    goal: string,
+    attachments?: Attachment[],
+    options?: TaskOptions
+  ): Promise<SubmitGoalResult> => window.swarm.submitGoal(sessionId, goal, attachments, options),
   cancelTask: (sessionId: string, taskId: string): Promise<void> => window.swarm.cancelTask(sessionId, taskId),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),

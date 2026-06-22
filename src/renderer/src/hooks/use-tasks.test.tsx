@@ -127,7 +127,7 @@ describe('useSubmitGoal', () => {
     })
 
     expect(api.swarmApi.createSession).toHaveBeenCalledOnce()
-    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-test', 'my goal', undefined)
+    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-test', 'my goal', undefined, undefined)
     // Session should now be selected
     expect(useSessionsStore.getState().selectedSessionId).toBe('ses-test')
   })
@@ -148,7 +148,7 @@ describe('useSubmitGoal', () => {
     })
 
     expect(api.swarmApi.createSession).not.toHaveBeenCalled()
-    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-existing', 'another goal', undefined)
+    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-existing', 'another goal', undefined, undefined)
   })
 })
 

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { providerViewById } from '@shared/types/provider'
+import type { ExecutionMode, PermissionMode } from '@shared/types/task'
 
 import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
@@ -17,6 +19,14 @@ export function TasksView(): React.JSX.Element {
   const cancelTask = useCancelTask()
   const decide = useDecidePermission()
   const { ready, state } = useProviders()
+
+  // Composer execution controls. Held here (not in ChatInput) so every turn in
+  // the session — including follow-ups sent from the thread — inherits the same
+  // working directory and modes; each turn is a fresh task that needs them.
+  const [cwd, setCwd] = useState<string | undefined>(undefined)
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>('ask')
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('goal')
+  const taskOptions = { cwd, permissionMode, executionMode }
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
   // Runs are sequential per session, so at most one task is in flight; the
@@ -39,7 +49,7 @@ export function TasksView(): React.JSX.Element {
         <ConversationThread
           onSend={(text) => {
             if (!ready) return
-            void submitGoal.mutateAsync({ goal: text })
+            void submitGoal.mutateAsync({ goal: text, options: taskOptions })
           }}
           tasks={sessionTasks}
         />
@@ -57,14 +67,20 @@ export function TasksView(): React.JSX.Element {
           cacheReadTokens={latestTask?.used?.cacheRead}
           contextTokens={latestTask?.contextTokens}
           contextWindow={latestTask?.contextWindow}
+          cwd={cwd}
           disabled={!ready}
+          executionMode={executionMode}
+          onCwdChange={setCwd}
+          onExecutionModeChange={setExecutionMode}
+          onPermissionModeChange={setPermissionMode}
           onStop={() => {
             if (activeTask) cancelTask.mutate({ sessionId: activeTask.sessionId, taskId: activeTask.id })
           }}
           onSubmit={async (g, attachments) => {
             if (!ready) return
-            await submitGoal.mutateAsync({ goal: g, attachments })
+            await submitGoal.mutateAsync({ goal: g, attachments, options: taskOptions })
           }}
+          permissionMode={permissionMode}
           status={activeTask ? (activeTask.status === 'pending' ? 'submitted' : 'streaming') : 'ready'}
           supportsImages={!!providerViewById(state, state.active)?.supportsImages}
           usdCents={latestTask?.used?.usdCents}

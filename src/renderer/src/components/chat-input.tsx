@@ -1,10 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@shared/types/provider'
-import type { Attachment } from '@shared/types/task'
-import { FileText, Paperclip, X } from 'lucide-react'
+import type { Attachment, ExecutionMode, PermissionMode } from '@shared/types/task'
+import { FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, X } from 'lucide-react'
 
 import {
   PromptInput,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuItem,
+  PromptInputActionMenuTrigger,
   PromptInputBody,
   PromptInputButton,
   PromptInputFooter,
@@ -37,6 +41,14 @@ type Props = {
   usdCents?: number
   cacheReadTokens?: number
   placeholder?: string
+  // Composer execution controls, owned by the parent so they persist across the
+  // session's turns (each turn is a fresh task that must inherit the same cwd/mode).
+  cwd?: string
+  onCwdChange?: (cwd: string | undefined) => void
+  permissionMode?: PermissionMode
+  onPermissionModeChange?: (mode: PermissionMode) => void
+  executionMode?: ExecutionMode
+  onExecutionModeChange?: (mode: ExecutionMode) => void
 }
 
 type ModelOption = { providerId: string; providerName: string; modelId: string; key: string }
@@ -53,6 +65,21 @@ const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
   xhigh: 'Max',
 }
 
+const PERMISSION_LABELS: Record<PermissionMode, string> = {
+  ask: '询问权限',
+  full: '完全操作权限',
+}
+
+const EXECUTION_LABELS: Record<ExecutionMode, string> = {
+  goal: '目标模式',
+  plan: '计划模式',
+}
+
+// Last path segment, for a compact working-directory chip label.
+function basename(path: string): string {
+  return path.replace(/\/+$/, '').split('/').pop() || path
+}
+
 function buildModelOptions(state: ProvidersStateView): ModelOption[] {
   const out: ModelOption[] = []
   for (const p of state.providers) {
@@ -67,15 +94,24 @@ function buildModelOptions(state: ProvidersStateView): ModelOption[] {
   return out
 }
 
-// Thumbnail strip + attach button; must be a child of PromptInput (uses its attachments context).
-function AttachBar({
+// Thumbnail strip + the "＋" menu (attach files, reference a file/folder by path).
+// Must be a child of PromptInput (uses its attachments context).
+function AttachArea({
   supportsImages,
   onOpenFile,
+  onInsertPath,
 }: {
   supportsImages: boolean
   onOpenFile: (file: ViewerFile) => void
+  onInsertPath: (path: string) => void
 }): React.JSX.Element {
   const attachments = usePromptInputAttachments()
+
+  const pick = async (kind: 'file' | 'directory'): Promise<void> => {
+    const path = kind === 'directory' ? await window.swarm.pickDirectory() : await window.swarm.pickFile()
+    if (path) onInsertPath(path)
+  }
+
   return (
     <>
       {attachments.files.length > 0 && (
@@ -114,12 +150,25 @@ function AttachBar({
           })}
         </div>
       )}
-      <PromptInputButton
-        onClick={() => attachments.openFileDialog()}
-        tooltip={supportsImages ? 'Attach files' : 'Attach documents (images need a vision model)'}
-      >
-        <Paperclip className="size-4" />
-      </PromptInputButton>
+      <PromptInputActionMenu>
+        <PromptInputActionMenuTrigger
+          tooltip={supportsImages ? '附加文件或引用路径' : '附加文档或引用路径(图片需视觉模型)'}
+        />
+        <PromptInputActionMenuContent>
+          <PromptInputActionMenuItem onClick={() => attachments.openFileDialog()}>
+            <Paperclip className="size-4" />
+            {supportsImages ? '上传图片 / 文件' : '上传文件'}
+          </PromptInputActionMenuItem>
+          <PromptInputActionMenuItem onClick={() => void pick('file')}>
+            <FileText className="size-4" />
+            选择文件
+          </PromptInputActionMenuItem>
+          <PromptInputActionMenuItem onClick={() => void pick('directory')}>
+            <FolderOpen className="size-4" />
+            选择文件夹
+          </PromptInputActionMenuItem>
+        </PromptInputActionMenuContent>
+      </PromptInputActionMenu>
     </>
   )
 }
@@ -135,9 +184,16 @@ export function ChatInput({
   usdCents,
   cacheReadTokens,
   placeholder,
+  cwd,
+  onCwdChange,
+  permissionMode = 'ask',
+  onPermissionModeChange,
+  executionMode = 'goal',
+  onExecutionModeChange,
 }: Props): React.JSX.Element {
   const { state } = useProviders()
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const options = useMemo(() => buildModelOptions(state), [state])
   const activeRow = providerViewById(state, state.active)
   const currentKey = state.active && activeRow ? `${state.active}::${activeRow.model}` : ''
@@ -148,6 +204,25 @@ export function ChatInput({
     if (!goal) return
     const attachments = imageAttachmentsFrom(message.files)
     await onSubmit(goal, attachments.length > 0 ? attachments : undefined)
+  }
+
+  // The composer textarea is uncontrolled (read via FormData on submit), so we
+  // append the picked path through the native value setter and fire an input
+  // event — that keeps field-sizing and any listeners in sync.
+  const insertPathReference = (path: string): void => {
+    const ta = containerRef.current?.querySelector('textarea[name="message"]') as HTMLTextAreaElement | null
+    if (!ta) return
+    const needsSpace = ta.value.length > 0 && !/\s$/.test(ta.value)
+    const next = `${ta.value}${needsSpace ? ' ' : ''}@${path} `
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+    setter?.call(ta, next)
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    ta.focus()
+  }
+
+  const onPickCwd = async (): Promise<void> => {
+    const path = await window.swarm.pickDirectory()
+    if (path) onCwdChange?.(path)
   }
 
   const onPickModel = async (key: string): Promise<void> => {
@@ -169,7 +244,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="shrink-0 px-4 pt-2 pb-4">
+    <div className="shrink-0 px-4 pt-2 pb-4" ref={containerRef}>
       <PromptInput
         accept={supportsImages ? ATTACHMENT_ACCEPT : DOCUMENT_ACCEPT}
         className="mx-auto max-w-3xl"
@@ -182,7 +257,53 @@ export function ChatInput({
         </PromptInputBody>
         <PromptInputFooter>
           <PromptInputTools>
-            <AttachBar onOpenFile={setViewerFile} supportsImages={supportsImages} />
+            <AttachArea onInsertPath={insertPathReference} onOpenFile={setViewerFile} supportsImages={supportsImages} />
+            <div className="flex items-center">
+              <PromptInputButton onClick={() => void onPickCwd()} tooltip={cwd ?? '选择工作目录(默认为用户主目录)'}>
+                <Folder className="size-4" />
+                <span className="max-w-32 truncate">{cwd ? basename(cwd) : '工作目录'}</span>
+              </PromptInputButton>
+              {cwd && (
+                <button
+                  aria-label="Clear working directory"
+                  className="ml-0.5 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => onCwdChange?.(undefined)}
+                  type="button"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+            <PromptInputSelect
+              onValueChange={(v) => onPermissionModeChange?.(String(v) as PermissionMode)}
+              value={permissionMode}
+            >
+              <PromptInputSelectTrigger>
+                <Shield className="size-4" />
+                <PromptInputSelectValue>
+                  {(v) => PERMISSION_LABELS[(v as PermissionMode) ?? 'ask']}
+                </PromptInputSelectValue>
+              </PromptInputSelectTrigger>
+              <PromptInputSelectContent>
+                <PromptInputSelectItem value="ask">{PERMISSION_LABELS.ask}</PromptInputSelectItem>
+                <PromptInputSelectItem value="full">{PERMISSION_LABELS.full}</PromptInputSelectItem>
+              </PromptInputSelectContent>
+            </PromptInputSelect>
+            <PromptInputSelect
+              onValueChange={(v) => onExecutionModeChange?.(String(v) as ExecutionMode)}
+              value={executionMode}
+            >
+              <PromptInputSelectTrigger>
+                {executionMode === 'plan' ? <ListChecks className="size-4" /> : <Target className="size-4" />}
+                <PromptInputSelectValue>
+                  {(v) => EXECUTION_LABELS[(v as ExecutionMode) ?? 'goal']}
+                </PromptInputSelectValue>
+              </PromptInputSelectTrigger>
+              <PromptInputSelectContent>
+                <PromptInputSelectItem value="goal">{EXECUTION_LABELS.goal}</PromptInputSelectItem>
+                <PromptInputSelectItem value="plan">{EXECUTION_LABELS.plan}</PromptInputSelectItem>
+              </PromptInputSelectContent>
+            </PromptInputSelect>
             {options.length > 0 && (
               <PromptInputSelect onValueChange={(v) => void onPickModel(String(v))} value={currentKey}>
                 <PromptInputSelectTrigger>
