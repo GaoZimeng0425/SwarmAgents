@@ -80,6 +80,14 @@ export type SessionManager = {
   getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
   /** @internal test hook */
   __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@shared/types/actor').Actor
+  /** @internal test hook */
+  __sendMessageForTest?(
+    sessionId: string,
+    fromAddr: string | null,
+    toAddr: string,
+    payload: string,
+    kind: 'send' | 'rpc'
+  ): Promise<{ reply: string } | { delivered: true }>
 }
 
 // session-manager owns sensible defaults for the agent-execution subsystem
@@ -183,6 +191,126 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.upsertActor(actor)
     log.info({ msg: 'actor created', sessionId, address: actor.address, agentDefId, name: name ?? null })
     return actor
+  }
+
+  // Resolve `to` as either a raw ULID address or a session-scoped readable name.
+  const resolveAddress = (sessionId: string, to: string): import('@shared/types/actor').Actor | undefined =>
+    store.getActor(to) ?? store.getActorByName(sessionId, to)
+
+  // Run one activation of an addressable actor with `goal` as its input. Mirrors
+  // spawnChild's run path: acquire a slot, build a runner, execute once, persist
+  // the terminal status. Returns the run summary (the rpc reply).
+  const activateActor = async (
+    sessionId: string,
+    actor: import('@shared/types/actor').Actor,
+    goal: string
+  ): Promise<string> => {
+    const session = sessions.get(sessionId)
+    if (!session) throw new Error(`session ${sessionId} not found`)
+    const def = cfg.agentStore?.get(actor.agentDefId) ?? DEFAULT_AGENT_DEF
+    const taskId = ulid()
+    const now = Date.now()
+    const task: Task = {
+      id: taskId,
+      parentId: null,
+      agentDefId: def.id,
+      goal,
+      status: 'pending',
+      assignedWorkerId: null,
+      toolAllowlist: deriveAllowlist(def.toolScope),
+      budget: budgets().sub,
+      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      history: [],
+      attachments: [],
+      result: null,
+      createdAt: now,
+      startedAt: null,
+      endedAt: null,
+    }
+    store.saveTask(task, sessionId)
+    store.upsertActor({ ...actor, lastTaskId: taskId, updatedAt: now })
+    broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments: [], agentDefId: def.id, ts: now })
+    log.info({ msg: 'actor activated', sessionId, address: actor.address, taskId, agentDefId: def.id })
+
+    await acquireSlot()
+    const abort = new AbortController()
+    runHandles.set(taskId, abort)
+    const runner = createAgentRunner({
+      task,
+      provider: def.model ? { ...session.provider, model: def.model } : session.provider,
+      agentDefinition: withPrompt(def),
+      sessionId,
+      emit: makeEmit(sessionId),
+      permissionRegistry: session.permissionRegistry,
+      toolRegistry,
+      initialMessages: [],
+      signal: abort.signal,
+      selfAddress: actor.address,
+      sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
+      spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
+    } as any)
+    try {
+      const { status, summary } = await runner.run()
+      store.updateTaskStatus(taskId, status)
+      return summary
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.error({ msg: 'actor activation failed', address: actor.address, taskId, err: message })
+      try {
+        store.appendTaskEvent(taskId, {
+          kind: 'error',
+          error: { code: 'run_failed', message, tier: 'fatal' },
+          ts: Date.now(),
+        })
+        store.updateTaskStatus(taskId, 'failed')
+      } catch (persistErr) {
+        log.error({ msg: 'failed to persist activation error', taskId, err: String(persistErr) })
+      }
+      return ''
+    } finally {
+      runHandles.delete(taskId)
+      releaseSlot()
+    }
+  }
+
+  const sendMessage = async (
+    sessionId: string,
+    fromAddr: string | null,
+    toAddr: string,
+    payload: string,
+    kind: 'send' | 'rpc'
+  ): Promise<{ reply: string } | { delivered: true }> => {
+    const target = resolveAddress(sessionId, toAddr)
+    const now = Date.now()
+    const msgId = ulid()
+    store.enqueueMessage({
+      id: msgId,
+      toAddr: target?.address ?? toAddr,
+      fromAddr,
+      kind,
+      correlationId: kind === 'rpc' ? msgId : null,
+      payload,
+      consumed: false,
+      retries: 0,
+      dead: !target,
+      ts: now,
+    })
+    if (!target) {
+      log.warn({ msg: 'message to unknown address dead-lettered', sessionId, toAddr, kind })
+      return kind === 'rpc' ? { reply: '' } : { delivered: true }
+    }
+    log.info({ msg: 'message sent', sessionId, fromAddr, toAddr: target.address, kind, correlationId: msgId })
+
+    if (kind === 'rpc') {
+      const reply = await activateActor(sessionId, target, payload)
+      store.markConsumed(msgId)
+      return { reply }
+    }
+    // fire-and-forget: activate without blocking; mark consumed when done.
+    void activateActor(sessionId, target, payload)
+      .then(() => store.markConsumed(msgId))
+      .catch((err) => log.error({ msg: 'fire-and-forget activation rejected', msgId, err: String(err) }))
+    return { delivered: true }
   }
 
   const spawnChild = async (
@@ -493,6 +621,17 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // Test-only: exercise actor resolution without driving a full run.
     __ensureActorForTest(sessionId: string, agentDefId: string, name?: string) {
       return ensureActor(sessionId, agentDefId, name)
+    },
+
+    // Test-only: drive sendMessage directly.
+    __sendMessageForTest(
+      sessionId: string,
+      fromAddr: string | null,
+      toAddr: string,
+      payload: string,
+      kind: 'send' | 'rpc'
+    ) {
+      return sendMessage(sessionId, fromAddr, toAddr, payload, kind)
     },
   }
 }
