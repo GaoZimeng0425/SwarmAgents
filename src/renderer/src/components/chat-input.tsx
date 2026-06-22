@@ -1,17 +1,19 @@
 import { useMemo, useRef, useState } from 'react'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@shared/types/provider'
 import type { Attachment, ExecutionMode, PermissionMode } from '@shared/types/task'
-import { FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, X } from 'lucide-react'
+import { Check, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, X } from 'lucide-react'
 
 import {
   PromptInput,
   PromptInputActionMenu,
   PromptInputActionMenuContent,
   PromptInputActionMenuItem,
+  PromptInputActionMenuSeparator,
   PromptInputActionMenuTrigger,
   PromptInputBody,
   PromptInputButton,
   PromptInputFooter,
+  PromptInputHeader,
   type PromptInputMessage,
   PromptInputSelect,
   PromptInputSelectContent,
@@ -94,16 +96,65 @@ function buildModelOptions(state: ProvidersStateView): ModelOption[] {
   return out
 }
 
-// Thumbnail strip + the "＋" menu (attach files, reference a file/folder by path).
-// Must be a child of PromptInput (uses its attachments context).
-function AttachArea({
+// Attachment thumbnail strip, rendered in the composer header above the textarea.
+// Only mounts the header bar when there is at least one attachment, so an empty
+// composer shows no stray top padding. Must be a child of PromptInput (attachments context).
+function AttachmentThumbnails({ onOpenFile }: { onOpenFile: (file: ViewerFile) => void }): React.JSX.Element | null {
+  const attachments = usePromptInputAttachments()
+  if (attachments.files.length === 0) return null
+
+  return (
+    <PromptInputHeader>
+      <div className="flex flex-wrap gap-2 px-1 pb-1">
+        {attachments.files.map((f) => {
+          const kind = fileKind(f.mediaType)
+          return (
+            <div className="relative" key={f.id}>
+              {kind === 'image' ? (
+                <img alt={f.filename ?? 'attachment'} className="size-14 rounded-md border object-cover" src={f.url} />
+              ) : (
+                <button
+                  className="flex h-14 max-w-40 items-center gap-2 rounded-md border bg-muted/40 px-2.5 text-left hover:bg-muted"
+                  onClick={() => onOpenFile({ url: f.url, mediaType: f.mediaType, filename: f.filename })}
+                  title={f.filename ?? 'attachment'}
+                  type="button"
+                >
+                  <FileText className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-xs">{f.filename ?? kind.toUpperCase()}</span>
+                </button>
+              )}
+              <button
+                aria-label="Remove attachment"
+                className="absolute -top-1.5 -right-1.5 rounded-full bg-background p-0.5 text-muted-foreground shadow hover:text-foreground"
+                onClick={() => attachments.remove(f.id)}
+                type="button"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </PromptInputHeader>
+  )
+}
+
+// The "＋" menu in the footer: attach files / reference a path, plus the
+// goal/plan execution-mode toggle. Anchored to the composer box (not the trigger)
+// and opened with side="top", so the whole panel floats entirely above the input
+// box instead of overlapping it. Must be a child of PromptInput (attachments context).
+function ComposerAddMenu({
   supportsImages,
-  onOpenFile,
   onInsertPath,
+  executionMode,
+  onExecutionModeChange,
+  anchor,
 }: {
   supportsImages: boolean
-  onOpenFile: (file: ViewerFile) => void
   onInsertPath: (path: string) => void
+  executionMode: ExecutionMode
+  onExecutionModeChange?: (mode: ExecutionMode) => void
+  anchor: React.RefObject<HTMLElement | null>
 }): React.JSX.Element {
   const attachments = usePromptInputAttachments()
 
@@ -113,63 +164,40 @@ function AttachArea({
   }
 
   return (
-    <>
-      {attachments.files.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-1 pb-1">
-          {attachments.files.map((f) => {
-            const kind = fileKind(f.mediaType)
-            return (
-              <div className="relative" key={f.id}>
-                {kind === 'image' ? (
-                  <img
-                    alt={f.filename ?? 'attachment'}
-                    className="size-14 rounded-md border object-cover"
-                    src={f.url}
-                  />
-                ) : (
-                  <button
-                    className="flex h-14 max-w-40 items-center gap-2 rounded-md border bg-muted/40 px-2.5 text-left hover:bg-muted"
-                    onClick={() => onOpenFile({ url: f.url, mediaType: f.mediaType, filename: f.filename })}
-                    title={f.filename ?? 'attachment'}
-                    type="button"
-                  >
-                    <FileText className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate text-xs">{f.filename ?? kind.toUpperCase()}</span>
-                  </button>
-                )}
-                <button
-                  aria-label="Remove attachment"
-                  className="absolute -top-1.5 -right-1.5 rounded-full bg-background p-0.5 text-muted-foreground shadow hover:text-foreground"
-                  onClick={() => attachments.remove(f.id)}
-                  type="button"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <PromptInputActionMenu>
-        <PromptInputActionMenuTrigger
-          tooltip={supportsImages ? '附加文件或引用路径' : '附加文档或引用路径(图片需视觉模型)'}
-        />
-        <PromptInputActionMenuContent>
-          <PromptInputActionMenuItem onClick={() => attachments.openFileDialog()}>
-            <Paperclip className="size-4" />
-            {supportsImages ? '上传图片 / 文件' : '上传文件'}
-          </PromptInputActionMenuItem>
-          <PromptInputActionMenuItem onClick={() => void pick('file')}>
-            <FileText className="size-4" />
-            选择文件
-          </PromptInputActionMenuItem>
-          <PromptInputActionMenuItem onClick={() => void pick('directory')}>
-            <FolderOpen className="size-4" />
-            选择文件夹
-          </PromptInputActionMenuItem>
-        </PromptInputActionMenuContent>
-      </PromptInputActionMenu>
-    </>
+    <PromptInputActionMenu>
+      <PromptInputActionMenuTrigger tooltip="附加文件、设置目标或计划模式" />
+      <PromptInputActionMenuContent align="start" anchor={anchor} className="min-w-56" side="top" sideOffset={8}>
+        <PromptInputActionMenuItem onClick={() => attachments.openFileDialog()}>
+          <Paperclip className="size-4" />
+          {supportsImages ? '上传图片 / 文件' : '上传文件'}
+        </PromptInputActionMenuItem>
+        <PromptInputActionMenuItem onClick={() => void pick('file')}>
+          <FileText className="size-4" />
+          选择文件
+        </PromptInputActionMenuItem>
+        <PromptInputActionMenuItem onClick={() => void pick('directory')}>
+          <FolderOpen className="size-4" />
+          选择文件夹
+        </PromptInputActionMenuItem>
+        <PromptInputActionMenuSeparator />
+        <PromptInputActionMenuItem onClick={() => onExecutionModeChange?.('goal')}>
+          <Target className="size-4" />
+          <span className="flex flex-col">
+            <span>{EXECUTION_LABELS.goal}</span>
+            <span className="text-muted-foreground text-xs">持续努力实现设定的目标</span>
+          </span>
+          {executionMode === 'goal' && <Check className="ml-auto size-4" />}
+        </PromptInputActionMenuItem>
+        <PromptInputActionMenuItem onClick={() => onExecutionModeChange?.('plan')}>
+          <ListChecks className="size-4" />
+          <span className="flex flex-col">
+            <span>{EXECUTION_LABELS.plan}</span>
+            <span className="text-muted-foreground text-xs">先制定计划, 确认后再执行</span>
+          </span>
+          {executionMode === 'plan' && <Check className="ml-auto size-4" />}
+        </PromptInputActionMenuItem>
+      </PromptInputActionMenuContent>
+    </PromptInputActionMenu>
   )
 }
 
@@ -194,6 +222,8 @@ export function ChatInput({
   const { state } = useProviders()
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  // Anchors the "＋" menu to the composer box so it opens fully above the input.
+  const composerRef = useRef<HTMLDivElement>(null)
   const options = useMemo(() => buildModelOptions(state), [state])
   const activeRow = providerViewById(state, state.active)
   const currentKey = state.active && activeRow ? `${state.active}::${activeRow.model}` : ''
@@ -245,19 +275,26 @@ export function ChatInput({
 
   return (
     <div className="shrink-0 px-4 pt-2 pb-4" ref={containerRef}>
-      <PromptInput
-        accept={supportsImages ? ATTACHMENT_ACCEPT : DOCUMENT_ACCEPT}
-        className="mx-auto max-w-3xl"
-        maxFileSize={MAX_FILE_SIZE}
-        maxFiles={MAX_FILES}
-        onSubmit={handleSubmit}
-      >
+      <div className="mx-auto max-w-3xl" ref={composerRef}>
+        <PromptInput
+          accept={supportsImages ? ATTACHMENT_ACCEPT : DOCUMENT_ACCEPT}
+          maxFileSize={MAX_FILE_SIZE}
+          maxFiles={MAX_FILES}
+          onSubmit={handleSubmit}
+        >
+        <AttachmentThumbnails onOpenFile={setViewerFile} />
         <PromptInputBody>
           <PromptInputTextarea autoFocus disabled={disabled} placeholder={placeholder ?? 'Message the swarm…'} />
         </PromptInputBody>
         <PromptInputFooter>
           <PromptInputTools>
-            <AttachArea onInsertPath={insertPathReference} onOpenFile={setViewerFile} supportsImages={supportsImages} />
+            <ComposerAddMenu
+              anchor={composerRef}
+              executionMode={executionMode}
+              onExecutionModeChange={onExecutionModeChange}
+              onInsertPath={insertPathReference}
+              supportsImages={supportsImages}
+            />
             <div className="flex items-center">
               <PromptInputButton onClick={() => void onPickCwd()} tooltip={cwd ?? '选择工作目录(默认为用户主目录)'}>
                 <Folder className="size-4" />
@@ -289,28 +326,15 @@ export function ChatInput({
                 <PromptInputSelectItem value="full">{PERMISSION_LABELS.full}</PromptInputSelectItem>
               </PromptInputSelectContent>
             </PromptInputSelect>
-            <PromptInputSelect
-              onValueChange={(v) => onExecutionModeChange?.(String(v) as ExecutionMode)}
-              value={executionMode}
-            >
-              <PromptInputSelectTrigger>
-                {executionMode === 'plan' ? <ListChecks className="size-4" /> : <Target className="size-4" />}
-                <PromptInputSelectValue>
-                  {(v) => EXECUTION_LABELS[(v as ExecutionMode) ?? 'goal']}
-                </PromptInputSelectValue>
-              </PromptInputSelectTrigger>
-              <PromptInputSelectContent>
-                <PromptInputSelectItem value="goal">{EXECUTION_LABELS.goal}</PromptInputSelectItem>
-                <PromptInputSelectItem value="plan">{EXECUTION_LABELS.plan}</PromptInputSelectItem>
-              </PromptInputSelectContent>
-            </PromptInputSelect>
             {options.length > 0 && (
               <PromptInputSelect onValueChange={(v) => void onPickModel(String(v))} value={currentKey}>
                 <PromptInputSelectTrigger>
                   <PromptInputSelectValue placeholder="Model">
                     {(key) => {
+                      // Trigger shows only the model id; the dropdown list keeps the
+                      // provider prefix so cross-provider models stay distinguishable.
                       const o = options.find((opt) => opt.key === key)
-                      return o ? `${o.providerName} · ${o.modelId}` : 'Model'
+                      return o ? o.modelId : 'Model'
                     }}
                   </PromptInputSelectValue>
                 </PromptInputSelectTrigger>
@@ -352,7 +376,8 @@ export function ChatInput({
             <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
           </div>
         </PromptInputFooter>
-      </PromptInput>
+        </PromptInput>
+      </div>
       <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
     </div>
   )

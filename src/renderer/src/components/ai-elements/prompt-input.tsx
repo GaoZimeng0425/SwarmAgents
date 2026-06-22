@@ -16,7 +16,6 @@ import type {
 } from 'react'
 import { Children, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { BaseUIEvent } from '@base-ui/react/types'
-import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from './types'
 import { CornerDownLeftIcon, ImageIcon, Monitor, PlusIcon, SquareIcon, XIcon } from 'lucide-react'
 import { nanoid } from 'nanoid'
 
@@ -29,13 +28,20 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from './types'
 
 // ============================================================================
 // Helpers
@@ -1023,6 +1029,11 @@ export const PromptInputActionMenuItem = ({ className, ...props }: PromptInputAc
   <DropdownMenuItem className={cn(className)} {...props} />
 )
 
+export type PromptInputActionMenuSeparatorProps = ComponentProps<typeof DropdownMenuSeparator>
+export const PromptInputActionMenuSeparator = ({ className, ...props }: PromptInputActionMenuSeparatorProps) => (
+  <DropdownMenuSeparator className={cn(className)} {...props} />
+)
+
 // Note: Actions that perform side-effects (like opening a file dialog)
 // are provided in opt-in modules (e.g., prompt-input-attachments).
 
@@ -1089,8 +1100,13 @@ export type PromptInputSelectTriggerProps = ComponentProps<typeof SelectTrigger>
 export const PromptInputSelectTrigger = ({ className, ...props }: PromptInputSelectTriggerProps) => (
   <SelectTrigger
     className={cn(
-      'border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors',
-      'hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground',
+      // Composer control chip: borderless, compact, harmonized with the ghost
+      // buttons next to it (muted hover/open fill, not accent).
+      'h-8 gap-1 rounded-md border-none bg-transparent px-2.5 font-medium text-muted-foreground shadow-none transition-colors',
+      'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
+      'dark:aria-expanded:bg-muted/50 dark:hover:bg-muted/50',
+      // Dim the trailing chevron so the label reads first.
+      '[&>svg:last-child]:opacity-60',
       className
     )}
     {...props}
