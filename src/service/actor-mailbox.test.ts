@@ -1,7 +1,7 @@
 // src/service/actor-mailbox.test.ts
 
 import type { ActorMessage } from '@shared/types/actor'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createMailbox, IdleTimeoutError } from './actor-mailbox'
 
@@ -17,6 +17,8 @@ const msg = (id: string): ActorMessage => ({
   dead: false,
   ts: 1,
 })
+
+afterEach(() => vi.useRealTimers())
 
 describe('createMailbox', () => {
   it('returns an already-queued message immediately', async () => {
@@ -39,7 +41,6 @@ describe('createMailbox', () => {
     const assertion = expect(p).rejects.toBeInstanceOf(IdleTimeoutError)
     await vi.advanceTimersByTimeAsync(60)
     await assertion
-    vi.useRealTimers()
   })
 
   it('delivers in FIFO order', async () => {
@@ -48,5 +49,11 @@ describe('createMailbox', () => {
     mb.deliver(msg('m2'))
     expect((await mb.receive({ idleMs: 1000 })).id).toBe('m1')
     expect((await mb.receive({ idleMs: 1000 })).id).toBe('m2')
+  })
+
+  it('throws if receive is called while a previous receive is pending', () => {
+    const mb = createMailbox()
+    void mb.receive({ idleMs: 1000 })
+    expect(() => mb.receive({ idleMs: 1000 })).toThrow(/pending receive/)
   })
 })

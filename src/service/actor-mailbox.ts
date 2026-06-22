@@ -36,6 +36,8 @@ export function createMailbox(): Mailbox {
     receive({ idleMs }) {
       const queued = queue.shift()
       if (queued) return Promise.resolve(queued)
+      // Single-waiter contract: the resident loop awaits each receive serially.
+      if (waiter) throw new Error('mailbox already has a pending receive')
       return new Promise<ActorMessage>((resolve, reject) => {
         const timer = setTimeout(() => {
           if (waiter) {
