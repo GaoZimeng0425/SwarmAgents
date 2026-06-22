@@ -48,6 +48,7 @@ export type ServiceClient = {
   listSkills(): Promise<Skill[]>
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
+  importSkill(sourceDir: string, overwrite?: boolean): Promise<SkillMutationResult>
   listMemory(namespace?: string): Promise<MemoryView[]>
   getUsageStats(rangeDays: number): Promise<import('@shared/types/usage').UsageStats>
   listCronJobsForSession(sessionId: string): Promise<import('@shared/types/ui').CronJobSummary[]>
@@ -145,6 +146,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     deleteSkill(name) {
       return call('deleteSkill', [name])
+    },
+    importSkill(sourceDir, overwrite) {
+      return call('importSkill', [sourceDir, overwrite])
     },
     listMemory(namespace) {
       return call('listMemory', [namespace])

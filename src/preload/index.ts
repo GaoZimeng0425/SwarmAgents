@@ -138,6 +138,8 @@ const skills: SkillBridge = {
   list: () => ipcRenderer.invoke('skills:list') as Promise<Skill[]>,
   save: (skill: Skill) => ipcRenderer.invoke('skills:save', skill) as Promise<SkillMutationResult>,
   remove: (name: string) => ipcRenderer.invoke('skills:delete', name) as Promise<SkillMutationResult>,
+  importFolder: (arg?: { sourceDir?: string; overwrite?: boolean }) =>
+    ipcRenderer.invoke('skills:import', arg) as Promise<SkillMutationResult & { sourceDir?: string }>,
 }
 
 const memory: MemoryBridge = {

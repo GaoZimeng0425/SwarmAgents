@@ -193,6 +193,7 @@ export type SkillBridge = {
   list(): Promise<Skill[]>
   save(skill: Skill): Promise<SkillMutationResult>
   remove(name: string): Promise<SkillMutationResult>
+  importFolder(arg?: { sourceDir?: string; overwrite?: boolean }): Promise<SkillMutationResult & { sourceDir?: string }>
 }
 
 export type MemoryBridge = {

@@ -83,6 +83,28 @@ export function wireSwarmIpc(args: {
     serviceClient.saveSkill(skill)
   )
   ipcMain.handle('skills:delete', (_e: Electron.IpcMainInvokeEvent, name: string) => serviceClient.deleteSkill(name))
+  ipcMain.handle(
+    'skills:import',
+    async (e: Electron.IpcMainInvokeEvent, arg?: { sourceDir?: string; overwrite?: boolean }) => {
+      let sourceDir = arg?.sourceDir
+      if (!sourceDir) {
+        const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined
+        const res = parent
+          ? await dialog.showOpenDialog(parent, { properties: ['openDirectory'] })
+          : await dialog.showOpenDialog({ properties: ['openDirectory'] })
+        if (res.canceled || res.filePaths.length === 0) {
+          log.info({ msg: 'skills:import cancelled' })
+          return { ok: false, code: 'cancelled', message: 'Import cancelled.' }
+        }
+        sourceDir = res.filePaths[0]
+      }
+      log.info({ msg: 'skills:import', sourceDir, overwrite: arg?.overwrite ?? false })
+      const r = await serviceClient.importSkill(sourceDir, arg?.overwrite)
+      // Echo the chosen dir back on a name clash so the renderer can retry with overwrite.
+      if (!r.ok && r.code === 'exists') return { ...r, sourceDir }
+      return r
+    }
+  )
   ipcMain.handle('memory:list', (_e: Electron.IpcMainInvokeEvent, namespace?: string) =>
     serviceClient.listMemory(namespace)
   )
@@ -257,6 +279,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('skills:list')
       ipcMain.removeHandler('skills:save')
       ipcMain.removeHandler('skills:delete')
+      ipcMain.removeHandler('skills:import')
       ipcMain.removeHandler('memory:list')
       ipcMain.removeHandler('system:openPrivacySettings')
       ipcMain.removeHandler('system:getMacPermissions')

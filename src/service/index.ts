@@ -105,6 +105,7 @@ const dispatch = createDispatcher({
   listSkills: () => skillStore.list(),
   saveSkill: (skill) => skillStore.save(skill),
   deleteSkill: (name) => skillStore.remove(name),
+  importSkill: (sourceDir, overwrite) => skillStore.importFolder(sourceDir, overwrite),
   listMemory: (namespace) => memoryStore.list(namespace),
   listCronJobsForSession: (sessionId) => scheduler.listForSession(sessionId),
   listAllCronJobs: () => {
