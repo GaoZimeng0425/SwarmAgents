@@ -9,7 +9,11 @@ const instances: Array<{ compact: ReturnType<typeof vi.fn> }> = []
 vi.mock('@earendil-works/pi-agent-core', () => {
   class Agent {
     state = { messages: [] as Array<{ role: string; content: string }> }
-    compact = vi.fn(async () => ({ summary: 's', firstKeptEntryId: 'x', tokensBefore: 1 }))
+    compact = vi.fn(async function (this: Agent) {
+      // Mutate messages in-place to simulate compaction shrinking the context window.
+      this.state.messages = [{ role: 'system', content: 'COMPACTED_SUMMARY' }]
+      return { summary: 's', firstKeptEntryId: 'x', tokensBefore: 1 }
+    })
     private sub: ((e: unknown) => void) | null = null
     constructor(_c: unknown) {
       instances.push(this as unknown as { compact: ReturnType<typeof vi.fn> })
@@ -165,5 +169,31 @@ describe('runResident', () => {
     // The mock Agent instance was constructed inside runResident via buildAgentSession.
     // Assert compact() was called exactly once on that instance.
     expect(instances.at(-1)?.compact).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists post-compaction state: serialization happens AFTER compact() mutates messages', async () => {
+    prompts.length = 0
+    hoisted.compactWhen = true
+    instances.length = 0
+    const captured: string[] = []
+    const mb = createMailbox()
+    mb.deliver(m('m1', 'send', null, 'x'))
+    await runResident(
+      deps(),
+      mb,
+      {
+        acquireTurnSlot: async () => {},
+        releaseTurnSlot: () => {},
+        onConsumed: (_id, state) => captured.push(state),
+        onReply: () => {},
+        onError: () => {},
+      },
+      20
+    )
+    expect(captured).toHaveLength(1)
+    // The persisted state must reflect what compact() left in state.messages,
+    // not the pre-compaction accumulated messages.
+    const decoded = JSON.parse(captured[0])
+    expect(decoded.messages).toEqual([{ role: 'system', content: 'COMPACTED_SUMMARY' }])
   })
 })
