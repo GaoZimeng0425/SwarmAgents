@@ -135,7 +135,7 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
     taskId: deps.task?.id,
     cwd: deps.task?.cwd,
     spawnChild: (goal, suggestedTools, providerKey, agentType) =>
-      deps.spawnChild(deps.task?.id ?? '', goal, suggestedTools, providerKey, agentType),
+      deps.spawnChild(deps.task.id, goal, suggestedTools, providerKey, agentType),
     send: () => undefined,
     // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
     // This stub satisfies the ToolRunContext type without creating a second gate.
