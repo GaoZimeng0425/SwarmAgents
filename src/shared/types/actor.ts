@@ -10,7 +10,7 @@ export type Actor = {
   agentDefId: string
   sessionId: string | null
   name: string | null
-  state: string | null // JSON; reserved for phase 3 (stateful collaboration), unused here
+  state: string | null // JSON {v,messages}: cross-dormancy conversation memory (phase 3)
   lastTaskId: string | null
   createdAt: number
   updatedAt: number
