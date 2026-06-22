@@ -1,6 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { DEFAULT_AGENT_DEF } from '@shared/agents/builtins'
 import { createLogger } from '@shared/logger'
+import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
@@ -119,8 +120,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   let activeRunners = 0
   const waitQueue: Array<() => void> = []
-  // Live runs, keyed by taskId, so cancelTask can abort a specific in-flight run.
-  const runHandles = new Map<string, AbortController>()
+  // One-shot task runs, keyed by taskId, so cancelTask can abort a specific in-flight run.
+  const oneShotHandles = new Map<string, AbortController>()
+  // Resident actor run-loops, keyed by actor address. Populated in Task 6.
+  const residentHandles = new Map<string, { abort(): void; deliver(msg: ActorMessage): void }>()
 
   async function acquireSlot(): Promise<void> {
     if (activeRunners < cfg.maxConcurrent) {
@@ -234,7 +237,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     await acquireSlot()
     const abort = new AbortController()
-    runHandles.set(taskId, abort)
+    oneShotHandles.set(taskId, abort)
     const runner = createAgentRunner({
       task,
       provider: def.model ? { ...session.provider, model: def.model } : session.provider,
@@ -268,7 +271,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       }
       return ''
     } finally {
-      runHandles.delete(taskId)
+      oneShotHandles.delete(taskId)
       releaseSlot()
     }
   }
@@ -380,7 +383,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const startChild = async (): Promise<void> => {
         await acquireSlot()
         const abort = new AbortController()
-        runHandles.set(childTaskId, abort)
+        oneShotHandles.set(childTaskId, abort)
         const runner = createAgentRunner({
           task: childTask,
           provider: resolvedProvider,
@@ -424,7 +427,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           // Resolve (not reject) so the parent's spawn tool gets a result and continues.
           resolve({ childTaskId, result: { summary: '', artifacts: [] } })
         } finally {
-          runHandles.delete(childTaskId)
+          oneShotHandles.delete(childTaskId)
           releaseSlot()
         }
       }
@@ -528,7 +531,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const runTurn = async (): Promise<void> => {
         await acquireSlot()
         const abort = new AbortController()
-        runHandles.set(taskId, abort)
+        oneShotHandles.set(taskId, abort)
         const runner = createAgentRunner({
           task,
           provider: session.provider,
@@ -569,7 +572,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           }
           onComplete?.('failed', message)
         } finally {
-          runHandles.delete(taskId)
+          oneShotHandles.delete(taskId)
           releaseSlot()
         }
       }
@@ -584,7 +587,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     cancelTask(sessionId, taskId) {
       log.info({ msg: 'task cancel requested', sessionId, taskId })
-      runHandles.get(taskId)?.abort()
+      oneShotHandles.get(taskId)?.abort()
     },
 
     endSession(sessionId) {
@@ -596,7 +599,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     deleteSession(sessionId) {
       log.info({ msg: 'session deleted', sessionId })
       // Abort any in-flight runs for this session before dropping its rows.
-      for (const t of store.getSessionTasks(sessionId)) runHandles.get(t.id)?.abort()
+      for (const t of store.getSessionTasks(sessionId)) oneShotHandles.get(t.id)?.abort()
       sessions.delete(sessionId)
       store.deleteSession(sessionId)
     },
