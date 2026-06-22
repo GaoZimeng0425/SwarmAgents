@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -100,5 +100,51 @@ describe('createSkillStore', () => {
     store.save({ name: 'ops', description: 'user', body: 'user body' })
     expect(store.list().filter((s) => s.name === 'ops')).toHaveLength(1)
     expect(store.get('ops')?.body).toBe('user body')
+  })
+
+  it('imports a folder with SKILL.md and bundled scripts', () => {
+    const src = mkdtempSync(join(tmpdir(), 'swarm-import-'))
+    mkdirSync(join(src, 'scripts'), { recursive: true })
+    writeFileSync(join(src, 'SKILL.md'), '---\nname: deploy\ndescription: Deploy app\n---\n\nRun scripts/run.sh')
+    writeFileSync(join(src, 'scripts', 'run.sh'), 'echo hi')
+    const store = createSkillStore({ dir })
+    const r = store.importFolder(src)
+    expect(r.ok).toBe(true)
+    expect(store.get('deploy')).toMatchObject({ description: 'Deploy app' })
+    expect(store.get('deploy')?.files).toEqual(['SKILL.md', 'scripts/run.sh'])
+    expect(readFileSync(join(dir, 'deploy', 'scripts', 'run.sh'), 'utf8')).toBe('echo hi')
+    rmSync(src, { recursive: true, force: true })
+  })
+
+  it('rejects a folder with no SKILL.md', () => {
+    const src = mkdtempSync(join(tmpdir(), 'swarm-import-'))
+    const store = createSkillStore({ dir })
+    const r = store.importFolder(src)
+    expect(r).toMatchObject({ ok: false, code: 'no_skill_md' })
+    rmSync(src, { recursive: true, force: true })
+  })
+
+  it('rejects a folder whose SKILL.md has an invalid name', () => {
+    const src = mkdtempSync(join(tmpdir(), 'swarm-import-'))
+    writeFileSync(join(src, 'SKILL.md'), '---\nname: Bad_Name\ndescription: d\n---\n\nb')
+    const store = createSkillStore({ dir })
+    const r = store.importFolder(src)
+    expect(r).toMatchObject({ ok: false, code: 'invalid' })
+    rmSync(src, { recursive: true, force: true })
+  })
+
+  it('refuses to overwrite an existing skill unless overwrite=true', () => {
+    const src = mkdtempSync(join(tmpdir(), 'swarm-import-'))
+    writeFileSync(join(src, 'SKILL.md'), '---\nname: dup\ndescription: first\n---\n\nv1')
+    const store = createSkillStore({ dir })
+    expect(store.importFolder(src).ok).toBe(true)
+
+    writeFileSync(join(src, 'SKILL.md'), '---\nname: dup\ndescription: second\n---\n\nv2')
+    expect(store.importFolder(src)).toMatchObject({ ok: false, code: 'exists' })
+
+    const r = store.importFolder(src, true)
+    expect(r.ok).toBe(true)
+    expect(store.get('dup')?.body).toBe('v2')
+    rmSync(src, { recursive: true, force: true })
   })
 })

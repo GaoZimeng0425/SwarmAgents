@@ -22,6 +22,9 @@ export const SkillSchema = z.object({
   disableModelInvocation: z.boolean().optional(),
   // Absolute path to SKILL.md, populated on load (not part of the write input).
   filePath: z.string().optional(),
+  // Relative POSIX paths of all files in the skill folder (incl. SKILL.md),
+  // populated on load only. Lets the UI show what a folder-imported skill bundles.
+  files: z.array(z.string()).optional(),
 })
 export type Skill = z.infer<typeof SkillSchema>
 

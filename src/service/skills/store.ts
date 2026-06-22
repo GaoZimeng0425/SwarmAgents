@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, join, relative, sep } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { type Skill, type SkillMutationResult, SkillSchema } from '@shared/types/skill'
 import { parse as parseYaml } from 'yaml'
@@ -11,6 +11,7 @@ export type SkillStore = {
   get(name: string): Skill | undefined
   reload(): void
   save(skill: Skill): SkillMutationResult
+  importFolder(sourceDir: string, overwrite?: boolean): SkillMutationResult
   remove(name: string): SkillMutationResult
 }
 
@@ -42,6 +43,20 @@ export function serializeSkill(skill: Skill): string {
   return `---\nname: ${skill.name}\ndescription: ${skill.description}\n${flag}---\n\n${skill.body.trim()}\n`
 }
 
+/** All file paths under `root`, relative to it, POSIX-separated and sorted. */
+function listFilesRel(root: string): string[] {
+  const out: string[] = []
+  const walk = (abs: string): void => {
+    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+      const full = join(abs, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (entry.isFile()) out.push(relative(root, full).split(sep).join('/'))
+    }
+  }
+  if (existsSync(root)) walk(root)
+  return out.sort()
+}
+
 export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): SkillStore {
   const { dir } = opts
   const builtins = opts.builtins ?? []
@@ -59,10 +74,15 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
     if (!existsSync(dir)) return
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue
-      const file = join(dir, entry.name, 'SKILL.md')
+      const folder = join(dir, entry.name)
+      const file = join(folder, 'SKILL.md')
       if (!existsSync(file)) continue
       try {
-        skills.push({ ...parseSkill(readFileSync(file, 'utf8'), entry.name), filePath: file })
+        skills.push({
+          ...parseSkill(readFileSync(file, 'utf8'), entry.name),
+          filePath: file,
+          files: listFilesRel(folder),
+        })
       } catch (err) {
         log.warn({ msg: 'failed to parse skill', dir: entry.name, err: String(err) })
       }
@@ -86,6 +106,41 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
     return { ok: true, skills: merged() }
   }
 
+  const importFolder: SkillStore['importFolder'] = (sourceDir, overwrite) => {
+    log.info({ msg: 'importFolder start', sourceDir, overwrite: overwrite ?? false })
+    const skillMd = join(sourceDir, 'SKILL.md')
+    if (!existsSync(skillMd)) {
+      log.warn({ msg: 'importFolder missing SKILL.md', sourceDir })
+      return { ok: false, code: 'no_skill_md', message: 'The selected folder has no SKILL.md file.' }
+    }
+    let parsed: Skill
+    try {
+      parsed = parseSkill(readFileSync(skillMd, 'utf8'), basename(sourceDir))
+    } catch (err) {
+      log.error({ msg: 'importFolder read failed', sourceDir, err: String(err) })
+      return { ok: false, code: 'invalid', message: 'Could not read SKILL.md.' }
+    }
+    const checked = SkillSchema.safeParse(parsed)
+    if (!checked.success)
+      return { ok: false, code: 'invalid', message: checked.error.issues[0]?.message ?? 'invalid skill' }
+    const target = join(dir, checked.data.name)
+    if (existsSync(target) && !overwrite) {
+      log.warn({ msg: 'importFolder name exists', name: checked.data.name })
+      return { ok: false, code: 'exists', message: `A skill named "${checked.data.name}" already exists.` }
+    }
+    try {
+      if (existsSync(target)) rmSync(target, { recursive: true, force: true })
+      mkdirSync(dir, { recursive: true })
+      cpSync(sourceDir, target, { recursive: true })
+    } catch (err) {
+      log.error({ msg: 'importFolder copy failed', sourceDir, target, err: String(err) })
+      return { ok: false, code: 'write_failed', message: String(err) }
+    }
+    reload()
+    log.info({ msg: 'importFolder ok', name: checked.data.name, fileCount: listFilesRel(target).length })
+    return { ok: true, skills: merged() }
+  }
+
   const remove: SkillStore['remove'] = (name) => {
     const folder = join(dir, name)
     if (!existsSync(folder)) return { ok: false, code: 'not_found', message: `skill "${name}" not found` }
@@ -103,6 +158,7 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
     get: (name) => skills.find((s) => s.name === name) ?? builtins.find((b) => b.name === name),
     reload,
     save,
+    importFolder,
     remove,
   }
 }
