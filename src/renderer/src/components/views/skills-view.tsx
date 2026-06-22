@@ -16,6 +16,7 @@ export function SkillsView(): React.JSX.Element {
       return
     }
     setSkills(r.skills)
+    setExpanded((cur) => (cur === name ? null : cur))
   }
 
   const runImport = async (arg?: { sourceDir?: string; overwrite?: boolean }): Promise<void> => {
@@ -91,9 +92,11 @@ export function SkillsView(): React.JSX.Element {
                     </ul>
                   </div>
                 )}
-                <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-muted p-3 font-mono text-xs">
-                  {s.body}
-                </pre>
+                {s.body && (
+                  <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-muted p-3 font-mono text-xs">
+                    {s.body}
+                  </pre>
+                )}
               </div>
             )}
           </div>
