@@ -334,7 +334,18 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       dead: false,
       ts: now,
     })
-    if (kind === 'rpc') return { reply: await replyRegistry.awaitReply(msgId, RPC_TIMEOUT_MS) }
+    if (kind === 'rpc') {
+      // The caller (fromAddr) is mid-turn and holds a turn-slot. Yield it while we
+      // await the reply so the callee can acquire a slot — this is what prevents
+      // deadlock under maxConcurrent. Re-acquire before returning to the caller's loop.
+      const callerHoldsSlot = !!fromAddr && residentHandles.has(fromAddr)
+      if (callerHoldsSlot) releaseSlot()
+      try {
+        return { reply: await replyRegistry.awaitReply(msgId, RPC_TIMEOUT_MS) }
+      } finally {
+        if (callerHoldsSlot) await acquireSlot()
+      }
+    }
     return { delivered: true }
   }
 
