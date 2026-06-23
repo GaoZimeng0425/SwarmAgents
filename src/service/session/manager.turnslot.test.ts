@@ -14,8 +14,8 @@ vi.mock('./agent-runner', () => ({
   buildAgentSession: () => ({}),
 }))
 
-import { createConversationStore } from './conversation/store'
-import { createSessionManager } from './session-manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from './manager'
 
 const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as any
 

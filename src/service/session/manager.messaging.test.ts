@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConversationStore } from './conversation/store'
-import { createSessionManager } from './session-manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from './manager'
 
 // Stub the agent-runner so a "turn" just echoes the delivered goal as its
 // summary. runResident drains the mailbox, marks each message consumed, and
