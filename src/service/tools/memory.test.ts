@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createMemoryStore, type MemoryStore } from '../memory-store'
+import { createMemoryStore, type MemoryStore } from '../memory/store'
 import { memorySpecs } from './memory'
 import type { ToolRunContext } from './registry'
 

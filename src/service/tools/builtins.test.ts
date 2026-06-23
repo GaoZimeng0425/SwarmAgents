@@ -2,7 +2,7 @@ import { homedir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 
 import type { CronScheduler } from '../cron-scheduler'
-import type { MemoryStore } from '../memory-store'
+import type { MemoryStore } from '../memory/store'
 import { registerBuiltinTools } from './builtins'
 import { createToolRegistry, type ToolRunContext } from './registry'
 

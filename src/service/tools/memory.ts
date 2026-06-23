@@ -1,6 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { MemoryStore } from '../memory-store'
+import type { MemoryStore } from '../memory/store'
 import type { ToolSpec } from './registry'
 
 const DEFAULT_NAMESPACE = 'default'

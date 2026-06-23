@@ -1,7 +1,7 @@
 import type { WebSearchInjection } from '@shared/types/web-search'
 
 import type { CronScheduler } from '../cron-scheduler'
-import type { MemoryStore } from '../memory-store'
+import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
 import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
