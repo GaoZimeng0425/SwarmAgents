@@ -3,7 +3,7 @@
 import { builtinAgents } from '@shared/agents/builtins'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './conversation/store'
 import { createSessionManager } from './session-manager'
 
 // Records the routed message chain so the test can assert the collaboration

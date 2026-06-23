@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './conversation/store'
 import { createSessionManager } from './session-manager'
 
 // Minimal broadcaster + provider stubs (mirror existing session-manager tests).

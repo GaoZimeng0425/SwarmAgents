@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ConversationStore, StoredCronJob, StoredCronRun } from './conversation-store'
+import type { ConversationStore, StoredCronJob, StoredCronRun } from './conversation/store'
 import type { Task } from '@shared/types/task'
 import { createCronScheduler } from './cron-scheduler'
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './store'
 
 const tmpDb = () => join(tmpdir(), `swarm-test-${Date.now()}-${Math.random()}.db`)
 

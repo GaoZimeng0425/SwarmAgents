@@ -1,7 +1,7 @@
 import { builtinAgents } from '@shared/agents/builtins'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './conversation/store'
 import { createSessionManager } from './session-manager'
 
 // CEO stub: replies with a fixed final summary; others not exercised here.

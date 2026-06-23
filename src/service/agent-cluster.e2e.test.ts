@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './conversation/store'
 import { createSessionManager } from './session-manager'
 
 // Runner stub: a "review" goal replies "LGTM"; everyone else echoes. The

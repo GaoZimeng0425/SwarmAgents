@@ -2,7 +2,7 @@ import { createLogger } from '@shared/logger'
 import { CronJob } from 'cron'
 import { ulid } from 'ulid'
 
-import type { ConversationStore, StoredCronJob, StoredCronRun } from './conversation-store'
+import type { ConversationStore, StoredCronJob, StoredCronRun } from './conversation/store'
 
 const log = createLogger({ process: 'service' }).child({ component: 'cron-scheduler' })
 

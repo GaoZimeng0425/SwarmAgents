@@ -9,7 +9,7 @@ import type { WebSearchInjection } from '@shared/types/web-search'
 
 import { createAgentStore } from './agents/store'
 import { createBroadcaster } from './ipc/broadcaster'
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron-scheduler'
 import { createDispatcher } from './ipc/dispatcher'
 import { createMcpManager } from './mcp/manager'

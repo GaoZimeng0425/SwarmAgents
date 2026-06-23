@@ -16,7 +16,7 @@ import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResiden
 import { withAgentTypes } from './agents/prompt'
 import type { AgentStore } from './agents/store'
 import type { Broadcaster } from './ipc/broadcaster'
-import type { ConversationStore } from './conversation-store'
+import type { ConversationStore } from './conversation/store'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
 import { createReplyRegistry } from './reply-registry'
 import { withSkills } from './skills/prompt'

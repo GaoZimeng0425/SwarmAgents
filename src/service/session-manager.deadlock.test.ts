@@ -56,7 +56,7 @@ vi.mock('@earendil-works/pi-agent-core', () => {
   }
 })
 
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './conversation/store'
 import { createSessionManager } from './session-manager'
 
 const fakeProvider = { id: 'test', model: 'test', apiStyle: 'anthropic', apiKey: 'k' } as unknown as never
