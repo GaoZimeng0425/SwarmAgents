@@ -71,6 +71,8 @@ export type ConversationStore = {
   listCronJobs(): StoredCronJob[]
   listCronJobsForSession(sessionId: string): StoredCronJob[]
   deleteCronJob(id: string): void
+  /** Repoint a job to another session (used to migrate legacy jobs to the system session). */
+  reassignCronJob(id: string, sessionId: string): void
   touchCronJob(id: string, lastRunAt: number): void
   saveCronRun(run: StoredCronRun): void
   attachCronRunTask(runId: string, taskId: string): void
@@ -290,6 +292,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtListCronJobs = db.prepare('SELECT * FROM cron_jobs')
   const stmtListCronJobsForSession = db.prepare('SELECT * FROM cron_jobs WHERE session_id = ?')
   const stmtDeleteCronJob = db.prepare('DELETE FROM cron_jobs WHERE id = ?')
+  const stmtReassignCronJob = db.prepare('UPDATE cron_jobs SET session_id = ? WHERE id = ?')
   const stmtTouchCronJob = db.prepare('UPDATE cron_jobs SET last_run_at = ? WHERE id = ?')
 
   const stmtInsertCronRun = db.prepare(
@@ -723,6 +726,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     deleteCronJob(id) {
       stmtDeleteCronJob.run(id)
+    },
+    reassignCronJob(id, sessionId) {
+      stmtReassignCronJob.run(sessionId, id)
     },
     touchCronJob(id, lastRunAt) {
       stmtTouchCronJob.run(lastRunAt, id)

@@ -121,6 +121,31 @@ export function createCronScheduler(deps: {
     }
   }
 
+  // One-time, idempotent migration of legacy jobs created before cron went
+  // global: repoint any job still bound to its originating conversation onto the
+  // shared system session. resolveJobSession bootstraps that session (using a
+  // sample job's still-live source provider) and returns its id; jobs already
+  // there are skipped. No-op when resolveJobSession is unwired (tests).
+  const migrateLegacyJobs = (): void => {
+    if (!resolveJobSession) return
+    const all = store.listCronJobs()
+    if (all.length === 0) return
+    let systemSessionId: string
+    try {
+      // One bootstrap call off a sample job's session avoids depending on every
+      // job's source session being resolvable.
+      systemSessionId = resolveJobSession(all[0].sessionId)
+    } catch (err) {
+      log.error({ msg: 'cron migration: failed to resolve system session', err: String(err) })
+      return
+    }
+    const legacy = all.filter((j) => j.sessionId !== systemSessionId)
+    for (const job of legacy) store.reassignCronJob(job.id, systemSessionId)
+    if (legacy.length > 0) {
+      log.info({ msg: 'migrated legacy cron jobs to system session', count: legacy.length, systemSessionId })
+    }
+  }
+
   return {
     add({ sessionId, cron, goal, name }) {
       // Route ownership to the resolved (system) session so the job is global,
@@ -161,6 +186,7 @@ export function createCronScheduler(deps: {
       return store.listCronRunsForJob(id)
     },
     start() {
+      migrateLegacyJobs()
       for (const job of store.listCronJobs()) {
         try {
           schedule(job)
