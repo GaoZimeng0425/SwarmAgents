@@ -47,6 +47,9 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
     <div className="flex h-full min-w-0 overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col">
         <ConversationThread
+          // Remount on session switch so StickToBottom's initial="instant" fires:
+          // jump straight to the bottom without the smooth-scroll animation.
+          key={selectedSessionId}
           focusTaskId={focusTaskId}
           onSend={(text) => {
             if (!ready) return
