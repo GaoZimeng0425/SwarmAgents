@@ -16,8 +16,8 @@ import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type Task
 
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
 import { encodeActorState } from '../actor/state'
-import type { PermissionRegistry } from './permission-registry'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from '../tools/registry'
+import type { PermissionRegistry } from './permission-registry'
 
 const log = createLogger({
   process: 'service',
@@ -192,10 +192,18 @@ function createEventTranslator(
 ): {
   handle: (e: AgentEvent) => void
   getFinalSummary: () => string
+  getError: () => string | null
+  resetError: () => void
 } {
   let textBuffer = ''
   let thinkingBuffer = ''
   let assembledSummary = ''
+  // pi does NOT throw on a failed model/transport request, and prompt() resolves
+  // with `void` — the failure is delivered ONLY as an assistant message with
+  // stopReason 'error' carried on message_end / turn_end / agent_end events.
+  // Capture it here so the run reports the real error instead of a silent,
+  // empty "completed" turn.
+  let errorMessage: string | null = null
 
   const flushText = (): void => {
     if (!textBuffer) return
@@ -217,7 +225,17 @@ function createEventTranslator(
     thinkingBuffer = ''
   }
 
+  const captureFailure = (m: { stopReason?: string; errorMessage?: string } | undefined): void => {
+    if (m?.stopReason === 'error') {
+      errorMessage = m.errorMessage ?? 'The model request failed without a message.'
+    }
+  }
+
   const handle = (e: AgentEvent): void => {
+    // message_end / turn_end carry the failure message; capture it before the
+    // switch so a stopReason 'error' is never lost to the `default` branch.
+    if ('message' in e) captureFailure((e as { message?: { stopReason?: string; errorMessage?: string } }).message)
+
     switch (e.type) {
       case 'message_update': {
         const inner = e.assistantMessageEvent
@@ -281,6 +299,18 @@ function createEventTranslator(
       case 'agent_end': {
         flushThinking()
         flushText()
+        // agent_end is pi's last event even on a failed run; its messages also
+        // carry the failure, so re-check in case message_end was never seen.
+        for (const m of e.messages ?? []) captureFailure(m as { stopReason?: string; errorMessage?: string })
+        if (errorMessage) {
+          // A failed run must surface the provider error, not a fake completion.
+          emit('task.error', {
+            taskId,
+            error: { code: 'agent_request_failed', message: errorMessage, tier: 'fatal' },
+            ts: Date.now(),
+          })
+          return
+        }
         const summary = assembledSummary.trim() || `Completed task ${taskId}.`
         emit('task.complete', { taskId, result: { summary, artifacts: [] }, ts: Date.now() })
         return
@@ -291,8 +321,14 @@ function createEventTranslator(
   }
 
   const getFinalSummary = (): string => assembledSummary
+  const getError = (): string | null => errorMessage
+  // Error state is per-turn: one residency runs many prompts, so a failure in
+  // an earlier turn must not condemn a later successful one.
+  const resetError = (): void => {
+    errorMessage = null
+  }
 
-  return { handle, getFinalSummary }
+  return { handle, getFinalSummary, getError, resetError }
 }
 
 // Prepend task-scoped context to the agent's base system prompt so the model
@@ -607,20 +643,18 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
     // `used` and the wall-clock baseline keep accumulating across the
     // residency (one budget envelope per residency).
     stopCause = null
+    translator.resetError()
 
     taskLog.info({ msg: 'agent.prompt starting', sessionId })
     const t0 = Date.now()
     let promptError: unknown = null
-    // pi does NOT throw on a failed model/transport request: prompt() resolves
-    // with a final AssistantMessage carrying stopReason 'error' + errorMessage.
-    // Capture it so that failure isn't misread as a successful (empty) turn.
-    let promptResult: { stopReason?: string; errorMessage?: string } | undefined
+    // pi's prompt() resolves with `void`. A failed model/transport request is
+    // NOT thrown here either — pi routes a stopReason 'error' assistant message
+    // through the event stream, which the translator captures (getError). So a
+    // failure is detected via the translator, never the return value.
     try {
-      promptResult = (await agent.prompt(goal, images && images.length > 0 ? images : undefined)) as {
-        stopReason?: string
-        errorMessage?: string
-      }
-      taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0, stopReason: promptResult?.stopReason })
+      await agent.prompt(goal, images && images.length > 0 ? images : undefined)
+      taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0, error: translator.getError() })
     } catch (err) {
       // An abort (cancel/budget) may surface here; stopCause disambiguates it
       // from a genuine failure below.
@@ -687,21 +721,18 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       return { status: 'failed', summary: '' }
     }
 
-    // pi reports a failed model/transport request by resolving (not throwing)
-    // with stopReason 'error'. Surface it as a failure with the provider's
-    // message instead of silently returning an empty "completed" turn — without
-    // this the user sees no reply and the error never reaches the log.
-    if (promptResult?.stopReason === 'error') {
-      const message = promptResult.errorMessage ?? 'The model request failed without a message.'
+    // pi reports a failed model/transport request by routing a stopReason
+    // 'error' assistant message through the event stream (not by throwing or by
+    // a return value). The translator captured it and already emitted task.error
+    // on agent_end; here we just log it and report 'failed' so the empty turn is
+    // never misread as a successful completion. Without this the user sees no
+    // reply and the error never reaches the log.
+    const requestError = translator.getError()
+    if (requestError) {
       taskLog.error({
-        msg: 'agent.prompt resolved with error stopReason',
-        errorMessage: promptResult.errorMessage,
+        msg: 'agent.prompt resolved with error',
+        errorMessage: requestError,
         durationMs: Date.now() - t0,
-      })
-      emit('task.error', {
-        taskId: task.id,
-        error: { code: 'agent_request_failed', message, tier: 'fatal' },
-        ts: Date.now(),
       })
       return { status: 'failed', summary: translator.getFinalSummary() }
     }

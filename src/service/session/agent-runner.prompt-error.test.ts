@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-// Mock the pi Agent so prompt() RESOLVES (does not throw) with a final
-// AssistantMessage carrying stopReason: 'error' + errorMessage — exactly how pi
-// signals a failed model/transport request. No text is streamed, mirroring a
-// request that fails before any assistant output.
+// Mock the pi Agent matching its REAL contract: prompt() resolves with `void`.
+// A failed model/transport request is NOT thrown out of prompt() — pi's
+// handleRunFailure routes a final assistant message (stopReason 'error' +
+// errorMessage, empty text) through the EVENT STREAM (message_end / turn_end /
+// agent_end), then prompt() resolves normally. The error lives only in events.
 vi.mock('@earendil-works/pi-agent-core', () => {
   class Agent {
     state = { messages: [] as Array<{ role: string; content: string }> }
@@ -14,14 +15,17 @@ vi.mock('@earendil-works/pi-agent-core', () => {
     }
     abort() {}
     async prompt(_goal: string) {
-      // agent_end is pi's last event even on a failed run; no text deltas.
-      this.sub?.({ type: 'agent_end' })
-      return {
+      const failure = {
         role: 'assistant',
-        content: [],
+        content: [{ type: 'text', text: '' }],
         stopReason: 'error',
         errorMessage: 'boom: upstream 500',
       }
+      // Mirror pi's failure event sequence; no text deltas.
+      this.sub?.({ type: 'message_end', message: failure })
+      this.sub?.({ type: 'turn_end', message: failure, toolResults: [] })
+      this.sub?.({ type: 'agent_end', messages: [failure] })
+      // prompt() returns void — the error is only observable via the events above.
     }
   }
   return { Agent }
@@ -65,5 +69,7 @@ describe('promptOnce — model request failure (stopReason: error)', () => {
         error: expect.objectContaining({ code: 'agent_request_failed', message: 'boom: upstream 500' }),
       })
     )
+    // A failed run must NOT masquerade as a completed one.
+    expect(emit).not.toHaveBeenCalledWith('task.complete', expect.anything())
   })
 })
