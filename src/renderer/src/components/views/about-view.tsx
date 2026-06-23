@@ -1,4 +1,3 @@
-// src/renderer/src/components/views/about-view.tsx
 export function AboutView(): React.JSX.Element {
   return (
     <div className="max-w-xl space-y-2">

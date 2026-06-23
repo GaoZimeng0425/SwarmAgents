@@ -1,4 +1,3 @@
-// src/renderer/src/components/views/general-view.tsx
 export function GeneralView(): React.JSX.Element {
   return (
     <div className="max-w-xl space-y-4">

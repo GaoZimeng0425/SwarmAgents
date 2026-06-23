@@ -1,4 +1,3 @@
-// src/renderer/src/components/settings-dialog.tsx
 import { Bot, Boxes, DollarSign, Info, Lock, Search, Settings as SettingsIcon, Sparkles } from 'lucide-react'
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'

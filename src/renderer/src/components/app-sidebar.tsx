@@ -5,7 +5,6 @@ import { SessionList } from '@/components/session-list'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Sidebar, SidebarContent, SidebarFooter } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 import { useSettingsDialog } from '@/stores/settings-dialog'
 
 const iconBtn =
@@ -15,9 +14,8 @@ export function AppSidebar(): React.JSX.Element {
   const openSettings = useSettingsDialog((s) => s.openSettings)
 
   return (
-    // inset variant: the window is tinted with the sidebar color and the main
-    // content floats as a rounded card — no border line on the chat's left edge.
     <Sidebar variant="inset">
+      {/* inset variant: window tinted with sidebar color, content floats as rounded card */}
       <SidebarContent>
         <SessionList />
       </SidebarContent>
@@ -60,7 +58,7 @@ export function AppSidebar(): React.JSX.Element {
           <Tooltip>
             <TooltipTrigger
               render={
-                <button className={cn(iconBtn)} onClick={() => openSettings()} type="button">
+                <button className={iconBtn} onClick={() => openSettings()} type="button">
                   <Settings />
                 </button>
               }

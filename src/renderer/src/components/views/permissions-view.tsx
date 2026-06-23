@@ -1,4 +1,3 @@
-// src/renderer/src/components/views/permissions-view.tsx
 import { useCallback, useEffect, useState } from 'react'
 import type { MacPermissionState, MacPermissions } from '@shared/types/ui'
 
