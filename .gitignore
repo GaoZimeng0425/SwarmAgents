@@ -6,5 +6,6 @@ out
 *.log*
 .superpowers/
 .codegraph/
+.claude/worktrees/
 screenshot_*.png
 *.tsbuildinfo
