@@ -4,7 +4,7 @@ import { createLogger } from '@shared/logger'
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { initBudgets } from './budgets'
-import { paths } from './constants'
+import { ensureSwarmDirs, paths } from './constants'
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initMcpServers } from './mcp-servers'
@@ -43,6 +43,10 @@ app.whenReady().then(async () => {
 
   const log = createLogger({ process: 'main' })
   log.info({ msg: 'log file', path: process.env.SWARM_LOG_FILE })
+
+  // Create skills/ and agents/ up front so ~/.swarm-agents is a discoverable
+  // drop-in home even on a fresh install (stores otherwise only mkdir on save).
+  ensureSwarmDirs()
 
   const providers = await initProviders()
   log.info({ msg: 'providers initialised' })

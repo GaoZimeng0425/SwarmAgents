@@ -36,3 +36,15 @@ export const paths = {
   webSearch: () => join(app.getPath('userData'), 'web-search.enc'),
   budgets: () => join(app.getPath('userData'), 'budgets.json'),
 } as const
+
+/**
+ * Materialize the hand-editable subdirs so ~/.swarm-agents is a discoverable
+ * drop-in home from first launch — without it the dir is empty until the user
+ * saves a skill/agent (builtins live in-memory and are never written to disk).
+ * mcp-servers.json is deliberately NOT seeded: its store relies on "file
+ * absent" to trigger legacy migration, so an empty seed would suppress it.
+ */
+export function ensureSwarmDirs(): void {
+  mkdirSync(paths.skills(), { recursive: true })
+  mkdirSync(paths.agents(), { recursive: true })
+}
