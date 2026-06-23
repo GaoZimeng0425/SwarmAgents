@@ -85,6 +85,32 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('createSession refreshes the system session provider when it exists', () => {
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    // System session bootstrapped from provider A.
+    const a = manager.createSession(providerA).sessionId
+    manager.ensureSystemSession(a)
+
+    // A later session carries an updated provider (e.g. user rotated the key).
+    const providerB = { ...providerA, model: 'claude-opus-4-8', apiKey: 'rotated' }
+    manager.createSession(providerB)
+
+    // System session's snapshot tracks the latest, without a new schedule_task.
+    expect(store.getSession(SYSTEM_SESSION_ID)?.providerSnapshot).toEqual(providerB)
+    store.close()
+  })
+
+  it('createSession does not create a system session when none exists', () => {
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    manager.createSession(providerA)
+    expect(store.getSession(SYSTEM_SESSION_ID)).toBeUndefined()
+    store.close()
+  })
+
   it('marks active sessions interrupted on init', () => {
     const store = createConversationStore(dbPath)
     const provider = {
