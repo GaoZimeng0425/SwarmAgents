@@ -1,8 +1,9 @@
-import { createFileRoute, Link, Outlet, useCanGoBack, useNavigate, useRouter } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Bot, Boxes, DollarSign, Info, Lock, Search, Settings as SettingsIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { getSettingsReturnHref } from '@/lib/settings-return'
 
 export const Route = createFileRoute('/settings')({ component: SettingsLayout })
 
@@ -17,8 +18,6 @@ const NAV = [
 ] as const
 
 function SettingsLayout(): React.JSX.Element {
-  const router = useRouter()
-  const canGoBack = useCanGoBack()
   const navigate = useNavigate()
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)]">
@@ -31,7 +30,8 @@ function SettingsLayout(): React.JSX.Element {
         <div className="pl-[70px]" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <Button
             className="gap-1 text-muted-foreground"
-            onClick={() => canGoBack ? router.history.back() : void navigate({ to: '/' })}
+            // biome-ignore lint/suspicious/noExplicitAny: stored href widened over Router's typed registry
+            onClick={() => void navigate({ to: getSettingsReturnHref() as any })}
             size="sm"
             variant="ghost"
           >
@@ -40,7 +40,7 @@ function SettingsLayout(): React.JSX.Element {
         </div>
       </div>
       <div className="flex min-h-0 flex-1 pt-9">
-        <nav className="flex w-52 shrink-0 flex-col gap-0.5 px-3 pb-4 pt-3">
+        <nav className="flex w-52 shrink-0 flex-col gap-0.5 px-3 pt-3 pb-4">
           {NAV.map((item) => {
             const Icon = item.icon
             return (

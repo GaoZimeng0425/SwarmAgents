@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { useLoadSessions } from '@/hooks/use-tasks'
+import { setSettingsReturnHref } from '@/lib/settings-return'
 
 // Opt-in only — devtools overlap the UI and interfere with manual/automated UI
 // testing. Enable with `VITE_ROUTER_DEVTOOLS=true pnpm dev`.
@@ -30,8 +31,15 @@ function RootLayout(): React.JSX.Element {
 
   // Full-screen takeover: the /settings route group renders its own chrome
   // (left sub-nav + Done bar), so we hide the session sidebar and top bar.
+  const href = useRouterState({ select: (s) => s.location.href })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const inSettings = pathname === '/settings' || pathname.startsWith('/settings/')
+
+  // Remember where we were before entering Settings so "Done" can jump straight
+  // back, rather than history.back()-ing through visited settings sub-pages.
+  useEffect(() => {
+    if (!inSettings) setSettingsReturnHref(href)
+  }, [href, inSettings])
 
   return (
     <>
