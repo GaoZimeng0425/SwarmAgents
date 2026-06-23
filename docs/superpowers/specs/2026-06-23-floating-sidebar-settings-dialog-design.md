@@ -24,7 +24,7 @@
 - `routes/skills.tsx`→`SkillsView`。
 - 主进程→渲染进程:`main/windows/open-settings.ts` 经 `swarm:navigate-settings` 发 `{ route }`;`hooks/use-events-subscription.ts` 收到后 `navigate({ to: route })`。`lib/api.ts` 暴露 `onNavigateToSettings`。
 - `lib/settings-return.ts`:仅服务于路由式设置的「完成」返回,弹窗化后不再需要。
-- `components/views/settings-view.tsx`:**孤立死代码**(无引用)。本次不主动删除(遵循「不动既有死代码」),仅在此标注,可由用户决定。
+- `components/views/settings-view.tsx`:**孤立死代码**(无引用)。本次随手清除(用户已确认)。
 
 ## 架构
 
@@ -80,7 +80,7 @@ useSettingsDialog: { open: boolean; section: SettingsSection; openSettings(secti
 - 删除 `lib/settings-return.ts`。
 - `__root.tsx`:移除 `inSettings` 分支与全屏接管、移除 `setSettingsReturnHref` 相关 `useEffect` 与 import;`RootLayout` 始终渲染侧边栏布局,并挂载 `<SettingsDialog/>`。
 - `routeTree.gen.ts`:由 TanStack Router 插件在 dev/build 时自动重生成(无需手改)。
-- `components/views/settings-view.tsx`:标注为死代码,**不在本次删除**(除非你确认要清)。
+- 删除 `components/views/settings-view.tsx`(孤立死代码,用户已确认清除)。
 
 ## 数据流
 
