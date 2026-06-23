@@ -34,8 +34,14 @@ export const useSessionsStore = create<SessionsStore>((set) => ({
   setSessions: (sessions) => set({ sessions: [...sessions].sort(byPinnedThenSortOrder) }),
   upsert: (session) =>
     set((state) => {
+      const existing = state.sessions.find((s) => s.id === session.id)
       const rest = state.sessions.filter((s) => s.id !== session.id)
-      return { sessions: [session, ...rest].sort(byPinnedThenSortOrder) }
+      // A brand-new session floats to the top — mirror the backend's
+      // COALESCE(MIN(sort_order), 0) - 1. The session.created event carries no
+      // backend sortOrder, so the store owns this placement; an update keeps the
+      // session's current position.
+      const sortOrder = existing ? existing.sortOrder : rest.reduce((min, s) => Math.min(min, s.sortOrder), 0) - 1
+      return { sessions: [{ ...session, sortOrder }, ...rest].sort(byPinnedThenSortOrder) }
     }),
   remove: (id) =>
     set((state) => ({

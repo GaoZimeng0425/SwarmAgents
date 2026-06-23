@@ -32,6 +32,20 @@ describe('sessions store', () => {
     expect(useSessionsStore.getState().sessions.map((s) => s.id)).toEqual(['new', 'old'])
   })
 
+  it('upserts a brand-new session above existing ones whatever their sortOrder', () => {
+    // Existing sessions loaded from the DB carry their real (often negative)
+    // sort_order; a freshly created session arrives via session.created with no
+    // backend sortOrder. It must still float to the top.
+    useSessionsStore.getState().setSessions([
+      { id: 'a', title: null, status: 'active', lastActiveAt: 2, taskCount: 0, pinned: false, sortOrder: -1 },
+      { id: 'b', title: null, status: 'active', lastActiveAt: 1, taskCount: 0, pinned: false, sortOrder: -2 },
+    ])
+    useSessionsStore
+      .getState()
+      .upsert({ id: 'new', title: null, status: 'active', lastActiveAt: 9, taskCount: 0, pinned: false, sortOrder: 0 })
+    expect(useSessionsStore.getState().sessions[0].id).toBe('new')
+  })
+
   it('floats pinned sessions to the top regardless of recency', () => {
     useSessionsStore.getState().setSessions([
       { id: 'recent', title: null, status: 'active', lastActiveAt: 9, taskCount: 0, pinned: false, sortOrder: 0 },
