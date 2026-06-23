@@ -401,6 +401,29 @@ describe('ConversationStore', () => {
     store.close()
   })
 
+  it('reassigns a cron job to another session', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    store.createSession('ses-old', provider)
+    store.createSession(SYSTEM_SESSION_ID, provider)
+    store.saveCronJob({
+      id: 'job-1',
+      sessionId: 'ses-old',
+      name: null,
+      cron: '0 9 * * *',
+      goal: 'g',
+      createdAt: 1000,
+      lastRunAt: null,
+    })
+
+    store.reassignCronJob('job-1', SYSTEM_SESSION_ID)
+
+    expect(store.listCronJobs()[0].sessionId).toBe(SYSTEM_SESSION_ID)
+    expect(store.listCronJobsForSession('ses-old')).toHaveLength(0)
+    expect(store.listCronJobsForSession(SYSTEM_SESSION_ID)).toHaveLength(1)
+    store.close()
+  })
+
   it('cascades cron job deletion when its session is deleted', () => {
     const store = createConversationStore(dbPath)
     const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }

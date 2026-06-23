@@ -22,6 +22,10 @@ function fakeStore(initial: StoredCronJob[] = []) {
       deleteCronJob: (id: string) => {
         jobs.delete(id)
       },
+      reassignCronJob: (id: string, sid: string) => {
+        const j = jobs.get(id)
+        if (j) j.sessionId = sid
+      },
       touchCronJob: (id: string, ts: number) => {
         const j = jobs.get(id)
         if (j) j.lastRunAt = ts
@@ -127,6 +131,50 @@ describe('createCronScheduler', () => {
     expect(sched.listForSession('ses-1').map((j) => j.id)).toContain('job-1')
     sched.runJobNow('job-1')
     expect(fire).toHaveBeenCalledWith('ses-1', 'reload me', expect.any(Function))
+    sched.dispose()
+  })
+
+  it('start migrates legacy session-bound jobs to the resolved system session', () => {
+    const legacy: StoredCronJob = {
+      id: 'job-1',
+      sessionId: 'old-ses',
+      name: null,
+      cron: '0 0 * * *',
+      goal: 'remind me',
+      createdAt: 1,
+      lastRunAt: null,
+    }
+    const { store, jobs, sessions } = fakeStore([legacy])
+    sessions.add('old-ses')
+    sessions.add('__system__')
+    const resolveJobSession = vi.fn(() => '__system__')
+    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }), resolveJobSession })
+
+    sched.start()
+
+    expect(jobs.get('job-1')?.sessionId).toBe('__system__')
+    // After migration the job fires into the system session.
+    sched.runJobNow('job-1')
+    sched.dispose()
+  })
+
+  it('start does not migrate when no resolveJobSession is wired', () => {
+    const legacy: StoredCronJob = {
+      id: 'job-1',
+      sessionId: 'old-ses',
+      name: null,
+      cron: '0 0 * * *',
+      goal: 'g',
+      createdAt: 1,
+      lastRunAt: null,
+    }
+    const { store, jobs, sessions } = fakeStore([legacy])
+    sessions.add('old-ses')
+    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }) })
+
+    sched.start()
+
+    expect(jobs.get('job-1')?.sessionId).toBe('old-ses')
     sched.dispose()
   })
 
