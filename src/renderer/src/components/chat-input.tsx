@@ -26,6 +26,7 @@ import {
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import type { ChatStatus } from '@/components/ai-elements/types'
+import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
 import { useProviders } from '@/hooks/use-providers'
@@ -282,100 +283,118 @@ export function ChatInput({
           maxFiles={MAX_FILES}
           onSubmit={handleSubmit}
         >
-        <AttachmentThumbnails onOpenFile={setViewerFile} />
-        <PromptInputBody>
-          <PromptInputTextarea autoFocus disabled={disabled} placeholder={placeholder ?? 'Message the swarm…'} />
-        </PromptInputBody>
-        <PromptInputFooter>
-          <PromptInputTools>
-            <ComposerAddMenu
-              anchor={composerRef}
-              executionMode={executionMode}
-              onExecutionModeChange={onExecutionModeChange}
-              onInsertPath={insertPathReference}
-              supportsImages={supportsImages}
-            />
-            <div className="flex items-center">
-              <PromptInputButton onClick={() => void onPickCwd()} tooltip={cwd ?? '选择工作目录(默认为用户主目录)'}>
-                <Folder className="size-4" />
-                <span className="max-w-32 truncate">{cwd ? basename(cwd) : '工作目录'}</span>
-              </PromptInputButton>
-              {cwd && (
-                <button
-                  aria-label="Clear working directory"
-                  className="ml-0.5 rounded-full p-1 text-muted-foreground hover:text-foreground"
-                  onClick={() => onCwdChange?.(undefined)}
-                  type="button"
+          <AttachmentThumbnails onOpenFile={setViewerFile} />
+          <PromptInputBody>
+            <PromptInputTextarea autoFocus disabled={disabled} placeholder={placeholder ?? 'Message the swarm…'} />
+          </PromptInputBody>
+          <PromptInputFooter>
+            <PromptInputTools className="w-full">
+              <div className="flex items-center gap-1">
+                <ComposerAddMenu
+                  anchor={composerRef}
+                  executionMode={executionMode}
+                  onExecutionModeChange={onExecutionModeChange}
+                  onInsertPath={insertPathReference}
+                  supportsImages={supportsImages}
+                />
+                <div className="flex items-center">
+                  <PromptInputButton onClick={() => void onPickCwd()} tooltip={cwd ?? '选择工作目录(默认为用户主目录)'}>
+                    <Folder className="size-4" />
+                    <span className="max-w-32 truncate">{cwd ? basename(cwd) : '工作目录'}</span>
+                  </PromptInputButton>
+                  {cwd && (
+                    <button
+                      aria-label="Clear working directory"
+                      className="ml-0.5 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => onCwdChange?.(undefined)}
+                      type="button"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+                <PromptInputSelect
+                  onValueChange={(v) => onPermissionModeChange?.(String(v) as PermissionMode)}
+                  value={permissionMode}
                 >
-                  <X className="size-3" />
-                </button>
+                  <PromptInputSelectTrigger>
+                    <Shield className="size-4" />
+                    <PromptInputSelectValue>
+                      {(v) => PERMISSION_LABELS[(v as PermissionMode) ?? 'ask']}
+                    </PromptInputSelectValue>
+                  </PromptInputSelectTrigger>
+                  <PromptInputSelectContent>
+                    <PromptInputSelectItem value="ask">{PERMISSION_LABELS.ask}</PromptInputSelectItem>
+                    <PromptInputSelectItem value="full">{PERMISSION_LABELS.full}</PromptInputSelectItem>
+                  </PromptInputSelectContent>
+                </PromptInputSelect>
+              </div>
+              <div className="flex items-center gap-1 ml-auto">
+                {contextTokens !== undefined && contextWindow !== undefined && (
+                  <ContextRing
+                    cacheRead={cacheReadTokens}
+                    usdCents={usdCents}
+                    used={contextTokens}
+                    window={contextWindow}
+                  />
+                )}
+              </div>
+            </PromptInputTools>
+            <div className="flex items-center gap-3">
+              {options.length > 0 && (
+                // Single select merging the model picker and the thinking-level
+                // picker. The value tracks the model only, so base-ui highlights
+                // the model row; picking a thinking level calls onPickThinking
+                // and re-renders without moving the highlight.
+                <PromptInputSelect
+                  onValueChange={(v) => {
+                    const value = String(v)
+                    if (value.startsWith('thinking::')) {
+                      void onPickThinking(value.slice('thinking::'.length))
+                      return
+                    }
+                    void onPickModel(value)
+                  }}
+                  value={currentKey}
+                >
+                  <PromptInputSelectTrigger>
+                    <PromptInputSelectValue>
+                      {() => {
+                        const modelId = activeRow?.model ?? 'Model'
+                        const lvl = activeRow?.thinkingLevel
+                        const think = showThinking && lvl ? ` · ${THINKING_LABELS[lvl]}` : ''
+                        return `${modelId}${think}`
+                      }}
+                    </PromptInputSelectValue>
+                  </PromptInputSelectTrigger>
+                  <PromptInputSelectContent>
+                    <SelectGroup>
+                      <SelectLabel>模型</SelectLabel>
+                      {options.map((o) => (
+                        <PromptInputSelectItem key={o.key} value={o.key}>
+                          {o.providerName} · {o.modelId}
+                        </PromptInputSelectItem>
+                      ))}
+                    </SelectGroup>
+                    {showThinking && activeRow && (
+                      <>
+                        <SelectSeparator />
+                        <SelectGroup>
+                          <SelectLabel>思考程度</SelectLabel>
+                          {thinkingLevels.map((lvl) => (
+                            <PromptInputSelectItem key={lvl} value={`thinking::${lvl}`}>
+                              {THINKING_LABELS[lvl]}
+                            </PromptInputSelectItem>
+                          ))}
+                        </SelectGroup>
+                      </>
+                    )}
+                  </PromptInputSelectContent>
+                </PromptInputSelect>
               )}
+              <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
             </div>
-            <PromptInputSelect
-              onValueChange={(v) => onPermissionModeChange?.(String(v) as PermissionMode)}
-              value={permissionMode}
-            >
-              <PromptInputSelectTrigger>
-                <Shield className="size-4" />
-                <PromptInputSelectValue>
-                  {(v) => PERMISSION_LABELS[(v as PermissionMode) ?? 'ask']}
-                </PromptInputSelectValue>
-              </PromptInputSelectTrigger>
-              <PromptInputSelectContent>
-                <PromptInputSelectItem value="ask">{PERMISSION_LABELS.ask}</PromptInputSelectItem>
-                <PromptInputSelectItem value="full">{PERMISSION_LABELS.full}</PromptInputSelectItem>
-              </PromptInputSelectContent>
-            </PromptInputSelect>
-            {options.length > 0 && (
-              <PromptInputSelect onValueChange={(v) => void onPickModel(String(v))} value={currentKey}>
-                <PromptInputSelectTrigger>
-                  <PromptInputSelectValue placeholder="Model">
-                    {(key) => {
-                      // Trigger shows only the model id; the dropdown list keeps the
-                      // provider prefix so cross-provider models stay distinguishable.
-                      const o = options.find((opt) => opt.key === key)
-                      return o ? o.modelId : 'Model'
-                    }}
-                  </PromptInputSelectValue>
-                </PromptInputSelectTrigger>
-                <PromptInputSelectContent>
-                  {options.map((o) => (
-                    <PromptInputSelectItem key={o.key} value={o.key}>
-                      {o.providerName} · {o.modelId}
-                    </PromptInputSelectItem>
-                  ))}
-                </PromptInputSelectContent>
-              </PromptInputSelect>
-            )}
-            {showThinking && activeRow && (
-              <PromptInputSelect onValueChange={(v) => void onPickThinking(String(v))} value={activeRow.thinkingLevel}>
-                <PromptInputSelectTrigger>
-                  <PromptInputSelectValue placeholder="Thinking">
-                    {(lvl) => (lvl ? THINKING_LABELS[lvl as ModelThinkingLevel] : 'Thinking')}
-                  </PromptInputSelectValue>
-                </PromptInputSelectTrigger>
-                <PromptInputSelectContent>
-                  {thinkingLevels.map((lvl) => (
-                    <PromptInputSelectItem key={lvl} value={lvl}>
-                      {THINKING_LABELS[lvl]}
-                    </PromptInputSelectItem>
-                  ))}
-                </PromptInputSelectContent>
-              </PromptInputSelect>
-            )}
-          </PromptInputTools>
-          <div className="flex items-center gap-3">
-            {contextTokens !== undefined && contextWindow !== undefined && (
-              <ContextRing
-                cacheRead={cacheReadTokens}
-                usdCents={usdCents}
-                used={contextTokens}
-                window={contextWindow}
-              />
-            )}
-            <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
-          </div>
-        </PromptInputFooter>
+          </PromptInputFooter>
         </PromptInput>
       </div>
       <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />

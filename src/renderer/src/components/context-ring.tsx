@@ -50,7 +50,6 @@ export function ContextRing({ used, window, usdCents, cacheRead }: Props): React
             strokeWidth="2.5"
           />
         </svg>
-        <span>{Math.round(pct * 100)}%</span>
       </TooltipTrigger>
       <TooltipContent>{tip.join(' · ')}</TooltipContent>
     </Tooltip>
