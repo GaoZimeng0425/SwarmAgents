@@ -1,13 +1,19 @@
 import { useState } from 'react'
-import { FolderInput, Trash2 } from 'lucide-react'
+import { FolderInput, FolderOpen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { useSkills } from '@/hooks/use-skills'
 
 export function SkillsView(): React.JSX.Element {
-  const { skills, setSkills } = useSkills()
+  const { skills, setSkills, reload } = useSkills()
   const [expanded, setExpanded] = useState<string | null>(null)
+
+  const toggle = async (name: string, enabled: boolean): Promise<void> => {
+    await window.swarm.toolToggles.setSkillEnabled(name, enabled)
+    reload()
+  }
 
   const remove = async (name: string): Promise<void> => {
     const r = await window.swarm.skills.remove(name)
@@ -48,10 +54,16 @@ export function SkillsView(): React.JSX.Element {
             <code className="rounded bg-muted px-1 py-0.5 text-xs">use_skill</code> tool.
           </p>
         </div>
-        <Button className="shrink-0 gap-1.5" onClick={() => void runImport()}>
-          <FolderInput className="size-4" />
-          Import skill folder
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button className="gap-1.5" onClick={() => void window.swarm.openUserDataDir()} variant="outline">
+            <FolderOpen className="size-4" />
+            Open data folder
+          </Button>
+          <Button className="gap-1.5" onClick={() => void runImport()}>
+            <FolderInput className="size-4" />
+            Import skill folder
+          </Button>
+        </div>
       </div>
 
       {skills.length === 0 ? (
@@ -65,9 +77,17 @@ export function SkillsView(): React.JSX.Element {
                 onClick={() => setExpanded(expanded === s.name ? null : s.name)}
                 type="button"
               >
-                <p className="truncate font-medium text-sm">{s.name}</p>
+                <p className={`truncate font-medium text-sm ${s.enabled === false ? 'text-muted-foreground' : ''}`}>
+                  {s.name}
+                </p>
                 <p className="text-muted-foreground text-sm">{s.description}</p>
               </button>
+              <Switch
+                aria-label={`${s.enabled === false ? 'Enable' : 'Disable'} ${s.name}`}
+                checked={s.enabled !== false}
+                className="mt-0.5"
+                onCheckedChange={(v) => void toggle(s.name, v)}
+              />
               <Button
                 aria-label="Delete skill"
                 className="text-muted-foreground hover:text-destructive"

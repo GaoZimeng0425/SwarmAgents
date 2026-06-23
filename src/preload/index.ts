@@ -5,6 +5,7 @@ import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
 import type { Skill, SkillMutationResult } from '../shared/types/skill'
+import type { ToolGroupInfo, ToolToggles } from '../shared/types/tool-toggles'
 import type {
   AddCustomProviderInput,
   BudgetsBridge,
@@ -20,6 +21,7 @@ import type {
   SkillBridge,
   SubmitGoalResult,
   SwarmBridge,
+  ToolTogglesBridge,
   UIEvent,
   WebSearchBridge,
   WebSearchKeyId,
@@ -143,6 +145,15 @@ const skills: SkillBridge = {
     ipcRenderer.invoke('skills:import', arg) as Promise<SkillMutationResult & { sourceDir?: string }>,
 }
 
+const toolToggles: ToolTogglesBridge = {
+  get: () => ipcRenderer.invoke('toolToggles:get') as Promise<ToolToggles>,
+  listGroups: () => ipcRenderer.invoke('tools:listGroups') as Promise<ToolGroupInfo[]>,
+  setSkillEnabled: (name: string, enabled: boolean) =>
+    ipcRenderer.invoke('toolToggles:setSkill', name, enabled) as Promise<ToolToggles>,
+  setToolGroupEnabled: (group: string, enabled: boolean) =>
+    ipcRenderer.invoke('toolToggles:setToolGroup', group, enabled) as Promise<ToolToggles>,
+}
+
 const memory: MemoryBridge = {
   list: (namespace?: string) =>
     ipcRenderer.invoke('memory:list', namespace) as Promise<import('../shared/types/memory').MemoryView[]>,
@@ -215,6 +226,7 @@ const swarm: SwarmBridge = {
   readImageFile: (path: string) =>
     ipcRenderer.invoke('system:readImageFile', path) as Promise<{ mimeType: string; data: string } | null>,
   openPath: (path: string) => ipcRenderer.invoke('system:openPath', path) as Promise<void>,
+  openUserDataDir: () => ipcRenderer.invoke('system:openUserDataDir') as Promise<void>,
   pickDirectory: () => ipcRenderer.invoke('system:pickPath', 'directory') as Promise<string | null>,
   pickFile: () => ipcRenderer.invoke('system:pickPath', 'file') as Promise<string | null>,
   providers,
@@ -222,6 +234,7 @@ const swarm: SwarmBridge = {
   webSearch,
   budgets,
   skills,
+  toolToggles,
   memory,
 }
 

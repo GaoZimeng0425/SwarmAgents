@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Skill } from '@shared/types/skill'
 
-/** Loads the skill list and exposes a setter for mutation results to push into. */
+/** Loads the skill list (each annotated with its enabled state) and exposes a
+ * setter for mutation results plus a reload to refresh after an enable toggle. */
 export function useSkills(): {
   skills: Skill[]
   setSkills: (skills: Skill[]) => void
+  reload: () => void
 } {
   const [skills, setSkills] = useState<Skill[]>([])
-  useEffect(() => {
+  const reload = useCallback(() => {
     void window.swarm.skills.list().then(setSkills)
   }, [])
-  return { skills, setSkills }
+  useEffect(reload, [reload])
+  return { skills, setSkills, reload }
 }

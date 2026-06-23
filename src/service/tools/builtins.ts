@@ -51,6 +51,8 @@ export function registerBuiltinTools(
     skillStore?: SkillStore
     scheduler?: CronScheduler
     getWebSearchConfig?: () => WebSearchInjection
+    /** Live predicate from the tool-toggles store; undefined → all skills enabled. */
+    isSkillEnabled?: (name: string) => boolean
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
@@ -69,7 +71,7 @@ export function registerBuiltinTools(
   // Memory tools need a backing store; registered only when one is injected.
   if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)
   // use_skill needs the skill store; registered only when one is injected.
-  if (deps?.skillStore) registry.register(useSkillSpec(deps.skillStore))
+  if (deps?.skillStore) registry.register(useSkillSpec(deps.skillStore, deps.isSkillEnabled))
   // Cron tools need the scheduler; registered only when one is injected.
   if (deps?.scheduler) for (const spec of cronSpecs(deps.scheduler)) registry.register(spec)
 }

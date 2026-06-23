@@ -1,9 +1,9 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
+import type { Peer, PeerQuery } from '@shared/types/agent'
 import type { Outbound } from '@shared/types/ipc'
 import type { TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
-import type { Peer, PeerQuery } from '@shared/types/agent'
 
 const log = createLogger({ process: 'service' }).child({ component: 'tools' })
 
@@ -61,6 +61,14 @@ export interface ToolRegistry {
   /** Remove every spec in a group. Used to swap a server's dynamic (MCP) tool set. */
   unregister(group: string): void
   list(): ToolSpec[]
+  /**
+   * App-wide off switch for whole built-in tool groups (MCP groups are toggled
+   * via their server config instead). Disabled groups are dropped from every
+   * `resolve`, regardless of an agent's allowlist.
+   */
+  setDisabledGroups(groups: string[]): void
+  /** Distinct built-in groups with their bare tool names, for the toggle UI. */
+  builtinGroups(): { group: string; toolNames: string[] }[]
   resolve(
     allowlist: string[],
     ctx: ToolRunContext
@@ -112,6 +120,7 @@ function specMatches(spec: ToolSpec, allowlist: string[]): boolean {
 
 export function createToolRegistry(): ToolRegistry {
   const specs: ToolSpec[] = []
+  let disabledGroups = new Set<string>()
   return {
     register(spec) {
       specs.push(spec)
@@ -124,8 +133,26 @@ export function createToolRegistry(): ToolRegistry {
     list() {
       return [...specs]
     },
+    setDisabledGroups(groups) {
+      disabledGroups = new Set(groups)
+      log.info({ msg: 'disabled tool groups updated', groups })
+    },
+    builtinGroups() {
+      const byGroup = new Map<string, string[]>()
+      for (const s of specs) {
+        if (s.source !== 'builtin') continue
+        const names = byGroup.get(s.group) ?? []
+        names.push(s.name)
+        byGroup.set(s.group, names)
+      }
+      return [...byGroup.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([group, toolNames]) => ({ group, toolNames }))
+    },
     resolve(allowlist, ctx) {
-      const selected = specs.filter((s) => specMatches(s, allowlist))
+      const selected = specs.filter(
+        (s) => specMatches(s, allowlist) && !(s.source === 'builtin' && disabledGroups.has(s.group))
+      )
       const tools = selected.map((s) => withLogging(s, s.build(ctx), ctx))
       const specByName = new Map(selected.map((s) => [s.name, s] as const))
       // unknown -> medium (fail safe); riskFor overrides static risk per call.

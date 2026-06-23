@@ -9,6 +9,7 @@ import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
+import type { ToolGroupInfo, ToolToggles } from '@shared/types/tool-toggles'
 import type { PermissionDecision } from '@shared/types/ui'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
@@ -25,6 +26,10 @@ type DispatcherConfig = {
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
   importSkill(sourceDir: string, overwrite?: boolean): SkillMutationResult
+  getToolToggles(): ToolToggles
+  setSkillEnabled(name: string, enabled: boolean): ToolToggles
+  setToolGroupEnabled(group: string, enabled: boolean): ToolToggles
+  listToolGroups(): ToolGroupInfo[]
   listMemory(namespace?: string): MemoryView[]
   listCronJobsForSession(sessionId: string): import('@shared/types/ui').CronJobSummary[]
   listAllCronJobs(): import('@shared/types/ui').ScheduledTask[]
@@ -118,6 +123,18 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         const [sourceDir, overwrite] = args as [string, boolean | undefined]
         return cfg.importSkill(sourceDir, overwrite)
       }
+      case 'getToolToggles':
+        return cfg.getToolToggles()
+      case 'setSkillEnabled': {
+        const [name, enabled] = args as [string, boolean]
+        return cfg.setSkillEnabled(name, enabled)
+      }
+      case 'setToolGroupEnabled': {
+        const [group, enabled] = args as [string, boolean]
+        return cfg.setToolGroupEnabled(group, enabled)
+      }
+      case 'listToolGroups':
+        return cfg.listToolGroups()
       case 'listMemory': {
         const [namespace] = args as [string | undefined]
         return cfg.listMemory(namespace)

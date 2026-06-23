@@ -74,6 +74,8 @@ type SessionManagerConfig = {
   agentStore?: AgentStore
   /** Returns the user-configured per-task budgets; defaults apply when omitted. */
   getBudgetConfig?: () => BudgetConfig
+  /** Live predicate from the tool-toggles store; disabled skills are dropped from the catalog. */
+  isSkillEnabled?: (name: string) => boolean
 }
 
 export type SessionManager = {
@@ -134,7 +136,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   // system prompt at task time, so newly-added skills/agents appear without a restart.
   const withPrompt = (def: AgentDefinition): AgentDefinition => {
     let systemPrompt = def.systemPrompt
-    if (cfg.skillStore) systemPrompt = withSkills(systemPrompt, cfg.skillStore.list())
+    if (cfg.skillStore) {
+      const isEnabled = cfg.isSkillEnabled ?? (() => true)
+      systemPrompt = withSkills(
+        systemPrompt,
+        cfg.skillStore.list().filter((s) => isEnabled(s.name))
+      )
+    }
     if (cfg.agentStore) systemPrompt = withAgentTypes(systemPrompt, cfg.agentStore.list())
     return { ...def, systemPrompt }
   }

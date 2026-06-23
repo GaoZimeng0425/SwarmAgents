@@ -16,7 +16,9 @@ function formatSkill(skill: Skill): string {
 
 // Progressive disclosure: the agent sees skill name+description in its prompt
 // and calls use_skill to pull the full instructions only when one applies.
-export function useSkillSpec(store: SkillStore): ToolSpec {
+// `isEnabled` lets the global tool-toggles hide a skill: a disabled skill is
+// absent from the available list and refused by name (defaults to all-enabled).
+export function useSkillSpec(store: SkillStore, isEnabled: (name: string) => boolean = () => true): ToolSpec {
   return {
     group: 'skill',
     name: 'use_skill',
@@ -31,11 +33,12 @@ export function useSkillSpec(store: SkillStore): ToolSpec {
       parameters: Type.Object({ name: Type.String({ description: 'The skill name to load.' }) }),
       execute: async (_id: string, params: unknown) => {
         const name = (params as { name?: string }).name
-        const skill = name ? store.get(name) : undefined
+        const skill = name && isEnabled(name) ? store.get(name) : undefined
         if (!skill) {
           const avail =
             store
               .list()
+              .filter((s) => isEnabled(s.name))
               .map((s) => s.name)
               .join(', ') || '(none)'
           return {

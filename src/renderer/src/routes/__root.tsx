@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { AppSidebar } from '@/components/app-sidebar'
 import { EventsBridge } from '@/components/events-bridge'
 import { NoProviderBanner } from '@/components/no-provider-banner'
+import { ToolsPopover } from '@/components/tools-popover'
 import { Button } from '@/components/ui/button'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
@@ -104,6 +105,10 @@ function TopBar(): React.JSX.Element {
         >
           <ArrowRight />
         </Button>
+      </div>
+      {/* Right cluster: global tools/skills/MCP toggle. no-drag so it's clickable. */}
+      <div className="ml-auto flex items-center gap-0.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <ToolsPopover />
       </div>
     </div>
   )

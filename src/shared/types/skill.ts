@@ -25,6 +25,10 @@ export const SkillSchema = z.object({
   // Relative POSIX paths of all files in the skill folder (incl. SKILL.md),
   // populated on load only. Lets the UI show what a folder-imported skill bundles.
   files: z.array(z.string()).optional(),
+  // User-facing on/off toggle, annotated on the UI list from the tool-toggles
+  // store. Absent or true → available to agents; false → hidden from the
+  // skill catalog and refused by use_skill. Not part of the write input.
+  enabled: z.boolean().optional(),
 })
 export type Skill = z.infer<typeof SkillSchema>
 

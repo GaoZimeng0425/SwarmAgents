@@ -14,6 +14,7 @@ import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, ConsumedResources, PlanTodo, TaskEvent, TaskOptions, TaskResult } from './task'
+import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
 export type UIEvent =
@@ -220,6 +221,15 @@ export type MemoryBridge = {
   list(namespace?: string): Promise<MemoryView[]>
 }
 
+/** Global enable/disable for built-in tool groups + skills (MCP toggled via `mcp`). */
+export type ToolTogglesBridge = {
+  get(): Promise<ToolToggles>
+  /** Built-in tool groups with their bare tool names + current enabled state. */
+  listGroups(): Promise<ToolGroupInfo[]>
+  setSkillEnabled(name: string, enabled: boolean): Promise<ToolToggles>
+  setToolGroupEnabled(group: string, enabled: boolean): Promise<ToolToggles>
+}
+
 /** Status of a macOS TCC permission. 'unsupported' on non-macOS platforms. */
 export type MacPermissionState = 'granted' | 'denied' | 'not-determined' | 'unsupported'
 
@@ -278,6 +288,8 @@ export type SwarmBridge = {
   readImageFile(path: string): Promise<{ mimeType: string; data: string } | null>
   /** Open a local file with the OS default application. */
   openPath(path: string): Promise<void>
+  /** Reveal the app's userData folder (where skills/, mcp-servers.json, etc. live). */
+  openUserDataDir(): Promise<void>
   /** Show a native open dialog to pick a folder. Returns its absolute path, or null if cancelled. */
   pickDirectory(): Promise<string | null>
   /** Show a native open dialog to pick a file. Returns its absolute path, or null if cancelled. */
@@ -287,6 +299,7 @@ export type SwarmBridge = {
   webSearch: WebSearchBridge
   budgets: BudgetsBridge
   skills: SkillBridge
+  toolToggles: ToolTogglesBridge
   memory: MemoryBridge
 }
 

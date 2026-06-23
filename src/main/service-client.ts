@@ -5,6 +5,7 @@ import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
+import type { ToolGroupInfo, ToolToggles } from '@shared/types/tool-toggles'
 import type { PermissionDecision } from '@shared/types/ui'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
@@ -49,6 +50,10 @@ export type ServiceClient = {
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
   importSkill(sourceDir: string, overwrite?: boolean): Promise<SkillMutationResult>
+  getToolToggles(): Promise<ToolToggles>
+  setSkillEnabled(name: string, enabled: boolean): Promise<ToolToggles>
+  setToolGroupEnabled(group: string, enabled: boolean): Promise<ToolToggles>
+  listToolGroups(): Promise<ToolGroupInfo[]>
   listMemory(namespace?: string): Promise<MemoryView[]>
   getUsageStats(rangeDays: number): Promise<import('@shared/types/usage').UsageStats>
   listCronJobsForSession(sessionId: string): Promise<import('@shared/types/ui').CronJobSummary[]>
@@ -150,6 +155,18 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     importSkill(sourceDir, overwrite) {
       return call('importSkill', [sourceDir, overwrite])
+    },
+    getToolToggles() {
+      return call('getToolToggles', [])
+    },
+    setSkillEnabled(name, enabled) {
+      return call('setSkillEnabled', [name, enabled])
+    },
+    setToolGroupEnabled(group, enabled) {
+      return call('setToolGroupEnabled', [group, enabled])
+    },
+    listToolGroups() {
+      return call('listToolGroups', [])
     },
     listMemory(namespace) {
       return call('listMemory', [namespace])

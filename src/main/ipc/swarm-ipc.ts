@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import type { Service as BudgetsService } from '../budgets'
 import type { Service as McpService } from '../mcp-servers'
@@ -107,6 +107,16 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('memory:list', (_e: Electron.IpcMainInvokeEvent, namespace?: string) =>
     serviceClient.listMemory(namespace)
   )
+
+  // ---- Tool toggles (service owns the state; main is a thin passthrough) ----
+  ipcMain.handle('toolToggles:get', () => serviceClient.getToolToggles())
+  ipcMain.handle('toolToggles:setSkill', (_e: Electron.IpcMainInvokeEvent, name: string, enabled: boolean) =>
+    serviceClient.setSkillEnabled(name, enabled)
+  )
+  ipcMain.handle('toolToggles:setToolGroup', (_e: Electron.IpcMainInvokeEvent, group: string, enabled: boolean) =>
+    serviceClient.setToolGroupEnabled(group, enabled)
+  )
+  ipcMain.handle('tools:listGroups', () => serviceClient.listToolGroups())
 
   // ---- Renderer → Main RPC handlers ----
 
@@ -238,6 +248,15 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:openPath', openPath)
 
+  // Reveal the app's userData folder so the user can drop in skill folders
+  // (skills/<name>/SKILL.md), edit mcp-servers.json, etc.
+  const openUserDataDir = async (): Promise<void> => {
+    const dir = app.getPath('userData')
+    const err = await shell.openPath(dir)
+    if (err) log.warn({ msg: 'openUserDataDir failed', dir, err })
+  }
+  ipcMain.handle('system:openUserDataDir', openUserDataDir)
+
   // Native folder/file picker for the composer's working-directory and
   // file-reference controls. Returns the chosen absolute path, or null when the
   // user cancels (or picks nothing).
@@ -267,11 +286,16 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('skills:save')
       ipcMain.removeHandler('skills:delete')
       ipcMain.removeHandler('skills:import')
+      ipcMain.removeHandler('toolToggles:get')
+      ipcMain.removeHandler('toolToggles:setSkill')
+      ipcMain.removeHandler('toolToggles:setToolGroup')
+      ipcMain.removeHandler('tools:listGroups')
       ipcMain.removeHandler('memory:list')
       ipcMain.removeHandler('system:openPrivacySettings')
       ipcMain.removeHandler('system:getMacPermissions')
       ipcMain.removeHandler('system:readImageFile')
       ipcMain.removeHandler('system:openPath')
+      ipcMain.removeHandler('system:openUserDataDir')
       ipcMain.removeHandler('system:pickPath')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()

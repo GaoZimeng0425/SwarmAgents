@@ -17,6 +17,7 @@ import { createMemoryStore } from './memory/store'
 import { createSessionManager } from './session/manager'
 import { builtinSkills } from './skills/builtins'
 import { createSkillStore } from './skills/store'
+import { createToolTogglesStore } from './tool-toggles/store'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry } from './tools/registry'
 
@@ -48,8 +49,12 @@ const memoryStore = createMemoryStore(memoryPath, () => broadcaster.broadcast('m
 const mcpConfigPath = join(dirname(skillsPath), 'mcp-servers.json')
 const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({ mcpConfigPath }) })
 const agentStore = createAgentStore({ dir: agentsPath, builtins: builtinAgents })
+// App-wide enable/disable for built-in tool groups + skills, alongside the MCP
+// config. MCP servers keep their own enable flag (see mcpManager).
+const toolToggles = createToolTogglesStore({ filePath: join(dirname(skillsPath), 'tool-toggles.json') })
 
 const toolRegistry = createToolRegistry()
+toolRegistry.setDisabledGroups(toolToggles.get().disabledToolGroups)
 
 const providerRegistry = new Map<string, ProviderInjection>()
 
@@ -70,6 +75,7 @@ const manager = createSessionManager({
   skillStore,
   agentStore,
   getBudgetConfig: () => budgetConfig,
+  isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
 })
 
 const scheduler = createCronScheduler({
@@ -85,6 +91,7 @@ registerBuiltinTools(toolRegistry, {
   skillStore,
   scheduler,
   getWebSearchConfig: () => webSearchConfig,
+  isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
 })
 scheduler.start()
 
@@ -106,10 +113,21 @@ const dispatch = createDispatcher({
   setBudgetConfig: (config) => {
     budgetConfig = config
   },
-  listSkills: () => skillStore.list(),
+  // Annotate the UI list with each skill's live enabled state (the agent-facing
+  // catalog filters separately, in the session manager / use_skill).
+  listSkills: () => skillStore.list().map((s) => ({ ...s, enabled: toolToggles.isSkillEnabled(s.name) })),
   saveSkill: (skill) => skillStore.save(skill),
   deleteSkill: (name) => skillStore.remove(name),
   importSkill: (sourceDir, overwrite) => skillStore.importFolder(sourceDir, overwrite),
+  getToolToggles: () => toolToggles.get(),
+  setSkillEnabled: (name, enabled) => toolToggles.setSkillEnabled(name, enabled),
+  setToolGroupEnabled: (group, enabled) => {
+    const next = toolToggles.setToolGroupEnabled(group, enabled)
+    toolRegistry.setDisabledGroups(next.disabledToolGroups)
+    return next
+  },
+  listToolGroups: () =>
+    toolRegistry.builtinGroups().map((g) => ({ ...g, enabled: toolToggles.isGroupEnabled(g.group) })),
   listMemory: (namespace) => memoryStore.list(namespace),
   listCronJobsForSession: (sessionId) => scheduler.listForSession(sessionId),
   listAllCronJobs: () => {
