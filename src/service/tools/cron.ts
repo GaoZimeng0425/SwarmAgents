@@ -29,7 +29,9 @@ const MAX_RUNS_LIMIT = 100
 const RunsParams = Type.Object({
   id: Type.String({ description: 'Id of the scheduled task to inspect (from list_scheduled_tasks).' }),
   limit: Type.Optional(
-    Type.Number({ description: `Max runs to return, newest first (default ${DEFAULT_RUNS_LIMIT}, max ${MAX_RUNS_LIMIT}).` })
+    Type.Number({
+      description: `Max runs to return, newest first (default ${DEFAULT_RUNS_LIMIT}, max ${MAX_RUNS_LIMIT}).`,
+    })
   ),
 })
 
@@ -38,7 +40,7 @@ function scheduleTool(scheduler: CronScheduler, ctx: ToolRunContext): AgentTool 
     name: 'schedule_task',
     label: 'Schedule task',
     description:
-      'Schedule a goal to run automatically on a recurring cron schedule in this session. Returns the job id and next run time. Use list_scheduled_tasks/cancel_scheduled_task to manage jobs.',
+      'Schedule a goal to run automatically on a recurring cron schedule. The job is global (shared across all sessions) and runs in a dedicated system session, so write a self-contained goal that does not rely on this conversation. Returns the job id and next run time. Use list_scheduled_tasks/cancel_scheduled_task to manage jobs.',
     parameters: ScheduleParams,
     execute: async (_id: string, params: unknown) => {
       const p = params as { cron: string; goal: string; name?: string }
@@ -77,14 +79,15 @@ function formatLastRun(run: ReturnType<CronScheduler['latestRunForJob']>): strin
   return `last ${run.status} @ ${when}`
 }
 
-function listTool(scheduler: CronScheduler, ctx: ToolRunContext): AgentTool {
+function listTool(scheduler: CronScheduler): AgentTool {
   return {
     name: 'list_scheduled_tasks',
     label: 'List scheduled tasks',
-    description: 'List the scheduled (cron) tasks for this session, each with its most recent execution status.',
+    description:
+      'List all scheduled (cron) tasks. They are global — shared across every session — each with its most recent execution status.',
     parameters: Type.Object({}),
     execute: async () => {
-      const jobs = scheduler.listForSession(ctx.sessionId)
+      const jobs = scheduler.listAll()
       if (jobs.length === 0) return ok('no scheduled tasks', { count: 0 })
       const detailJobs: Array<{ id: string; lastRun: ReturnType<CronScheduler['latestRunForJob']> }> = []
       const lines = jobs.map((j) => {
@@ -158,7 +161,7 @@ export function cronSpecs(scheduler: CronScheduler): ToolSpec[] {
       name: 'list_scheduled_tasks',
       risk: 'low' as const,
       source: 'builtin' as const,
-      build: (ctx) => listTool(scheduler, ctx),
+      build: () => listTool(scheduler),
     },
     {
       group: 'cron',

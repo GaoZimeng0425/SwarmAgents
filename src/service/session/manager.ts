@@ -1,6 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { DEFAULT_AGENT_DEF } from '@shared/agents/builtins'
 import { createLogger } from '@shared/logger'
+import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition } from '@shared/types/agent'
 import { deriveAllowlist } from '@shared/types/agent'
@@ -12,18 +13,18 @@ import { ulid } from 'ulid'
 
 import { createMailbox } from '../actor/mailbox'
 import { decodeActorState } from '../actor/state'
-import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
-import { createAgentDirectory } from '../directory/receptionist'
 import { withAgentTypes } from '../agents/prompt'
 import type { AgentStore } from '../agents/store'
-import type { Broadcaster } from '../ipc/broadcaster'
 import type { ConversationStore } from '../conversation/store'
-import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
-import { createReplyRegistry } from './reply-registry'
+import { createAgentDirectory } from '../directory/receptionist'
+import type { Broadcaster } from '../ipc/broadcaster'
 import { withSkills } from '../skills/prompt'
 import type { SkillStore } from '../skills/store'
 import { registerBuiltinTools } from '../tools/builtins'
 import { createToolRegistry, type ToolRegistry } from '../tools/registry'
+import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
+import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
+import { createReplyRegistry } from './reply-registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
@@ -77,6 +78,13 @@ type SessionManagerConfig = {
 
 export type SessionManager = {
   createSession(provider: ProviderInjection): { sessionId: string }
+  /**
+   * Ensure the dedicated system session (home of all global cron jobs) exists,
+   * borrowing the caller session's provider so scheduled goals can run. Created
+   * on first use; the provider snapshot is refreshed on every call to stay
+   * current. Returns the system session id. Throws if `fromSessionId` is unknown.
+   */
+  ensureSystemSession(fromSessionId: string): string
   submitGoal(
     sessionId: string,
     goal: string,
@@ -590,6 +598,32 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
       log.info({ msg: 'session created', sessionId })
       return { sessionId }
+    },
+
+    ensureSystemSession(fromSessionId) {
+      const from = getOrRehydrate(fromSessionId)
+      if (!from) throw new Error(`cannot bootstrap system session: source session ${fromSessionId} not found`)
+      const existing = store.getSession(SYSTEM_SESSION_ID)
+      if (existing) {
+        // Keep the provider current: the user may have switched model/key since
+        // the system session was first created (it lives forever, unlike a chat).
+        store.updateSessionProvider(SYSTEM_SESSION_ID, from.provider)
+        const live = sessions.get(SYSTEM_SESSION_ID)
+        if (live) live.provider = from.provider
+        log.debug({ msg: 'system session provider refreshed', fromSessionId })
+      } else {
+        store.createSession(SYSTEM_SESSION_ID, from.provider)
+        sessions.set(SYSTEM_SESSION_ID, {
+          id: SYSTEM_SESSION_ID,
+          provider: from.provider,
+          permissionRegistry: createPermissionRegistry(makeEmit(SYSTEM_SESSION_ID)),
+          messages: [],
+          queue: Promise.resolve(),
+        })
+        store.setSessionTitle(SYSTEM_SESSION_ID, 'Scheduled tasks')
+        log.info({ msg: 'system session created', fromSessionId })
+      }
+      return SYSTEM_SESSION_ID
     },
 
     submitGoal(sessionId, goal, attachmentsArg, agentDefArg, onComplete, options) {

@@ -1,7 +1,7 @@
+import type { Task } from '@shared/types/task'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ConversationStore, StoredCronJob, StoredCronRun } from '../conversation/store'
-import type { Task } from '@shared/types/task'
 import { createCronScheduler } from './scheduler'
 
 function fakeStore(initial: StoredCronJob[] = []) {
@@ -27,12 +27,16 @@ function fakeStore(initial: StoredCronJob[] = []) {
         if (j) j.lastRunAt = ts
       },
       getSession: (id: string) => (sessions.has(id) ? { id } : undefined),
-      saveCronRun: (r: StoredCronRun) => { runs.set(r.id, r) },
+      saveCronRun: (r: StoredCronRun) => {
+        runs.set(r.id, r)
+      },
       attachCronRunTask: (runId: string, taskId: string) => {
-        const r = runs.get(runId); if (r) r.taskId = taskId
+        const r = runs.get(runId)
+        if (r) r.taskId = taskId
       },
       finishCronRun: (runId: string, o: { status: string; error: string | null; endedAt: number }) => {
-        const r = runs.get(runId); if (r) Object.assign(r, o)
+        const r = runs.get(runId)
+        if (r) Object.assign(r, o)
       },
       listCronRunsForJob: (jobId: string) =>
         [...runs.values()].filter((r) => r.jobId === jobId).sort((a, b) => b.triggeredAt - a.triggeredAt),
@@ -53,6 +57,23 @@ describe('createCronScheduler', () => {
     const { id, nextRun } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g', name: 'nightly' })
     expect(jobs.get(id)?.goal).toBe('g')
     expect(nextRun).toBeGreaterThan(0)
+    sched.dispose()
+  })
+
+  it('routes new jobs to the session returned by resolveJobSession', () => {
+    const { store, jobs, sessions } = fakeStore()
+    sessions.add('caller')
+    sessions.add('__system__')
+    const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
+    const resolveJobSession = vi.fn(() => '__system__')
+    const sched = createCronScheduler({ store, fire, resolveJobSession })
+
+    const { id } = sched.add({ sessionId: 'caller', cron: '0 0 * * *', goal: 'g' })
+    expect(resolveJobSession).toHaveBeenCalledWith('caller')
+    expect(jobs.get(id)?.sessionId).toBe('__system__')
+
+    sched.runJobNow(id)
+    expect(fire).toHaveBeenCalledWith('__system__', 'g', expect.any(Function))
     sched.dispose()
   })
 
@@ -148,7 +169,9 @@ describe('createCronScheduler', () => {
   it('marks the run as error when dispatch throws', () => {
     const { store, sessions, runs } = fakeStore()
     sessions.add('ses-1')
-    const fire = vi.fn(() => { throw new Error('dispatch boom') })
+    const fire = vi.fn(() => {
+      throw new Error('dispatch boom')
+    })
     const sched = createCronScheduler({ store, fire })
     const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g' })
     sched.runJobNow(id)
@@ -164,10 +187,28 @@ describe('createCronScheduler', () => {
     const { store, sessions, runs, tasks } = fakeStore()
     sessions.add('ses-1')
     // a leftover running run whose task actually completed
-    runs.set('run-done', { id: 'run-done', jobId: 'job-1', sessionId: 'ses-1', taskId: 'task-1', status: 'running', triggeredAt: 1, endedAt: null, error: null })
+    runs.set('run-done', {
+      id: 'run-done',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: 'task-1',
+      status: 'running',
+      triggeredAt: 1,
+      endedAt: null,
+      error: null,
+    })
     tasks.set('task-1', { id: 'task-1', status: 'completed', endedAt: 5 } as Task)
     // a leftover running run whose task is gone
-    runs.set('run-lost', { id: 'run-lost', jobId: 'job-1', sessionId: 'ses-1', taskId: 'task-gone', status: 'running', triggeredAt: 2, endedAt: null, error: null })
+    runs.set('run-lost', {
+      id: 'run-lost',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: 'task-gone',
+      status: 'running',
+      triggeredAt: 2,
+      endedAt: null,
+      error: null,
+    })
 
     const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }) })
     sched.start()
@@ -184,8 +225,26 @@ describe('createCronScheduler', () => {
 
     expect(sched.latestRunForJob('job-1')).toBeNull()
 
-    runs.set('r1', { id: 'r1', jobId: 'job-1', sessionId: 'ses-1', taskId: 't1', status: 'completed', triggeredAt: 1, endedAt: 2, error: null })
-    runs.set('r2', { id: 'r2', jobId: 'job-1', sessionId: 'ses-1', taskId: 't2', status: 'failed', triggeredAt: 5, endedAt: 6, error: 'boom' })
+    runs.set('r1', {
+      id: 'r1',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: 't1',
+      status: 'completed',
+      triggeredAt: 1,
+      endedAt: 2,
+      error: null,
+    })
+    runs.set('r2', {
+      id: 'r2',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: 't2',
+      status: 'failed',
+      triggeredAt: 5,
+      endedAt: 6,
+      error: 'boom',
+    })
 
     expect(sched.latestRunForJob('job-1')?.id).toBe('r2')
     sched.dispose()
@@ -198,8 +257,26 @@ describe('createCronScheduler', () => {
 
     expect(sched.runsForJob('job-1')).toEqual([])
 
-    runs.set('r1', { id: 'r1', jobId: 'job-1', sessionId: 'ses-1', taskId: 't1', status: 'completed', triggeredAt: 1, endedAt: 2, error: null })
-    runs.set('r2', { id: 'r2', jobId: 'job-1', sessionId: 'ses-1', taskId: 't2', status: 'failed', triggeredAt: 5, endedAt: 6, error: 'boom' })
+    runs.set('r1', {
+      id: 'r1',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: 't1',
+      status: 'completed',
+      triggeredAt: 1,
+      endedAt: 2,
+      error: null,
+    })
+    runs.set('r2', {
+      id: 'r2',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: 't2',
+      status: 'failed',
+      triggeredAt: 5,
+      endedAt: 6,
+      error: 'boom',
+    })
 
     expect(sched.runsForJob('job-1').map((r) => r.id)).toEqual(['r2', 'r1'])
     sched.dispose()

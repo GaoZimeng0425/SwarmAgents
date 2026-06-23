@@ -1,10 +1,11 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createBroadcaster } from '../ipc/broadcaster'
 import { createConversationStore } from '../conversation/store'
+import { createBroadcaster } from '../ipc/broadcaster'
 import { createSessionManager } from './manager'
 
 vi.mock('./agent-runner', () => ({
@@ -28,6 +29,42 @@ describe('SessionManager', () => {
     try {
       rmSync(dbPath)
     } catch {}
+  })
+
+  const providerA = {
+    id: 'anthropic' as const,
+    registry: 'anthropic' as const,
+    apiStyle: 'anthropic' as const,
+    model: 'claude-haiku-4-5-20251001',
+    apiKey: 'k',
+  }
+
+  it('ensureSystemSession bootstraps the system session from the caller provider', () => {
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    const systemId = manager.ensureSystemSession(sessionId)
+
+    expect(systemId).toBe(SYSTEM_SESSION_ID)
+    expect(store.getSession(SYSTEM_SESSION_ID)?.providerSnapshot).toEqual(providerA)
+    store.close()
+  })
+
+  it('ensureSystemSession refreshes the system provider on later calls', () => {
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const a = manager.createSession(providerA).sessionId
+    manager.ensureSystemSession(a)
+
+    const providerB = { ...providerA, model: 'claude-opus-4-8', apiKey: 'k2' }
+    const b = manager.createSession(providerB).sessionId
+    manager.ensureSystemSession(b)
+
+    expect(store.getSession(SYSTEM_SESSION_ID)?.providerSnapshot).toEqual(providerB)
+    store.close()
   })
 
   it('creates a session and returns sessionId', () => {

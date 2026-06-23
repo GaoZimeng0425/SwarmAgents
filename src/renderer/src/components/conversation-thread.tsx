@@ -37,6 +37,7 @@ import { extractImagePaths } from '@/lib/file-paths'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
 import { groupSegments } from '@/lib/group-segments'
 import { type Segment, taskSegments } from '@/lib/task-segments'
+import { dayKey, formatDayLabel, formatMessageTime } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -239,6 +240,15 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
   const busy = last.status === 'running' || last.status === 'pending'
   const usage = last.used
 
+  const messageTime = (ts: number): React.JSX.Element => (
+    <time
+      className="px-1 text-[10px] text-muted-foreground/50 tabular-nums group-[.is-user]:text-right"
+      dateTime={new Date(ts).toISOString()}
+    >
+      {formatMessageTime(ts)}
+    </time>
+  )
+
   const messageActions = (text: string, taskId: string): React.JSX.Element => (
     <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 group-[.is-user]:justify-end">
       <MessageAction label="Copy" onClick={() => onCopy(text)} tooltip="Copy message">
@@ -272,6 +282,7 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
             )}
             <span className="whitespace-pre-wrap">{seg.text}</span>
           </MessageContent>
+          {messageTime(seg.ts)}
           {messageActions(seg.text, seg.taskId)}
         </Message>
       )
@@ -286,6 +297,7 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
               <ToolImage key={p} path={p} showName={false} />
             ))}
           </MessageContent>
+          {messageTime(seg.ts)}
           {messageActions(seg.text, seg.taskId)}
         </Message>
       )
@@ -394,7 +406,27 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
             }
           }
           items.sort((a, b) => a.ts - b.ts || a.order - b.order)
-          return items.map((it) => it.node)
+          // Spine of the timeline: insert a date divider whenever the calendar
+          // day changes (and before the first item), so messages are anchored
+          // in time without each row needing a full datestamp.
+          const now = Date.now()
+          const out: React.JSX.Element[] = []
+          let prevDay: string | undefined
+          for (const it of items) {
+            const d = dayKey(it.ts)
+            if (d !== prevDay) {
+              out.push(
+                <div className="flex items-center gap-3 py-2 text-[11px] text-muted-foreground/60" key={`day-${d}`}>
+                  <div className="h-px flex-1 bg-border/40" />
+                  <span className="font-medium uppercase tracking-wide">{formatDayLabel(it.ts, now)}</span>
+                  <div className="h-px flex-1 bg-border/40" />
+                </div>
+              )
+              prevDay = d
+            }
+            out.push(it.node)
+          }
+          return out
         })()}
         {busy && (
           <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">

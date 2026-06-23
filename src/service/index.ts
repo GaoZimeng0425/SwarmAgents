@@ -8,9 +8,9 @@ import type { ServiceRequest } from '@shared/types/service-ipc'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
 import { createAgentStore } from './agents/store'
-import { createBroadcaster } from './ipc/broadcaster'
 import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
+import { createBroadcaster } from './ipc/broadcaster'
 import { createDispatcher } from './ipc/dispatcher'
 import { createMcpManager } from './mcp/manager'
 import { createMemoryStore } from './memory/store'
@@ -75,6 +75,10 @@ const manager = createSessionManager({
 const scheduler = createCronScheduler({
   store,
   fire: (sessionId, goal, onComplete) => manager.submitGoal(sessionId, goal, [], undefined, onComplete),
+  // Cron jobs are global: own + fire them in the dedicated system session, not
+  // the conversation that issued schedule_task, so every session sees them and
+  // they survive that conversation's deletion.
+  resolveJobSession: (fromSessionId) => manager.ensureSystemSession(fromSessionId),
 })
 registerBuiltinTools(toolRegistry, {
   memoryStore,
@@ -109,8 +113,13 @@ const dispatch = createDispatcher({
   listMemory: (namespace) => memoryStore.list(namespace),
   listCronJobsForSession: (sessionId) => scheduler.listForSession(sessionId),
   listAllCronJobs: () => {
+    // listSessions excludes the system session (which owns all global jobs),
+    // so fall back to getSession to resolve its title for the schedule view.
     const titleById = new Map(store.listSessions().map((s) => [s.id, s.title]))
-    return scheduler.listAll().map((j) => ({ ...j, sessionTitle: titleById.get(j.sessionId) ?? null }))
+    return scheduler.listAll().map((j) => ({
+      ...j,
+      sessionTitle: titleById.get(j.sessionId) ?? store.getSession(j.sessionId)?.title ?? null,
+    }))
   },
   cancelCronJob: (id) => {
     scheduler.remove(id)

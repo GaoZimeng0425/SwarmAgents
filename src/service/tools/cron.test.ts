@@ -28,6 +28,18 @@ function fakeScheduler(): CronScheduler {
         nextRun: 1_000_000,
       },
     ]),
+    listAll: vi.fn(() => [
+      {
+        id: 'job-1',
+        sessionId: 'other-session',
+        name: 'nightly',
+        cron: '0 0 * * *',
+        goal: 'g',
+        createdAt: 1,
+        lastRunAt: null,
+        nextRun: 1_000_000,
+      },
+    ]),
     start: vi.fn(),
     runJobNow: vi.fn(),
     dispose: vi.fn(),
@@ -111,13 +123,14 @@ describe('cronSpecs', () => {
     expect(text(res as never)).toContain('error')
   })
 
-  it('list_scheduled_tasks lists jobs for the session', async () => {
+  it('list_scheduled_tasks lists all jobs globally, not just the caller session', async () => {
     const sched = fakeScheduler()
     const tool = cronSpecs(sched)
       .find((s) => s.name === 'list_scheduled_tasks')!
       .build(ctx)
     const res = await tool.execute('id', {})
-    expect(sched.listForSession).toHaveBeenCalledWith('ses-1')
+    expect(sched.listAll).toHaveBeenCalled()
+    expect(sched.listForSession).not.toHaveBeenCalled()
     expect(text(res as never)).toContain('nightly')
     // execution status surfaced from the latest run
     expect(sched.latestRunForJob).toHaveBeenCalledWith('job-1')

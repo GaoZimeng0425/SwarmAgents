@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createConversationStore } from './store'
@@ -553,8 +554,26 @@ describe('ConversationStore', () => {
     const store = createConversationStore(dbPath)
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
-    store.saveCronRun({ id: 'r-run', jobId: 'j', sessionId: 'ses-1', taskId: 't', status: 'running', triggeredAt: 1, endedAt: null, error: null })
-    store.saveCronRun({ id: 'r-done', jobId: 'j', sessionId: 'ses-1', taskId: 't2', status: 'completed', triggeredAt: 2, endedAt: 3, error: null })
+    store.saveCronRun({
+      id: 'r-run',
+      jobId: 'j',
+      sessionId: 'ses-1',
+      taskId: 't',
+      status: 'running',
+      triggeredAt: 1,
+      endedAt: null,
+      error: null,
+    })
+    store.saveCronRun({
+      id: 'r-done',
+      jobId: 'j',
+      sessionId: 'ses-1',
+      taskId: 't2',
+      status: 'completed',
+      triggeredAt: 2,
+      endedAt: 3,
+      error: null,
+    })
 
     const running = store.listRunningCronRuns()
     expect(running.map((r) => r.id)).toEqual(['r-run'])
@@ -566,7 +585,16 @@ describe('ConversationStore', () => {
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
     for (let i = 0; i < 105; i++) {
-      store.saveCronRun({ id: `run-${i}`, jobId: 'job-1', sessionId: 'ses-1', taskId: null, status: 'running', triggeredAt: i, endedAt: null, error: null })
+      store.saveCronRun({
+        id: `run-${i}`,
+        jobId: 'job-1',
+        sessionId: 'ses-1',
+        taskId: null,
+        status: 'running',
+        triggeredAt: i,
+        endedAt: null,
+        error: null,
+      })
     }
     const runs = store.listCronRunsForJob('job-1')
     expect(runs).toHaveLength(100)
@@ -580,8 +608,25 @@ describe('ConversationStore', () => {
     const store = createConversationStore(dbPath)
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
-    store.saveCronJob({ id: 'job-1', sessionId: 'ses-1', name: null, cron: '0 0 * * *', goal: 'g', createdAt: 1, lastRunAt: null })
-    store.saveCronRun({ id: 'run-1', jobId: 'job-1', sessionId: 'ses-1', taskId: null, status: 'running', triggeredAt: 1, endedAt: null, error: null })
+    store.saveCronJob({
+      id: 'job-1',
+      sessionId: 'ses-1',
+      name: null,
+      cron: '0 0 * * *',
+      goal: 'g',
+      createdAt: 1,
+      lastRunAt: null,
+    })
+    store.saveCronRun({
+      id: 'run-1',
+      jobId: 'job-1',
+      sessionId: 'ses-1',
+      taskId: null,
+      status: 'running',
+      triggeredAt: 1,
+      endedAt: null,
+      error: null,
+    })
 
     store.deleteCronJob('job-1')
     expect(store.listCronRunsForJob('job-1')).toHaveLength(1) // job removal keeps history
@@ -598,16 +643,58 @@ describe('ConversationStore', () => {
     const now = Date.now()
     store.saveTask(
       {
-        id: 'task-1', parentId: null, agentDefId: 'a', goal: 'g', status: 'pending',
-        assignedWorkerId: null, toolAllowlist: [], budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 }, history: [], attachments: [],
-        result: null, createdAt: now, startedAt: null, endedAt: null,
+        id: 'task-1',
+        parentId: null,
+        agentDefId: 'a',
+        goal: 'g',
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        attachments: [],
+        result: null,
+        createdAt: now,
+        startedAt: null,
+        endedAt: null,
       },
       'ses-1'
     )
     expect(store.getTask('task-1')?.goal).toBe('g')
     expect(store.getTask('missing')).toBeUndefined()
     store.close()
+  })
+
+  describe('system session', () => {
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+
+    it('excludes the system session from listSessions (sidebar)', () => {
+      const store = createConversationStore(':memory:')
+      store.createSession('ses-1', provider)
+      store.createSession(SYSTEM_SESSION_ID, provider)
+      const ids = store.listSessions().map((s) => s.id)
+      expect(ids).toContain('ses-1')
+      expect(ids).not.toContain(SYSTEM_SESSION_ID)
+      store.close()
+    })
+
+    it('protects the system session from deletion so its cron jobs survive', () => {
+      const store = createConversationStore(':memory:')
+      store.createSession(SYSTEM_SESSION_ID, provider)
+      store.deleteSession(SYSTEM_SESSION_ID)
+      expect(store.getSession(SYSTEM_SESSION_ID)).toBeDefined()
+      store.close()
+    })
+
+    it('updates a session provider snapshot in place', () => {
+      const store = createConversationStore(':memory:')
+      store.createSession('ses-1', provider)
+      const next = { id: 'anthropic' as const, model: 'claude-opus-4-8', apiKey: 'k2' }
+      store.updateSessionProvider('ses-1', next)
+      expect(store.getSession('ses-1')?.providerSnapshot).toEqual(next)
+      store.close()
+    })
   })
 
   describe('listActorsForSession', () => {

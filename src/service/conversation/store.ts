@@ -1,5 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
+import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import type { Actor, ActorMessage } from '@shared/types/actor'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task } from '@shared/types/task'
@@ -46,6 +47,8 @@ export type ConversationStore = {
   createSession(id: string, provider: ProviderInjection): StoredSession
   getSession(id: string): StoredSession | undefined
   updateSessionStatus(id: string, status: StoredSession['status']): void
+  /** Overwrite a session's persisted provider snapshot (e.g. to keep the system session's provider current). */
+  updateSessionProvider(id: string, provider: ProviderInjection): void
   updateSessionLastActive(id: string): void
   getInterruptedSessions(): StoredSession[]
   listSessions(): import('@shared/types/ui').SessionSummary[]
@@ -394,6 +397,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   )
   const stmtGetSession = db.prepare('SELECT * FROM sessions WHERE id = ?')
   const stmtUpdateStatus = db.prepare('UPDATE sessions SET status = ? WHERE id = ?')
+  const stmtUpdateProvider = db.prepare('UPDATE sessions SET provider_snapshot = ? WHERE id = ?')
   const stmtUpdateLastActive = db.prepare('UPDATE sessions SET last_active_at = ? WHERE id = ?')
 
   const markAndGetInterrupted = db.transaction((): StoredSession[] => {
@@ -435,7 +439,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
      FROM sessions s
-     WHERE s.status != 'ended'
+     WHERE s.status != 'ended' AND s.id != ?
      ORDER BY s.pinned DESC, s.sort_order ASC`
   )
 
@@ -496,6 +500,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     updateSessionStatus(id, status) {
       stmtUpdateStatus.run(status, id)
     },
+    updateSessionProvider(id, provider) {
+      stmtUpdateProvider.run(JSON.stringify(provider), id)
+    },
     updateSessionLastActive(id) {
       stmtUpdateLastActive.run(Date.now(), id)
     },
@@ -503,7 +510,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       return markAndGetInterrupted()
     },
     listSessions() {
-      return (stmtListSessions.all() as Record<string, unknown>[]).map((r) => ({
+      return (stmtListSessions.all(SYSTEM_SESSION_ID) as Record<string, unknown>[]).map((r) => ({
         id: r.id as string,
         title: (r.title as string | null) ?? null,
         status: r.status as 'active' | 'interrupted' | 'ended',
@@ -528,6 +535,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
       tx(orderedIds)
     },
     deleteSession(id) {
+      // The system session owns all global cron jobs; never delete it (and so
+      // never cascade-delete its jobs) even if something asks.
+      if (id === SYSTEM_SESSION_ID) return
       deleteSessionTx(id)
     },
     saveAgentSnapshot(sessionId, messages) {
