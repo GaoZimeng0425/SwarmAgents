@@ -78,6 +78,7 @@ export type ConversationStore = {
   upsertActor(actor: Actor): void
   getActor(address: string): Actor | undefined
   getActorByName(sessionId: string, name: string): Actor | undefined
+  listActorsForSession(sessionId: string): Actor[]
   enqueueMessage(msg: ActorMessage): void
   nextUnconsumedFor(address: string): ActorMessage | undefined
   allUnconsumedFor(address: string): ActorMessage[]
@@ -312,6 +313,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   `)
   const stmtGetActor = db.prepare('SELECT * FROM actors WHERE address = ?')
   const stmtGetActorByName = db.prepare('SELECT * FROM actors WHERE session_id = ? AND name = ?')
+  const stmtListActorsForSession = db.prepare('SELECT * FROM actors WHERE session_id = ? ORDER BY created_at')
   const stmtEnqueueMessage = db.prepare(`
     INSERT INTO messages (id, to_addr, from_addr, kind, correlation_id, payload, consumed, retries, dead, ts)
     VALUES (@id, @toAddr, @fromAddr, @kind, @correlationId, @payload, @consumed, @retries, @dead, @ts)
@@ -754,6 +756,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     getActorByName(sessionId, name) {
       const row = stmtGetActorByName.get(sessionId, name) as ActorRow | undefined
       return row ? rowToActor(row) : undefined
+    },
+    listActorsForSession(sessionId) {
+      return (stmtListActorsForSession.all(sessionId) as ActorRow[]).map(rowToActor)
     },
     enqueueMessage(msg) {
       stmtEnqueueMessage.run({ ...msg, consumed: msg.consumed ? 1 : 0, dead: msg.dead ? 1 : 0 })

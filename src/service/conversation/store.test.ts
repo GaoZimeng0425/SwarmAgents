@@ -609,4 +609,26 @@ describe('ConversationStore', () => {
     expect(store.getTask('missing')).toBeUndefined()
     store.close()
   })
+
+  describe('listActorsForSession', () => {
+    it('returns a session actors in creation order and excludes other sessions', () => {
+      const store = createConversationStore(':memory:')
+      const mk = (address: string, sessionId: string, createdAt: number) => ({
+        address,
+        agentDefId: 'default',
+        sessionId,
+        name: address,
+        state: null,
+        lastTaskId: null,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      store.upsertActor(mk('a2', 'S1', 200))
+      store.upsertActor(mk('a1', 'S1', 100))
+      store.upsertActor(mk('b1', 'S2', 150))
+      expect(store.listActorsForSession('S1').map((a) => a.address)).toEqual(['a1', 'a2'])
+      expect(store.listActorsForSession('S2').map((a) => a.address)).toEqual(['b1'])
+      store.close()
+    })
+  })
 })
