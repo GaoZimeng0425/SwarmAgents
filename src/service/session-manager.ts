@@ -26,6 +26,11 @@ import { createToolRegistry, type ToolRegistry } from './tools/registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
+// Fixed company roster (approach A). Single source of truth: the seeded actor
+// name equals the agent-def id, and role prompts address teammates by these
+// exact names. The CEO is first — it receives the kickoff goal.
+const COMPANY_ROLES = ['ceo', 'pm', 'engineer', 'reviewer'] as const
+
 // A resident actor sleeps (its loop returns) after this long with an empty mailbox.
 const IDLE_TIMEOUT_MS = 30_000
 // Max per-message turn failures before the message is dead-lettered.
@@ -79,6 +84,7 @@ export type SessionManager = {
     onComplete?: (status: TaskStatus, error?: string) => void,
     options?: TaskOptions
   ): { taskId: string }
+  startCompany(sessionId: string, goal: string): Promise<{ reply: string } | { delivered: true }>
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
   endSession(sessionId: string): void
@@ -688,6 +694,16 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
       session.queue = session.queue.then(runTurn, runTurn)
       return { taskId }
+    },
+
+    async startCompany(sessionId, goal) {
+      // Seed the fixed roster as named, addressable actors, then rpc-kick the
+      // CEO; its reply is the result of the whole run.
+      log.info({ msg: 'company started', sessionId, goalLen: goal.length })
+      for (const roleId of COMPANY_ROLES) {
+        ensureActor(sessionId, roleId, roleId)
+      }
+      return sendMessage(sessionId, null, 'ceo', goal, 'rpc')
     },
 
     resolvePermission(sessionId, actionId, decision) {
