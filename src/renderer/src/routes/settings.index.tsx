@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/')({ component: General })
+export const Route = createFileRoute('/settings/')({ component: General })
 
 function General(): React.JSX.Element {
   return (

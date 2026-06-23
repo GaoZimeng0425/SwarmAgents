@@ -5,7 +5,7 @@ import type { MacPermissions, MacPermissionState } from '@shared/types/ui'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
-export const Route = createFileRoute('/permissions')({ component: Permissions })
+export const Route = createFileRoute('/settings/permissions')({ component: Permissions })
 
 const STATE_LABEL: Record<MacPermissionState, { text: string; variant: 'secondary' | 'destructive' | 'outline' }> = {
   granted: { text: 'Granted', variant: 'secondary' },

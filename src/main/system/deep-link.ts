@@ -1,7 +1,7 @@
 // src/main/system/deep-link.ts
 //
 // Routes incoming swarmagents:// deep links:
-//   swarmagents://settings[/<route>] → opens the Settings window.
+//   swarmagents://settings[/<route>] → navigates the main window to that settings route.
 //   swarmagents://chat/<sessionId>   → navigates the main window to that session.
 // A chat link can arrive before the renderer has subscribed (cold start, where
 // the URL fires during app startup, before the window loads). Such links are
@@ -11,7 +11,7 @@ import { createLogger } from '@shared/logger'
 import { ipcMain } from 'electron'
 
 import { getMainWindow } from '../windows/main-window'
-import { openSettings } from '../windows/settings-window'
+import { openSettings } from '../windows/open-settings'
 
 const log = createLogger({ process: 'main' }).child({ component: 'deep-link' })
 

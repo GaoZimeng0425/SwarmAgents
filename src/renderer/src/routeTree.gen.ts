@@ -11,8 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsWebSearchRouteImport } from './routes/settings.web-search'
+import { Route as SettingsProvidersRouteImport } from './routes/settings.providers'
+import { Route as SettingsPermissionsRouteImport } from './routes/settings.permissions'
+import { Route as SettingsMcpRouteImport } from './routes/settings.mcp'
+import { Route as SettingsBudgetsRouteImport } from './routes/settings.budgets'
+import { Route as SettingsAboutRouteImport } from './routes/settings.about'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
 
 const UsageRoute = UsageRouteImport.update({
@@ -25,6 +33,11 @@ const SkillsRoute = SkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScheduledRoute = ScheduledRouteImport.update({
   id: '/scheduled',
   path: '/scheduled',
@@ -35,6 +48,41 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsWebSearchRoute = SettingsWebSearchRouteImport.update({
+  id: '/web-search',
+  path: '/web-search',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsPermissionsRoute = SettingsPermissionsRouteImport.update({
+  id: '/permissions',
+  path: '/permissions',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsMcpRoute = SettingsMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsBudgetsRoute = SettingsBudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAboutRoute = SettingsAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
   id: '/session/$sessionId',
   path: '/session/$sessionId',
@@ -44,9 +92,17 @@ const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/scheduled': typeof ScheduledRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
+  '/settings/about': typeof SettingsAboutRoute
+  '/settings/budgets': typeof SettingsBudgetsRoute
+  '/settings/mcp': typeof SettingsMcpRoute
+  '/settings/permissions': typeof SettingsPermissionsRoute
+  '/settings/providers': typeof SettingsProvidersRoute
+  '/settings/web-search': typeof SettingsWebSearchRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,32 +110,81 @@ export interface FileRoutesByTo {
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
+  '/settings/about': typeof SettingsAboutRoute
+  '/settings/budgets': typeof SettingsBudgetsRoute
+  '/settings/mcp': typeof SettingsMcpRoute
+  '/settings/permissions': typeof SettingsPermissionsRoute
+  '/settings/providers': typeof SettingsProvidersRoute
+  '/settings/web-search': typeof SettingsWebSearchRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/scheduled': typeof ScheduledRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
+  '/settings/about': typeof SettingsAboutRoute
+  '/settings/budgets': typeof SettingsBudgetsRoute
+  '/settings/mcp': typeof SettingsMcpRoute
+  '/settings/permissions': typeof SettingsPermissionsRoute
+  '/settings/providers': typeof SettingsProvidersRoute
+  '/settings/web-search': typeof SettingsWebSearchRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/scheduled' | '/skills' | '/usage' | '/session/$sessionId'
+  fullPaths:
+    | '/'
+    | '/scheduled'
+    | '/settings'
+    | '/skills'
+    | '/usage'
+    | '/session/$sessionId'
+    | '/settings/about'
+    | '/settings/budgets'
+    | '/settings/mcp'
+    | '/settings/permissions'
+    | '/settings/providers'
+    | '/settings/web-search'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/scheduled' | '/skills' | '/usage' | '/session/$sessionId'
-  id:
-    | '__root__'
+  to:
     | '/'
     | '/scheduled'
     | '/skills'
     | '/usage'
     | '/session/$sessionId'
+    | '/settings/about'
+    | '/settings/budgets'
+    | '/settings/mcp'
+    | '/settings/permissions'
+    | '/settings/providers'
+    | '/settings/web-search'
+    | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/scheduled'
+    | '/settings'
+    | '/skills'
+    | '/usage'
+    | '/session/$sessionId'
+    | '/settings/about'
+    | '/settings/budgets'
+    | '/settings/mcp'
+    | '/settings/permissions'
+    | '/settings/providers'
+    | '/settings/web-search'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ScheduledRoute: typeof ScheduledRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   SkillsRoute: typeof SkillsRoute
   UsageRoute: typeof UsageRoute
   SessionSessionIdRoute: typeof SessionSessionIdRoute
@@ -101,6 +206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/scheduled': {
       id: '/scheduled'
       path: '/scheduled'
@@ -115,6 +227,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/web-search': {
+      id: '/settings/web-search'
+      path: '/web-search'
+      fullPath: '/settings/web-search'
+      preLoaderRoute: typeof SettingsWebSearchRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/providers': {
+      id: '/settings/providers'
+      path: '/providers'
+      fullPath: '/settings/providers'
+      preLoaderRoute: typeof SettingsProvidersRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/permissions': {
+      id: '/settings/permissions'
+      path: '/permissions'
+      fullPath: '/settings/permissions'
+      preLoaderRoute: typeof SettingsPermissionsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/mcp': {
+      id: '/settings/mcp'
+      path: '/mcp'
+      fullPath: '/settings/mcp'
+      preLoaderRoute: typeof SettingsMcpRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/budgets': {
+      id: '/settings/budgets'
+      path: '/budgets'
+      fullPath: '/settings/budgets'
+      preLoaderRoute: typeof SettingsBudgetsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/about': {
+      id: '/settings/about'
+      path: '/about'
+      fullPath: '/settings/about'
+      preLoaderRoute: typeof SettingsAboutRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/session/$sessionId': {
       id: '/session/$sessionId'
       path: '/session/$sessionId'
@@ -125,9 +286,34 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SettingsRouteChildren {
+  SettingsAboutRoute: typeof SettingsAboutRoute
+  SettingsBudgetsRoute: typeof SettingsBudgetsRoute
+  SettingsMcpRoute: typeof SettingsMcpRoute
+  SettingsPermissionsRoute: typeof SettingsPermissionsRoute
+  SettingsProvidersRoute: typeof SettingsProvidersRoute
+  SettingsWebSearchRoute: typeof SettingsWebSearchRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAboutRoute: SettingsAboutRoute,
+  SettingsBudgetsRoute: SettingsBudgetsRoute,
+  SettingsMcpRoute: SettingsMcpRoute,
+  SettingsPermissionsRoute: SettingsPermissionsRoute,
+  SettingsProvidersRoute: SettingsProvidersRoute,
+  SettingsWebSearchRoute: SettingsWebSearchRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ScheduledRoute: ScheduledRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   SkillsRoute: SkillsRoute,
   UsageRoute: UsageRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,

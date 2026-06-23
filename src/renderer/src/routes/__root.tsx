@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { createRootRoute, Outlet, useRouter } from '@tanstack/react-router'
+import { createRootRoute, Outlet, useRouter, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 
 import { AppSidebar } from '@/components/app-sidebar'
@@ -27,34 +27,38 @@ function RootLayout(): React.JSX.Element {
     loadSessions.mutate()
   }, [])
 
+  // Full-screen takeover: the /settings route group renders its own chrome
+  // (left sub-nav + Done bar), so we hide the session sidebar and top bar.
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const inSettings = pathname === '/settings' || pathname.startsWith('/settings/')
+
   return (
-    <SidebarProvider>
+    <>
+      {/* Mounted in both modes: owns event subscription + main→renderer
+          navigation (incl. swarm:navigate-settings). Must never unmount. */}
       <EventsBridge />
-      {/* Full-width unified toolbar spanning sidebar + content. The toggle
-          lives here so it never jumps position when the sidebar collapses —
-          matching native macOS toolbars (Finder, Mail). z-30 sits above the
-          sidebar's fixed container (z-10). */}
-      <TopBar />
-      <AppSidebar />
-      {/* min-w-0 lets this flex item shrink below its content's intrinsic
-          min-width; otherwise wide chat content (long URLs, tables, code
-          lines) forces the whole SidebarProvider row past the viewport and
-          creates a horizontal scrollbar that shoves the right panel
-          off-screen. overflow-hidden then clips whatever can't fit. */}
-      <SidebarInset className="min-w-0 overflow-hidden">
-        <main className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)] pt-9">
-          <div className="min-h-0 flex-1">
-            <Outlet />
-          </div>
-        </main>
-      </SidebarInset>
+      {inSettings ? (
+        <Outlet />
+      ) : (
+        <SidebarProvider>
+          <TopBar />
+          <AppSidebar />
+          <SidebarInset className="min-w-0 overflow-hidden">
+            <main className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)] pt-9">
+              <div className="min-h-0 flex-1">
+                <Outlet />
+              </div>
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      )}
       <Toaster />
       {SHOW_ROUTER_DEVTOOLS && (
         <Suspense fallback={null}>
           <RouterDevtools position="bottom-right" />
         </Suspense>
       )}
-    </SidebarProvider>
+    </>
   )
 }
 

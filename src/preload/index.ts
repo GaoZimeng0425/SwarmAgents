@@ -29,6 +29,7 @@ import type { WebSearchConfigView, WebSearchProviderId } from '../shared/types/w
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
 const NAVIGATE_CHANNEL = 'swarm:navigate'
+const SETTINGS_NAV_CHANNEL = 'swarm:navigate-settings'
 const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
 const PROVIDERS_STATE_CHANNEL = 'providers:stateChanged'
 const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
@@ -191,6 +192,13 @@ const swarm: SwarmBridge = {
       ipcRenderer.removeListener(NAVIGATE_CHANNEL, listener)
     }
   },
+  onNavigateToSettings: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: { route: string }): void => cb(payload.route)
+    ipcRenderer.on(SETTINGS_NAV_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(SETTINGS_NAV_CHANNEL, listener)
+    }
+  },
   consumePendingDeepLink: () =>
     ipcRenderer.invoke('swarm:consumePendingDeepLink') as Promise<{ sessionId: string } | null>,
   getAccent: () => ipcRenderer.invoke('system:getAccent') as Promise<string | null>,
@@ -201,7 +209,6 @@ const swarm: SwarmBridge = {
       ipcRenderer.removeListener(ACCENT_CHANGE_CHANNEL, listener)
     }
   },
-  openSettings: (opts) => ipcRenderer.invoke('system:openSettings', opts) as Promise<void>,
   getMacPermissions: () => ipcRenderer.invoke('system:getMacPermissions') as Promise<MacPermissions>,
   openPrivacySettings: (pane) => ipcRenderer.invoke('system:openPrivacySettings', pane) as Promise<void>,
   readImageFile: (path: string) =>

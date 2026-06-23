@@ -11,9 +11,11 @@ import { useSessionsStore } from '../stores/sessions'
 import { useEventsSubscription } from './use-events-subscription'
 
 vi.mock('sonner', () => ({ toast: vi.fn() }))
+
+const navigateSpy = vi.fn()
 vi.mock('@tanstack/react-router', async (orig) => ({
   ...(await orig<typeof import('@tanstack/react-router')>()),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateSpy,
 }))
 
 function makeWrapper(qc: QueryClient) {
@@ -21,6 +23,8 @@ function makeWrapper(qc: QueryClient) {
     return <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   }
 }
+
+let settingsNavCb: ((route: string) => void) | null = null
 
 function mount(): (e: UIEvent) => void {
   let emit: (e: UIEvent) => void = () => {}
@@ -30,6 +34,10 @@ function mount(): (e: UIEvent) => void {
   })
   vi.spyOn(api.swarmApi, 'consumePendingDeepLink').mockResolvedValue(null)
   vi.spyOn(api.swarmApi, 'onNavigateToSession').mockReturnValue(() => {})
+  vi.spyOn(api.swarmApi, 'onNavigateToSettings').mockImplementation((cb) => {
+    settingsNavCb = cb
+    return () => {}
+  })
   const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } } })
   renderHook(() => useEventsSubscription(), { wrapper: makeWrapper(qc) })
   return (e) => emit(e)
@@ -84,5 +92,14 @@ describe('useEventsSubscription — background session activity', () => {
     })
     await waitFor(() => expect(useSessionsStore.getState().unread).toEqual({ bg: true }))
     expect(toast).not.toHaveBeenCalled()
+  })
+})
+
+describe('useEventsSubscription — settings navigation', () => {
+  it('navigates to a settings route when main pushes swarm:navigate-settings', () => {
+    mount()
+    expect(settingsNavCb).toBeTypeOf('function')
+    settingsNavCb?.('/settings/providers')
+    expect(navigateSpy).toHaveBeenCalledWith({ to: '/settings/providers' })
   })
 })
