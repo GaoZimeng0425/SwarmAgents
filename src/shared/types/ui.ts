@@ -241,14 +241,14 @@ export type SwarmBridge = {
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** A swarmagents://chat/<id> deep link routes here. Pushed when the app is already running. */
   onNavigateToSession(cb: (sessionId: string) => void): () => void
+  /** Main pushes a /settings route here (menu / deep-link) for in-app navigation. */
+  onNavigateToSettings(cb: (route: string) => void): () => void
   /** Pull a chat deep link that arrived before the renderer subscribed (cold start). One-shot: clears after read. */
   consumePendingDeepLink(): Promise<{ sessionId: string } | null>
   /** Get the current system accent color (RRGGBBAA hex). Returns null on unsupported platforms. */
   getAccent(): Promise<string | null>
   /** Subscribe to accent-color changes. Returns an unsubscribe function. */
   onAccentChange(cb: (hex: string) => void): () => void
-  /** Open the Settings window. Optional initialRoute selects which tab to land on. */
-  openSettings(opts?: { initialRoute?: string }): Promise<void>
   /** Current macOS screen-recording / accessibility permission status. */
   getMacPermissions(): Promise<MacPermissions>
   /** Open the relevant macOS Privacy & Security settings pane. No-op off macOS. */

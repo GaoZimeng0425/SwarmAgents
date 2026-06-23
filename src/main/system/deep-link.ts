@@ -11,7 +11,7 @@ import { createLogger } from '@shared/logger'
 import { ipcMain } from 'electron'
 
 import { getMainWindow } from '../windows/main-window'
-import { openSettings } from '../windows/settings-window'
+import { openSettings } from '../windows/open-settings'
 
 const log = createLogger({ process: 'main' }).child({ component: 'deep-link' })
 

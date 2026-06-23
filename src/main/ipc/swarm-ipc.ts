@@ -11,7 +11,6 @@ import type { ServiceClient } from '../service-client'
 import { getAccent, subscribeAccent } from '../system/accent'
 import { getMacPermissions, openPrivacySettings } from '../system/permissions'
 import type { Service as WebSearchService } from '../web-search'
-import { openSettings } from '../windows/settings-window'
 
 const log = createLogger({ process: 'main' }).child({ component: 'swarm-ipc' })
 
@@ -212,20 +211,6 @@ export function wireSwarmIpc(args: {
     }
   })
 
-  const handleOpenSettings = (_: Electron.IpcMainInvokeEvent, opts?: unknown): void => {
-    let initialRoute: string | undefined
-    if (
-      opts &&
-      typeof opts === 'object' &&
-      'initialRoute' in opts &&
-      typeof (opts as { initialRoute?: unknown }).initialRoute === 'string'
-    ) {
-      initialRoute = (opts as { initialRoute: string }).initialRoute
-    }
-    openSettings(initialRoute ? { initialRoute } : {})
-  }
-  ipcMain.handle('system:openSettings', handleOpenSettings)
-
   const readImageFile = async (
     _e: Electron.IpcMainInvokeEvent,
     path: unknown
@@ -286,7 +271,6 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:readImageFile')
       ipcMain.removeHandler('system:openPath')
       ipcMain.removeHandler('system:pickPath')
-      ipcMain.removeHandler('system:openSettings')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
       ipcMain.removeHandler('swarm:createSession')

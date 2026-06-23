@@ -32,6 +32,7 @@ beforeEach(() => {
   // stub both so tests that render it don't touch an undefined window.swarm.
   vi.spyOn(api.swarmApi, 'consumePendingDeepLink').mockResolvedValue(null)
   vi.spyOn(api.swarmApi, 'onNavigateToSession').mockReturnValue(() => {})
+  vi.spyOn(api.swarmApi, 'onNavigateToSettings').mockReturnValue(() => {})
 })
 
 afterEach(() => {

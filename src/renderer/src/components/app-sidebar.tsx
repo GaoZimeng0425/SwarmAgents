@@ -75,10 +75,21 @@ export function AppSidebar(): React.JSX.Element {
             />
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => void window.swarm.openSettings()} tooltip="Settings">
-              <Settings />
-              <span>Settings</span>
-            </SidebarMenuButton>
+            <SidebarMenuButton
+              render={
+                <Link
+                  // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
+                  activeProps={{ 'data-active': 'true' } as any}
+                  className="flex items-center gap-2"
+                  // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over route const
+                  to={'/settings' as any}
+                >
+                  <Settings />
+                  <span>Settings</span>
+                </Link>
+              }
+              tooltip="Settings"
+            />
           </SidebarMenuItem>
         </SidebarMenu>
         <ThemeToggle />

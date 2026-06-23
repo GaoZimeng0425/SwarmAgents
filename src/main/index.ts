@@ -15,7 +15,7 @@ import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
-import { openSettings } from './windows/settings-window'
+import { openSettings } from './windows/open-settings'
 
 // productName in electron-builder.yml only renames packaged builds; in dev
 // app.name falls back to "Electron". Set it explicitly so the macOS app menu

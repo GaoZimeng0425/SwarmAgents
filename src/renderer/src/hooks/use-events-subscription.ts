@@ -66,6 +66,15 @@ export function useEventsSubscription(): void {
     return swarmApi.onNavigateToSession(open)
   }, [navigate])
 
+  // Main → renderer Settings navigation (menu / deep-link). Mounted app-wide
+  // via EventsBridge, so it works regardless of the current route.
+  useEffect(() => {
+    return swarmApi.onNavigateToSettings((route) => {
+      // biome-ignore lint/suspicious/noExplicitAny: dynamic /settings* path widened over Router's typed registry
+      void navigate({ to: route as any })
+    })
+  }, [navigate])
+
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
       qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => applyEvent(prev, e))
