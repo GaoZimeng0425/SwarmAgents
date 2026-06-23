@@ -15,6 +15,7 @@ const SETTINGS_NAV_CHANNEL = 'swarm:navigate-settings'
 
 export function openSettings(opts: { initialRoute?: string } = {}): void {
   const route = opts.initialRoute ? `/settings/${opts.initialRoute.replace(/^\//, '')}` : '/settings'
+  log.info({ msg: 'open settings requested', route })
   const win = getMainWindow()
   if (!win) {
     log.warn({ msg: 'open settings: no main window', route })
@@ -24,13 +25,14 @@ export function openSettings(opts: { initialRoute?: string } = {}): void {
     const send = (): void => win.webContents.send(SETTINGS_NAV_CHANNEL, { route })
     if (win.webContents.isLoading()) {
       win.webContents.once('did-finish-load', send)
+      log.info({ msg: 'navigate settings (queued)', route })
     } else {
       send()
+      log.info({ msg: 'navigate settings (sent)', route })
     }
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
-    log.info({ msg: 'navigate settings', route })
   } catch (err) {
     log.error({ msg: 'open settings failed', err: err instanceof Error ? err.message : String(err), route })
   }
