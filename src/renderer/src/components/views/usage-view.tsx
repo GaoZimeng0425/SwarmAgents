@@ -36,20 +36,22 @@ function ActivityHeatmap({ days }: { days: { date: string; tokens: number }[] })
       {/* 52-week (one year) grid; column-major 7-row fill = one column per week.
           Wider than the card on narrow windows, so scroll the grid horizontally. */}
       <TooltipProvider>
-        <ScrollArea className="w-full">
-          <div className="grid w-max grid-flow-col grid-rows-7 gap-1 pb-2">
-            {days.map((d) => (
-              <Tooltip key={d.date}>
-                <TooltipTrigger
-                  className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
-                  render={<div />}
-                />
-                <TooltipContent className="flex-col items-start gap-0.5">
-                  <span>{d.date}</span>
-                  <span>{formatCount(d.tokens)} tokens</span>
-                </TooltipContent>
-              </Tooltip>
-            ))}
+        <ScrollArea>
+          <div className="flex items-center justify-center">
+            <div className="grid w-max grid-flow-col grid-rows-7 gap-1 pb-2">
+              {days.map((d) => (
+                <Tooltip key={d.date}>
+                  <TooltipTrigger
+                    className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
+                    render={<div />}
+                  />
+                  <TooltipContent className="flex-col items-start gap-0.5">
+                    <span>{d.date}</span>
+                    <span>{formatCount(d.tokens)} tokens</span>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
