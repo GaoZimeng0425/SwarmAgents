@@ -113,14 +113,13 @@ const dispatch = createDispatcher({
   listMemory: (namespace) => memoryStore.list(namespace),
   listCronJobsForSession: (sessionId) => scheduler.listForSession(sessionId),
   listAllCronJobs: () => {
-    // listSessions excludes the system session (which owns all global jobs),
-    // so fall back to getSession to resolve its title for the schedule view.
     const titleById = new Map(store.listSessions().map((s) => [s.id, s.title]))
     return scheduler.listAll().map((j) => ({
       ...j,
       sessionTitle: titleById.get(j.sessionId) ?? store.getSession(j.sessionId)?.title ?? null,
     }))
   },
+  listAllCronRuns: () => store.listAllCronRuns(),
   cancelCronJob: (id) => {
     scheduler.remove(id)
   },

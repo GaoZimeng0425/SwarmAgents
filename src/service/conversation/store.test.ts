@@ -692,13 +692,50 @@ describe('ConversationStore', () => {
   describe('system session', () => {
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
 
-    it('excludes the system session from listSessions (sidebar)', () => {
+    it('includes the system session in listSessions and marks it isSystem', () => {
       const store = createConversationStore(':memory:')
       store.createSession('ses-1', provider)
       store.createSession(SYSTEM_SESSION_ID, provider)
-      const ids = store.listSessions().map((s) => s.id)
-      expect(ids).toContain('ses-1')
-      expect(ids).not.toContain(SYSTEM_SESSION_ID)
+      const list = store.listSessions()
+      expect(list.find((s) => s.id === 'ses-1')?.isSystem).toBe(false)
+      expect(list.find((s) => s.id === SYSTEM_SESSION_ID)?.isSystem).toBe(true)
+      store.close()
+    })
+
+    it('lists all cron runs across jobs, newest first', () => {
+      const store = createConversationStore(':memory:')
+      store.createSession(SYSTEM_SESSION_ID, provider)
+      store.saveCronJob({
+        id: 'job-1',
+        sessionId: SYSTEM_SESSION_ID,
+        name: null,
+        cron: '0 0 * * *',
+        goal: 'g',
+        createdAt: 1,
+        lastRunAt: null,
+      })
+      store.saveCronRun({
+        id: 'run-a',
+        jobId: 'job-1',
+        sessionId: SYSTEM_SESSION_ID,
+        taskId: 'task-a',
+        status: 'completed',
+        triggeredAt: 100,
+        endedAt: 200,
+        error: null,
+      })
+      store.saveCronRun({
+        id: 'run-b',
+        jobId: 'job-1',
+        sessionId: SYSTEM_SESSION_ID,
+        taskId: 'task-b',
+        status: 'failed',
+        triggeredAt: 300,
+        endedAt: 400,
+        error: 'boom',
+      })
+      const runs = store.listAllCronRuns()
+      expect(runs.map((r) => r.id)).toEqual(['run-b', 'run-a'])
       store.close()
     })
 

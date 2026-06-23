@@ -176,6 +176,7 @@ const swarm: SwarmBridge = {
         import('../shared/types/ui').CronJobSummary[]
       >,
     listAll: () => ipcRenderer.invoke('swarm:listAllCronJobs') as Promise<import('../shared/types/ui').ScheduledTask[]>,
+    listAllRuns: () => ipcRenderer.invoke('swarm:listAllCronRuns') as Promise<import('../shared/types/ui').CronRun[]>,
     cancel: (id: string) => ipcRenderer.invoke('swarm:cancelCronJob', id) as Promise<void>,
   },
   subscribeEvents: (cb) => {

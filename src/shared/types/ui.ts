@@ -85,6 +85,8 @@ export type SessionSummary = {
   taskCount: number
   pinned: boolean
   sortOrder: number
+  /** True only for the dedicated system session that owns all global cron jobs. */
+  isSystem: boolean
 }
 
 export type CronJobSummary = {
@@ -99,6 +101,18 @@ export type CronJobSummary = {
 }
 
 export type ScheduledTask = CronJobSummary & { sessionTitle: string | null }
+
+/** One past execution of a scheduled job, surfaced to the renderer's calendar. */
+export type CronRun = {
+  id: string
+  jobId: string
+  sessionId: string
+  taskId: string | null
+  status: string
+  triggeredAt: number
+  endedAt: number | null
+  error: string | null
+}
 
 export type PermissionDecision = 'grant' | 'deny' | 'skip'
 
@@ -236,6 +250,7 @@ export type SwarmBridge = {
   cron: {
     listForSession(sessionId: string): Promise<CronJobSummary[]>
     listAll(): Promise<ScheduledTask[]>
+    listAllRuns(): Promise<CronRun[]>
     cancel(id: string): Promise<void>
   }
   subscribeEvents(cb: (event: UIEvent) => void): () => void

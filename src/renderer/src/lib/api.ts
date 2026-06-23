@@ -2,6 +2,7 @@ import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task, TaskOptions } from '@shared/types/task'
 import type {
   CronJobSummary,
+  CronRun,
   PermissionDecision,
   ScheduledTask,
   SessionSummary,
@@ -36,5 +37,6 @@ export const swarmApi = {
   getUsageStats: (rangeDays: number): Promise<UsageStats> => window.swarm.usage.get(rangeDays),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
+  listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),
   cancelCronJob: (id: string): Promise<void> => window.swarm.cron.cancel(id),
 }
