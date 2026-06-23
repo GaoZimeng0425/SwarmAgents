@@ -7,6 +7,8 @@
 > - [`swarm-lifespan.html`](./swarm-lifespan.html) —— **结构**:长期存活 vs 短命的所有权关系
 > - [`swarm-task-lifecycle.html`](./swarm-task-lifecycle.html) —— **状态**:单个 Task 的状态机
 
+> **更新(2026-06,详见 [`openclaw-vs-swarm-lifecycle.md`](./openclaw-vs-swarm-lifecycle.md) §7)**:本笔记写于 actor 落地前。§4.3「B. 虚拟/持久化 actor」方案此后**已实现**(`spawnResident`/`runResident`/`createMailbox` + `actors`/`messages` 表)。但后续推导表明:**对当前「涌现软件公司」spec,完整 actor 是过度工程**——同步协作经父中介即足;§4.4/§5 所列「解锁同辈通信」应读作**前置投资,而非当前必需**。结论摘要见本文末 §6。
+
 ---
 
 ## 1. 当前多 Agent 的实现与沟通
@@ -178,3 +180,19 @@ function createMailbox<T>() {
 - **不可序列化的进程内活状态**(长连接、跨多轮的复杂内存结构)。
 
 当前架构没有这些需求,所以临时模型是恰当选择。要往这些方向走,应正式进入设计(brainstorming → spec → plan)。
+
+---
+
+## 6. 后续修正:actor 对当前 spec 是过度工程(2026-06 摘要)
+
+> 完整推导(树 → resumable subagent → actor 的能力边界与代价)见 [`openclaw-vs-swarm-lifecycle.md`](./openclaw-vs-swarm-lifecycle.md) §7;此处只同步结论。
+
+§4.3「B 方案」此后已落地(phase 3 合并),但「涌现软件公司」原型(CEO→PM→{engineer, reviewer},全同步 `send_and_wait`,PM 编排,产出落盘)的实际需求,经复核**并不要求**完整 actor:
+
+- **「有环」不需要可寻址**:PM↔engineer↔reviewer 的迭代是 **PM 控制流里的循环**(星型拓扑),一棵树的父节点写个 `loop` 即可;不是通信图的环。
+- **「跨调用保留上下文」不需要 mailbox**:resumable subagent(给 child 稳定 id + 持久化 messages + resume 灌回 `initialMessages`,= OpenClaw `resumeSessionId`)完全等价,且复用现成一次性路径——而 actor 的同步 `send_and_wait` 是架在 mailbox+resident loop+replyRegistry 之上的,代码量差一个数量级。
+- **产出落盘进一步弱化**:engineer 修复轮直接读文件即可重建上下文,对话记忆只是锦上添花(呼应本文 §2.3「无状态推理 + 外化状态」)。
+
+**actor 唯一比 resumable subagent 多出来的,只有 §2.2 表的最后两行**——非中介点对点通信、事件驱动空闲唤醒——而当前 spec 两者都不需要。
+
+**结论与行动**:不拆(已建好、有测试),但**冻结 actor 异步部分的继续投入**,原型用其同步 rpc 子集跑通。**重判触发条件**:出现「A 不经共同祖先直接给 B 发消息」或「agent 跑完不死、被外部事件异步唤醒」→ actor 回本,激活异步能力;长期不出现 → 下版本评估把 rpc 降级为 resumable subagent、砍掉 mailbox。
