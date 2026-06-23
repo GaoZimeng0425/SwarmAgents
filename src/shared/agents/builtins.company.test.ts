@@ -23,6 +23,8 @@ describe('company role agent definitions', () => {
     // The PM coordinates engineer + reviewer, so both fixed names appear in its prompt.
     expect(pm.systemPrompt).toContain('engineer')
     expect(pm.systemPrompt).toContain('reviewer')
+    // The spec mandates a 10-round cap on the fix/review loop.
+    expect(pm.systemPrompt).toContain('10')
     const ceo = builtinAgents.find((a) => a.id === 'ceo')!
     expect(ceo.systemPrompt).toContain('pm')
   })
