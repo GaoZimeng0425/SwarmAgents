@@ -2,9 +2,10 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import type { Service as BudgetsService } from '../budgets'
+import { swarmHome } from '../constants'
 import type { Service as McpService } from '../mcp-servers'
 import type { Service as ProvidersService } from '../providers'
 import type { ServiceClient } from '../service-client'
@@ -248,10 +249,10 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:openPath', openPath)
 
-  // Reveal the app's userData folder so the user can drop in skill folders
-  // (skills/<name>/SKILL.md), edit mcp-servers.json, etc.
+  // Reveal the ~/.swarm-agents folder so the user can drop in skill folders
+  // (skills/<name>/SKILL.md), agent folders, edit mcp-servers.json, etc.
   const openUserDataDir = async (): Promise<void> => {
-    const dir = app.getPath('userData')
+    const dir = swarmHome()
     const err = await shell.openPath(dir)
     if (err) log.warn({ msg: 'openUserDataDir failed', dir, err })
   }

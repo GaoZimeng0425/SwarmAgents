@@ -4,6 +4,7 @@ import { createLogger } from '@shared/logger'
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { initBudgets } from './budgets'
+import { paths } from './constants'
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initMcpServers } from './mcp-servers'
@@ -32,12 +33,12 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('dev.swarmagents.app')
 
-  // Tee main + worker logs to a file under userData so dev sessions persist a
-  // single inspectable JSON-lines log. Workers inherit `process.env` via
+  // Tee main + worker logs to a file under ~/.swarm-agents so dev sessions
+  // persist a single inspectable JSON-lines log. Workers inherit `process.env` via
   // electron-spawner, so setting it here covers both. MUST happen before any
   // createLogger() call (worker fork included).
   if (!process.env.SWARM_LOG_FILE) {
-    process.env.SWARM_LOG_FILE = join(app.getPath('userData'), 'swarm-dev.log')
+    process.env.SWARM_LOG_FILE = paths.log()
   }
 
   const log = createLogger({ process: 'main' })
@@ -67,10 +68,10 @@ app.whenReady().then(async () => {
     stdio: ['ignore', 'inherit', 'pipe'],
     env: {
       ...process.env,
-      SWARM_SERVICE_DB_PATH: join(app.getPath('userData'), 'agent-service.db'),
-      SWARM_SERVICE_MEMORY_PATH: join(app.getPath('userData'), 'agent-memory.json'),
-      SWARM_SERVICE_SKILLS_PATH: join(app.getPath('userData'), 'skills'),
-      SWARM_SERVICE_AGENTS_PATH: join(app.getPath('userData'), 'agents'),
+      SWARM_SERVICE_DB_PATH: paths.db(),
+      SWARM_SERVICE_MEMORY_PATH: paths.memory(),
+      SWARM_SERVICE_SKILLS_PATH: paths.skills(),
+      SWARM_SERVICE_AGENTS_PATH: paths.agents(),
     },
   })
 

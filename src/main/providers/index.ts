@@ -3,10 +3,10 @@
 // Entry point for the providers subsystem. Wires the on-disk store, the
 // in-memory service, and the Electron IPC layer; must run after app.whenReady()
 // and before any BrowserWindow is created so the first render sees state.
-import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { app, dialog } from 'electron'
 
+import { paths } from '../constants'
 import { safeStorageAvailable, wireProvidersIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
@@ -33,7 +33,7 @@ export async function initProviders(): Promise<ProvidersHandle> {
     throw new Error('safeStorage unavailable')
   }
 
-  const filePath = join(app.getPath('userData'), 'providers.enc')
+  const filePath = paths.providers()
   const store = createStore({ filePath })
   const loadResult = await store.loadOrRecover()
   const decryptFailedAtBoot = !loadResult.ok

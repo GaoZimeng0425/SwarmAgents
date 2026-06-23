@@ -3,10 +3,9 @@
 // Entry point for the web-search config subsystem. Wires the encrypted store,
 // the in-memory service, and the Electron IPC layer. Runs after app.whenReady()
 // (and after initProviders, which already guarantees safeStorage is available).
-import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { app } from 'electron'
 
+import { paths } from '../constants'
 import { wireWebSearchIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
@@ -19,7 +18,7 @@ export type WebSearchHandle = {
 }
 
 export async function initWebSearch(): Promise<WebSearchHandle> {
-  const filePath = join(app.getPath('userData'), 'web-search.enc')
+  const filePath = paths.webSearch()
   const store = createStore({ filePath })
   const loaded = await store.loadOrRecover()
   if (!loaded.ok) {

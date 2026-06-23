@@ -4,10 +4,9 @@
 // app.whenReady() and before any BrowserWindow so the first render sees state.
 // (The service-process bridge — pushing configs + relaying live status — is
 // wired later in swarm-ipc, once the service client exists.)
-import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { app } from 'electron'
 
+import { paths } from '../constants'
 import { wireMcpConfigIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
@@ -20,7 +19,7 @@ export type McpServersHandle = {
 }
 
 export async function initMcpServers(): Promise<McpServersHandle> {
-  const filePath = join(app.getPath('userData'), 'mcp-servers.json')
+  const filePath = paths.mcpServers()
   const store = createStore({ filePath })
 
   const service = await createService({ store })
