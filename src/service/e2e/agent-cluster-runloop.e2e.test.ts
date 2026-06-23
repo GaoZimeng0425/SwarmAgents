@@ -28,8 +28,8 @@ vi.mock('@earendil-works/pi-agent-core', () => {
   }
 })
 
-import { createConversationStore } from './conversation/store'
-import { createSessionManager } from './session/manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from '../session/manager'
 
 const fakeProvider = { model: 'test', apiStyle: 'anthropic', apiKey: 'k' } as any
 

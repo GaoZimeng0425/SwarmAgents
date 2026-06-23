@@ -1,11 +1,11 @@
 import { builtinAgents } from '@shared/agents/builtins'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConversationStore } from './conversation/store'
-import { createSessionManager } from './session/manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from '../session/manager'
 
 // CEO stub: replies with a fixed final summary; others not exercised here.
-vi.mock('./session/agent-runner', () => ({
+vi.mock('../session/agent-runner', () => ({
   createAgentRunner: () => ({ run: async () => ({ status: 'completed', summary: '', messages: [], used: {} }) }),
   buildAgentSession: () => ({}),
   runResident: async (deps: any, mailbox: any, hooks: any) => {
