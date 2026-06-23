@@ -1,98 +1,76 @@
 import { Link } from '@tanstack/react-router'
-import { BarChart3, CalendarClock, Settings, Sparkles } from 'lucide-react'
+import { BarChart3, CalendarClock, Settings } from 'lucide-react'
 
 import { SessionList } from '@/components/session-list'
 import { ThemeToggle } from '@/components/theme-toggle'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from '@/components/ui/sidebar'
+import { Sidebar, SidebarContent, SidebarFooter } from '@/components/ui/sidebar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { useSettingsDialog } from '@/stores/settings-dialog'
+
+const iconBtn =
+  'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-foreground [&_svg]:size-4'
 
 export function AppSidebar(): React.JSX.Element {
+  const openSettings = useSettingsDialog((s) => s.openSettings)
+
   return (
-    <Sidebar>
-      {/* The unified TopBar in __root.tsx owns the window's top strip (sidebar
-          toggle + nav arrows). The sidebar's own content starts below it; the
-          pt-9 on sidebar-inner (see ui/sidebar.tsx) clears the toolbar height. */}
+    // inset variant: the window is tinted with the sidebar color and the main
+    // content floats as a rounded card — no border line on the chat's left edge.
+    <Sidebar variant="inset">
       <SidebarContent>
         <SessionList />
       </SidebarContent>
       <SidebarFooter className="border-sidebar-border border-t">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger
               render={
                 <Link
                   // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
                   activeProps={{ 'data-active': 'true' } as any}
-                  className="flex items-center gap-2"
-                  // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over route const
+                  className={iconBtn}
+                  // biome-ignore lint/suspicious/noExplicitAny: `to` widened over Router's typed registry
                   to={'/scheduled' as any}
                 >
                   <CalendarClock />
-                  <span>定时任务</span>
                 </Link>
               }
-              tooltip="定时任务"
             />
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
+            <TooltipContent side="top">定时任务</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger
               render={
                 <Link
                   // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
                   activeProps={{ 'data-active': 'true' } as any}
-                  className="flex items-center gap-2"
-                  // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over route const
+                  className={iconBtn}
+                  // biome-ignore lint/suspicious/noExplicitAny: `to` widened over Router's typed registry
                   to={'/usage' as any}
                 >
                   <BarChart3 />
-                  <span>用量统计</span>
                 </Link>
               }
-              tooltip="用量统计"
             />
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
+            <TooltipContent side="top">用量统计</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger
               render={
-                <Link
-                  // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
-                  activeProps={{ 'data-active': 'true' } as any}
-                  className="flex items-center gap-2"
-                  // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over route const
-                  to={'/skills' as any}
-                >
-                  <Sparkles />
-                  <span>Skills</span>
-                </Link>
-              }
-              tooltip="Skills"
-            />
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              render={
-                <Link
-                  // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
-                  activeProps={{ 'data-active': 'true' } as any}
-                  className="flex items-center gap-2"
-                  // biome-ignore lint/suspicious/noExplicitAny: `to` constrained by Router's typed registry, widened over route const
-                  to={'/settings' as any}
-                >
+                <button className={cn(iconBtn)} onClick={() => openSettings()} type="button">
                   <Settings />
-                  <span>Settings</span>
-                </Link>
+                </button>
               }
-              tooltip="Settings"
             />
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <ThemeToggle />
+            <TooltipContent side="top">设置</TooltipContent>
+          </Tooltip>
+
+          <div className="flex-1" />
+          <ThemeToggle />
+        </div>
       </SidebarFooter>
     </Sidebar>
   )
