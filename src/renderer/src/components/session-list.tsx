@@ -110,14 +110,10 @@ export function SessionList(): React.JSX.Element {
     setQuery('')
   }
 
-  const onNew = async (): Promise<void> => {
-    try {
-      const { sessionId } = await swarmApi.createSession()
-      void navigate({ to: '/session/$sessionId', params: { sessionId } })
-    } catch (err) {
-      toast.error('Could not start a new chat. Configure an API key in Settings.')
-      console.error(err)
-    }
+  // Don't create a session here — that left empty sessions behind. Route to the
+  // landing composer at `/`; the session is created lazily on the first message.
+  const onNew = (): void => {
+    void navigate({ to: '/' })
   }
 
   const onSelect = (id: string): void => {

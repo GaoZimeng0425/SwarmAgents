@@ -18,7 +18,11 @@ export function useTasks(): TaskRecord[] {
   return data ?? []
 }
 
-/** Submit a goal to the currently-selected session, creating one if needed. */
+/**
+ * Submit a goal to the currently-selected session, creating one if needed.
+ * Returns the resolved sessionId so callers landing on `/` (no selection yet)
+ * can navigate to the freshly-created session.
+ */
 export function useSubmitGoal() {
   return useMutation({
     mutationFn: async ({
@@ -29,14 +33,15 @@ export function useSubmitGoal() {
       goal: string
       attachments?: import('@shared/types/task').Attachment[]
       options?: import('@shared/types/task').TaskOptions
-    }) => {
+    }): Promise<{ sessionId: string }> => {
       let sessionId = useSessionsStore.getState().selectedSessionId
       if (!sessionId) {
         const created = await swarmApi.createSession()
         sessionId = created.sessionId
         useSessionsStore.getState().select(sessionId)
       }
-      return swarmApi.submitGoal(sessionId, goal, attachments, options)
+      await swarmApi.submitGoal(sessionId, goal, attachments, options)
+      return { sessionId }
     },
   })
 }
