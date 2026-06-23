@@ -6,7 +6,7 @@ import type { SkillStore } from '../skills/store'
 import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
-import { sendAndWaitSpec, sendMessageSpec, whoamiSpec } from './messaging'
+import { findAgentsSpec, sendAndWaitSpec, sendMessageSpec, whoamiSpec } from './messaging'
 import { buildPeekabooTools } from './peekaboo'
 import { updatePlanSpec } from './plan'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
@@ -58,6 +58,7 @@ export function registerBuiltinTools(
   registry.register(sendMessageSpec())
   registry.register(sendAndWaitSpec())
   registry.register(whoamiSpec())
+  registry.register(findAgentsSpec())
   registry.register(updatePlanSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())
