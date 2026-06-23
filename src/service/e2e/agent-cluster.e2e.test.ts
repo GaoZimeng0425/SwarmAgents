@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
-import { createSessionManager } from './session-manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from '../session/manager'
 
 // Runner stub: a "review" goal replies "LGTM"; everyone else echoes. The
 // resident loop drains the mailbox, marks consumed, and replies to rpc.
-vi.mock('./agent-runner', () => ({
+vi.mock('../session/agent-runner', () => ({
   createAgentRunner: (deps: any) => ({
     run: async () => ({
       status: 'completed',

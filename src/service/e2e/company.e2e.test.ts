@@ -1,10 +1,10 @@
-// src/service/company.e2e.test.ts
+// src/service/e2e/company.e2e.test.ts
 
 import { builtinAgents } from '@shared/agents/builtins'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
-import { createSessionManager } from './session-manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from '../session/manager'
 
 // Records the routed message chain so the test can assert the collaboration
 // flow. Module-scope so the hoisted mock factory can close over it.
@@ -16,7 +16,7 @@ const { chain, reviewerVerdicts } = vi.hoisted(() => ({
 // Per-role scripted behavior, exercising the REAL send_and_wait routing via
 // deps.sendMessage. Each role's turn holds a slot only while working; nested
 // rpc awaits run within maxConcurrent=4 (max concurrent holders = 3).
-vi.mock('./agent-runner', () => ({
+vi.mock('../session/agent-runner', () => ({
   createAgentRunner: () => ({ run: async () => ({ status: 'completed', summary: '', messages: [], used: {} }) }),
   buildAgentSession: () => ({}),
   runResident: async (deps: any, mailbox: any, hooks: any) => {

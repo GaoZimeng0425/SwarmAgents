@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { encodeActorState } from './actor-state'
+import { encodeActorState } from '../actor/state'
 
 const initialMessagesSeen: any[][] = []
 vi.mock('./agent-runner', () => ({
@@ -28,8 +28,8 @@ vi.mock('./agent-runner', () => ({
   },
 }))
 
-import { createConversationStore } from './conversation-store'
-import { createSessionManager } from './session-manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from './manager'
 
 const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as any
 

@@ -4,7 +4,7 @@ import type { Task } from '@shared/types/task'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAgentRunner } from './agent-runner'
-import { createToolRegistry } from './tools/registry'
+import { createToolRegistry } from '../tools/registry'
 
 const MockAgent = vi.hoisted(() => vi.fn())
 

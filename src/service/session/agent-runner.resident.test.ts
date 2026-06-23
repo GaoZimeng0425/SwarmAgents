@@ -38,7 +38,7 @@ vi.mock('@earendil-works/pi-agent-core', () => {
 
 import type { ActorMessage } from '@shared/types/actor'
 
-import { createMailbox } from './actor-mailbox'
+import { createMailbox } from '../actor/mailbox'
 import type { AgentRunnerDeps } from './agent-runner'
 import { runResident } from './agent-runner'
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { type ConversationStore, createConversationStore } from './conversation-store'
+import { type ConversationStore, createConversationStore } from './store'
 
 let store: ConversationStore
 beforeEach(() => {

@@ -1,4 +1,4 @@
-// src/service/session-manager.turnslot.test.ts
+// src/service/session/manager.turnslot.test.ts
 // Regression guard: cancelTask must still abort a running one-shot task after the
 // runHandles -> oneShotHandles rename.
 import { describe, expect, it, vi } from 'vitest'
@@ -14,8 +14,8 @@ vi.mock('./agent-runner', () => ({
   buildAgentSession: () => ({}),
 }))
 
-import { createConversationStore } from './conversation-store'
-import { createSessionManager } from './session-manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from './manager'
 
 const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as any
 

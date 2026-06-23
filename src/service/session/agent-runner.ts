@@ -14,10 +14,10 @@ import {
 } from '@shared/types/provider'
 import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
-import { IdleTimeoutError, type Mailbox } from './actor-mailbox'
-import { encodeActorState } from './actor-state'
+import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
+import { encodeActorState } from '../actor/state'
 import type { PermissionRegistry } from './permission-registry'
-import type { ToolRegistry, ToolRisk, ToolRunContext } from './tools/registry'
+import type { ToolRegistry, ToolRisk, ToolRunContext } from '../tools/registry'
 
 const log = createLogger({
   process: 'service',

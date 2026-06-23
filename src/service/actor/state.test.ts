@@ -1,7 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { describe, expect, it } from 'vitest'
 
-import { ACTOR_STATE_VERSION, decodeActorState, encodeActorState } from './actor-state'
+import { ACTOR_STATE_VERSION, decodeActorState, encodeActorState } from './state'
 
 const sample = [
   { role: 'user', content: 'hi' },

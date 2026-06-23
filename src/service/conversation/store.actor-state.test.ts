@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
+import { createConversationStore } from './store'
 
 function freshStore() {
   // In-memory SQLite: dbPath ':memory:' (matches existing store tests).

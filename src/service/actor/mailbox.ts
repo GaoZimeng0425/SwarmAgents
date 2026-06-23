@@ -1,4 +1,4 @@
-// src/service/actor-mailbox.ts
+// src/service/actor/mailbox.ts
 import type { ActorMessage } from '@shared/types/actor'
 
 // Thrown by receive() when no message arrives within idleMs — the resident

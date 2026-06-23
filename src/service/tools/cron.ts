@@ -1,7 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 
-import type { CronScheduler } from '../cron-scheduler'
+import type { CronScheduler } from '../cron/scheduler'
 import type { ToolRunContext, ToolSpec } from './registry'
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }

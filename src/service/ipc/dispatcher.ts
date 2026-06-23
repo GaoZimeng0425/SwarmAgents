@@ -12,7 +12,7 @@ import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { PermissionDecision } from '@shared/types/ui'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
-import type { SessionManager } from './session-manager'
+import type { SessionManager } from '../session/manager'
 
 type DispatcherConfig = {
   manager: SessionManager

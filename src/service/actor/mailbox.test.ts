@@ -1,9 +1,9 @@
-// src/service/actor-mailbox.test.ts
+// src/service/actor/mailbox.test.ts
 
 import type { ActorMessage } from '@shared/types/actor'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createMailbox, IdleTimeoutError } from './actor-mailbox'
+import { createMailbox, IdleTimeoutError } from './mailbox'
 
 const msg = (id: string): ActorMessage => ({
   id,

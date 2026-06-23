@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { createConversationStore } from './conversation-store'
-import { createSessionManager } from './session-manager'
+import { createConversationStore } from '../conversation/store'
+import { createSessionManager } from './manager'
 
 // Minimal broadcaster + provider stubs (mirror existing session-manager tests).
 const noopBroadcaster = { broadcast: () => {} }
