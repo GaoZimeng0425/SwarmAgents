@@ -4,8 +4,7 @@ import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-w
 import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
-import type { AgentDefinition } from '@shared/types/agent'
-import type { Peer, PeerQuery } from '@shared/types/agent'
+import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
