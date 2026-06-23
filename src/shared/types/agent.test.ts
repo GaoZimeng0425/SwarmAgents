@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deriveAllowlist } from './agent'
+import { AgentDefinitionSchema, deriveAllowlist } from './agent'
 
 describe('deriveAllowlist', () => {
   it('all -> wildcard', () => {
@@ -17,5 +17,27 @@ describe('deriveAllowlist', () => {
   })
   it('memory -> memory + agent', () => {
     expect(deriveAllowlist('memory')).toEqual(['memory.*', 'agent.*'])
+  })
+})
+
+describe('AgentDefinition role + capabilities', () => {
+  const base = {
+    id: 'eng',
+    name: 'Engineer',
+    description: 'Use when code must be written.',
+    systemPrompt: 'x',
+    toolScope: 'all' as const,
+  }
+
+  it('accepts role and capabilities', () => {
+    const def = AgentDefinitionSchema.parse({ ...base, role: 'engineer', capabilities: ['code', 'tests'] })
+    expect(def.role).toBe('engineer')
+    expect(def.capabilities).toEqual(['code', 'tests'])
+  })
+
+  it('leaves role and capabilities undefined when omitted (no forced default)', () => {
+    const def = AgentDefinitionSchema.parse(base)
+    expect(def.role).toBeUndefined()
+    expect(def.capabilities).toBeUndefined()
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { sendAndWaitSpec, sendMessageSpec, whoamiSpec } from './messaging'
+import { findAgentsSpec, sendAndWaitSpec, sendMessageSpec, whoamiSpec } from './messaging'
 
 const ctx = (over: Partial<any> = {}) =>
   ({
@@ -37,5 +37,38 @@ describe('messaging tools', () => {
     const tool = whoamiSpec().build(ctx({ selfAddress: undefined }))
     const res = await tool.execute('id', {})
     expect(res.content[0].text).toContain('no address: this agent is not addressable')
+  })
+})
+
+const fakeCtx = (overrides: Partial<import('./registry').ToolRunContext>) =>
+  ({ sessionId: 's1', findPeers: () => [], ...overrides }) as unknown as import('./registry').ToolRunContext
+
+describe('find_agents tool', () => {
+  it('formats discovered peers into readable lines and passes the query through', async () => {
+    let seen: unknown
+    const fCtx = fakeCtx({
+      findPeers: (q) => {
+        seen = q
+        return [
+          { name: 'pm', address: 'a1', role: 'pm', capabilities: ['planning'], description: 'Coordinates work.', status: 'active' },
+          { name: 'eng', address: 'a2', role: 'engineer', capabilities: [], description: 'Writes code.', status: 'dormant' },
+        ]
+      },
+    })
+    const tool = findAgentsSpec().build(fCtx)
+    const res = await tool.execute('id', { role: 'pm' })
+    expect(seen).toEqual({ role: 'pm' })
+    const text = res.content.map((c) => (c.type === 'text' ? c.text : '')).join('')
+    expect(text).toContain('pm (role pm)')
+    expect(text).toContain('a1')
+    expect(text).toContain('active')
+    expect(text).toContain('caps: planning')
+  })
+
+  it('reports clearly when nobody matches', async () => {
+    const tool = findAgentsSpec().build(fakeCtx({ findPeers: () => [] }))
+    const res = await tool.execute('id', {})
+    const text = res.content.map((c) => (c.type === 'text' ? c.text : '')).join('')
+    expect(text).toMatch(/no matching agents/i)
   })
 })

@@ -38,26 +38,27 @@ Workflow:
 
 const CEO_SYSTEM_PROMPT = `You are the CEO of a small software company. You receive a single high-level goal and are responsible for delivering the finished result.
 
-Your team (address each by these exact names):
-  - pm — the project manager who breaks work down and drives implementation + review.
+Your team is discovered at runtime — do NOT assume teammates' names.
 
 Workflow:
   1. Read the goal. Do NOT write code yourself.
-  2. Delegate the whole goal to the PM with full context: send_and_wait("pm", <the goal plus any constraints>).
-  3. When the PM returns the deliverable, review it at a high level and produce a concise final summary of what was built and its status.
-  4. Your reply to the original request IS that final summary — it is the result of the entire run.`
+  2. Locate the project manager: call find_agents({ role: 'pm' }) and take the first result's address.
+  3. Delegate the whole goal to that address with full context: send_and_wait(<pm address>, <the goal plus any constraints>).
+  4. When the PM returns the deliverable, review it at a high level and produce a concise final summary of what was built and its status.
+  5. Your reply to the original request IS that final summary — it is the result of the entire run.`
 
 const PM_SYSTEM_PROMPT = `You are the Project Manager of a small software company. You turn a goal into a concrete deliverable by coordinating an engineer and a reviewer.
 
-Your team (address each by these exact names):
-  - engineer — implements code and runs tests.
-  - reviewer — reviews the engineer's output and reports issues.
+Your team is discovered at runtime — do NOT assume teammates' names. Locate them by role:
+  - engineer: find_agents({ role: 'engineer' }) — implements code and runs tests.
+  - reviewer: find_agents({ role: 'reviewer' }) — reviews the engineer's output and reports issues.
+Take the first result's address for each and message that address.
 
 Workflow:
   1. Break the CEO's goal into a concrete implementation task (what to build, where, acceptance criteria).
-  2. send_and_wait("engineer", <the concrete task, including the working directory to use>).
-  3. When the engineer reports done, request a review: send_and_wait("reviewer", <what to review and the artifact location>).
-  4. If the reviewer reports issues, send the fixes back: send_and_wait("engineer", <the issues to fix>), then review again.
+  2. send_and_wait(<engineer address>, <the concrete task, including the working directory to use>).
+  3. When the engineer reports done, request a review: send_and_wait(<reviewer address>, <what to review and the artifact location>).
+  4. If the reviewer reports issues, send the fixes back: send_and_wait(<engineer address>, <the issues to fix>), then review again.
   5. Repeat the fix/review loop AT MOST 10 times. If still not passing after 10 rounds, stop and summarize with an explicit "did not meet bar" note.
   6. Return a consolidated deliverable summary (what was built, where, test/review status) to the CEO.`
 
@@ -90,6 +91,8 @@ export const builtinAgents: AgentDefinition[] = [
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     toolScope: 'all',
     maxIterations: 25,
+    role: 'default',
+    capabilities: [],
   },
   {
     id: 'researcher',
@@ -99,6 +102,8 @@ export const builtinAgents: AgentDefinition[] = [
     systemPrompt: RESEARCHER_SYSTEM_PROMPT,
     toolScope: 'peekaboo',
     maxIterations: 15,
+    role: 'researcher',
+    capabilities: ['observe', 'read-only'],
   },
   {
     id: 'executor',
@@ -108,6 +113,8 @@ export const builtinAgents: AgentDefinition[] = [
     systemPrompt: EXECUTOR_SYSTEM_PROMPT,
     toolScope: 'all',
     maxIterations: 20,
+    role: 'executor',
+    capabilities: ['ui', 'click', 'type'],
   },
   {
     id: 'ceo',
@@ -117,6 +124,8 @@ export const builtinAgents: AgentDefinition[] = [
     systemPrompt: CEO_SYSTEM_PROMPT,
     toolScope: 'all',
     maxIterations: 20,
+    role: 'ceo',
+    capabilities: ['delegation', 'summary'],
   },
   {
     id: 'pm',
@@ -126,6 +135,8 @@ export const builtinAgents: AgentDefinition[] = [
     systemPrompt: PM_SYSTEM_PROMPT,
     toolScope: 'all',
     maxIterations: 25,
+    role: 'pm',
+    capabilities: ['planning', 'coordination'],
   },
   {
     id: 'engineer',
@@ -135,6 +146,8 @@ export const builtinAgents: AgentDefinition[] = [
     systemPrompt: ENGINEER_SYSTEM_PROMPT,
     toolScope: 'all',
     maxIterations: 30,
+    role: 'engineer',
+    capabilities: ['code', 'tests', 'shell'],
   },
   {
     id: 'reviewer',
@@ -144,6 +157,8 @@ export const builtinAgents: AgentDefinition[] = [
     systemPrompt: REVIEWER_SYSTEM_PROMPT,
     toolScope: 'all',
     maxIterations: 20,
+    role: 'reviewer',
+    capabilities: ['review', 'verify'],
   },
 ]
 

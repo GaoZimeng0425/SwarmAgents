@@ -1,6 +1,8 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 
+import type { PeerQuery } from '@shared/types/agent'
+
 import type { ToolRunContext, ToolSpec } from './registry'
 
 const SendParams = Type.Object({
@@ -45,6 +47,39 @@ export function sendAndWaitSpec(): ToolSpec {
         const p = params as { to: string; payload: string }
         const reply = await ctx.sendAndWait(p.to, p.payload)
         return { content: [{ type: 'text', text: reply }], details: { to: p.to } }
+      },
+    }),
+  }
+}
+
+const FindParams = Type.Object({
+  role: Type.Optional(Type.String({ description: 'Filter to agents whose role exactly equals this, e.g. "engineer".' })),
+  capability: Type.Optional(Type.String({ description: 'Filter to agents advertising this capability tag.' })),
+  query: Type.Optional(Type.String({ description: 'Free text to rank matches by (matched against role, name, capabilities, description).' })),
+})
+
+export function findAgentsSpec(): ToolSpec {
+  return {
+    group: 'agent',
+    name: 'find_agents',
+    risk: 'low',
+    source: 'builtin',
+    build: (ctx: ToolRunContext): AgentTool => ({
+      name: 'find_agents',
+      label: 'Find agents',
+      description:
+        'Discover other agents in this session by role, capability, or free-text query. Returns their names and addresses so you can reach them with send_message / send_and_wait. Call with no arguments to list everyone available.',
+      parameters: FindParams,
+      execute: async (_id: string, params: unknown) => {
+        const peers = ctx.findPeers((params ?? {}) as PeerQuery)
+        if (peers.length === 0) {
+          return { content: [{ type: 'text', text: 'No matching agents in this session.' }] }
+        }
+        const lines = peers.map((p) => {
+          const caps = p.capabilities.length ? ` · caps: ${p.capabilities.join(', ')}` : ''
+          return `- ${p.name ?? '(unnamed)'} (role ${p.role}) · ${p.address} · ${p.status} · ${p.description}${caps}`
+        })
+        return { content: [{ type: 'text', text: lines.join('\n') }], details: { count: peers.length } }
       },
     }),
   }

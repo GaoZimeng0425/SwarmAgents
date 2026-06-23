@@ -4,7 +4,7 @@ import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-w
 import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
@@ -117,6 +117,8 @@ export type AgentRunnerDeps = {
     payload: string,
     kind: 'send' | 'rpc'
   ): Promise<{ reply: string } | { delivered: true }>
+  /** Discover peer agents in this session. */
+  findPeers?(q: PeerQuery): Peer[]
 }
 
 export type AgentRunner = {
@@ -174,6 +176,7 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
       const res = await deps.sendMessage?.(deps.selfAddress ?? null, to, payload, 'rpc')
       return res && 'reply' in res ? res.reply : ''
     },
+    findPeers: (q) => deps.findPeers?.(q) ?? [],
   }
 }
 

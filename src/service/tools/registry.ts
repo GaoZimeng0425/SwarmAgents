@@ -3,6 +3,7 @@ import { createLogger } from '@shared/logger'
 import type { Outbound } from '@shared/types/ipc'
 import type { TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
+import type { Peer, PeerQuery } from '@shared/types/agent'
 
 const log = createLogger({ process: 'service' }).child({ component: 'tools' })
 
@@ -38,6 +39,8 @@ export interface ToolRunContext {
   sendMessage(to: string, payload: string): Promise<void>
   /** RPC: deliver to another actor and await its reply summary. */
   sendAndWait(to: string, payload: string): Promise<string>
+  /** Discover peer agents in this session by role/capability/free-text. Empty query → all live peers. */
+  findPeers(q: PeerQuery): Peer[]
 }
 
 export interface ToolSpec {

@@ -38,3 +38,23 @@ describe('company role agent definitions', () => {
     }
   })
 })
+
+describe('builtin role + capability metadata', () => {
+  it('every builtin validates and carries role (= id) and a capabilities array', () => {
+    for (const a of builtinAgents) {
+      expect(() => AgentDefinitionSchema.parse(a)).not.toThrow()
+      expect(a.role).toBe(a.id)
+      expect(Array.isArray(a.capabilities)).toBe(true)
+    }
+  })
+
+  it('CEO and PM prompts discover teammates via find_agents (no hardcoded names)', () => {
+    const ceo = builtinAgents.find((a) => a.id === 'ceo')!
+    const pm = builtinAgents.find((a) => a.id === 'pm')!
+    expect(ceo.systemPrompt).toContain('find_agents')
+    expect(pm.systemPrompt).toContain('find_agents')
+    // The PM must look up both teammates by role.
+    expect(pm.systemPrompt).toContain("role: 'engineer'")
+    expect(pm.systemPrompt).toContain("role: 'reviewer'")
+  })
+})
