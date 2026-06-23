@@ -597,6 +597,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       })
       broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
       log.info({ msg: 'session created', sessionId })
+      // Keep the long-lived system session's provider current: a new session
+      // always carries the latest configured provider (model/key), so sync it
+      // onto the system session (when it exists) — that way scheduled jobs fire
+      // with up-to-date credentials without waiting for the next schedule_task.
+      if (store.getSession(SYSTEM_SESSION_ID)) {
+        store.updateSessionProvider(SYSTEM_SESSION_ID, provider)
+        const liveSystem = sessions.get(SYSTEM_SESSION_ID)
+        if (liveSystem) liveSystem.provider = provider
+      }
       return { sessionId }
     },
 
