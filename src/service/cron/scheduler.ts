@@ -140,7 +140,9 @@ export function createCronScheduler(deps: {
       return
     }
     const legacy = all.filter((j) => j.sessionId !== systemSessionId)
-    for (const job of legacy) store.reassignCronJob(job.id, systemSessionId)
+    // The pre-repoint session_id is the conversation that created the job —
+    // capture it as the origin so the UI can still link back to it.
+    for (const job of legacy) store.reassignCronJob(job.id, systemSessionId, job.sessionId)
     if (legacy.length > 0) {
       log.info({ msg: 'migrated legacy cron jobs to system session', count: legacy.length, systemSessionId })
     }
@@ -154,6 +156,9 @@ export function createCronScheduler(deps: {
       const job: StoredCronJob = {
         id: ulid(),
         sessionId: ownerSessionId,
+        // The caller is the conversation that created this job; record it so the
+        // UI can link back even though execution lives in the system session.
+        originSessionId: sessionId,
         name: name ?? null,
         cron,
         goal,

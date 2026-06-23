@@ -25,6 +25,8 @@ export type StoredSession = {
 export type StoredCronJob = {
   id: string
   sessionId: string
+  /** The conversation that created this job (where schedule_task ran); null when unknown/legacy. */
+  originSessionId: string | null
   name: string | null
   cron: string
   goal: string
@@ -72,7 +74,7 @@ export type ConversationStore = {
   listCronJobsForSession(sessionId: string): StoredCronJob[]
   deleteCronJob(id: string): void
   /** Repoint a job to another session (used to migrate legacy jobs to the system session). */
-  reassignCronJob(id: string, sessionId: string): void
+  reassignCronJob(id: string, sessionId: string, originSessionId?: string | null): void
   touchCronJob(id: string, lastRunAt: number): void
   saveCronRun(run: StoredCronRun): void
   attachCronRunTask(runId: string, taskId: string): void
@@ -153,13 +155,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
       PRIMARY KEY (session_id, key)
     );
     CREATE TABLE IF NOT EXISTS cron_jobs (
-      id           TEXT PRIMARY KEY,
-      session_id   TEXT NOT NULL REFERENCES sessions(id),
-      name         TEXT,
-      cron         TEXT NOT NULL,
-      goal         TEXT NOT NULL,
-      created_at   INTEGER NOT NULL,
-      last_run_at  INTEGER
+      id                TEXT PRIMARY KEY,
+      session_id        TEXT NOT NULL REFERENCES sessions(id),
+      origin_session_id TEXT,
+      name              TEXT,
+      cron              TEXT NOT NULL,
+      goal              TEXT NOT NULL,
+      created_at        INTEGER NOT NULL,
+      last_run_at       INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_cron_jobs_session ON cron_jobs(session_id);
     -- No FK on job_id/session_id: runs survive job deletion (audit history);
@@ -209,6 +212,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
+    'ALTER TABLE cron_jobs ADD COLUMN origin_session_id TEXT',
   ]) {
     try {
       db.exec(stmt)
@@ -269,6 +273,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const rowToCronJob = (row: Record<string, unknown>): StoredCronJob => ({
     id: row.id as string,
     sessionId: row.session_id as string,
+    originSessionId: (row.origin_session_id as string | null) ?? null,
     name: (row.name as string | null) ?? null,
     cron: row.cron as string,
     goal: row.goal as string,
@@ -288,13 +293,17 @@ export function createConversationStore(dbPath: string): ConversationStore {
   })
 
   const stmtInsertCronJob = db.prepare(
-    `INSERT OR REPLACE INTO cron_jobs (id, session_id, name, cron, goal, created_at, last_run_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT OR REPLACE INTO cron_jobs (id, session_id, origin_session_id, name, cron, goal, created_at, last_run_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtListCronJobs = db.prepare('SELECT * FROM cron_jobs')
   const stmtListCronJobsForSession = db.prepare('SELECT * FROM cron_jobs WHERE session_id = ?')
   const stmtDeleteCronJob = db.prepare('DELETE FROM cron_jobs WHERE id = ?')
-  const stmtReassignCronJob = db.prepare('UPDATE cron_jobs SET session_id = ? WHERE id = ?')
+  // Repoint to a new owning session; record where it was created only if not
+  // already known (COALESCE keeps a previously-captured origin).
+  const stmtReassignCronJob = db.prepare(
+    'UPDATE cron_jobs SET session_id = ?, origin_session_id = COALESCE(origin_session_id, ?) WHERE id = ?'
+  )
   const stmtTouchCronJob = db.prepare('UPDATE cron_jobs SET last_run_at = ? WHERE id = ?')
 
   const stmtInsertCronRun = db.prepare(
@@ -715,6 +724,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       stmtInsertCronJob.run(
         job.id,
         job.sessionId,
+        job.originSessionId ?? null,
         job.name ?? null,
         job.cron,
         job.goal,
@@ -731,8 +741,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
     deleteCronJob(id) {
       stmtDeleteCronJob.run(id)
     },
-    reassignCronJob(id, sessionId) {
-      stmtReassignCronJob.run(sessionId, id)
+    reassignCronJob(id, sessionId, originSessionId) {
+      stmtReassignCronJob.run(sessionId, originSessionId ?? null, id)
     },
     touchCronJob(id, lastRunAt) {
       stmtTouchCronJob.run(lastRunAt, id)

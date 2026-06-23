@@ -114,10 +114,17 @@ const dispatch = createDispatcher({
   listCronJobsForSession: (sessionId) => scheduler.listForSession(sessionId),
   listAllCronJobs: () => {
     const titleById = new Map(store.listSessions().map((s) => [s.id, s.title]))
-    return scheduler.listAll().map((j) => ({
-      ...j,
-      sessionTitle: titleById.get(j.sessionId) ?? store.getSession(j.sessionId)?.title ?? null,
-    }))
+    return scheduler.listAll().map((j) => {
+      // Resolve the originating conversation. A non-null title means it still
+      // exists (untitled chats fall back to a label, so null strictly means
+      // "deleted or no recorded origin" — i.e. not navigable).
+      const origin = j.originSessionId ? store.getSession(j.originSessionId) : undefined
+      return {
+        ...j,
+        sessionTitle: titleById.get(j.sessionId) ?? store.getSession(j.sessionId)?.title ?? null,
+        originSessionTitle: origin ? (origin.title ?? '未命名会话') : null,
+      }
+    })
   },
   listAllCronRuns: () => store.listAllCronRuns(),
   cancelCronJob: (id) => {
