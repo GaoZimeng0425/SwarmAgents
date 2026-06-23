@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { AppSidebar } from '@/components/app-sidebar'
 import { EventsBridge } from '@/components/events-bridge'
 import { NoProviderBanner } from '@/components/no-provider-banner'
+import { SettingsDialog } from '@/components/settings-dialog'
 import { ToolsPopover } from '@/components/tools-popover'
 import { Button } from '@/components/ui/button'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -47,6 +48,7 @@ function RootLayout(): React.JSX.Element {
       {/* Mounted in both modes: owns event subscription + main→renderer
           navigation (incl. swarm:navigate-settings). Must never unmount. */}
       <EventsBridge />
+      <SettingsDialog />
       {inSettings ? (
         <Outlet />
       ) : (

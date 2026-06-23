@@ -12,6 +12,7 @@ import { applyEvent, type TaskRecord } from '@/lib/apply-event'
 import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
+import { routeToSection, useSettingsDialog } from '@/stores/settings-dialog'
 
 // Milestone events that warrant a toast for a background session. Streaming
 // noise (progress/usage/tool_call/plan/dispatched) only marks unread.
@@ -67,14 +68,14 @@ export function useEventsSubscription(): void {
     return swarmApi.onNavigateToSession(open)
   }, [navigate])
 
-  // Main → renderer Settings navigation (menu / deep-link). Mounted app-wide
-  // via EventsBridge, so it works regardless of the current route.
+  // Main → renderer Settings open (menu / deep-link). Mounted app-wide via
+  // EventsBridge, so it works regardless of the current route. Opens the
+  // settings dialog at the mapped section instead of navigating to a route.
   useEffect(() => {
     return swarmApi.onNavigateToSettings((route) => {
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic /settings* path widened over Router's typed registry
-      void navigate({ to: route as any })
+      useSettingsDialog.getState().openSettings(routeToSection(route))
     })
-  }, [navigate])
+  }, [])
 
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
