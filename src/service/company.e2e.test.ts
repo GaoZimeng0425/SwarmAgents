@@ -89,6 +89,8 @@ describe('emergent company — collaboration chain', () => {
     expect(chain).toContain('pm:recv')
     expect(chain).toContain('engineer:recv')
     expect(chain).toContain('reviewer:recv')
+    // PM must dispatch the engineer before the reviewer — order, not just presence.
+    expect(chain.indexOf('engineer:recv')).toBeLessThan(chain.indexOf('reviewer:recv'))
   })
 
   it('drives the fix/review loop when the reviewer first reports NEEDS CHANGES', async () => {
@@ -103,5 +105,7 @@ describe('emergent company — collaboration chain', () => {
     expect(result.reply).toBe('FINAL(DELIVERED(APPROVED, rounds=1))')
     // engineer was re-invoked for the fix (recv appears at least twice).
     expect(chain.filter((c) => c === 'engineer:recv').length).toBeGreaterThanOrEqual(2)
+    // First review fails, second passes ⇒ reviewer invoked exactly twice.
+    expect(chain.filter((c) => c === 'reviewer:recv').length).toBe(2)
   })
 })
