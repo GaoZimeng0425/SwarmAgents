@@ -1,8 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/settings/')({ component: General })
-
-function General(): React.JSX.Element {
+export function GeneralView(): React.JSX.Element {
   return (
     <div className="max-w-xl space-y-4">
       <h2 className="font-medium text-lg">General</h2>

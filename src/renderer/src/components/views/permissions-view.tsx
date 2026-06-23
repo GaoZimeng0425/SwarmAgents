@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import type { MacPermissions, MacPermissionState } from '@shared/types/ui'
+import type { MacPermissionState, MacPermissions } from '@shared/types/ui'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-
-export const Route = createFileRoute('/settings/permissions')({ component: Permissions })
 
 const STATE_LABEL: Record<MacPermissionState, { text: string; variant: 'secondary' | 'destructive' | 'outline' }> = {
   granted: { text: 'Granted', variant: 'secondary' },
@@ -14,7 +11,7 @@ const STATE_LABEL: Record<MacPermissionState, { text: string; variant: 'secondar
   unsupported: { text: 'N/A', variant: 'outline' },
 }
 
-function Permissions(): React.JSX.Element {
+export function PermissionsView(): React.JSX.Element {
   const [perms, setPerms] = useState<MacPermissions | null>(null)
 
   const refresh = useCallback(() => {

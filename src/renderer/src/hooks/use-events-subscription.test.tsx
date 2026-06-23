@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as api from '../lib/api'
 import { useSessionsStore } from '../stores/sessions'
+import { useSettingsDialog } from '../stores/settings-dialog'
 import { useEventsSubscription } from './use-events-subscription'
 
 vi.mock('sonner', () => ({ toast: vi.fn() }))
@@ -105,10 +106,13 @@ describe('useEventsSubscription — background session activity', () => {
 })
 
 describe('useEventsSubscription — settings navigation', () => {
-  it('navigates to a settings route when main pushes swarm:navigate-settings', () => {
+  it('opens the settings dialog at the mapped section when main pushes swarm:navigate-settings', () => {
+    useSettingsDialog.setState({ open: false, section: 'general' })
     mount()
     expect(settingsNavCb).toBeTypeOf('function')
     settingsNavCb?.('/settings/providers')
-    expect(navigateSpy).toHaveBeenCalledWith({ to: '/settings/providers' })
+    expect(useSettingsDialog.getState().open).toBe(true)
+    expect(useSettingsDialog.getState().section).toBe('providers')
+    expect(navigateSpy).not.toHaveBeenCalledWith({ to: '/settings/providers' })
   })
 })
