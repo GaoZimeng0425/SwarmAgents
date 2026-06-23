@@ -54,7 +54,7 @@ actor 基石(计划 A)+ 常驻 run-loop(计划 B)+ 跨休眠长期状态(阶段 
 | id | toolScope | maxIterations | 职责(systemPrompt 约定) |
 |---|---|---|---|
 | `ceo` | `all` | 20 | 收目标 → `send_and_wait('pm', 目标+背景)` → 拿到交付物 → 产出最终总结(其 rpc 回信即整次运行结果)。不写代码。 |
-| `pm` | `all` | 25 | 拆解目标 → `send_and_wait('engineer', 具体任务)` → 拿结果后 `send_and_wait('reviewer', 评审请求 + 工件位置)` → 评审有问题则再 `send_and_wait('engineer', 修复请求)` 迭代(**至多 2 轮**,prompt 写死上限)→ 汇总交付物回 CEO。 |
+| `pm` | `all` | 25 | 拆解目标 → `send_and_wait('engineer', 具体任务)` → 拿结果后 `send_and_wait('reviewer', 评审请求 + 工件位置)` → 评审有问题则再 `send_and_wait('engineer', 修复请求)` 迭代(**至多 10 轮**,prompt 写死上限)→ 汇总交付物回 CEO。 |
 | `engineer` | `all` | 30 | 收具体任务 → 在工作目录写代码 + 跑测试(shell/fs)→ 可 `spawn` 零碎子活 → 完成后回报"做了什么 + 工件位置 + 测试结果"摘要。 |
 | `reviewer` | `all` | 20 | 收评审请求 → 读 engineer 产出的文件 → 回 verdict(通过/需改)+ 具体问题清单。 |
 
@@ -95,7 +95,7 @@ goal ─rpc→ CEO
 | 情况 | 处理(全部落在既有底座行为) |
 |---|---|
 | 某角色 rpc 超时 | `send_and_wait` 返回 timeout 文本,调用方角色据此决定(prompt 约定:回报失败而非永久阻塞)|
-| 评审反复不通过 | PM 的 prompt 写死迭代上限 2 轮,超限则带"未达标"说明汇总回 CEO,不无限循环 |
+| 评审反复不通过 | PM 的 prompt 写死迭代上限 10 轮,超限则带"未达标"说明汇总回 CEO,不无限循环 |
 | 深层 rpc 链(CEO→PM→engineer)| 计划 B 的 turn-slot 让出已消除嵌套死锁;`maxConcurrent` 仍是统一上限 |
 | 角色 turn 内崩溃 | 既有重试/死信(`onError`/`bumpRetries`);该角色状态已按阶段 3 落库,再激活重放 |
 | 未知队友名 | `resolveAddress` 命中不到 → 既有死信 + `warn`(prompt 约定固定名,正常不触发)|
