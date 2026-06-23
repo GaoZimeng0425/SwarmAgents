@@ -1,4 +1,4 @@
-// src/service/company.e2e.test.ts
+// src/service/e2e/company.e2e.test.ts
 
 import { builtinAgents } from '@shared/agents/builtins'
 import { describe, expect, it, vi } from 'vitest'

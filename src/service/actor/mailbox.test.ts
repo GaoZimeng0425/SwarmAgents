@@ -1,4 +1,4 @@
-// src/service/actor-mailbox.test.ts
+// src/service/actor/mailbox.test.ts
 
 import type { ActorMessage } from '@shared/types/actor'
 import { afterEach, describe, expect, it, vi } from 'vitest'
