@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import type { UIEvent } from '@shared/types/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -99,6 +100,7 @@ export function useEventsSubscription(): void {
           taskCount: existing?.taskCount ?? 0,
           pinned: existing?.pinned ?? false,
           sortOrder: existing?.sortOrder ?? 0,
+          isSystem: e.sessionId === SYSTEM_SESSION_ID,
         })
       }
       if (e.kind === 'memory.changed') {

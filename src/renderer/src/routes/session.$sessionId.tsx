@@ -6,10 +6,18 @@ import { TasksView } from '@/components/views/tasks-view'
 import { hydrateSession } from '@/hooks/use-tasks'
 import { useSessionsStore } from '@/stores/sessions'
 
-export const Route = createFileRoute('/session/$sessionId')({ component: SessionView })
+export const Route = createFileRoute('/session/$sessionId')({
+  component: SessionView,
+  // `?task=<id>` deep-links to a specific task's transcript (used by the
+  // scheduled-runs calendar to jump to one run's execution).
+  validateSearch: (search: Record<string, unknown>): { task?: string } => ({
+    task: typeof search.task === 'string' ? search.task : undefined,
+  }),
+})
 
 function SessionView(): React.JSX.Element {
   const { sessionId } = Route.useParams()
+  const { task: focusTaskId } = Route.useSearch()
   const qc = useQueryClient()
   const navigate = useNavigate()
   const select = useSessionsStore((s) => s.select)
@@ -30,5 +38,5 @@ function SessionView(): React.JSX.Element {
     }
   }, [sessions, sessionId, navigate])
 
-  return <TasksView />
+  return <TasksView focusTaskId={focusTaskId} />
 }

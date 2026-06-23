@@ -53,6 +53,7 @@ export type ServiceClient = {
   getUsageStats(rangeDays: number): Promise<import('@shared/types/usage').UsageStats>
   listCronJobsForSession(sessionId: string): Promise<import('@shared/types/ui').CronJobSummary[]>
   listAllCronJobs(): Promise<import('@shared/types/ui').ScheduledTask[]>
+  listAllCronRuns(): Promise<import('@shared/types/ui').CronRun[]>
   cancelCronJob(id: string): Promise<void>
 }
 
@@ -161,6 +162,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     listAllCronJobs() {
       return call('listAllCronJobs', [])
+    },
+    listAllCronRuns() {
+      return call('listAllCronRuns', [])
     },
     async cancelCronJob(id) {
       await call('cancelCronJob', [id])

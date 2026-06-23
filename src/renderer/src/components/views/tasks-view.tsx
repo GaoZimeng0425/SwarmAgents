@@ -11,7 +11,7 @@ import { useCancelTask, useDecidePermission, useSubmitGoal, useTasks } from '@/h
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
-export function TasksView(): React.JSX.Element {
+export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React.JSX.Element {
   const tasks = useTasks()
   const queue = usePermissionStore((s) => s.queue)
   const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
@@ -47,6 +47,7 @@ export function TasksView(): React.JSX.Element {
     <div className="flex h-full min-w-0 overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col">
         <ConversationThread
+          focusTaskId={focusTaskId}
           onSend={(text) => {
             if (!ready) return
             void submitGoal.mutateAsync({ goal: text, options: taskOptions })

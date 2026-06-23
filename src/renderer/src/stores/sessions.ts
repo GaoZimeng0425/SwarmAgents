@@ -16,9 +16,10 @@ type SessionsStore = {
   reorder: (orderedIds: string[]) => void
 }
 
-// Pinned sessions float to the top; within each group, manual sort_order ascending.
+// The system session ("定时任务") always sits at the very top; then pinned
+// sessions; within each group, manual sort_order ascending.
 const byPinnedThenSortOrder = (a: SessionSummary, b: SessionSummary): number =>
-  Number(b.pinned) - Number(a.pinned) || a.sortOrder - b.sortOrder
+  Number(b.isSystem) - Number(a.isSystem) || Number(b.pinned) - Number(a.pinned) || a.sortOrder - b.sortOrder
 
 // Immutably drop a key from the unread map (returns the same ref if absent).
 const clearUnread = (unread: Record<string, true>, id: string): Record<string, true> => {

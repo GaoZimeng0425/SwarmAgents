@@ -185,6 +185,7 @@ export function wireSwarmIpc(args: {
   const listCronJobsForSession = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
     serviceClient.listCronJobsForSession(sessionId)
   const listAllCronJobs = () => serviceClient.listAllCronJobs()
+  const listAllCronRuns = () => serviceClient.listAllCronRuns()
   const cancelCronJob = (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.cancelCronJob(id)
 
   ipcMain.handle('swarm:createSession', () => createSession())
@@ -200,6 +201,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:decidePermission', decidePermission)
   ipcMain.handle('swarm:listCronJobsForSession', listCronJobsForSession)
   ipcMain.handle('swarm:listAllCronJobs', () => listAllCronJobs())
+  ipcMain.handle('swarm:listAllCronRuns', () => listAllCronRuns())
   ipcMain.handle('swarm:cancelCronJob', cancelCronJob)
 
   const handleGetAccent = (): string | null => getAccent()
@@ -302,6 +304,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:decidePermission')
       ipcMain.removeHandler('swarm:listCronJobsForSession')
       ipcMain.removeHandler('swarm:listAllCronJobs')
+      ipcMain.removeHandler('swarm:listAllCronRuns')
       ipcMain.removeHandler('swarm:cancelCronJob')
     },
   }

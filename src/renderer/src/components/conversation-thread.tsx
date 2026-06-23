@@ -44,6 +44,8 @@ type Props = {
   tasks: TaskRecord[]
   /** Start a new user turn with the given text (used by interactive UI cards). */
   onSend?: (text: string) => void
+  /** Deep-link target: scroll to and briefly highlight this task's turn (e.g. a scheduled run). */
+  focusTaskId?: string
 }
 
 // ToolHeader needs an AI-SDK-shaped tool type + state; derive both from our segment.
@@ -209,9 +211,28 @@ function ToolGroupBlock({
   )
 }
 
-export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element {
+export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React.JSX.Element {
   const qc = useQueryClient()
   const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
+
+  // Deep-link: once the target task's turn is in the DOM, scroll it into view
+  // and flash a highlight ring. Re-runs as tasks hydrate so it lands after the
+  // initial stick-to-bottom autoscroll. Depends on tasks.length so it fires
+  // when the session's transcript finishes loading.
+  useEffect(() => {
+    if (!focusTaskId) return
+    const el = document.querySelector<HTMLElement>(`[data-task-id="${focusTaskId}"]`)
+    if (!el) return
+    const id = window.setTimeout(() => {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      el.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background', 'rounded-lg')
+      window.setTimeout(
+        () => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background', 'rounded-lg'),
+        2200
+      )
+    }, 120)
+    return () => window.clearTimeout(id)
+  }, [focusTaskId, tasks.length])
 
   const onCopy = (text: string): void => {
     void navigator.clipboard.writeText(text)
@@ -266,7 +287,7 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
     }
     if (seg.kind === 'user') {
       return (
-        <Message className="group" from="user" key={seg.key}>
+        <Message className="group" data-task-id={seg.taskId} from="user" key={seg.key}>
           <MessageContent>
             {seg.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -290,7 +311,7 @@ export function ConversationThread({ tasks, onSend }: Props): React.JSX.Element 
     if (seg.kind === 'assistant') {
       const images = extractImagePaths(seg.text)
       return (
-        <Message className="group" from="assistant" key={seg.key}>
+        <Message className="group" data-task-id={seg.taskId} from="assistant" key={seg.key}>
           <MessageContent>
             <MessageResponse>{seg.text}</MessageResponse>
             {images.map((p) => (

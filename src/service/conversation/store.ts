@@ -78,6 +78,8 @@ export type ConversationStore = {
   attachCronRunTask(runId: string, taskId: string): void
   finishCronRun(runId: string, outcome: { status: string; error: string | null; endedAt: number }): void
   listCronRunsForJob(jobId: string): StoredCronRun[]
+  /** Every persisted run across all jobs, newest first (for the schedule calendar). */
+  listAllCronRuns(): StoredCronRun[]
   listRunningCronRuns(): StoredCronRun[]
   getTask(taskId: string): Task | undefined
   upsertActor(actor: Actor): void
@@ -307,6 +309,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtAttachCronRunTask = db.prepare('UPDATE cron_runs SET task_id = ? WHERE id = ?')
   const stmtFinishCronRun = db.prepare('UPDATE cron_runs SET status = ?, error = ?, ended_at = ? WHERE id = ?')
   const stmtListCronRunsForJob = db.prepare('SELECT * FROM cron_runs WHERE job_id = ? ORDER BY triggered_at DESC')
+  const stmtListAllCronRuns = db.prepare('SELECT * FROM cron_runs ORDER BY triggered_at DESC')
   const stmtListRunningCronRuns = db.prepare("SELECT * FROM cron_runs WHERE status = 'running'")
   const stmtGetTask = db.prepare('SELECT * FROM tasks WHERE id = ?')
 
@@ -442,7 +445,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
      FROM sessions s
-     WHERE s.status != 'ended' AND s.id != ?
+     WHERE s.status != 'ended'
      ORDER BY s.pinned DESC, s.sort_order ASC`
   )
 
@@ -513,7 +516,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       return markAndGetInterrupted()
     },
     listSessions() {
-      return (stmtListSessions.all(SYSTEM_SESSION_ID) as Record<string, unknown>[]).map((r) => ({
+      return (stmtListSessions.all() as Record<string, unknown>[]).map((r) => ({
         id: r.id as string,
         title: (r.title as string | null) ?? null,
         status: r.status as 'active' | 'interrupted' | 'ended',
@@ -521,6 +524,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         taskCount: r.taskCount as number,
         pinned: Boolean(r.pinned),
         sortOrder: r.sortOrder as number,
+        isSystem: (r.id as string) === SYSTEM_SESSION_ID,
       }))
     },
     setSessionTitle(id, title) {
@@ -754,6 +758,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     listCronRunsForJob(jobId) {
       return (stmtListCronRunsForJob.all(jobId) as Record<string, unknown>[]).map(rowToCronRun)
+    },
+    listAllCronRuns() {
+      return (stmtListAllCronRuns.all() as Record<string, unknown>[]).map(rowToCronRun)
     },
     listRunningCronRuns() {
       return (stmtListRunningCronRuns.all() as Record<string, unknown>[]).map(rowToCronRun)

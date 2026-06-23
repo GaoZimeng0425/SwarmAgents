@@ -25,6 +25,7 @@ export type ServiceMethod =
   | 'getUsageStats'
   | 'listCronJobsForSession'
   | 'listAllCronJobs'
+  | 'listAllCronRuns'
   | 'cancelCronJob'
 
 export type ServiceRequest = {

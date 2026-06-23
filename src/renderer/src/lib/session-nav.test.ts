@@ -11,6 +11,7 @@ const s = (id: string, lastActiveAt: number): SessionSummary => ({
   taskCount: 0,
   pinned: false,
   sortOrder: 0,
+  isSystem: false,
 })
 
 describe('pickNextSession', () => {

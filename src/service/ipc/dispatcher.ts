@@ -28,6 +28,7 @@ type DispatcherConfig = {
   listMemory(namespace?: string): MemoryView[]
   listCronJobsForSession(sessionId: string): import('@shared/types/ui').CronJobSummary[]
   listAllCronJobs(): import('@shared/types/ui').ScheduledTask[]
+  listAllCronRuns(): import('@shared/types/ui').CronRun[]
   cancelCronJob(id: string): void
 }
 
@@ -131,6 +132,8 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       }
       case 'listAllCronJobs':
         return cfg.listAllCronJobs()
+      case 'listAllCronRuns':
+        return cfg.listAllCronRuns()
       case 'cancelCronJob': {
         const [id] = args as [string]
         cfg.cancelCronJob(id)

@@ -5,7 +5,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import type { SessionSummary } from '@shared/types/ui'
 import { useNavigate } from '@tanstack/react-router'
-import { Loader2, Pencil, Pin, PinOff, Search, SquarePen, Trash2 } from 'lucide-react'
+import { CalendarClock, Loader2, Pencil, Pin, PinOff, Search, SquarePen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -92,7 +92,7 @@ export function SessionList(): React.JSX.Element {
   const onDragEnd = (e: DragEndEvent): void => {
     const { active, over } = e
     if (!over || active.id === over.id) return
-    const ids = visibleSessions.map((s) => s.id)
+    const ids = visibleSessions.filter((s) => !s.isSystem).map((s) => s.id)
     const from = ids.indexOf(active.id as string)
     const to = ids.indexOf(over.id as string)
     if (from < 0 || to < 0) return
@@ -234,6 +234,47 @@ export function SessionList(): React.JSX.Element {
     )
   }
 
+  // The dedicated system session ("定时任务") is rendered as a fixed row pinned
+  // above the normal list — not draggable, not renamable/deletable. Opening it
+  // shows the transcripts of every scheduled run.
+  const renderSystemRow = (s: SessionSummary): React.JSX.Element => {
+    const status = statusBySession.get(s.id) ?? 'idle'
+    return (
+      <ContextMenu key={s.id}>
+        <ContextMenuTrigger
+          render={
+            <button
+              aria-current={selected === s.id ? 'true' : undefined}
+              className={cn(
+                'group relative flex w-full min-w-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sidebar-foreground/80 text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                selected === s.id && 'bg-sidebar-accent font-medium text-sidebar-foreground shadow-sm'
+              )}
+              onClick={() => onSelect(s.id)}
+              title="定时任务"
+              type="button"
+            >
+              {selected === s.id && <div className="absolute top-2 bottom-2 left-0 w-1 rounded-full bg-primary" />}
+              <CalendarClock className="size-4 shrink-0 text-primary/80" />
+              <span className="flex-1 truncate font-medium leading-tight">定时任务</span>
+              {status === 'running' && (
+                <Loader2 aria-label="Running" className="size-3 shrink-0 animate-spin text-primary" />
+              )}
+            </button>
+          }
+        />
+        <ContextMenuContent className="min-w-40 rounded-xl shadow-xl">
+          <ContextMenuItem onClick={() => void togglePin(s)}>
+            {s.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+            {s.pinned ? 'Unpin' : 'Pin'}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    )
+  }
+
+  const systemSession = sessions.find((s) => s.isSystem)
+  const userVisibleSessions = visibleSessions.filter((s) => !s.isSystem)
+
   return (
     // The sidebar header (toggle + nav arrows) already clears the traffic
     // lights, so the action rows start with only a small top gap.
@@ -273,11 +314,16 @@ export function SessionList(): React.JSX.Element {
         </button>
       )}
       <ScrollArea className="mt-2 min-h-0 flex-1">
+        {systemSession && !query.trim() && (
+          <div className="mb-1 flex flex-col gap-1 border-border/30 border-b pb-1">
+            {renderSystemRow(systemSession)}
+          </div>
+        )}
         {query.trim() ? (
           // Search active: render plain list without drag (reorder during filter is out of scope).
           <div className="flex flex-col gap-1">
-            {visibleSessions.map((s) => renderRow(s))}
-            {visibleSessions.length === 0 && (
+            {userVisibleSessions.map((s) => renderRow(s))}
+            {userVisibleSessions.length === 0 && (
               <p className="px-3 py-2 text-muted-foreground text-xs">No matching chats.</p>
             )}
           </div>
@@ -289,9 +335,9 @@ export function SessionList(): React.JSX.Element {
             onDragEnd={onDragEnd}
             sensors={sensors}
           >
-            <SortableContext items={visibleSessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={userVisibleSessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <div className="flex flex-col gap-1">
-                {visibleSessions.map((s) => {
+                {userVisibleSessions.map((s) => {
                   const row = renderRow(s)
                   // Rename input: don't wrap in SortableSessionRow (no drag while editing)
                   if (renamingId === s.id) return row
@@ -301,7 +347,7 @@ export function SessionList(): React.JSX.Element {
                     </SortableSessionRow>
                   )
                 })}
-                {visibleSessions.length === 0 && (
+                {userVisibleSessions.length === 0 && (
                   <p className="px-3 py-2 text-muted-foreground text-xs">
                     No chats yet. Click &quot;New chat&quot; above.
                   </p>

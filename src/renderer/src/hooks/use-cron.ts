@@ -1,4 +1,4 @@
-import type { CronJobSummary, ScheduledTask } from '@shared/types/ui'
+import type { CronJobSummary, CronRun, ScheduledTask } from '@shared/types/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
@@ -23,6 +23,14 @@ export function useAllCronJobs() {
   return useQuery<ScheduledTask[]>({
     queryKey: CRON_ALL_KEY,
     queryFn: () => swarmApi.listAllCronJobs(),
+    refetchInterval: REFETCH_MS,
+  })
+}
+
+export function useAllCronRuns() {
+  return useQuery<CronRun[]>({
+    queryKey: ['cron', 'runs', 'all'],
+    queryFn: () => swarmApi.listAllCronRuns(),
     refetchInterval: REFETCH_MS,
   })
 }
