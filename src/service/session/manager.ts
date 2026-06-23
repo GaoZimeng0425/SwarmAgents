@@ -13,6 +13,7 @@ import { ulid } from 'ulid'
 import { createMailbox } from '../actor/mailbox'
 import { decodeActorState } from '../actor/state'
 import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
+import { createAgentDirectory } from '../directory/receptionist'
 import { withAgentTypes } from '../agents/prompt'
 import type { AgentStore } from '../agents/store'
 import type { Broadcaster } from '../ipc/broadcaster'
@@ -140,6 +141,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const oneShotHandles = new Map<string, AbortController>()
   // Resident actor run-loops, keyed by actor address. Populated in Task 6.
   const residentHandles = new Map<string, { abort(): void; deliver(msg: ActorMessage): void }>()
+  const directory = createAgentDirectory({
+    listActors: (s) => store.listActorsForSession(s),
+    isLive: (address) => residentHandles.has(address),
+    getAgentDef: (id) => cfg.agentStore?.get(id),
+  })
   // Matches inbound rpc replies (by correlationId) to their awaiting callers.
   const replyRegistry = createReplyRegistry()
 
@@ -317,6 +323,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       selfAddress: actor.address,
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
+      findPeers: (q) => directory.find(sessionId, q, actor.address),
     }
     void runResident(deps, mailbox, hooks, IDLE_TIMEOUT_MS)
       .then(() => store.updateTaskStatus(taskId, 'completed'))
@@ -481,6 +488,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           initialMessages: [],
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
+          findPeers: (q) => directory.find(sessionId, q),
         })
         try {
           const { status, summary } = await runner.run()
@@ -663,6 +671,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           },
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
+          findPeers: (q) => directory.find(sessionId, q),
         })
         try {
           const { status } = await runner.run()

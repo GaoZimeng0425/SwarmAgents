@@ -37,4 +37,29 @@ describe('agent-runner tool context messaging bridge', () => {
     const reply = await ctx.sendAndWait('peer', 'ping')
     expect(reply).toBe('')
   })
+
+  it('exposes findPeers that delegates to deps.findPeers', async () => {
+    const { buildToolContext } = await import('./agent-runner')
+    const peer = {
+      name: 'pm', address: 'a1', role: 'pm', capabilities: [], description: '', status: 'active' as const,
+    }
+    const ctx = buildToolContext({
+      task: { id: 't1', goal: 'g', cwd: undefined, attachments: [] },
+      sessionId: 's1',
+      findPeers: (q) => (q.role === 'pm' ? [peer] : []),
+      spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
+    } as never)
+    expect(ctx.findPeers({ role: 'pm' })).toEqual([peer])
+    expect(ctx.findPeers({ role: 'none' })).toEqual([])
+  })
+
+  it('findPeers returns [] when no delegate is wired', async () => {
+    const { buildToolContext } = await import('./agent-runner')
+    const ctx = buildToolContext({
+      task: { id: 't1', goal: 'g', cwd: undefined, attachments: [] },
+      sessionId: 's1',
+      spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
+    } as never)
+    expect(ctx.findPeers({})).toEqual([])
+  })
 })
