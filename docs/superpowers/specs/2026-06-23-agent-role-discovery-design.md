@@ -165,6 +165,18 @@ mechanism* in the prompts changes (role lookup, not literal name).
   calling `find_agents`) cannot be asserted in unit tests; it is verified by a manual
   run. The spec records this rather than pretending coverage.
 
+## Next phase (out of scope here, builds on this)
+
+This discovery layer is the foundation for a **multi-team company** (UI / operations /
+finance / … beyond the current dev chain) — the Org/Team layer the emergent-company
+prototype (`2026-06-23-emergent-software-company-prototype-design.md` §8) deliberately
+gated. Decided direction (2026-06-23): a lightweight `team` field on `AgentDefinition` +
+prompt-expressed org chart (CEO → department heads → ICs), with `find_agents` extended
+to filter by `team`. NOT a first-class `Team` entity. Open question for that phase: what
+each non-dev team actually does with the available tools (must be real capability, not
+org-chart theater). This spec stays focused on role/capability discovery; `team` is added
+in the follow-on.
+
 ## Verification
 
 1. `npm run typecheck` — 0 errors.
