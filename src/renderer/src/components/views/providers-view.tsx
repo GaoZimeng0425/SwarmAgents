@@ -26,10 +26,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useProviders } from '@/hooks/use-providers'
-
-const ADD = '__add__'
 
 // Display name for any provider id: the configured row's name, else the built-in
 // default, else a generic fallback (an unconfigured custom id should never reach
@@ -51,83 +49,87 @@ const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
 
 export function ProvidersView(): React.JSX.Element {
   const { state, decryptFailed } = useProviders()
-  const [selected, setSelected] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const customs = state.providers.filter((p) => !p.registry)
 
-  // Until the user picks, land on the active provider (or the first configured
-  // one, else Anthropic). `selected === ADD` shows the add form.
-  const current = selected ?? state.active ?? state.providers[0]?.id ?? 'anthropic'
+  const Row = ({ id, label, configured }: { id: string; label: string; configured: boolean }): React.JSX.Element => (
+    <button
+      className="flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm hover:bg-accent"
+      key={id}
+      onClick={() => setEditId(id)}
+      type="button"
+    >
+      <span className="flex items-center gap-2">
+        <Dot on={state.active === id || configured} />
+        <span className="truncate">{label}</span>
+      </span>
+      {state.active === id && (
+        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
+          已启用
+        </span>
+      )}
+    </button>
+  )
 
   return (
-    <div className="flex h-full gap-0">
-      <Sidebar onAdd={() => setSelected(ADD)} onSelect={setSelected} selected={current} state={state} />
-      <main className="min-h-0 min-w-0 flex-1">
-        <ScrollArea className="h-full">
-          <div className="p-6">
-            {decryptFailed && (
-              <div className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-                Saved keys could not be decrypted on this machine. Re-enter them to continue.
-              </div>
-            )}
-            {current === ADD ? (
-              <AddProviderForm onCreated={(id) => setSelected(id)} />
-            ) : (
-              <ProviderDetail id={current} key={current} onDeleted={() => setSelected('anthropic')} state={state} />
-            )}
-          </div>
-        </ScrollArea>
-      </main>
+    <div className="mx-auto max-w-2xl space-y-6">
+      {decryptFailed && (
+        <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          Saved keys could not be decrypted on this machine. Re-enter them to continue.
+        </div>
+      )}
+
+      <section className="space-y-2">
+        <div className="text-muted-foreground text-xs">内置</div>
+        <div className="space-y-1.5">
+          {BUILTIN_IDS.map((bid) =>
+            Row({ id: bid, label: BUILTIN_DEFS[bid].name, configured: providerViewById(state, bid) !== null }),
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <div className="text-muted-foreground text-xs">自定义供应商</div>
+        <div className="space-y-1.5">
+          {customs.map((p) => Row({ id: p.id, label: p.name, configured: true }))}
+          <button
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-left text-sm hover:bg-accent"
+            onClick={() => setAddOpen(true)}
+            type="button"
+          >
+            <span className="text-base leading-none">+</span> 添加供应商
+          </button>
+        </div>
+      </section>
+
+      <Dialog onOpenChange={(open) => !open && setEditId(null)} open={editId !== null}>
+        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto">
+          {editId && (
+            <>
+              <DialogHeader className="sr-only">
+                <DialogTitle>{displayName(state, editId)}</DialogTitle>
+              </DialogHeader>
+              <ProviderDetail id={editId} key={editId} onDeleted={() => setEditId(null)} state={state} />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog onOpenChange={setAddOpen} open={addOpen}>
+        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto">
+          <DialogHeader className="sr-only">
+            <DialogTitle>添加模型供应商</DialogTitle>
+          </DialogHeader>
+          <AddProviderForm onCreated={() => setAddOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 function Dot({ on }: { on: boolean }): React.JSX.Element {
   return <span className={`size-2 rounded-full ${on ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
-}
-
-function Sidebar({
-  state,
-  selected,
-  onSelect,
-  onAdd,
-}: {
-  state: ProvidersStateView
-  selected: string
-  onSelect: (id: string) => void
-  onAdd: () => void
-}): React.JSX.Element {
-  const item = (id: string, label: string, configured: boolean): React.JSX.Element => (
-    <button
-      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-accent ${
-        selected === id ? 'bg-accent' : ''
-      }`}
-      key={id}
-      onClick={() => onSelect(id)}
-      type="button"
-    >
-      <span className="truncate">{label}</span>
-      <Dot on={state.active === id || configured} />
-    </button>
-  )
-
-  return (
-    <aside className="flex w-60 shrink-0 flex-col gap-1 p-3">
-      <div className="px-3 py-1 text-muted-foreground text-xs">内置</div>
-      {BUILTIN_IDS.map((bid) => item(bid, BUILTIN_DEFS[bid].name, providerViewById(state, bid) !== null))}
-
-      <div className="px-3 pt-3 pb-1 text-muted-foreground text-xs">自定义供应商</div>
-      {state.providers.filter((p) => !p.registry).map((p) => item(p.id, p.name, true))}
-
-      <button
-        className={`mt-1 flex w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left text-sm hover:bg-accent ${
-          selected === ADD ? 'bg-accent' : ''
-        }`}
-        onClick={onAdd}
-        type="button"
-      >
-        <span className="text-base leading-none">+</span> 添加供应商
-      </button>
-    </aside>
-  )
 }
 
 // ── Detail (built-in or custom) ──────────────────────────────────────────────
