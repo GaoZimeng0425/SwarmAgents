@@ -424,6 +424,51 @@ describe('ConversationStore', () => {
     store.close()
   })
 
+  it('persists and round-trips originSessionId', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    store.createSession('ses-origin', provider)
+    store.saveCronJob({
+      id: 'job-1',
+      sessionId: 'ses-origin',
+      originSessionId: 'ses-origin',
+      name: null,
+      cron: '0 9 * * *',
+      goal: 'g',
+      createdAt: 1000,
+      lastRunAt: null,
+    })
+    expect(store.listCronJobs()[0].originSessionId).toBe('ses-origin')
+    store.close()
+  })
+
+  it('reassign captures origin only when not already set (COALESCE)', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    store.createSession('ses-old', provider)
+    store.createSession(SYSTEM_SESSION_ID, provider)
+    store.saveCronJob({
+      id: 'job-1',
+      sessionId: 'ses-old',
+      originSessionId: null,
+      name: null,
+      cron: '0 9 * * *',
+      goal: 'g',
+      createdAt: 1000,
+      lastRunAt: null,
+    })
+
+    // First repoint records the origin it came from.
+    store.reassignCronJob('job-1', SYSTEM_SESSION_ID, 'ses-old')
+    expect(store.listCronJobs()[0].sessionId).toBe(SYSTEM_SESSION_ID)
+    expect(store.listCronJobs()[0].originSessionId).toBe('ses-old')
+
+    // A later repoint must not clobber the recorded origin.
+    store.reassignCronJob('job-1', SYSTEM_SESSION_ID, 'ses-other')
+    expect(store.listCronJobs()[0].originSessionId).toBe('ses-old')
+    store.close()
+  })
+
   it('cascades cron job deletion when its session is deleted', () => {
     const store = createConversationStore(dbPath)
     const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }

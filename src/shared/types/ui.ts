@@ -92,6 +92,8 @@ export type SessionSummary = {
 export type CronJobSummary = {
   id: string
   sessionId: string
+  /** The conversation that created this job; null when unknown/legacy. */
+  originSessionId: string | null
   name: string | null
   cron: string
   goal: string
@@ -100,7 +102,11 @@ export type CronJobSummary = {
   nextRun: number | null
 }
 
-export type ScheduledTask = CronJobSummary & { sessionTitle: string | null }
+export type ScheduledTask = CronJobSummary & {
+  sessionTitle: string | null
+  /** Title of the originating conversation, or null if it was deleted / unknown. */
+  originSessionTitle: string | null
+}
 
 /** One past execution of a scheduled job, surfaced to the renderer's calendar. */
 export type CronRun = {

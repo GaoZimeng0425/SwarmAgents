@@ -235,8 +235,9 @@ export function ScheduledCalendarView(): React.JSX.Element {
                 </div>
               )}
               {selectedItems.map((it, i) => {
-                const jobId = it.kind === 'run' ? it.task?.id : it.task.id
-                const goal = it.kind === 'run' ? it.task?.goal : it.task.goal
+                const task = it.task
+                const jobId = task?.id
+                const goal = task?.goal
                 return (
                   <div
                     className="rounded-lg border border-border/60 bg-card/50 p-3 text-[13px] transition-colors hover:bg-accent/40"
@@ -281,15 +282,33 @@ export function ScheduledCalendarView(): React.JSX.Element {
                       <p className="mt-1.5 line-clamp-2 text-[11px] text-destructive">{it.run.error}</p>
                     )}
                     {goal && <p className="mt-1.5 line-clamp-3 text-foreground/70 text-xs">{goal}</p>}
-                    {it.kind === 'run' && it.run.taskId && (
-                      <button
-                        className="mt-2 text-[11px] text-primary hover:underline"
-                        onClick={() => openRun(it.run.taskId as string)}
-                        type="button"
-                      >
-                        查看运行记录 →
-                      </button>
-                    )}
+                    <div className="mt-2 flex flex-col gap-1">
+                      {it.kind === 'run' && it.run.taskId && (
+                        <button
+                          className="text-left text-[11px] text-primary hover:underline"
+                          onClick={() => openRun(it.run.taskId as string)}
+                          type="button"
+                        >
+                          查看运行记录 →
+                        </button>
+                      )}
+                      {task?.originSessionId && task.originSessionTitle ? (
+                        <button
+                          className="truncate text-left text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                          onClick={() =>
+                            void navigate({
+                              to: '/session/$sessionId',
+                              params: { sessionId: task.originSessionId as string },
+                            })
+                          }
+                          type="button"
+                        >
+                          在「{task.originSessionTitle}」中创建 →
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground/60">创建来源不可用</span>
+                      )}
+                    </div>
                   </div>
                 )
               })}
