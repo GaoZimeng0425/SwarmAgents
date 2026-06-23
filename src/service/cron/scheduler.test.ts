@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ConversationStore, StoredCronJob, StoredCronRun } from './conversation/store'
+import type { ConversationStore, StoredCronJob, StoredCronRun } from '../conversation/store'
 import type { Task } from '@shared/types/task'
-import { createCronScheduler } from './cron-scheduler'
+import { createCronScheduler } from './scheduler'
 
 function fakeStore(initial: StoredCronJob[] = []) {
   const jobs = new Map(initial.map((j) => [j.id, j]))

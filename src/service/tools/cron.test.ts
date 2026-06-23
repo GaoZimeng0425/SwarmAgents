@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { CronScheduler } from '../cron-scheduler'
+import type { CronScheduler } from '../cron/scheduler'
 import { cronSpecs } from './cron'
 import type { ToolRunContext } from './registry'
 
