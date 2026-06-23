@@ -23,11 +23,28 @@ export const AgentDefinitionSchema = z.object({
   description: z.string().min(1).max(1024),
   systemPrompt: z.string(),
   toolScope: ToolScopeSchema,
+  /** Discoverable role handle (distinct from the per-instance actor name). When unset, the directory treats `id` as the role. */
+  role: z.string().optional(),
+  /** Capability tags for finer discovery queries. */
+  capabilities: z.array(z.string()).optional(),
   maxIterations: z.number().int().positive().default(25),
   /** Override the provider's default model for this agent type. */
   model: z.string().optional(),
 })
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
+
+/** A discovery query against the session's live agents. All fields optional; empty → match all. */
+export type PeerQuery = { role?: string; capability?: string; query?: string }
+
+/** A discovered peer agent, returned by the directory and surfaced by the find_agents tool. */
+export type Peer = {
+  name: string | null
+  address: string
+  role: string
+  capabilities: string[]
+  description: string
+  status: 'active' | 'dormant'
+}
 
 /**
  * Default tool allowlist generated from an agent's coarse `toolScope`.
