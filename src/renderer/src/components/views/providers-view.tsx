@@ -66,7 +66,7 @@ export function ProvidersView(): React.JSX.Element {
       </span>
       {state.active === id && (
         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
-          已启用
+          默认
         </span>
       )}
     </button>
@@ -104,7 +104,7 @@ export function ProvidersView(): React.JSX.Element {
       </section>
 
       <Dialog onOpenChange={(open) => !open && setEditId(null)} open={editId !== null}>
-        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto sm:max-w-2xl">
           {editId && (
             <>
               <DialogHeader className="sr-only">
@@ -117,7 +117,7 @@ export function ProvidersView(): React.JSX.Element {
       </Dialog>
 
       <Dialog onOpenChange={setAddOpen} open={addOpen}>
-        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto sm:max-w-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>添加模型供应商</DialogTitle>
           </DialogHeader>
@@ -149,21 +149,16 @@ function ProviderDetail({
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pr-8">
         <div className="flex items-center gap-3">
           <h2 className="font-medium text-lg">{name}</h2>
           {isActive ? (
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
-                已启用
-              </span>
-              <Button onClick={() => void window.swarm.providers.setActive(null)} size="sm" variant="outline">
-                停用
-              </Button>
-            </div>
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
+              默认
+            </span>
           ) : (
             <Button onClick={() => void window.swarm.providers.setActive(id)} size="sm" variant="outline">
-              启用
+              设为默认
             </Button>
           )}
         </div>
@@ -476,7 +471,7 @@ function AddProviderForm({ onCreated }: { onCreated: (id: string) => void }): Re
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
+      <div className="pr-8">
         <h2 className="font-medium text-lg">添加模型供应商</h2>
         <p className="mt-1 text-muted-foreground text-sm">
           配置一个完全自定义的 API 端点和初始模型。Key 用系统 Keychain 加密存储。

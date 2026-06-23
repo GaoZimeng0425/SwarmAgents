@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { EventsBridge } from '@/components/events-bridge'
+import { NoProviderBanner } from '@/components/no-provider-banner'
 import { Button } from '@/components/ui/button'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
@@ -45,6 +46,7 @@ function RootLayout(): React.JSX.Element {
           <AppSidebar />
           <SidebarInset className="min-w-0 overflow-hidden">
             <main className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)] pt-9">
+              <NoProviderBanner />
               <div className="min-h-0 flex-1">
                 <Outlet />
               </div>

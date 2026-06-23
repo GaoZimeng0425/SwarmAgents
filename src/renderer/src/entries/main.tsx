@@ -7,7 +7,6 @@ import { createHashHistory, createRouter, RouterProvider } from '@tanstack/react
 import { ThemeProvider } from 'next-themes'
 import { createRoot } from 'react-dom/client'
 
-import { NoProviderBanner } from '@/components/no-provider-banner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAccent } from '@/hooks/use-accent'
 import { queryClient } from '@/lib/query-client'
@@ -27,14 +26,7 @@ declare module '@tanstack/react-router' {
 
 function AccentBridge(): React.JSX.Element {
   useAccent()
-  return (
-    <div className="flex h-full flex-col">
-      <NoProviderBanner />
-      <div className="min-h-0 flex-1">
-        <RouterProvider router={router} />
-      </div>
-    </div>
-  )
+  return <RouterProvider router={router} />
 }
 
 createRoot(document.getElementById('root')!).render(

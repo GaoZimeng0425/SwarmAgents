@@ -367,7 +367,7 @@ export function ChatInput({
                       }}
                     </PromptInputSelectValue>
                   </PromptInputSelectTrigger>
-                  <PromptInputSelectContent>
+                  <PromptInputSelectContent className="w-auto min-w-(--anchor-width) max-w-[min(28rem,90vw)]">
                     <SelectGroup>
                       <SelectLabel>模型</SelectLabel>
                       {options.map((o) => (
