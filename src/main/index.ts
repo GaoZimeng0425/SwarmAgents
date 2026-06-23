@@ -126,10 +126,9 @@ app.whenReady().then(async () => {
 
   registerDeepLinkIpc()
   registerUrlScheme('swarmagents', handleDeepLink)
-  // Cold start on Windows/Linux: the URL arrives in the first instance's argv
-  // (macOS cold start routes via the `open-url` event registered above).
+  // Capture argv now so it's available after createMainWindow(), but defer
+  // handleDeepLink until the window exists (openSettings needs getMainWindow()).
   const initialDeepLink = parseDeepLinkFromArgv(process.argv, 'swarmagents')
-  if (initialDeepLink) handleDeepLink(initialDeepLink)
   setupAutoUpdate()
 
   setupMenu({ onOpenSettings: openSettings })
@@ -160,6 +159,13 @@ app.whenReady().then(async () => {
   ipcMain.on('ping', () => console.log('pong'))
 
   createMainWindow()
+  // Cold start on Windows/Linux: the URL arrives in the first instance's argv
+  // (macOS cold start routes via the `open-url` event registered above).
+  // MUST run after createMainWindow() so getMainWindow() is non-null; the
+  // window's webContents may still be loading at this point but both handlers
+  // are safe: openSettings schedules did-finish-load, and navigateToSession
+  // buffers via pendingSessionId if isLoading() is true.
+  if (initialDeepLink) handleDeepLink(initialDeepLink)
 
   app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the

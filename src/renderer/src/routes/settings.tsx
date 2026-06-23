@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouter } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useCanGoBack, useNavigate, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Bot, Boxes, DollarSign, Info, Lock, Search, Settings as SettingsIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,8 @@ const NAV = [
 
 function SettingsLayout(): React.JSX.Element {
   const router = useRouter()
+  const canGoBack = useCanGoBack()
+  const navigate = useNavigate()
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)]">
       {/* Draggable top strip with a Done affordance, offset clear of the macOS
@@ -29,7 +31,7 @@ function SettingsLayout(): React.JSX.Element {
         <div className="pl-[70px]" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <Button
             className="gap-1 text-muted-foreground"
-            onClick={() => router.history.back()}
+            onClick={() => canGoBack ? router.history.back() : void navigate({ to: '/' })}
             size="sm"
             variant="ghost"
           >
