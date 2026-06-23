@@ -26,8 +26,15 @@ export type CronScheduler = {
 export function createCronScheduler(deps: {
   store: ConversationStore
   fire: (sessionId: string, goal: string, onComplete: (status: string, error?: string) => void) => { taskId: string }
+  /**
+   * Maps the calling session to the session a new job should be owned by and
+   * fired into. Production wires this to the system session so jobs are global
+   * and survive deletion of the conversation that created them. Omitted in
+   * tests → jobs stay bound to the caller session.
+   */
+  resolveJobSession?: (fromSessionId: string) => string
 }): CronScheduler {
-  const { store, fire } = deps
+  const { store, fire, resolveJobSession } = deps
   const live = new Map<string, CronJob>()
 
   // The body that runs each time a job ticks. Lazy-cleans jobs whose session
@@ -116,9 +123,12 @@ export function createCronScheduler(deps: {
 
   return {
     add({ sessionId, cron, goal, name }) {
+      // Route ownership to the resolved (system) session so the job is global,
+      // not tied to the conversation that issued schedule_task.
+      const ownerSessionId = resolveJobSession ? resolveJobSession(sessionId) : sessionId
       const job: StoredCronJob = {
         id: ulid(),
-        sessionId,
+        sessionId: ownerSessionId,
         name: name ?? null,
         cron,
         goal,
