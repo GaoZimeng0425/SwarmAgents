@@ -611,9 +611,16 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
     taskLog.info({ msg: 'agent.prompt starting', sessionId })
     const t0 = Date.now()
     let promptError: unknown = null
+    // pi does NOT throw on a failed model/transport request: prompt() resolves
+    // with a final AssistantMessage carrying stopReason 'error' + errorMessage.
+    // Capture it so that failure isn't misread as a successful (empty) turn.
+    let promptResult: { stopReason?: string; errorMessage?: string } | undefined
     try {
-      await agent.prompt(goal, images && images.length > 0 ? images : undefined)
-      taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0 })
+      promptResult = (await agent.prompt(goal, images && images.length > 0 ? images : undefined)) as {
+        stopReason?: string
+        errorMessage?: string
+      }
+      taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0, stopReason: promptResult?.stopReason })
     } catch (err) {
       // An abort (cancel/budget) may surface here; stopCause disambiguates it
       // from a genuine failure below.
@@ -678,6 +685,25 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
         ts: Date.now(),
       })
       return { status: 'failed', summary: '' }
+    }
+
+    // pi reports a failed model/transport request by resolving (not throwing)
+    // with stopReason 'error'. Surface it as a failure with the provider's
+    // message instead of silently returning an empty "completed" turn — without
+    // this the user sees no reply and the error never reaches the log.
+    if (promptResult?.stopReason === 'error') {
+      const message = promptResult.errorMessage ?? 'The model request failed without a message.'
+      taskLog.error({
+        msg: 'agent.prompt resolved with error stopReason',
+        errorMessage: promptResult.errorMessage,
+        durationMs: Date.now() - t0,
+      })
+      emit('task.error', {
+        taskId: task.id,
+        error: { code: 'agent_request_failed', message, tier: 'fatal' },
+        ts: Date.now(),
+      })
+      return { status: 'failed', summary: translator.getFinalSummary() }
     }
 
     return { status: 'completed', summary: translator.getFinalSummary() }
