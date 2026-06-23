@@ -10,8 +10,8 @@ import type { Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shar
 import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
-import { createMailbox } from './actor-mailbox'
-import { decodeActorState } from './actor-state'
+import { createMailbox } from './actor/mailbox'
+import { decodeActorState } from './actor/state'
 import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
 import { withAgentTypes } from './agents/prompt'
 import type { AgentStore } from './agents/store'

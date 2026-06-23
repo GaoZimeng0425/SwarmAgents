@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { encodeActorState } from './actor-state'
+import { encodeActorState } from './actor/state'
 
 const initialMessagesSeen: any[][] = []
 vi.mock('./agent-runner', () => ({
