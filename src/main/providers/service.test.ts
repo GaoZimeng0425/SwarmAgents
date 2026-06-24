@@ -43,7 +43,7 @@ const customRow: Provider = {
 const state = (over: Partial<ProvidersStateOnDisk> = {}): ProvidersStateOnDisk => ({ ...empty, ...over })
 const find = (s: ProvidersStateOnDisk, id: string) => s.providers.find((p) => p.id === id)
 
-describe('service (v3)', () => {
+describe('service (v4)', () => {
   it('init populates state and view from the store', async () => {
     const svc = await createService({ store: makeStore(state({ active: 'anthropic', providers: [anthropic] })) })
     expect(svc.getState().active).toBe('anthropic')

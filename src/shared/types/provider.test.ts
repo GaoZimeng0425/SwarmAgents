@@ -27,7 +27,7 @@ const builtinRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-describe('provider schemas (v3)', () => {
+describe('provider schemas (v4)', () => {
   it('BuiltinProviderId accepts only anthropic and openai', () => {
     expect(BuiltinProviderId.parse('anthropic')).toBe('anthropic')
     expect(BuiltinProviderId.parse('openai')).toBe('openai')
