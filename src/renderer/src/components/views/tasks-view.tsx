@@ -8,7 +8,7 @@ import { ConversationThread } from '@/components/conversation-thread'
 import { RightPanel } from '@/components/right-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
+import { useCancelTask, useDecidePermission, useInterruptWith, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
@@ -21,6 +21,8 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
   const submitGoal = useSubmitGoal()
   const decide = useDecidePermission()
+  const cancelTask = useCancelTask()
+  const interruptWith = useInterruptWith()
   const { ready, state } = useProviders()
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
@@ -28,9 +30,9 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // event reducer prepends newest-first, so find() yields the active run.
   // 'awaiting_user' counts as in-flight: the run is blocked on a permission
   // prompt but still cancellable, and no event resets it back to 'running'.
-  const activeTask = sessionTasks.find(
-    (t) => t.status === 'running' || t.status === 'pending' || t.status === 'awaiting_user'
-  )
+  const runningTask = sessionTasks.find((t) => t.status === 'running' || t.status === 'awaiting_user')
+  // Sort pending tasks ascending by startedAt (creation order) so the overlay renders FIFO.
+  const queuedTasks = sessionTasks.filter((t) => t.status === 'pending').sort((a, b) => a.startedAt - b.startedAt)
   const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
   const byRecent = [...sessionTasks].sort((a, b) => b.startedAt - a.startedAt)
   // Most recent plan in the session (the agent replaces it wholesale).
@@ -82,8 +84,18 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
             decide.mutate({ sessionId: p.sessionId, actionId, decision })
           }}
           prompts={sessionPrompts}
-          running={!!activeTask}
+          running={!!runningTask}
           todos={activePlan ?? []}
+          onStopRunning={() => {
+            if (runningTask) cancelTask.mutate({ sessionId: runningTask.sessionId, taskId: runningTask.id })
+          }}
+          queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}
+          onCancelQueued={(taskId) => {
+            if (selectedSessionId) cancelTask.mutate({ sessionId: selectedSessionId, taskId })
+          }}
+          onInterrupt={(taskId) => {
+            if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, taskId })
+          }}
         />
         <ChatInput
           cacheReadTokens={latestTask?.used?.cacheRead}

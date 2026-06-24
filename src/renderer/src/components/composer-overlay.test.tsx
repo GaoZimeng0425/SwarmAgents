@@ -56,4 +56,47 @@ describe('ComposerOverlay', () => {
     const { container } = render(<ComposerOverlay onDecide={() => {}} prompts={[]} running={false} todos={todos} />)
     expect(container).toBeEmptyDOMElement()
   })
+
+  const queued = [
+    { id: 'q1', sessionId: 'sess-1', goal: '修复登录 bug' },
+    { id: 'q2', sessionId: 'sess-1', goal: '加个导航' },
+  ]
+
+  it('renders a stop control while running and fires onStopRunning', () => {
+    const onStopRunning = vi.fn()
+    render(
+      <ComposerOverlay
+        onDecide={() => {}}
+        prompts={[]}
+        running
+        todos={[]}
+        queued={[]}
+        onStopRunning={onStopRunning}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /停止|stop/i }))
+    expect(onStopRunning).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders one queued card per pending task with cancel + interrupt', () => {
+    const onCancelQueued = vi.fn()
+    const onInterrupt = vi.fn()
+    render(
+      <ComposerOverlay
+        onDecide={() => {}}
+        prompts={[]}
+        running
+        todos={[]}
+        queued={queued}
+        onCancelQueued={onCancelQueued}
+        onInterrupt={onInterrupt}
+      />
+    )
+    expect(screen.getByText('修复登录 bug')).toBeInTheDocument()
+    expect(screen.getByText('加个导航')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: /取消排队|cancel/i })[0])
+    expect(onCancelQueued).toHaveBeenCalledWith('q1')
+    fireEvent.click(screen.getAllByRole('button', { name: /打断|interrupt/i })[1])
+    expect(onInterrupt).toHaveBeenCalledWith('q2')
+  })
 })
