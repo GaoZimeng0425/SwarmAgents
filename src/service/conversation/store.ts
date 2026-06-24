@@ -56,6 +56,7 @@ export type ConversationStore = {
   listSessions(): import('@shared/types/ui').SessionSummary[]
   setSessionTitle(id: string, title: string): void
   setSessionPinned(id: string, pinned: boolean): void
+  setSessionSettings(id: string, settings: import('@shared/types/ui').SessionSettings): void
   reorderSessions(orderedIds: string[]): void
   deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
@@ -117,7 +118,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
       title             TEXT,
       agent_snapshot    TEXT NOT NULL DEFAULT '[]',
       pinned            INTEGER NOT NULL DEFAULT 0,
-      sort_order        INTEGER NOT NULL DEFAULT 0
+      sort_order        INTEGER NOT NULL DEFAULT 0,
+      cwd               TEXT,
+      permission_mode   TEXT,
+      execution_mode    TEXT
     );
     CREATE TABLE IF NOT EXISTS tasks (
       id                  TEXT PRIMARY KEY,
@@ -209,6 +213,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE sessions ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE sessions ADD COLUMN cwd TEXT',
+    'ALTER TABLE sessions ADD COLUMN permission_mode TEXT',
+    'ALTER TABLE sessions ADD COLUMN execution_mode TEXT',
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
@@ -452,10 +459,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
     `SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
+            s.cwd, s.permission_mode AS permissionMode, s.execution_mode AS executionMode,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
      FROM sessions s
      WHERE s.status != 'ended'
      ORDER BY s.pinned DESC, s.sort_order ASC`
+  )
+  const stmtSetSessionSettings = db.prepare(
+    'UPDATE sessions SET cwd = ?, permission_mode = ?, execution_mode = ? WHERE id = ?'
   )
 
   // Hard-delete a session and everything that references it (FK constraints
@@ -534,7 +545,18 @@ export function createConversationStore(dbPath: string): ConversationStore {
         pinned: Boolean(r.pinned),
         sortOrder: r.sortOrder as number,
         isSystem: (r.id as string) === SYSTEM_SESSION_ID,
+        cwd: (r.cwd as string | null) ?? undefined,
+        permissionMode: (r.permissionMode as 'ask' | 'full' | null) ?? undefined,
+        executionMode: (r.executionMode as 'goal' | 'plan' | null) ?? undefined,
       }))
+    },
+    setSessionSettings(id, settings) {
+      stmtSetSessionSettings.run(
+        settings.cwd ?? null,
+        settings.permissionMode ?? null,
+        settings.executionMode ?? null,
+        id
+      )
     },
     setSessionTitle(id, title) {
       stmtSetTitle.run(title, id)

@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@shared/types/ui'
+import type { SessionSettings, SessionSummary } from '@shared/types/ui'
 import { create } from 'zustand'
 
 type SessionsStore = {
@@ -14,6 +14,9 @@ type SessionsStore = {
   // Flag a background session as unread. No-op for the session being viewed.
   markUnread: (id: string) => void
   reorder: (orderedIds: string[]) => void
+  // Optimistically merge persisted composer settings into a session entry
+  // (no-op if the session isn't in the store yet).
+  setSettings: (id: string, settings: SessionSettings) => void
 }
 
 // The system session ("定时任务") always sits at the very top; then pinned
@@ -66,4 +69,6 @@ export const useSessionsStore = create<SessionsStore>((set) => ({
         .sort(byPinnedThenSortOrder)
       return { sessions }
     }),
+  setSettings: (id, settings) =>
+    set((state) => ({ sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...settings } : s)) })),
 }))

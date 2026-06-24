@@ -78,6 +78,11 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         manager.setSessionPinned(sessionId, pinned)
         return { ok: true }
       }
+      case 'updateSessionSettings': {
+        const [sessionId, settings] = args as [string, import('@shared/types/ui').SessionSettings]
+        manager.updateSessionSettings(sessionId, settings)
+        return { ok: true }
+      }
       case 'reorderSessions': {
         const [orderedIds] = args as [string[]]
         manager.reorderSessions(orderedIds)

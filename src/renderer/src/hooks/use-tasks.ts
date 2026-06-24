@@ -41,6 +41,18 @@ export function useSubmitGoal() {
         useSessionsStore.getState().select(sessionId)
       }
       await swarmApi.submitGoal(sessionId, goal, attachments, options)
+      // Persist the turn's composer controls onto the session so it reopens with
+      // them — covers the home-composer first turn, where the session was just
+      // created with no settings yet.
+      if (options) {
+        const settings = {
+          cwd: options.cwd,
+          permissionMode: options.permissionMode,
+          executionMode: options.executionMode,
+        }
+        void swarmApi.updateSessionSettings(sessionId, settings)
+        useSessionsStore.getState().setSettings(sessionId, settings)
+      }
       return { sessionId }
     },
   })

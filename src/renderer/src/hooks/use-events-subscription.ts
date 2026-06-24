@@ -111,6 +111,11 @@ export function useEventsSubscription(): void {
           pinned: existing?.pinned ?? false,
           sortOrder: existing?.sortOrder ?? 0,
           isSystem: e.sessionId === SYSTEM_SESSION_ID,
+          // session.created/updated events don't carry composer settings; keep
+          // whatever the list/optimistic update already stored for this session.
+          cwd: existing?.cwd,
+          permissionMode: existing?.permissionMode,
+          executionMode: existing?.executionMode,
         })
       }
       if (e.kind === 'memory.changed') {

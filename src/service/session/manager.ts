@@ -102,6 +102,7 @@ export type SessionManager = {
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
   setSessionPinned(sessionId: string, pinned: boolean): void
+  updateSessionSettings(sessionId: string, settings: import('@shared/types/ui').SessionSettings): void
   reorderSessions(orderedIds: string[]): void
   listSessions(): import('@shared/types/ui').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
@@ -795,6 +796,17 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     setSessionPinned(sessionId, pinned) {
       store.setSessionPinned(sessionId, pinned)
+    },
+
+    updateSessionSettings(sessionId, settings) {
+      store.setSessionSettings(sessionId, settings)
+      log.info({
+        msg: 'session settings updated',
+        sessionId,
+        cwd: settings.cwd ?? null,
+        permissionMode: settings.permissionMode ?? null,
+        executionMode: settings.executionMode ?? null,
+      })
     },
 
     reorderSessions(orderedIds) {

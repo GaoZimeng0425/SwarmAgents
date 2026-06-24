@@ -144,6 +144,12 @@ export function wireSwarmIpc(args: {
   const setSessionPinned = (_e: Electron.IpcMainInvokeEvent, sessionId: string, pinned: boolean) =>
     serviceClient.setSessionPinned(sessionId, pinned)
 
+  const updateSessionSettings = (
+    _e: Electron.IpcMainInvokeEvent,
+    sessionId: string,
+    settings: import('@shared/types/ui').SessionSettings
+  ) => serviceClient.updateSessionSettings(sessionId, settings)
+
   const reorderSessions = (_e: Electron.IpcMainInvokeEvent, orderedIds: string[]) =>
     serviceClient.reorderSessions(orderedIds)
 
@@ -205,6 +211,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:deleteSession', deleteSession)
   ipcMain.handle('swarm:renameSession', renameSession)
   ipcMain.handle('swarm:setSessionPinned', setSessionPinned)
+  ipcMain.handle('swarm:updateSessionSettings', updateSessionSettings)
   ipcMain.handle('swarm:reorderSessions', reorderSessions)
   ipcMain.handle('swarm:submitGoal', submitGoal)
   ipcMain.handle('swarm:cancelTask', cancelTask)
@@ -307,6 +314,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:deleteSession')
       ipcMain.removeHandler('swarm:renameSession')
       ipcMain.removeHandler('swarm:setSessionPinned')
+      ipcMain.removeHandler('swarm:updateSessionSettings')
       ipcMain.removeHandler('swarm:reorderSessions')
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')

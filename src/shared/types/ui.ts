@@ -13,7 +13,16 @@ import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverri
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
-import type { Attachment, ConsumedResources, PlanTodo, TaskEvent, TaskOptions, TaskResult } from './task'
+import type {
+  Attachment,
+  ConsumedResources,
+  ExecutionMode,
+  PermissionMode,
+  PlanTodo,
+  TaskEvent,
+  TaskOptions,
+  TaskResult,
+} from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
@@ -88,6 +97,17 @@ export type SessionSummary = {
   sortOrder: number
   /** True only for the dedicated system session that owns all global cron jobs. */
   isSystem: boolean
+  /** Composer controls remembered per session; restored when the session reopens. */
+  cwd?: string
+  permissionMode?: PermissionMode
+  executionMode?: ExecutionMode
+}
+
+/** The per-session composer controls persisted on the session row. */
+export type SessionSettings = {
+  cwd?: string
+  permissionMode?: PermissionMode
+  executionMode?: ExecutionMode
 }
 
 export type CronJobSummary = {
@@ -259,6 +279,7 @@ export type SwarmBridge = {
     rename(sessionId: string, title: string): Promise<void>
     setPinned(sessionId: string, pinned: boolean): Promise<void>
     reorder(orderedIds: string[]): Promise<void>
+    updateSettings(sessionId: string, settings: SessionSettings): Promise<void>
   }
   usage: {
     get(rangeDays: number): Promise<import('./usage').UsageStats>

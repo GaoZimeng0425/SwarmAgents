@@ -175,6 +175,8 @@ const swarm: SwarmBridge = {
       ipcRenderer.invoke('swarm:renameSession', sessionId, title) as Promise<void>,
     setPinned: (sessionId: string, pinned: boolean) =>
       ipcRenderer.invoke('swarm:setSessionPinned', sessionId, pinned) as Promise<void>,
+    updateSettings: (sessionId: string, settings: import('../shared/types/ui').SessionSettings) =>
+      ipcRenderer.invoke('swarm:updateSessionSettings', sessionId, settings) as Promise<void>,
     reorder: (orderedIds: string[]) => ipcRenderer.invoke('swarm:reorderSessions', orderedIds) as Promise<void>,
   },
   usage: {
