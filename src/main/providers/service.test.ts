@@ -303,4 +303,13 @@ describe('per-model metadata (v4)', () => {
     expect(inj?.contextWindow).toBe(256000)
     expect(inj?.pricing).toEqual({ inputPerM: 1, outputPerM: 2 })
   })
+
+  it('mergeModelMeta drops modelMeta entirely when all incoming keys are unknown', async () => {
+    const store = makeStore(state({ providers: [customRow] }))
+    const svc = await createService({ store })
+    // customRow has no prior modelMeta; 'unknown-model' is not in models -> all ignored
+    const r = await svc.mergeModelMeta('c1', { 'unknown-model': { contextWindow: 9 } })
+    expect(r.ok).toBe(true)
+    expect(find(svc.getState(), 'c1')?.modelMeta).toBeUndefined()
+  })
 })

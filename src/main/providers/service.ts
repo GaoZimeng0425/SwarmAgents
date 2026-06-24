@@ -195,7 +195,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         apiKey: p.apiKey,
         ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
         ...(p.thinkingLevel ? { thinkingLevel: p.thinkingLevel } : {}),
-        ...(meta?.contextWindow ? { contextWindow: meta.contextWindow } : {}),
+        ...(meta?.contextWindow != null ? { contextWindow: meta.contextWindow } : {}),
         ...(meta?.pricing ? { pricing: meta.pricing } : {}),
       }
     },
@@ -294,6 +294,10 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       for (const [model, incoming] of Object.entries(map)) {
         if (!p.models.includes(model)) continue // ignore models not in the list
         meta[model] = { ...(meta[model] ?? {}), ...incoming }
+      }
+      if (Object.keys(meta).length === 0) {
+        const { modelMeta: _omit, ...rest } = p
+        return persist(replaceProvider(id, rest))
       }
       return persist(replaceProvider(id, { ...p, modelMeta: meta }))
     },
