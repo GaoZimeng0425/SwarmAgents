@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useProviders } from '@/hooks/use-providers'
 import { cn } from '@/lib/utils'
+import { Section, SettingsHeader } from './settings-primitives'
 
 // Display name for any provider id: the configured row's name, else the built-in
 // default, else a generic fallback (an unconfigured custom id should never reach
@@ -78,15 +79,15 @@ export function ProvidersView(): React.JSX.Element {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="font-medium text-lg">模型设置</h2>
-          <p className="mt-1 text-muted-foreground text-sm">管理自定义模型供应商，配置后可在聊天时选择使用。</p>
-        </div>
-        <Button onClick={refetch} size="icon-sm" title="刷新" variant="ghost">
-          <RefreshCw />
-        </Button>
-      </div>
+      <SettingsHeader
+        action={
+          <Button onClick={refetch} size="icon-sm" title="刷新" variant="ghost">
+            <RefreshCw />
+          </Button>
+        }
+        description="管理自定义模型供应商，配置后可在聊天时选择使用。"
+        title="模型设置"
+      />
 
       {decryptFailed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
@@ -284,15 +285,6 @@ function NameHeader({ id, name, isBuiltin }: { id: string; name: string; isBuilt
         </button>
       )}
     </>
-  )
-}
-
-function Section({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
-  return (
-    <div className="space-y-2">
-      <div className="font-medium text-sm">{label}</div>
-      {children}
-    </div>
   )
 }
 

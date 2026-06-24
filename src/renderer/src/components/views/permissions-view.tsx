@@ -3,6 +3,7 @@ import type { MacPermissionState, MacPermissions } from '@shared/types/ui'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { SettingsHeader } from './settings-primitives'
 
 const STATE_LABEL: Record<MacPermissionState, { text: string; variant: 'secondary' | 'destructive' | 'outline' }> = {
   granted: { text: 'Granted', variant: 'secondary' },
@@ -25,13 +26,11 @@ export function PermissionsView(): React.JSX.Element {
   const isMac = perms !== null && perms.screenRecording !== 'unsupported'
 
   return (
-    <div className="max-w-xl space-y-6">
-      <section className="space-y-2">
-        <h2 className="font-medium text-lg">Permissions</h2>
-        <p className="text-muted-foreground text-sm">
-          Default policy: prompt on medium and high. Per-tool overrides coming in a later release.
-        </p>
-      </section>
+    <div className="max-w-2xl space-y-5">
+      <SettingsHeader
+        description="Default policy: prompt on medium and high. Per-tool overrides coming in a later release."
+        title="Permissions"
+      />
 
       {isMac && (
         <section className="space-y-3">

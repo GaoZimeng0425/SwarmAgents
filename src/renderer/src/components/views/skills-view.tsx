@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useSkills } from '@/hooks/use-skills'
+import { SettingsHeader } from './settings-primitives'
 
 export function SkillsView(): React.JSX.Element {
   const { skills, setSkills, reload } = useSkills()
@@ -43,28 +44,30 @@ export function SkillsView(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="font-semibold text-xl">Skills</h2>
-          <p className="text-muted-foreground text-sm">
+    <div className="max-w-2xl space-y-4">
+      <SettingsHeader
+        action={
+          <div className="flex shrink-0 gap-2">
+            <Button className="gap-1.5" onClick={() => void window.swarm.openUserDataDir()} variant="outline">
+              <FolderOpen className="size-4" />
+              Open data folder
+            </Button>
+            <Button className="gap-1.5" onClick={() => void runImport()}>
+              <FolderInput className="size-4" />
+              Import skill folder
+            </Button>
+          </div>
+        }
+        description={
+          <>
             Reusable instruction folders. Import a folder containing a{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">SKILL.md</code> plus any scripts or resources. The
             agent sees each skill's name + description and loads the full body on demand via the{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">use_skill</code> tool.
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <Button className="gap-1.5" onClick={() => void window.swarm.openUserDataDir()} variant="outline">
-            <FolderOpen className="size-4" />
-            Open data folder
-          </Button>
-          <Button className="gap-1.5" onClick={() => void runImport()}>
-            <FolderInput className="size-4" />
-            Import skill folder
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+        title="Skills"
+      />
 
       {skills.length === 0 ? (
         <p className="text-muted-foreground text-sm">No skills yet. Import one above.</p>

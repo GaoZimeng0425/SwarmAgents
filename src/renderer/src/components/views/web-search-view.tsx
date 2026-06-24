@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useWebSearch } from '@/hooks/use-web-search'
+import { Section, SettingsHeader } from './settings-primitives'
 
 const PROVIDER_OPTIONS: { value: WebSearchProviderId; label: string; hint: string }[] = [
   { value: 'auto', label: 'Auto', hint: 'Pick the first backend with a key (Tavily → Brave → SearXNG → DuckDuckGo).' },
@@ -18,14 +19,16 @@ export function WebSearchView(): React.JSX.Element {
   const state = useWebSearch()
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="font-medium text-lg">Web Search</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Choose the backend the <code>web_search</code> tool uses. API keys are encrypted at rest using the system
-          Keychain. An empty key falls back to the matching environment variable.
-        </p>
-      </div>
+    <div className="max-w-2xl space-y-5">
+      <SettingsHeader
+        description={
+          <>
+            Choose the backend the <code>web_search</code> tool uses. API keys are encrypted at rest using the system
+            Keychain. An empty key falls back to the matching environment variable.
+          </>
+        }
+        title="Web Search"
+      />
 
       <ProviderPicker state={state} />
 
@@ -53,8 +56,7 @@ function ProviderPicker({ state }: { state: WebSearchConfigView }): React.JSX.El
   }
   const hint = PROVIDER_OPTIONS.find((o) => o.value === state.provider)?.hint
   return (
-    <div className="space-y-2">
-      <div className="font-medium text-sm">Provider</div>
+    <Section label="Provider">
       <Select
         onValueChange={(v) => {
           if (v) void onChange(v)
@@ -74,7 +76,7 @@ function ProviderPicker({ state }: { state: WebSearchConfigView }): React.JSX.El
       </Select>
       {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
       {error && <p className="text-destructive text-xs">{error}</p>}
-    </div>
+    </Section>
   )
 }
 

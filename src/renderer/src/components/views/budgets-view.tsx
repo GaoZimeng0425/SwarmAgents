@@ -5,6 +5,7 @@ import type { ResourceBudget } from '@shared/types/task'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useBudgets } from '@/hooks/use-budgets'
+import { SettingsHeader } from './settings-primitives'
 
 // Fields are edited in friendly units (seconds, USD) and converted to the stored
 // units (wallMs, usdCents) at the IPC boundary.
@@ -56,14 +57,16 @@ export function BudgetsView(): React.JSX.Element {
   const dirty = !sameConfig(draft, config)
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="font-medium text-lg">Budgets</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Per-task spending caps. A task stops once it hits any limit. <strong>Main agent</strong> applies to tasks you
-          start; <strong>Sub-agent</strong> applies to each agent spawned via <code>spawn_sub_agent</code>.
-        </p>
-      </div>
+    <div className="max-w-2xl space-y-5">
+      <SettingsHeader
+        description={
+          <>
+            Per-task spending caps. A task stops once it hits any limit. <strong>Main agent</strong> applies to tasks
+            you start; <strong>Sub-agent</strong> applies to each agent spawned via <code>spawn_sub_agent</code>.
+          </>
+        }
+        title="Budgets"
+      />
 
       <BudgetSection budget={draft.main} onChange={(k, v) => setField('main', k, v)} title="Main agent" />
 

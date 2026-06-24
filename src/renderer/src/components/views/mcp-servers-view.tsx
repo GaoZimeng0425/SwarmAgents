@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useMcpServers } from '@/hooks/use-mcp-servers'
+import { SettingsHeader } from './settings-primitives'
 
 const RISKS: McpToolRisk[] = ['low', 'medium', 'high']
 
@@ -378,14 +379,11 @@ export function McpServersView(): React.JSX.Element {
   const { servers } = useMcpServers()
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <div>
-        <h2 className="font-semibold text-xl">MCP Servers</h2>
-        <p className="text-muted-foreground text-sm">
-          Connect Model Context Protocol servers to give agents extra tools. Tools default to medium risk (require
-          confirmation); adjust per tool below.
-        </p>
-      </div>
+    <div className="max-w-2xl space-y-4">
+      <SettingsHeader
+        description="Connect Model Context Protocol servers to give agents extra tools. Tools default to medium risk (require confirmation); adjust per tool below."
+        title="MCP Servers"
+      />
       <AddServerForm />
       {servers.length === 0 ? (
         <p className="text-muted-foreground text-sm">No servers yet. Add one above.</p>
