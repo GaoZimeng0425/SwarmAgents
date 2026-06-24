@@ -106,6 +106,7 @@ describe('provider schemas (v3)', () => {
     expect(anthropic?.name).toBe('Anthropic')
     expect(anthropic?.models).toEqual(['claude-sonnet-4-5', 'claude-haiku-4-5'])
     expect(anthropic?.model).toBe('claude-sonnet-4-5')
+    expect(anthropic?.modelMeta).toBeUndefined()
     expect(migrated?.providers.find((p) => p.id === 'openai')).toBeUndefined()
     const custom = migrated?.providers.find((p) => p.id === 'c1')
     expect(custom?.registry).toBeUndefined()
