@@ -16,6 +16,7 @@ import type {
   PermissionDecision,
   ProvidersAddResult,
   ProvidersBridge,
+  ProvidersFetchModelInfoResult,
   ProvidersSetResult,
   ProvidersTestResult,
   SkillBridge,
@@ -57,8 +58,10 @@ const providers: ProvidersBridge = {
     ipcRenderer.invoke('providers:setApiStyle', id, style) as Promise<ProvidersSetResult>,
   setThinkingLevel: (id: string, level: ModelThinkingLevel) =>
     ipcRenderer.invoke('providers:setThinkingLevel', id, level) as Promise<ProvidersSetResult>,
-  setContextWindow: (id: string, contextWindow: number | null) =>
-    ipcRenderer.invoke('providers:setContextWindow', id, contextWindow) as Promise<ProvidersSetResult>,
+  setModelContextWindow: (id: string, model: string, contextWindow: number | null) =>
+    ipcRenderer.invoke('providers:setModelContextWindow', id, model, contextWindow) as Promise<ProvidersSetResult>,
+  fetchModelInfo: (id: string) =>
+    ipcRenderer.invoke('providers:fetchModelInfo', id) as Promise<ProvidersFetchModelInfoResult>,
   addCustomProvider: (input: AddCustomProviderInput) =>
     ipcRenderer.invoke('providers:addCustomProvider', input) as Promise<ProvidersAddResult>,
   removeCustomProvider: (id: string) =>

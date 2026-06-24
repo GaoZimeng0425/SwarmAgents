@@ -6,9 +6,10 @@
 // a test handler. Broadcasts state changes to all renderer windows and fires a
 // one-shot decrypt-failed event at boot when applicable.
 import { createLogger } from '@shared/logger'
-import { type ApiStyle, ModelThinkingLevel } from '@shared/types/provider'
+import { type ApiStyle, type ModelMeta, ModelThinkingLevel } from '@shared/types/provider'
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 
+import { fetchCatalog, lookupModel } from './openrouter'
 import type { AddCustomInput, Service } from './service'
 import { testConnection } from './test-connection'
 
@@ -112,15 +113,50 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
   })
 
   ipcMain.handle(
-    'providers:setContextWindow',
-    (_e: Electron.IpcMainInvokeEvent, p: unknown, contextWindow: unknown) => {
+    'providers:setModelContextWindow',
+    (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown, contextWindow: unknown) => {
       const id = asId(p)
       if (!id) return badId
+      if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
       if (contextWindow !== null && typeof contextWindow !== 'number')
         return { ok: false, code: 'invalid', message: 'contextWindow must be a number or null' }
-      return service.setContextWindow(id, contextWindow)
+      return service.setModelContextWindow(id, model, contextWindow)
     }
   )
+
+  ipcMain.handle('providers:fetchModelInfo', async (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+    const id = asId(p)
+    if (!id) return { ok: false as const, code: 'invalid' as const, message: 'invalid provider id' }
+    const provider = service.getState().providers.find((x) => x.id === id)
+    if (!provider) return { ok: false as const, code: 'invalid' as const, message: `unknown provider "${id}"` }
+    if (provider.registry)
+      return {
+        ok: false as const,
+        code: 'invalid' as const,
+        message: 'OpenRouter fetch applies to custom providers only',
+      }
+    log.info({ msg: 'fetch model info', id, total: provider.models.length })
+    let catalog: Awaited<ReturnType<typeof fetchCatalog>>
+    try {
+      catalog = await fetchCatalog()
+    } catch (e) {
+      log.error({ msg: 'fetch model info network failure', id, err: e instanceof Error ? e.message : String(e) })
+      return { ok: false as const, code: 'network' as const, message: e instanceof Error ? e.message : String(e) }
+    }
+    const map: Record<string, ModelMeta> = {}
+    const unmatched: string[] = []
+    for (const m of provider.models) {
+      const meta = lookupModel(catalog, m)
+      if (meta) map[m] = meta
+      else unmatched.push(m)
+    }
+    const r = await service.mergeModelMeta(id, map)
+    if (!r.ok) return { ok: false as const, code: 'invalid' as const, message: r.message }
+    if (unmatched.length) log.warn({ msg: 'models unmatched on openrouter', id, unmatched })
+    const matched = provider.models.length - unmatched.length
+    log.info({ msg: 'fetch model info done', id, matched, total: provider.models.length })
+    return { ok: true as const, matched, total: provider.models.length, unmatched }
+  })
 
   ipcMain.handle('providers:setBaseUrl', (_e: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
     const id = asId(p)
@@ -188,7 +224,8 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     'providers:removeCustomModel',
     'providers:setApiStyle',
     'providers:setThinkingLevel',
-    'providers:setContextWindow',
+    'providers:setModelContextWindow',
+    'providers:fetchModelInfo',
     'providers:setBaseUrl',
     'providers:addCustomProvider',
     'providers:removeCustomProvider',

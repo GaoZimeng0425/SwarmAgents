@@ -169,6 +169,10 @@ export type ProvidersTestResult =
       url?: string
     }
 
+export type ProvidersFetchModelInfoResult =
+  | { ok: true; matched: number; total: number; unmatched: string[] }
+  | { ok: false; code: 'invalid' | 'network'; message: string }
+
 export type ProvidersBridge = {
   get(): Promise<ProvidersStateView>
   /** id is a builtin id ('anthropic'|'openai') or a custom provider id. */
@@ -185,8 +189,10 @@ export type ProvidersBridge = {
   setApiStyle(id: string, style: ApiStyle): Promise<ProvidersSetResult>
   /** Set the reasoning depth for a provider's model. */
   setThinkingLevel(id: string, level: ModelThinkingLevel): Promise<ProvidersSetResult>
-  /** Custom providers only. Pass null to reset to the default window. */
-  setContextWindow(id: string, contextWindow: number | null): Promise<ProvidersSetResult>
+  /** Custom providers only. Set/clear one model's context window. Pass null to clear. */
+  setModelContextWindow(id: string, model: string, contextWindow: number | null): Promise<ProvidersSetResult>
+  /** Custom providers only. Pull per-model context + pricing from OpenRouter for all models. */
+  fetchModelInfo(id: string): Promise<ProvidersFetchModelInfoResult>
   // Custom-provider lifecycle.
   addCustomProvider(input: AddCustomProviderInput): Promise<ProvidersAddResult>
   removeCustomProvider(id: string): Promise<ProvidersSetResult>
