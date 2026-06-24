@@ -83,4 +83,12 @@ describe('ToolRegistry', () => {
     const { tools } = r.resolve(['notion.*'], ctx)
     expect(tools.map((t) => t.name)).toEqual(['search'])
   })
+
+  it('excludes privileged "authoring" group from the * wildcard but grants it on explicit authoring.*', () => {
+    const reg = createToolRegistry()
+    reg.register(spec('authoring', 'write_agent', 'medium'))
+    expect(reg.resolve(['*'], ctx).tools.map((t) => t.name)).not.toContain('write_agent')
+    expect(reg.resolve(['all'], ctx).tools.map((t) => t.name)).not.toContain('write_agent')
+    expect(reg.resolve(['authoring.*'], ctx).tools.map((t) => t.name)).toContain('write_agent')
+  })
 })

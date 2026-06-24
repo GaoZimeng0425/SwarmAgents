@@ -114,7 +114,7 @@ describe('createAgentStore', () => {
       name: 'Training Lead',
       description: 'Use to coordinate the agent-training team.',
       systemPrompt: 'You lead the training team.',
-      toolScope: 'all' as const,
+      toolScope: 'authoring' as const,
       role: 'training-head',
       capabilities: ['agent-authoring', 'skill-authoring'],
       team: 'training',

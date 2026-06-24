@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'all'])
+export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'authoring', 'all'])
 export type ToolScope = z.infer<typeof ToolScopeSchema>
 
 export const AgentDefinitionSchema = z.object({
@@ -72,5 +72,10 @@ export function deriveAllowlist(scope: ToolScope): string[] {
       return ['fs.*', 'agent.*']
     case 'memory':
       return ['memory.*', 'agent.*']
+    case 'authoring':
+      // Privileged: authoring.* is excluded from '*' (see tools/registry PRIVILEGED_GROUPS),
+      // so only this scope can reach write_agent/write_skill. Plus the coordination
+      // tools a team head needs to delegate and read.
+      return ['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*']
   }
 }

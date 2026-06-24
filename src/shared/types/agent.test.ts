@@ -18,6 +18,9 @@ describe('deriveAllowlist', () => {
   it('memory -> memory + agent', () => {
     expect(deriveAllowlist('memory')).toEqual(['memory.*', 'agent.*'])
   })
+  it('maps the authoring scope to the authoring group plus coordination tools', () => {
+    expect(deriveAllowlist('authoring')).toEqual(['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*'])
+  })
 })
 
 describe('AgentDefinition role + capabilities', () => {
