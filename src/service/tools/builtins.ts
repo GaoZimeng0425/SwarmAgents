@@ -14,6 +14,8 @@ import { renderUiSpec } from './render-ui'
 import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
 import { spawnAgentSpec } from './spawn'
+import { currentTimeSpec } from './time'
+import { getWeatherSpec } from './weather'
 import { webFetchSpec, webSearchSpec } from './web'
 
 const PEEKABOO_RISK: Record<string, ToolRisk> = {
@@ -64,6 +66,8 @@ export function registerBuiltinTools(
   registry.register(updatePlanSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())
+  registry.register(currentTimeSpec())
+  registry.register(getWeatherSpec())
   registry.register(webFetchSpec())
   // No config getter (e.g. tests) → 'auto' with env-var fallback inside web.ts.
   registry.register(webSearchSpec(deps?.getWebSearchConfig ?? (() => ({ provider: 'auto' }))))
