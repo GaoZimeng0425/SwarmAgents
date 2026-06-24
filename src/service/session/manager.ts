@@ -28,10 +28,11 @@ import { createReplyRegistry } from './reply-registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
-// Fixed company roster (approach A). Single source of truth: the seeded actor
-// name equals the agent-def id, and role prompts address teammates by these
-// exact names. The CEO is first — it receives the kickoff goal.
-const COMPANY_ROLES = ['ceo', 'pm', 'engineer', 'reviewer'] as const
+// Fixed company roster. Single source of truth: the seeded actor name equals
+// the agent-def id. The CEO is first — it receives the kickoff goal — and then
+// discovers the team heads (pm = dev, training-head = training) at runtime via
+// find_agents({ teamRole: 'head' }), so heads must be seeded alongside their ICs.
+const COMPANY_ROLES = ['ceo', 'pm', 'engineer', 'reviewer', 'training-head', 'training-author'] as const
 
 // A resident actor sleeps (its loop returns) after this long with an empty mailbox.
 const IDLE_TIMEOUT_MS = 30_000
