@@ -267,14 +267,16 @@ function ManualForm(): React.JSX.Element {
 function AddServerForm(): React.JSX.Element {
   return (
     <div className="rounded-xl border bg-card p-4">
-      <Tabs defaultValue="json">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-medium text-sm">Add a server</h3>
-          <TabsList>
-            <TabsTrigger value="json">Paste JSON</TabsTrigger>
-            <TabsTrigger value="manual">Form</TabsTrigger>
-          </TabsList>
-        </div>
+      <h3 className="mb-3 font-medium text-sm">Add a server</h3>
+      {/* The shared Tabs root defaults to a flex ROW (its `data-horizontal:flex-col`
+          never matches the `data-orientation` attribute), so stack explicitly —
+          the same workaround right-panel uses — to keep the JSON/Form switch on
+          its own line above the inputs instead of beside them. */}
+      <Tabs className="flex-col gap-3" defaultValue="json">
+        <TabsList>
+          <TabsTrigger value="json">Paste JSON</TabsTrigger>
+          <TabsTrigger value="manual">Form</TabsTrigger>
+        </TabsList>
         <TabsContent value="json">
           <PasteJsonForm />
         </TabsContent>
