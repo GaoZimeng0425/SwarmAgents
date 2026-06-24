@@ -204,6 +204,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     if (!next) return
     session.running = next.taskId
     log.info({ msg: 'turn started', sessionId: session.id, taskId: next.taskId, queueDepth: session.pending.length })
+    // Mark this turn as the active run in the UI. The renderer reducer maps
+    // task.dispatched -> status 'running'; without it the turn stays 'pending'
+    // and is misclassified as a queued card. workerId is vestigial in the
+    // single-process model, so it is left empty.
+    makeEmit(session.id)('task.dispatched', { taskId: next.taskId, workerId: '', ts: Date.now() })
     void next.runTurn().finally(() => {
       session.running = null
       pump(session)
