@@ -13,6 +13,7 @@ import {
   defaultProvidersStateOnDisk,
   isBuiltinId,
   MAX_MODELS,
+  type ModelMeta,
   type ModelThinkingLevel,
   type Provider,
   type ProviderInjection,
@@ -54,8 +55,10 @@ export type Service = {
   /** Custom providers only (a built-in's apiStyle is fixed to its wire format). */
   setApiStyle(id: string, style: ApiStyle): Promise<SetResult>
   setThinkingLevel(id: string, level: ModelThinkingLevel): Promise<SetResult>
-  /** Custom providers only. Pass null to reset to the default window. */
-  setContextWindow(id: string, contextWindow: number | null): Promise<SetResult>
+  /** Custom providers only. Set/clear one model's context window. Pass null to clear. */
+  setModelContextWindow(id: string, model: string, contextWindow: number | null): Promise<SetResult>
+  /** Custom providers only. Merge pulled per-model metadata (OpenRouter). Incoming fields override. */
+  mergeModelMeta(id: string, map: Record<string, ModelMeta>): Promise<SetResult>
   // Custom-provider lifecycle.
   addCustomProvider(input: AddCustomInput): Promise<AddResult>
   removeCustomProvider(id: string): Promise<SetResult>
@@ -160,6 +163,22 @@ export async function createService(opts: { store: Store }): Promise<Service> {
     return persist(replaceProvider(id, fn(p)))
   }
 
+  // Set or clear one field of one model's meta, pruning emptied objects so a
+  // cleared field never leaves a dangling {} (and an empty modelMeta is dropped).
+  const withMetaField = (p: Provider, model: string, contextWindow: number | null): Provider => {
+    const meta: Record<string, ModelMeta> = { ...(p.modelMeta ?? {}) }
+    const cur: ModelMeta = { ...(meta[model] ?? {}) }
+    if (contextWindow == null) delete cur.contextWindow
+    else cur.contextWindow = contextWindow
+    if (cur.contextWindow == null && cur.pricing == null) delete meta[model]
+    else meta[model] = cur
+    if (Object.keys(meta).length === 0) {
+      const { modelMeta: _omit, ...rest } = p
+      return rest
+    }
+    return { ...p, modelMeta: meta }
+  }
+
   return {
     getState: () => state,
     getView: () => toView(state),
@@ -167,6 +186,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       if (!state.active) return null
       const p = find(state.active)
       if (!p) return null
+      const meta = p.modelMeta?.[p.model]
       return {
         id: p.id,
         ...(p.registry ? { registry: p.registry } : {}),
@@ -175,7 +195,8 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         apiKey: p.apiKey,
         ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
         ...(p.thinkingLevel ? { thinkingLevel: p.thinkingLevel } : {}),
-        ...(p.contextWindow ? { contextWindow: p.contextWindow } : {}),
+        ...(meta?.contextWindow ? { contextWindow: meta.contextWindow } : {}),
+        ...(meta?.pricing ? { pricing: meta.pricing } : {}),
       }
     },
 
@@ -252,20 +273,29 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       return patch(id, (p) => ({ ...p, thinkingLevel: level }))
     },
 
-    async setContextWindow(id, contextWindow) {
+    async setModelContextWindow(id, model, contextWindow) {
       const p = find(id)
       if (!p) return invalid(`no provider configured for "${id}"`)
       if (!isCustom(p)) return invalid('contextWindow only applies to custom providers')
+      if (!p.models.includes(model)) return invalid(`model "${model}" not in provider "${id}"`)
       if (
         contextWindow !== null &&
         (!Number.isInteger(contextWindow) || contextWindow <= 0 || contextWindow > 10_000_000)
       )
         return invalid('contextWindow must be a positive integer ≤ 10,000,000')
-      if (contextWindow == null) {
-        const { contextWindow: _omit, ...rest } = p
-        return persist(replaceProvider(id, rest))
+      return persist(replaceProvider(id, withMetaField(p, model, contextWindow)))
+    },
+
+    async mergeModelMeta(id, map) {
+      const p = find(id)
+      if (!p) return invalid(`no provider configured for "${id}"`)
+      if (!isCustom(p)) return invalid('modelMeta only applies to custom providers')
+      const meta: Record<string, ModelMeta> = { ...(p.modelMeta ?? {}) }
+      for (const [model, incoming] of Object.entries(map)) {
+        if (!p.models.includes(model)) continue // ignore models not in the list
+        meta[model] = { ...(meta[model] ?? {}), ...incoming }
       }
-      return persist(replaceProvider(id, { ...p, contextWindow }))
+      return persist(replaceProvider(id, { ...p, modelMeta: meta }))
     },
 
     async addCustomProvider(input) {

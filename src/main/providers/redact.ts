@@ -20,7 +20,7 @@ function projectProvider(p: Provider): ProviderView {
     thinkingLevels: modelThinkingLevels(p.registry, p.apiStyle, p.model),
     thinkingLevel: effectiveThinkingLevel(p.registry, p.apiStyle, p.model, p.thinkingLevel),
     ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
-    ...(p.contextWindow ? { contextWindow: p.contextWindow } : {}),
+    ...(p.modelMeta ? { modelMeta: p.modelMeta } : {}),
   }
 }
 

@@ -205,30 +205,23 @@ describe('service (v3)', () => {
     expect(await svc.renameCustomProvider('anthropic', 'X')).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('setApiStyle + setContextWindow apply to custom providers and reject on builtins', async () => {
+  it('setApiStyle applies to custom providers and rejects on builtins', async () => {
     const svc = await createService({
       store: makeStore(state({ active: 'anthropic', providers: [anthropic, customRow] })),
     })
     expect((await svc.setApiStyle('c1', 'anthropic')).ok).toBe(true)
     expect(find(svc.getState(), 'c1')?.apiStyle).toBe('anthropic')
     expect(await svc.setApiStyle('anthropic', 'openai')).toMatchObject({ ok: false, code: 'invalid' })
-
-    expect((await svc.setContextWindow('c1', 1_000_000)).ok).toBe(true)
-    expect(find(svc.getState(), 'c1')?.contextWindow).toBe(1_000_000)
-    expect((await svc.setContextWindow('c1', null)).ok).toBe(true)
-    expect(find(svc.getState(), 'c1')?.contextWindow).toBeUndefined()
-    expect(await svc.setContextWindow('anthropic', 200_000)).toMatchObject({ ok: false, code: 'invalid' })
-    expect(await svc.setContextWindow('c1', 0)).toMatchObject({ ok: false, code: 'invalid' })
   })
 
-  it('getInjection: builtin carries registry + apiStyle; custom threads baseUrl + contextWindow', async () => {
+  it('getInjection: builtin carries registry + apiStyle; custom threads baseUrl + modelMeta', async () => {
     const svc = await createService({
       store: makeStore(
         state({
           active: 'anthropic',
           providers: [
             { ...anthropic, model: 'claude-haiku-4-5', models: ['claude-haiku-4-5'], apiKey: 'sk-y' },
-            { ...customRow, contextWindow: 1_000_000 },
+            { ...customRow, modelMeta: { 'glm-4': { contextWindow: 1_000_000 } } },
           ],
         })
       ),
@@ -265,5 +258,49 @@ describe('service (v3)', () => {
     const svc = await createService({ store })
     expect(await svc.setKey('anthropic', 'sk-x')).toEqual({ ok: false, code: 'persist_failed', message: 'disk full' })
     expect(find(svc.getState(), 'anthropic')).toBeUndefined()
+  })
+})
+
+describe('per-model metadata (v4)', () => {
+  it('setModelContextWindow sets and clears per-model contextWindow on custom providers', async () => {
+    const store = makeStore(state({ active: 'c1', providers: [customRow] }))
+    const svc = await createService({ store })
+    expect(await svc.setModelContextWindow('c1', 'glm-4', 500_000)).toEqual({ ok: true })
+    expect(find(svc.getState(), 'c1')?.modelMeta?.['glm-4']?.contextWindow).toBe(500_000)
+    expect(await svc.setModelContextWindow('c1', 'glm-4', null)).toEqual({ ok: true })
+    expect(find(svc.getState(), 'c1')?.modelMeta?.['glm-4']).toBeUndefined()
+  })
+
+  it('setModelContextWindow rejects built-ins and unknown models', async () => {
+    const svc = await createService({ store: makeStore(state({ providers: [anthropic, customRow] })) })
+    expect((await svc.setModelContextWindow('anthropic', 'claude-sonnet-4-5', 1)).ok).toBe(false)
+    expect((await svc.setModelContextWindow('c1', 'not-a-model', 1)).ok).toBe(false)
+  })
+
+  it('mergeModelMeta merges pulled fields, keeps untouched models, rejects built-ins', async () => {
+    const row = { ...customRow, models: ['glm-4', 'glm-3'], modelMeta: { 'glm-4': { contextWindow: 1 } } }
+    const svc = await createService({ store: makeStore(state({ providers: [row] })) })
+    const r = await svc.mergeModelMeta('c1', {
+      'glm-4': { pricing: { inputPerM: 3, outputPerM: 15 } },
+      'glm-3': { contextWindow: 8000 },
+      unknown: { contextWindow: 9 }, // not in models -> ignored
+    })
+    expect(r.ok).toBe(true)
+    const meta = find(svc.getState(), 'c1')?.modelMeta
+    expect(meta?.['glm-4']).toEqual({ contextWindow: 1, pricing: { inputPerM: 3, outputPerM: 15 } })
+    expect(meta?.['glm-3']).toEqual({ contextWindow: 8000 })
+    expect(meta?.['unknown']).toBeUndefined()
+    expect((await svc.mergeModelMeta('anthropic', {})).ok).toBe(false)
+  })
+
+  it('getInjection carries the active model contextWindow + pricing from modelMeta', async () => {
+    const row = {
+      ...customRow,
+      modelMeta: { 'glm-4': { contextWindow: 256000, pricing: { inputPerM: 1, outputPerM: 2 } } },
+    }
+    const svc = await createService({ store: makeStore(state({ active: 'c1', providers: [row] })) })
+    const inj = svc.getInjection()
+    expect(inj?.contextWindow).toBe(256000)
+    expect(inj?.pricing).toEqual({ inputPerM: 1, outputPerM: 2 })
   })
 })
