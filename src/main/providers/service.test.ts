@@ -18,7 +18,7 @@ function makeStore(initial: ProvidersStateOnDisk): Store & { saved: ProvidersSta
   }
 }
 
-const empty: ProvidersStateOnDisk = { version: 3, active: null, providers: [] }
+const empty: ProvidersStateOnDisk = { version: 4, active: null, providers: [] }
 
 const anthropic: Provider = {
   id: 'anthropic',

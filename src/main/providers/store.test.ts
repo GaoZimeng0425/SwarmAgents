@@ -35,7 +35,7 @@ describe('store', () => {
     const store = createStore({ filePath: path })
     const state = await store.load()
     expect(state).toEqual({
-      version: 3,
+      version: 4,
       active: null,
       providers: [],
     })
@@ -44,7 +44,7 @@ describe('store', () => {
   it('round-trips state through write → load', async () => {
     const store = createStore({ filePath: path })
     await store.save({
-      version: 3,
+      version: 4,
       active: 'anthropic',
       providers: [
         {
@@ -76,7 +76,7 @@ describe('store', () => {
     writeFileSync(path, Buffer.from(`enc:${v1}`))
     const store = createStore({ filePath: path })
     const state = await store.load()
-    expect(state.version).toBe(3)
+    expect(state.version).toBe(4)
     const custom = state.providers.filter((p) => !p.registry)
     expect(custom).toHaveLength(1)
     expect(custom[0].name).toBe('Custom')
@@ -86,7 +86,7 @@ describe('store', () => {
   it('save writes atomically via rename', async () => {
     const store = createStore({ filePath: path })
     await store.save({
-      version: 3,
+      version: 4,
       active: null,
       providers: [],
     })

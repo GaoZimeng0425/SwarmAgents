@@ -15,7 +15,7 @@ const provider = (over: Partial<Provider> = {}): Provider => ({
 })
 
 const base = (providers: Provider[], active: string | null = null): ProvidersStateOnDisk => ({
-  version: 3,
+  version: 4,
   active,
   providers,
 })
