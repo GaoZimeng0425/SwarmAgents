@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { McpConnectionState, McpServerConfig, McpToolRisk, McpTransport } from '@shared/types/mcp'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -71,12 +71,32 @@ function coerceServer(name: string, raw: Record<string, unknown>): AddInput {
   return { ...base, url: (raw.url as string).trim(), headers: isStringRecord(raw.headers) ? raw.headers : undefined }
 }
 
-/**
- * Parse pasted MCP JSON into one or more servers. Accepts the three shapes that
- * appear in the wild: the `{ "mcpServers": {...} }` wrapper, a bare
- * name→config map, and a single server object (named via the Name field).
- */
-function parseMcpJson(text: string, fallbackName: string): AddInput[] {
+/** Serialize the live config to the on-disk `{ mcpServers }` shape so the editor
+ * box mirrors mcp-servers.json and round-trips losslessly through Save. Matches
+ * the store's configToEntry: `type` key, defaults omitted, enabled only if false. */
+function serializeServers(servers: McpServerConfig[]): string {
+  const mcpServers: Record<string, Record<string, unknown>> = {}
+  for (const s of servers) {
+    const entry: Record<string, unknown> = { type: s.transport }
+    if (s.transport === 'stdio') {
+      if (s.command) entry.command = s.command
+      if (s.args?.length) entry.args = s.args
+      if (s.env && Object.keys(s.env).length) entry.env = s.env
+      if (s.cwd) entry.cwd = s.cwd
+    } else {
+      if (s.url) entry.url = s.url
+      if (s.headers && Object.keys(s.headers).length) entry.headers = s.headers
+    }
+    if (s.enabled === false) entry.enabled = false
+    if (s.toolOverrides && Object.keys(s.toolOverrides).length) entry.toolOverrides = s.toolOverrides
+    mcpServers[s.name] = entry
+  }
+  return JSON.stringify({ mcpServers }, null, 2)
+}
+
+/** Parse the edited JSON into the desired server set keyed by name. Only the
+ * standard `{ mcpServers: {...} }` wrapper is accepted (the shape we emit). */
+function parseConfigForSync(text: string): Map<string, AddInput> {
   let data: unknown
   try {
     data = JSON.parse(text)
@@ -85,26 +105,36 @@ function parseMcpJson(text: string, fallbackName: string): AddInput[] {
   }
   if (!data || typeof data !== 'object') throw new Error('Expected a JSON object')
   const obj = data as Record<string, unknown>
-
   const map = (obj.mcpServers ?? obj.servers) as Record<string, unknown> | undefined
-  if (map && typeof map === 'object') {
-    const entries = Object.entries(map)
-    if (entries.length === 0) throw new Error('No servers found under "mcpServers"')
-    return entries.map(([n, cfg]) => coerceServer(n, cfg as Record<string, unknown>))
+  if (!map || typeof map !== 'object') throw new Error('Expected a top-level "mcpServers" object')
+  const out = new Map<string, AddInput>()
+  for (const [name, cfg] of Object.entries(map)) {
+    const raw = (cfg ?? {}) as Record<string, unknown>
+    const enabled = typeof raw.enabled === 'boolean' ? raw.enabled : true
+    const toolOverrides =
+      raw.toolOverrides && typeof raw.toolOverrides === 'object'
+        ? (raw.toolOverrides as AddInput['toolOverrides'])
+        : undefined
+    out.set(name, { ...coerceServer(name, raw), enabled, toolOverrides })
   }
+  return out
+}
 
-  // A single server object — distinguished by its config keys, named via the form.
-  if ('command' in obj || 'url' in obj || 'type' in obj || 'transport' in obj) {
-    if (!fallbackName.trim()) throw new Error('Enter a Name above for this server')
-    return [coerceServer(fallbackName.trim(), obj)]
+/** A patch carrying every optional field (undefined for absent ones) so the
+ * merge in service.update acts as a full replace — dropping a field takes effect. */
+function toFullPatch(cfg: AddInput): Omit<McpServerConfig, 'id'> {
+  return {
+    name: cfg.name,
+    transport: cfg.transport,
+    enabled: cfg.enabled,
+    command: cfg.command,
+    args: cfg.args,
+    env: cfg.env,
+    cwd: cfg.cwd,
+    url: cfg.url,
+    headers: cfg.headers,
+    toolOverrides: cfg.toolOverrides,
   }
-
-  // Otherwise treat it as a bare name→config map (every value is an object).
-  const entries = Object.entries(obj)
-  if (entries.length > 0 && entries.every(([, v]) => !!v && typeof v === 'object')) {
-    return entries.map(([n, cfg]) => coerceServer(n, cfg as Record<string, unknown>))
-  }
-  throw new Error("Unrecognized shape — paste a server's JSON config")
 }
 
 async function report(p: Promise<{ ok: boolean; message?: string }>, okMsg?: string): Promise<void> {
@@ -137,42 +167,91 @@ async function addAll(inputs: AddInput[]): Promise<number> {
   return added
 }
 
-function PasteJsonForm(): React.JSX.Element {
-  const [name, setName] = useState('')
-  const [json, setJson] = useState('')
+/**
+ * Editable JSON view of the whole MCP config. The box always reflects the live
+ * mcp-servers.json (so it persists across dialog close + app restart for free);
+ * Save diffs the edited JSON against the current servers and adds new ones,
+ * updates changed ones, and removes those the JSON no longer lists.
+ */
+function JsonConfigForm(): React.JSX.Element {
+  const { servers } = useMcpServers()
+  const [text, setText] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  const submit = async (): Promise<void> => {
-    let inputs: AddInput[]
+  // Mirror the live config while the user isn't mid-edit. Dropping `dirty` after
+  // a save reseeds the box from the now-canonical config (normalizing format).
+  useEffect(() => {
+    if (!dirty) setText(serializeServers(servers))
+  }, [servers, dirty])
+
+  const save = async (): Promise<void> => {
+    let desired: Map<string, AddInput>
     try {
-      inputs = parseMcpJson(json, name)
+      desired = parseConfigForSync(text)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Invalid config')
       return
     }
-    const added = await addAll(inputs)
-    if (added > 0) {
-      setJson('')
-      setName('')
+    setSaving(true)
+    try {
+      const byName = new Map(servers.map((s) => [s.name, s]))
+      let added = 0
+      let updated = 0
+      let removed = 0
+      let failed = 0
+      const fail = (name: string, msg?: string): void => {
+        failed++
+        toast.error(`${name}: ${msg ?? 'failed'}`)
+      }
+      // Remove servers the edited JSON no longer lists.
+      for (const s of servers) {
+        if (desired.has(s.name)) continue
+        const r = await window.swarm.mcp.remove(s.id)
+        if (r.ok) removed++
+        else fail(s.name, r.message)
+      }
+      // Add new servers; update only the ones whose JSON actually changed.
+      for (const [name, cfg] of desired) {
+        const existing = byName.get(name)
+        if (!existing) {
+          const r = await window.swarm.mcp.add(cfg)
+          if (r.ok) added++
+          else fail(name, r.message)
+        } else if (serializeServers([existing]) !== serializeServers([{ ...cfg, id: existing.id }])) {
+          const r = await window.swarm.mcp.update(existing.id, toFullPatch(cfg))
+          if (r.ok) updated++
+          else fail(name, r.message)
+        }
+      }
+      if (failed === 0) {
+        toast.success(`Saved · ${added} added, ${updated} updated, ${removed} removed`)
+        setDirty(false)
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <Input
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Name — only needed if the JSON is a single unnamed server"
-        value={name}
-      />
       <Textarea
         className="min-h-40 font-mono text-xs"
-        onChange={(e) => setJson(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value)
+          setDirty(true)
+        }}
         placeholder={JSON_PLACEHOLDER}
-        value={json}
+        spellCheck={false}
+        value={text}
       />
-      <div className="flex justify-end">
-        <Button className="gap-1.5" disabled={!json.trim()} onClick={() => void submit()}>
-          <Plus className="size-4" />
-          Import
+      <div className="flex justify-end gap-2">
+        <Button disabled={!dirty || saving} onClick={() => setDirty(false)} variant="ghost">
+          Revert
+        </Button>
+        <Button className="gap-1.5" disabled={!dirty || saving} onClick={() => void save()}>
+          {saving && <Loader2 className="size-4 animate-spin" />}
+          Save
         </Button>
       </div>
     </div>
@@ -267,18 +346,18 @@ function ManualForm(): React.JSX.Element {
 function AddServerForm(): React.JSX.Element {
   return (
     <div className="rounded-xl border bg-card p-4">
-      <h3 className="mb-3 font-medium text-sm">Add a server</h3>
+      <h3 className="mb-3 font-medium text-sm">Add or edit servers</h3>
       {/* The shared Tabs root defaults to a flex ROW (its `data-horizontal:flex-col`
           never matches the `data-orientation` attribute), so stack explicitly —
           the same workaround right-panel uses — to keep the JSON/Form switch on
           its own line above the inputs instead of beside them. */}
       <Tabs className="flex-col gap-3" defaultValue="json">
         <TabsList>
-          <TabsTrigger value="json">Paste JSON</TabsTrigger>
+          <TabsTrigger value="json">JSON</TabsTrigger>
           <TabsTrigger value="manual">Form</TabsTrigger>
         </TabsList>
         <TabsContent value="json">
-          <PasteJsonForm />
+          <JsonConfigForm />
         </TabsContent>
         <TabsContent value="manual">
           <ManualForm />

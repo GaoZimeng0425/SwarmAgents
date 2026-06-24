@@ -27,7 +27,9 @@ const runtimeDeps = Object.keys(pkg.dependencies ?? {})
 // bundle is emitted as CJS (forced by electron-vite's single-output
 // constraint), so these packages must be inlined by Rollup rather than
 // externalized. Rollup's CJS plugin handles the ESM→CJS transpilation.
-const ESM_ONLY_BUNDLE_INLINE = new Set(['@earendil-works/pi-agent-core', '@earendil-works/pi-ai'])
+// chokidar (5.x) + its only dep readdirp are ESM-only too and have no native
+// modules, so the service's skill-folder watcher inlines them the same way.
+const ESM_ONLY_BUNDLE_INLINE = new Set(['@earendil-works/pi-agent-core', '@earendil-works/pi-ai', 'chokidar'])
 
 const mainExternal: Array<string | RegExp> = [
   'electron',

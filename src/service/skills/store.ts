@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, write
 import { basename, join, relative, sep } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { type Skill, type SkillMutationResult, SkillSchema } from '@shared/types/skill'
+import { watch as chokidarWatch } from 'chokidar'
 import { parse as parseYaml } from 'yaml'
 
 const log = createLogger({ process: 'service' }).child({ component: 'skills' })
@@ -13,6 +14,14 @@ export type SkillStore = {
   save(skill: Skill): SkillMutationResult
   importFolder(sourceDir: string, overwrite?: boolean): SkillMutationResult
   remove(name: string): SkillMutationResult
+  /**
+   * Watch the skills dir for external edits (a folder dropped in by hand or by
+   * the agent's fs tools). On a debounced change it reloads from disk, then
+   * fires `onChange`. Returns a disposer. `fs.watch` is avoided deliberately —
+   * no reliable recursive support and it floods on atomic saves; chokidar's
+   * `awaitWriteFinish` only fires once a written SKILL.md has settled.
+   */
+  watch(onChange: () => void): () => void
 }
 
 /**
@@ -157,6 +166,39 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
     return { ok: true, skills: merged() }
   }
 
+  const watch: SkillStore['watch'] = (onChange) => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    // Coalesce the burst of events a folder copy produces into one reload.
+    const onFsEvent = (): void => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        reload()
+        log.info({ msg: 'skills dir changed; reloaded', count: skills.length })
+        onChange()
+      }, 250)
+    }
+    // depth 4 covers <name>/<bundled subdirs>/file without descending into a
+    // pathological tree a skill might carry. ignoreInitial: the constructor
+    // already did the first reload(), so skip the synthetic add events on start.
+    const watcher = chokidarWatch(dir, {
+      ignoreInitial: true,
+      depth: 4,
+      awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+    })
+    watcher
+      .on('add', onFsEvent)
+      .on('change', onFsEvent)
+      .on('unlink', onFsEvent)
+      .on('addDir', onFsEvent)
+      .on('unlinkDir', onFsEvent)
+      .on('error', (err) => log.error({ msg: 'skills watcher error', err: err instanceof Error ? err.message : String(err) }))
+    log.info({ msg: 'watching skills dir', dir })
+    return () => {
+      if (timer) clearTimeout(timer)
+      void watcher.close()
+    }
+  }
+
   return {
     list: () => merged(),
     get: (name) => skills.find((s) => s.name === name) ?? builtins.find((b) => b.name === name),
@@ -164,5 +206,6 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
     save,
     importFolder,
     remove,
+    watch,
   }
 }

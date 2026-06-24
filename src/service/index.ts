@@ -48,6 +48,10 @@ const memoryStore = createMemoryStore(memoryPath, () => broadcaster.broadcast('m
 // so the operations manual can cite its real path without a separate env var.
 const mcpConfigPath = join(dirname(skillsPath), 'mcp-servers.json')
 const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({ mcpConfigPath }) })
+// Reload + notify the renderer when the skills dir is edited outside the app
+// (a folder dropped in by hand or written by the agent's fs tools), so the
+// settings list updates live instead of only after a restart.
+const offSkillWatch = skillStore.watch(() => broadcaster.broadcast('skills.changed', { ts: Date.now() }))
 const agentStore = createAgentStore({ dir: agentsPath, builtins: builtinAgents })
 // App-wide enable/disable for built-in tool groups + skills, alongside the MCP
 // config. MCP servers keep their own enable flag (see mcpManager).
@@ -175,6 +179,7 @@ parentPort.postMessage({ kind: 'ready' })
 log.info({ msg: 'service started', dbPath })
 
 process.on('exit', () => {
+  offSkillWatch()
   scheduler.dispose()
   void mcpManager.dispose()
   store.close()

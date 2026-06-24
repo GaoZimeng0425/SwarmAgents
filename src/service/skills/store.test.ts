@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSkillStore, parseSkill, serializeSkill } from './store'
 
@@ -146,5 +146,32 @@ describe('createSkillStore', () => {
     expect(r.ok).toBe(true)
     expect(store.get('dup')?.body).toBe('v2')
     rmSync(src, { recursive: true, force: true })
+  })
+
+  it('watch() reloads and fires onChange when a skill folder appears on disk', async () => {
+    const store = createSkillStore({ dir })
+    let fired = 0
+    const off = store.watch(() => {
+      fired++
+    })
+    try {
+      // Simulate a folder dropped into the skills dir outside the app. chokidar
+      // initializes asynchronously and ignoreInitial drops a create that races
+      // its setup, so re-write the file on each poll (spaced past the 300ms
+      // awaitWriteFinish window) until a change is observed — robust under load.
+      const file = join(dir, 'dropped', 'SKILL.md')
+      mkdirSync(join(dir, 'dropped'), { recursive: true })
+      let n = 0
+      await vi.waitFor(
+        () => {
+          writeFileSync(file, `---\nname: dropped\ndescription: d\n---\n\nbody ${n++}`)
+          expect(fired).toBeGreaterThan(0)
+          expect(store.list().map((s) => s.name)).toContain('dropped')
+        },
+        { timeout: 12_000, interval: 700 }
+      )
+    } finally {
+      off()
+    }
   })
 })

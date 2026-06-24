@@ -13,5 +13,13 @@ export function useSkills(): {
     void window.swarm.skills.list().then(setSkills)
   }, [])
   useEffect(reload, [reload])
+  // Live-refresh when the skills dir changes on disk (the service watches it).
+  useEffect(
+    () =>
+      window.swarm.subscribeEvents((e) => {
+        if (e.kind === 'skills.changed') reload()
+      }),
+    [reload]
+  )
   return { skills, setSkills, reload }
 }
