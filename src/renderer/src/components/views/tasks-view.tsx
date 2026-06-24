@@ -30,9 +30,16 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // event reducer prepends newest-first, so find() yields the active run.
   // 'awaiting_user' counts as in-flight: the run is blocked on a permission
   // prompt but still cancellable, and no event resets it back to 'running'.
-  const runningTask = sessionTasks.find((t) => t.status === 'running' || t.status === 'awaiting_user')
-  // Sort pending tasks ascending by startedAt (creation order) so the overlay renders FIFO.
-  const queuedTasks = sessionTasks.filter((t) => t.status === 'pending').sort((a, b) => a.startedAt - b.startedAt)
+  // Only top-level turns (no parentTaskId) are the conversation's run/queue;
+  // sub-agent children are also 'pending' while in flight but belong inside the
+  // transcript, not the composer's running bar or queue.
+  const runningTask = sessionTasks.find(
+    (t) => !t.parentTaskId && (t.status === 'running' || t.status === 'awaiting_user')
+  )
+  // Sort pending top-level turns ascending by startedAt (creation order) so the overlay renders FIFO.
+  const queuedTasks = sessionTasks
+    .filter((t) => !t.parentTaskId && t.status === 'pending')
+    .sort((a, b) => a.startedAt - b.startedAt)
   const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
   const byRecent = [...sessionTasks].sort((a, b) => b.startedAt - a.startedAt)
   // Most recent plan in the session (the agent replaces it wholesale).

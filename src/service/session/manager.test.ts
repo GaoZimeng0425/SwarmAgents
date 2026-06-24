@@ -586,6 +586,34 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('emits task.dispatched when a turn starts so the UI marks it running (not queued)', async () => {
+    // The renderer reducer maps task.dispatched -> status 'running'; nothing else
+    // does. Without this emit the active turn stays 'pending' and is misrendered
+    // as a queued card. pump must emit it when it starts a turn.
+    let resolveA: (() => void) | null = null
+    mockCreate.mockImplementation(() => ({
+      run: () =>
+        new Promise<{ status: 'completed'; summary: string }>((resolve) => {
+          resolveA = () => resolve({ status: 'completed', summary: '' })
+        }),
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const broadcastSpy = vi.spyOn(broadcaster, 'broadcast')
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    const { taskId } = manager.submitGoal(sessionId, 'A')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(broadcastSpy).toHaveBeenCalledWith('task.dispatched', expect.objectContaining({ sessionId, taskId }))
+
+    resolveA?.()
+    await new Promise((r) => setTimeout(r, 0))
+    store.close()
+  })
+
   it('cancelTask aborts the running task signal', async () => {
     let capturedSignal: AbortSignal | undefined
     mockCreate.mockImplementation((deps: { signal?: AbortSignal }) => {
