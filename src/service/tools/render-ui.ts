@@ -28,7 +28,8 @@ export function renderUiSpec(): ToolSpec {
         'Render a typed UI card in the conversation (e.g. a weather card, a choice prompt). ' +
         "Non-blocking: returns immediately. If the card is interactive, the user's click arrives " +
         'later as a new user message — do not wait on this call for an answer.' +
-        ' Use type "choice" with a question and options when you need the user to make a decision; their click is returned to you as a new user message.',
+        ' Use type "choice" with an options array (no question — ask that in your message text) ' +
+        'when you need the user to make a decision; their click is returned to you as a new user message.',
       parameters: RenderUiParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { type?: unknown; props?: unknown }

@@ -15,7 +15,7 @@ export type UiRendererProps = {
 export type UiRenderer = React.FC<UiRendererProps>
 
 type ChoiceOption = { label: string; value?: string }
-type ChoiceSpec = { question?: string; options?: ChoiceOption[]; mode?: 'single' | 'multi' }
+type ChoiceSpec = { options?: ChoiceOption[]; mode?: 'single' | 'multi' }
 
 const optionValue = (o: ChoiceOption): string => o.value ?? o.label
 
@@ -43,58 +43,60 @@ const ChoiceCard: UiRenderer = ({ props, onSend, disabled }) => {
       return next
     })
 
-  return (
-    <div className="w-full max-w-md rounded-xl border border-border bg-popover/95 px-4 py-3 shadow-sm">
-      {spec.question && <p className="mb-3 font-medium text-sm">{spec.question}</p>}
-      {mode === 'single' ? (
-        <div className="flex flex-col gap-2">
-          {options.map((o) => (
-            <button
-              className={optionRow(false)}
-              disabled={disabled}
-              key={optionValue(o)}
-              onClick={() => onSend?.(optionValue(o))}
-              type="button"
-            >
-              <span className="flex-1">{o.label}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {options.map((o) => {
-            const v = optionValue(o)
-            const checked = selected.has(v)
-            return (
-              <button
-                className={optionRow(checked)}
-                disabled={disabled}
-                key={v}
-                onClick={() => toggle(v)}
-                type="button"
-              >
-                <span
-                  className={cn(
-                    'flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors',
-                    checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
-                  )}
-                >
-                  {checked && <CheckIcon className="size-3" />}
-                </span>
-                <span className="flex-1">{o.label}</span>
-              </button>
-            )
-          })}
-          <Button
-            className="mt-1 w-full"
-            disabled={disabled || selected.size === 0}
-            onClick={() => onSend?.([...selected].join(', '))}
-            size="sm"
+  // Just the options — full width, no card chrome and no question text. The
+  // model already states the question in its message; the selector is purely
+  // the choosable rows.
+  if (mode === 'single') {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        {options.map((o) => (
+          <button
+            className={optionRow(false)}
+            disabled={disabled}
+            key={optionValue(o)}
+            onClick={() => onSend?.(optionValue(o))}
+            type="button"
           >
-            Submit
-          </Button>
-        </div>
-      )}
+            <span className="flex-1">{o.label}</span>
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex w-full flex-col gap-2">
+      {options.map((o) => {
+        const v = optionValue(o)
+        const checked = selected.has(v)
+        return (
+          <button
+            className={optionRow(checked)}
+            disabled={disabled}
+            key={v}
+            onClick={() => toggle(v)}
+            type="button"
+          >
+            <span
+              className={cn(
+                'flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors',
+                checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
+              )}
+            >
+              {checked && <CheckIcon className="size-3" />}
+            </span>
+            <span className="flex-1">{o.label}</span>
+          </button>
+        )
+      })}
+      <Button
+        className="mt-1 w-full"
+        disabled={disabled || selected.size === 0}
+        onClick={() => onSend?.([...selected].join(', '))}
+        size="sm"
+      >
+        Submit
+      </Button>
     </div>
   )
 }
