@@ -66,7 +66,10 @@ describe('ChatInput composer controls', () => {
     const onCwdChange = vi.fn()
     render(<ChatInput executionMode="goal" onCwdChange={onCwdChange} onSubmit={vi.fn()} permissionMode="ask" />)
 
+    // The working-directory control is now a menu; "选择目录…" is the only entry
+    // that opens the native dialog.
     fireEvent.click(screen.getByText('工作目录'))
+    fireEvent.click(await screen.findByText('选择目录…'))
 
     await waitFor(() => expect(pickDirectory).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(onCwdChange).toHaveBeenCalledWith('/picked/dir'))
@@ -78,6 +81,7 @@ describe('ChatInput composer controls', () => {
     render(<ChatInput executionMode="goal" onCwdChange={onCwdChange} onSubmit={vi.fn()} permissionMode="ask" />)
 
     fireEvent.click(screen.getByText('工作目录'))
+    fireEvent.click(await screen.findByText('选择目录…'))
 
     await waitFor(() => expect(pickDirectory).toHaveBeenCalledTimes(1))
     expect(onCwdChange).not.toHaveBeenCalled()

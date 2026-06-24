@@ -11,7 +11,6 @@ import {
   PromptInputActionMenuSeparator,
   PromptInputActionMenuTrigger,
   PromptInputBody,
-  PromptInputButton,
   PromptInputFooter,
   PromptInputHeader,
   type PromptInputMessage,
@@ -26,12 +25,13 @@ import {
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import type { ChatStatus } from '@/components/ai-elements/types'
-import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
+import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
 import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'
+import { useRecentDirs } from '@/stores/recent-dirs'
 
 type Props = {
   onSubmit: (goal: string, attachments?: Attachment[]) => void | Promise<void>
@@ -202,6 +202,57 @@ function ComposerAddMenu({
   )
 }
 
+// Working-directory picker shaped like the "＋" menu: opens a dropdown listing
+// previously-picked directories, with "选择目录…" at the bottom to browse for a
+// new one (the only entry that hits the native dialog).
+function ComposerCwdMenu({
+  cwd,
+  onCwdChange,
+  anchor,
+}: {
+  cwd?: string
+  onCwdChange?: (cwd: string | undefined) => void
+  anchor: React.RefObject<HTMLElement | null>
+}): React.JSX.Element {
+  const recent = useRecentDirs((s) => s.dirs)
+  const addRecent = useRecentDirs((s) => s.add)
+
+  const choose = (path: string): void => {
+    addRecent(path)
+    onCwdChange?.(path)
+  }
+
+  const pick = async (): Promise<void> => {
+    const path = await window.swarm.pickDirectory()
+    if (path) choose(path)
+  }
+
+  return (
+    <PromptInputActionMenu>
+      <PromptInputActionMenuTrigger tooltip={cwd ?? '选择工作目录(默认为用户主目录)'}>
+        <Folder className="size-4" />
+        <span className="max-w-32 truncate">{cwd ? basename(cwd) : '工作目录'}</span>
+      </PromptInputActionMenuTrigger>
+      <PromptInputActionMenuContent align="start" anchor={anchor} className="min-w-56" side="top" sideOffset={8}>
+        {recent.map((dir) => (
+          <PromptInputActionMenuItem key={dir} onClick={() => choose(dir)}>
+            <Folder className="size-4" />
+            <span className="truncate" title={dir}>
+              {basename(dir)}
+            </span>
+            {cwd === dir && <Check className="ml-auto size-4" />}
+          </PromptInputActionMenuItem>
+        ))}
+        {recent.length > 0 && <PromptInputActionMenuSeparator />}
+        <PromptInputActionMenuItem onClick={() => void pick()}>
+          <FolderOpen className="size-4" />
+          选择目录…
+        </PromptInputActionMenuItem>
+      </PromptInputActionMenuContent>
+    </PromptInputActionMenu>
+  )
+}
+
 export function ChatInput({
   onSubmit,
   disabled,
@@ -251,11 +302,6 @@ export function ChatInput({
     ta.focus()
   }
 
-  const onPickCwd = async (): Promise<void> => {
-    const path = await window.swarm.pickDirectory()
-    if (path) onCwdChange?.(path)
-  }
-
   const onPickModel = async (key: string): Promise<void> => {
     const opt = options.find((o) => o.key === key)
     if (!opt) return
@@ -297,22 +343,7 @@ export function ChatInput({
                   onInsertPath={insertPathReference}
                   supportsImages={supportsImages}
                 />
-                <div className="flex items-center">
-                  <PromptInputButton onClick={() => void onPickCwd()} tooltip={cwd ?? '选择工作目录(默认为用户主目录)'}>
-                    <Folder className="size-4" />
-                    <span className="max-w-32 truncate">{cwd ? basename(cwd) : '工作目录'}</span>
-                  </PromptInputButton>
-                  {cwd && (
-                    <button
-                      aria-label="Clear working directory"
-                      className="ml-0.5 rounded-full p-1 text-muted-foreground hover:text-foreground"
-                      onClick={() => onCwdChange?.(undefined)}
-                      type="button"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  )}
-                </div>
+                <ComposerCwdMenu anchor={composerRef} cwd={cwd} onCwdChange={onCwdChange} />
                 <PromptInputSelect
                   onValueChange={(v) => onPermissionModeChange?.(String(v) as PermissionMode)}
                   value={permissionMode}
@@ -329,7 +360,7 @@ export function ChatInput({
                   </PromptInputSelectContent>
                 </PromptInputSelect>
               </div>
-              <div className="flex items-center gap-1 ml-auto">
+              <div className="ml-auto flex items-center gap-1">
                 {contextTokens !== undefined && contextWindow !== undefined && (
                   <ContextRing
                     cacheRead={cacheReadTokens}
