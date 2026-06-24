@@ -5,7 +5,7 @@ import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
-import type { ProviderInjection } from '@shared/types/provider'
+import type { ModelPricing, ProviderInjection } from '@shared/types/provider'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
@@ -69,6 +69,17 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
+// Maps OpenRouter-derived pricing (USD/1M tokens) to pi-ai's Model.cost shape
+// (also USD/1M). Absent cache prices default to 0. Exported for unit testing.
+export function pricingToCost(pricing: ModelPricing): Model<Api>['cost'] {
+  return {
+    input: pricing.inputPerM,
+    output: pricing.outputPerM,
+    cacheRead: pricing.cacheReadPerM ?? 0,
+    cacheWrite: pricing.cacheWritePerM ?? 0,
+  }
+}
+
 function cloneTemplate(
   template: Model<Api>,
   p: ProviderInjection,
@@ -84,16 +95,7 @@ function cloneTemplate(
     ...(contextWindow != null ? { contextWindow } : {}),
     // Custom-model pricing (from OpenRouter) overrides the fallback template's
     // cost so pi-ai's calculateCost() produces real per-turn cost for usdCents.
-    ...(p.pricing
-      ? {
-          cost: {
-            input: p.pricing.inputPerM,
-            output: p.pricing.outputPerM,
-            cacheRead: p.pricing.cacheReadPerM ?? 0,
-            cacheWrite: p.pricing.cacheWritePerM ?? 0,
-          },
-        }
-      : {}),
+    ...(p.pricing ? { cost: pricingToCost(p.pricing) } : {}),
   }
 }
 

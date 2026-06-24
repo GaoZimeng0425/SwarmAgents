@@ -3,8 +3,8 @@ import { getModel } from '@earendil-works/pi-ai'
 import type { Task } from '@shared/types/task'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createAgentRunner } from './agent-runner'
 import { createToolRegistry } from '../tools/registry'
+import { createAgentRunner, pricingToCost } from './agent-runner'
 
 const MockAgent = vi.hoisted(() => vi.fn())
 
@@ -461,5 +461,25 @@ describe('AgentRunner', () => {
 
     h.resolvePrompt()
     await p
+  })
+})
+
+describe('pricingToCost', () => {
+  it('maps full pricing (all four fields present) to the Model.cost shape', () => {
+    expect(pricingToCost({ inputPerM: 3, outputPerM: 15, cacheReadPerM: 0.3, cacheWritePerM: 1 })).toEqual({
+      input: 3,
+      output: 15,
+      cacheRead: 0.3,
+      cacheWrite: 1,
+    })
+  })
+
+  it('defaults absent cache fields to 0', () => {
+    expect(pricingToCost({ inputPerM: 3, outputPerM: 15 })).toEqual({
+      input: 3,
+      output: 15,
+      cacheRead: 0,
+      cacheWrite: 0,
+    })
   })
 })
