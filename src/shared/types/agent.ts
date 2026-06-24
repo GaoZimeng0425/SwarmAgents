@@ -27,6 +27,10 @@ export const AgentDefinitionSchema = z.object({
   role: z.string().optional(),
   /** Capability tags for finer discovery queries. */
   capabilities: z.array(z.string()).optional(),
+  /** Team grouping tag for org-chart discovery; absent = not a team member (e.g. CEO, generic builtins). */
+  team: z.string().optional(),
+  /** Marks the team's entry-point agent (the "head"); absent = an individual contributor. */
+  teamRole: z.enum(['head']).optional(),
   maxIterations: z.number().int().positive().default(25),
   /** Override the provider's default model for this agent type. */
   model: z.string().optional(),

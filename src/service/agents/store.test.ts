@@ -106,4 +106,30 @@ describe('createAgentStore', () => {
     expect(store.list().filter((a) => a.id === 'researcher')).toHaveLength(1)
     expect(store.get('researcher')?.systemPrompt).toBe('user body')
   })
+
+  it('round-trips role, capabilities, team and teamRole through save + reload', () => {
+    const store = createAgentStore({ dir })
+    const d = {
+      id: 'training-head',
+      name: 'Training Lead',
+      description: 'Use to coordinate the agent-training team.',
+      systemPrompt: 'You lead the training team.',
+      toolScope: 'all' as const,
+      role: 'training-head',
+      capabilities: ['agent-authoring', 'skill-authoring'],
+      team: 'training',
+      teamRole: 'head' as const,
+      maxIterations: 20,
+    }
+    const res = store.save(d)
+    expect(res.ok).toBe(true)
+    store.reload()
+    const got = store.get('training-head')
+    expect(got).toMatchObject({
+      role: 'training-head',
+      capabilities: ['agent-authoring', 'skill-authoring'],
+      team: 'training',
+      teamRole: 'head',
+    })
+  })
 })
