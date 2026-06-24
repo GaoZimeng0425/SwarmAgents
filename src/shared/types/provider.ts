@@ -45,6 +45,23 @@ const ContextWindow = z.number().int().positive().max(10_000_000)
 /** Default context window assumed when a model's real size is unknown. */
 export const DEFAULT_CONTEXT_WINDOW = 200_000
 
+// Per-model pricing in USD per 1M tokens (same units as pi-ai Model.cost).
+export const ModelPricing = z.object({
+  inputPerM: z.number().nonnegative(),
+  outputPerM: z.number().nonnegative(),
+  cacheReadPerM: z.number().nonnegative().optional(),
+  cacheWritePerM: z.number().nonnegative().optional(),
+})
+export type ModelPricing = z.infer<typeof ModelPricing>
+
+// Per-model metadata for custom providers. Built-ins read real capabilities
+// from the pi-ai registry and never populate this.
+export const ModelMeta = z.object({
+  contextWindow: ContextWindow.optional(),
+  pricing: ModelPricing.optional(),
+})
+export type ModelMeta = z.infer<typeof ModelMeta>
+
 // ── Built-in identity, in one place ───────────────────────────────────────────
 // Everything special about a built-in provider lives here: its display name, its
 // pi-ai registry key, its wire format, and its suggested models. The service
@@ -79,10 +96,8 @@ export function modelSuggestionsFor(id: string): readonly string[] {
   return isBuiltinId(id) ? BUILTIN_DEFS[id].suggestions : []
 }
 
-// ── On-disk shape (v3): one flat list of providers ────────────────────────────
-// A single uniform provider record covers both built-ins and custom endpoints.
-// `registry` is the only discriminator: present ⇒ pi-ai catalog; absent ⇒ custom.
-export const Provider = z.object({
+// ── v3 legacy provider (provider-level contextWindow) — parsed only for migration ──
+const ProviderV3 = z.object({
   id: IdString,
   name: NameString,
   registry: BuiltinProviderId.optional(),
@@ -94,10 +109,32 @@ export const Provider = z.object({
   thinkingLevel: ModelThinkingLevel.optional(),
   contextWindow: ContextWindow.optional(),
 })
+type ProviderV3 = z.infer<typeof ProviderV3>
+
+const ProvidersStateOnDiskV3 = z.object({
+  version: z.literal(3),
+  active: z.string().nullable(),
+  providers: z.array(ProviderV3).default([]),
+})
+type ProvidersStateOnDiskV3 = z.infer<typeof ProvidersStateOnDiskV3>
+
+// ── On-disk shape (v4): per-model metadata replaces provider-level contextWindow ──
+export const Provider = z.object({
+  id: IdString,
+  name: NameString,
+  registry: BuiltinProviderId.optional(),
+  apiStyle: ApiStyle,
+  apiKey: z.string().min(1),
+  models: z.array(ModelString).min(1).max(MAX_MODELS),
+  model: ModelString,
+  baseUrl: BaseUrlString.optional(),
+  thinkingLevel: ModelThinkingLevel.optional(),
+  modelMeta: z.record(ModelString, ModelMeta).optional(),
+})
 export type Provider = z.infer<typeof Provider>
 
 export const ProvidersStateOnDisk = z.object({
-  version: z.literal(3),
+  version: z.literal(4),
   active: z.string().nullable(),
   providers: z.array(Provider).default([]),
 })
@@ -148,7 +185,7 @@ function rowToProvider(
   registry: BuiltinProviderId | undefined,
   apiStyle: ApiStyle,
   row: z.infer<typeof ProviderRowOnDiskV2>
-): Provider {
+): ProviderV3 {
   const models = [...new Set([row.model, ...(row.customModels ?? [])])].slice(0, MAX_MODELS)
   return {
     id,
@@ -178,8 +215,8 @@ function migrateV1ToV2(v1: ProvidersStateOnDiskV1, genId: () => string): Provide
   }
 }
 
-function migrateV2ToV3(v2: ProvidersStateOnDiskV2): ProvidersStateOnDisk {
-  const providers: Provider[] = []
+function migrateV2ToV3(v2: ProvidersStateOnDiskV2): ProvidersStateOnDiskV3 {
+  const providers: ProviderV3[] = []
   for (const bid of BUILTIN_IDS) {
     const row = v2.builtins[bid]
     if (row) {
@@ -193,14 +230,27 @@ function migrateV2ToV3(v2: ProvidersStateOnDiskV2): ProvidersStateOnDisk {
   return { version: 3, active: v2.active, providers }
 }
 
-/** Parse possibly-legacy persisted state, migrating v1/v2 forward. Null if no schema matches. */
+function migrateV3ToV4(v3: ProvidersStateOnDiskV3): ProvidersStateOnDisk {
+  const providers: Provider[] = v3.providers.map((p) => {
+    const { contextWindow, ...rest } = p
+    // Built-ins read their real window from pi-ai; only custom rows carried a
+    // meaningful provider-level override worth preserving per-model.
+    if (rest.registry || contextWindow == null) return rest
+    return { ...rest, modelMeta: { [rest.model]: { contextWindow } } }
+  })
+  return { version: 4, active: v3.active, providers }
+}
+
+/** Parse possibly-legacy persisted state, migrating v1/v2/v3 forward. Null if no schema matches. */
 export function parsePersistedState(raw: unknown, genId: () => string): ProvidersStateOnDisk | null {
-  const v3 = ProvidersStateOnDisk.safeParse(raw)
-  if (v3.success) return v3.data
+  const v4 = ProvidersStateOnDisk.safeParse(raw)
+  if (v4.success) return v4.data
+  const v3 = ProvidersStateOnDiskV3.safeParse(raw)
+  if (v3.success) return migrateV3ToV4(v3.data)
   const v2 = ProvidersStateOnDiskV2.safeParse(raw)
-  if (v2.success) return migrateV2ToV3(v2.data)
+  if (v2.success) return migrateV3ToV4(migrateV2ToV3(v2.data))
   const v1 = ProvidersStateOnDiskV1.safeParse(raw)
-  if (v1.success) return migrateV2ToV3(migrateV1ToV2(v1.data, genId))
+  if (v1.success) return migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(v1.data, genId)))
   return null
 }
 
@@ -217,7 +267,7 @@ export const ProviderView = z.object({
   baseUrl: BaseUrlString.optional(),
   thinkingLevels: z.array(ModelThinkingLevel),
   thinkingLevel: ModelThinkingLevel,
-  contextWindow: ContextWindow.optional(),
+  modelMeta: z.record(ModelString, ModelMeta).optional(),
 })
 export type ProviderView = z.infer<typeof ProviderView>
 
@@ -244,9 +294,10 @@ export const ProviderInjection = z.object({
   baseUrl: BaseUrlString.optional(),
   thinkingLevel: ModelThinkingLevel.optional(),
   contextWindow: ContextWindow.optional(),
+  pricing: ModelPricing.optional(),
 })
 export type ProviderInjection = z.infer<typeof ProviderInjection>
 
 export function defaultProvidersStateOnDisk(): ProvidersStateOnDisk {
-  return { version: 3, active: null, providers: [] }
+  return { version: 4, active: null, providers: [] }
 }

@@ -65,11 +65,12 @@ describe('provider schemas (v3)', () => {
     expect(() => Provider.parse(builtinRow({ models, model: 'm0' }))).toThrow()
   })
 
-  it('ProvidersStateOnDisk is version 3 with a flat providers[]', () => {
-    const ok = ProvidersStateOnDisk.parse({ version: 3, active: null, providers: [] })
-    expect(ok.version).toBe(3)
+  it('ProvidersStateOnDisk is version 4 with a flat providers[]', () => {
+    const ok = ProvidersStateOnDisk.parse({ version: 4, active: null, providers: [] })
+    expect(ok.version).toBe(4)
     expect(ok.providers).toEqual([])
-    // old v2 shape no longer validates as current
+    // old v2/v3 shapes no longer validate as current on-disk schema
+    expect(() => ProvidersStateOnDisk.parse({ version: 3, active: null, providers: [] })).toThrow()
     expect(() =>
       ProvidersStateOnDisk.parse({ version: 2, active: null, builtins: { anthropic: null, openai: null }, custom: [] })
     ).toThrow()
@@ -97,7 +98,7 @@ describe('provider schemas (v3)', () => {
       },
       genId
     )
-    expect(migrated?.version).toBe(3)
+    expect(migrated?.version).toBe(4)
     expect(migrated?.active).toBe('c1')
     const anthropic = migrated?.providers.find((p) => p.id === 'anthropic')
     expect(anthropic?.registry).toBe('anthropic')
@@ -112,7 +113,7 @@ describe('provider schemas (v3)', () => {
     expect(custom?.models).toEqual(['glm-4'])
   })
 
-  it('migrates a legacy v1 file straight through to v3', () => {
+  it('migrates a legacy v1 file straight through to v4', () => {
     const migrated = parsePersistedState(
       {
         version: 1,
@@ -125,22 +126,22 @@ describe('provider schemas (v3)', () => {
       },
       genId
     )
-    expect(migrated?.version).toBe(3)
+    expect(migrated?.version).toBe(4)
     // the v1 'custom' slot became a custom provider with the generated id, and active follows it
     expect(migrated?.active).toBe('cust-1')
     expect(migrated?.providers.find((p) => p.id === 'cust-1')?.model).toBe('glm-4')
     expect(migrated?.providers.find((p) => p.id === 'anthropic')?.registry).toBe('anthropic')
   })
 
-  it('parsePersistedState returns a v3 file unchanged and null for garbage', () => {
-    const v3 = defaultProvidersStateOnDisk()
-    expect(parsePersistedState(v3, genId)).toEqual(v3)
+  it('parsePersistedState returns a v4 file unchanged and null for garbage', () => {
+    const v4 = defaultProvidersStateOnDisk()
+    expect(parsePersistedState(v4, genId)).toEqual(v4)
     expect(parsePersistedState({ nonsense: true }, genId)).toBeNull()
   })
 
-  it('defaultProvidersStateOnDisk returns an empty version-3 state', () => {
+  it('defaultProvidersStateOnDisk returns an empty version-4 state', () => {
     const d = defaultProvidersStateOnDisk()
-    expect(d.version).toBe(3)
+    expect(d.version).toBe(4)
     expect(d.active).toBeNull()
     expect(d.providers).toEqual([])
     expect(ProvidersStateOnDisk.parse(d)).toEqual(d)
@@ -195,5 +196,73 @@ describe('provider schemas (v3)', () => {
     expect(providerViewById(view, 'c1')?.model).toBe('glm-4')
     expect(providerViewById(view, 'openai')).toBeNull()
     expect(providerViewById(view, null)).toBeNull()
+  })
+})
+
+describe('schema v4 migration', () => {
+  it('parses a native v4 state', () => {
+    const raw = {
+      version: 4,
+      active: 'c1',
+      providers: [
+        {
+          id: 'c1',
+          name: 'Big',
+          apiStyle: 'openai',
+          apiKey: 'sk',
+          models: ['glm-4'],
+          model: 'glm-4',
+          modelMeta: { 'glm-4': { contextWindow: 128000, pricing: { inputPerM: 1, outputPerM: 2 } } },
+        },
+      ],
+    }
+    const parsed = parsePersistedState(raw, genId)
+    expect(parsed?.version).toBe(4)
+    expect(parsed?.providers[0]?.modelMeta?.['glm-4']?.contextWindow).toBe(128000)
+  })
+
+  it('migrates v3 custom provider-level contextWindow into modelMeta[model]', () => {
+    const v3 = {
+      version: 3,
+      active: 'c1',
+      providers: [
+        {
+          id: 'c1',
+          name: 'Big',
+          apiStyle: 'openai',
+          apiKey: 'sk',
+          models: ['glm-4'],
+          model: 'glm-4',
+          contextWindow: 1_000_000,
+        },
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          registry: 'anthropic',
+          apiStyle: 'anthropic',
+          apiKey: 'sk2',
+          models: ['claude-sonnet-4-5'],
+          model: 'claude-sonnet-4-5',
+        },
+      ],
+    }
+    const parsed = parsePersistedState(v3, genId)
+    expect(parsed?.version).toBe(4)
+    const custom = parsed?.providers.find((p) => p.id === 'c1')
+    expect(custom?.modelMeta?.['glm-4']?.contextWindow).toBe(1_000_000)
+    expect((custom as Record<string, unknown>).contextWindow).toBeUndefined()
+    // builtin untouched, no modelMeta
+    const builtin = parsed?.providers.find((p) => p.id === 'anthropic')
+    expect(builtin?.modelMeta).toBeUndefined()
+  })
+
+  it('v3 custom without contextWindow gets no modelMeta', () => {
+    const v3 = {
+      version: 3,
+      active: null,
+      providers: [{ id: 'c1', name: 'Big', apiStyle: 'openai', apiKey: 'sk', models: ['m'], model: 'm' }],
+    }
+    const parsed = parsePersistedState(v3, genId)
+    expect(parsed?.providers[0]?.modelMeta).toBeUndefined()
   })
 })
