@@ -26,7 +26,7 @@ export function PermissionsView(): React.JSX.Element {
   const isMac = perms !== null && perms.screenRecording !== 'unsupported'
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="space-y-5">
       <SettingsHeader
         description="Default policy: prompt on medium and high. Per-tool overrides coming in a later release."
         title="Permissions"

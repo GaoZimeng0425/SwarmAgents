@@ -57,7 +57,7 @@ export function BudgetsView(): React.JSX.Element {
   const dirty = !sameConfig(draft, config)
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="space-y-5">
       <SettingsHeader
         description={
           <>

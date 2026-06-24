@@ -19,7 +19,7 @@ export function WebSearchView(): React.JSX.Element {
   const state = useWebSearch()
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="space-y-5">
       <SettingsHeader
         description={
           <>

@@ -379,7 +379,7 @@ export function McpServersView(): React.JSX.Element {
   const { servers } = useMcpServers()
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="space-y-4">
       <SettingsHeader
         description="Connect Model Context Protocol servers to give agents extra tools. Tools default to medium risk (require confirmation); adjust per tool below."
         title="MCP Servers"

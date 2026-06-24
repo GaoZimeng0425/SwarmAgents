@@ -44,7 +44,7 @@ export function SkillsView(): React.JSX.Element {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="space-y-4">
       <SettingsHeader
         action={
           <div className="flex shrink-0 gap-2">
