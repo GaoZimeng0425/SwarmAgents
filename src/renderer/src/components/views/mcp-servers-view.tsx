@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useMcpServers } from '@/hooks/use-mcp-servers'
+import { cn } from '@/lib/utils'
 import { SettingsHeader } from './settings-primitives'
 
 const RISKS: McpToolRisk[] = ['low', 'medium', 'high']
@@ -285,16 +286,29 @@ function AddServerForm(): React.JSX.Element {
   )
 }
 
-function ServerCard({ server }: { server: McpServerConfig }): React.JSX.Element {
+function ServerCard({
+  server,
+  expanded,
+  onToggle,
+}: {
+  server: McpServerConfig
+  expanded: boolean
+  onToggle: () => void
+}): React.JSX.Element {
   const { statusById } = useMcpServers()
   const status = statusById.get(server.id)
   const state: McpConnectionState = status?.state ?? (server.enabled ? 'connecting' : 'idle')
   const badge = STATE_BADGE[state]
+  const toolCount = status?.tools.length ?? 0
+  const target =
+    server.transport === 'stdio' ? `${server.command ?? ''} ${(server.args ?? []).join(' ')}`.trim() : server.url
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    // The open card spans the full row so the tool list has room; collapsed
+    // cards stay uniform in the grid.
+    <div className={cn('rounded-xl border bg-card p-4', expanded && 'sm:col-span-2 lg:col-span-3')}>
       <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
+        <button className="min-w-0 flex-1 text-left" onClick={onToggle} type="button">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium text-sm">{server.name}</span>
             <Badge className={badge.className} variant="secondary">
@@ -303,12 +317,9 @@ function ServerCard({ server }: { server: McpServerConfig }): React.JSX.Element 
             </Badge>
             <span className="text-muted-foreground text-xs">{server.transport}</span>
           </div>
-          <p className="truncate text-muted-foreground text-xs">
-            {server.transport === 'stdio'
-              ? `${server.command ?? ''} ${(server.args ?? []).join(' ')}`.trim()
-              : server.url}
-          </p>
-        </div>
+          <p className="truncate text-muted-foreground text-xs">{target}</p>
+          {toolCount > 0 && <span className="text-muted-foreground text-xs">{toolCount} tools</span>}
+        </button>
         <Switch
           checked={server.enabled}
           onCheckedChange={(v) => void report(window.swarm.mcp.setEnabled(server.id, v))}
@@ -328,7 +339,7 @@ function ServerCard({ server }: { server: McpServerConfig }): React.JSX.Element 
         <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-destructive text-xs">{status.error}</p>
       )}
 
-      {status && status.tools.length > 0 && (
+      {expanded && status && status.tools.length > 0 && (
         <div className="mt-3 flex flex-col gap-1.5 border-t pt-3">
           <span className="text-muted-foreground text-xs">Tools ({status.tools.length})</span>
           {status.tools.map((t) => (
@@ -377,6 +388,7 @@ function ServerCard({ server }: { server: McpServerConfig }): React.JSX.Element 
 
 export function McpServersView(): React.JSX.Element {
   const { servers } = useMcpServers()
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   return (
     <div className="space-y-4">
@@ -388,7 +400,16 @@ export function McpServersView(): React.JSX.Element {
       {servers.length === 0 ? (
         <p className="text-muted-foreground text-sm">No servers yet. Add one above.</p>
       ) : (
-        servers.map((s) => <ServerCard key={s.id} server={s} />)
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {servers.map((s) => (
+            <ServerCard
+              expanded={expanded === s.id}
+              key={s.id}
+              onToggle={() => setExpanded((cur) => (cur === s.id ? null : s.id))}
+              server={s}
+            />
+          ))}
+        </div>
       )}
     </div>
   )

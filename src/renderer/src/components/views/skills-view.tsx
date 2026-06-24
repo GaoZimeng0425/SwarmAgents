@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useSkills } from '@/hooks/use-skills'
+import { cn } from '@/lib/utils'
 import { SettingsHeader } from './settings-primitives'
 
 export function SkillsView(): React.JSX.Element {
@@ -46,18 +47,6 @@ export function SkillsView(): React.JSX.Element {
   return (
     <div className="space-y-4">
       <SettingsHeader
-        action={
-          <div className="flex shrink-0 gap-2">
-            <Button className="gap-1.5" onClick={() => void window.swarm.openUserDataDir()} variant="outline">
-              <FolderOpen className="size-4" />
-              Open data folder
-            </Button>
-            <Button className="gap-1.5" onClick={() => void runImport()}>
-              <FolderInput className="size-4" />
-              Import skill folder
-            </Button>
-          </div>
-        }
         description={
           <>
             Reusable instruction folders. Import a folder containing a{' '}
@@ -69,61 +58,84 @@ export function SkillsView(): React.JSX.Element {
         title="Skills"
       />
 
+      {/* Toolbar: actions live on their own row below the header, not crammed
+          beside the title. */}
+      <div className="flex justify-end gap-2">
+        <Button className="gap-1.5" onClick={() => void window.swarm.openUserDataDir()} variant="outline">
+          <FolderOpen className="size-4" />
+          Open data folder
+        </Button>
+        <Button className="gap-1.5" onClick={() => void runImport()}>
+          <FolderInput className="size-4" />
+          Import skill folder
+        </Button>
+      </div>
+
       {skills.length === 0 ? (
         <p className="text-muted-foreground text-sm">No skills yet. Import one above.</p>
       ) : (
-        skills.map((s) => (
-          <div className="rounded-xl border bg-card p-4" key={s.name}>
-            <div className="flex items-start gap-3">
-              <button
-                className="min-w-0 flex-1 text-left"
-                onClick={() => setExpanded(expanded === s.name ? null : s.name)}
-                type="button"
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {skills.map((s) => {
+            const isOpen = expanded === s.name
+            return (
+              // The open card spans the full row so its body has room; collapsed
+              // cards stay uniform-height (description clamped to two lines).
+              <div
+                className={cn('rounded-xl border bg-card p-4', isOpen && 'sm:col-span-2 lg:col-span-3')}
+                key={s.name}
               >
-                <p className={`truncate font-medium text-sm ${s.enabled === false ? 'text-muted-foreground' : ''}`}>
-                  {s.name}
-                </p>
-                <p className="text-muted-foreground text-sm">{s.description}</p>
-              </button>
-              <Switch
-                aria-label={`${s.enabled === false ? 'Enable' : 'Disable'} ${s.name}`}
-                checked={s.enabled !== false}
-                className="mt-0.5"
-                onCheckedChange={(v) => void toggle(s.name, v)}
-              />
-              <Button
-                aria-label="Delete skill"
-                className="text-muted-foreground hover:text-destructive"
-                onClick={() => void remove(s.name)}
-                size="icon"
-                variant="ghost"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-            {expanded === s.name && (
-              <div className="mt-3 flex flex-col gap-3 border-t pt-3">
-                {s.files && s.files.length > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-muted-foreground text-xs">Files</p>
-                    <ul className="font-mono text-xs">
-                      {s.files.map((f) => (
-                        <li className="text-muted-foreground" key={f}>
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+                <div className="flex items-start gap-3">
+                  <button
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => setExpanded(isOpen ? null : s.name)}
+                    type="button"
+                  >
+                    <p className={cn('truncate font-medium text-sm', s.enabled === false && 'text-muted-foreground')}>
+                      {s.name}
+                    </p>
+                    <p className={cn('text-muted-foreground text-sm', !isOpen && 'line-clamp-2')}>{s.description}</p>
+                  </button>
+                  <Switch
+                    aria-label={`${s.enabled === false ? 'Enable' : 'Disable'} ${s.name}`}
+                    checked={s.enabled !== false}
+                    className="mt-0.5"
+                    onCheckedChange={(v) => void toggle(s.name, v)}
+                  />
+                  <Button
+                    aria-label="Delete skill"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => void remove(s.name)}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+                {isOpen && (
+                  <div className="mt-3 flex flex-col gap-3 border-t pt-3">
+                    {s.files && s.files.length > 0 && (
+                      <div>
+                        <p className="mb-1 font-medium text-muted-foreground text-xs">Files</p>
+                        <ul className="font-mono text-xs">
+                          {s.files.map((f) => (
+                            <li className="text-muted-foreground" key={f}>
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {s.body && (
+                      <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-muted p-3 font-mono text-xs">
+                        {s.body}
+                      </pre>
+                    )}
                   </div>
                 )}
-                {s.body && (
-                  <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-muted p-3 font-mono text-xs">
-                    {s.body}
-                  </pre>
-                )}
               </div>
-            )}
-          </div>
-        ))
+            )
+          })}
+        </div>
       )}
     </div>
   )
