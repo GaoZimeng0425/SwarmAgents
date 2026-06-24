@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { AppSidebar } from '@/components/app-sidebar'
 import { EventsBridge } from '@/components/events-bridge'
 import { NoProviderBanner } from '@/components/no-provider-banner'
+import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { ToolsPopover } from '@/components/tools-popover'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,7 @@ function RootLayout(): React.JSX.Element {
           navigation (incl. swarm:navigate-settings). Must never unmount. */}
       <EventsBridge />
       <SettingsDialog />
+      <SessionSearchDialog />
       {/* The whole window backdrop is the conversation surface (--window-content);
           the floating sidebar card sits on it, so the gap around the card matches
           the chat area instead of showing raw desktop vibrancy. */}

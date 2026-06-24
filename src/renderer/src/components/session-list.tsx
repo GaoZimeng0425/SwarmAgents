@@ -31,6 +31,7 @@ import { useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { pickNextSession } from '@/lib/session-nav'
 import { cn } from '@/lib/utils'
+import { useSearchDialog } from '@/stores/search-dialog'
 import { useSessionsStore } from '@/stores/sessions'
 
 type LiveStatus = 'running' | 'awaiting' | 'idle'
@@ -59,12 +60,11 @@ export function SessionList(): React.JSX.Element {
   const reorder = useSessionsStore((s) => s.reorder)
   const navigate = useNavigate()
   const tasks = useTasks()
+  const openSearch = useSearchDialog((s) => s.openSearch)
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [pendingDelete, setPendingDelete] = useState<SessionSummary | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [query, setQuery] = useState('')
 
   // Derive a live run-status per session so parallel work is visible while you
   // view another conversation (events for every session stream into the cache).
@@ -80,19 +80,12 @@ export function SessionList(): React.JSX.Element {
     return m
   }, [tasks])
 
-  // Live title filter for the Search row.
-  const visibleSessions = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return sessions
-    return sessions.filter((s) => (s.title ?? 'Untitled chat').toLowerCase().includes(q))
-  }, [sessions, query])
-
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const onDragEnd = (e: DragEndEvent): void => {
     const { active, over } = e
     if (!over || active.id === over.id) return
-    const ids = visibleSessions.filter((s) => !s.isSystem).map((s) => s.id)
+    const ids = sessions.filter((s) => !s.isSystem).map((s) => s.id)
     const from = ids.indexOf(active.id as string)
     const to = ids.indexOf(over.id as string)
     if (from < 0 || to < 0) return
@@ -103,11 +96,6 @@ export function SessionList(): React.JSX.Element {
       console.error(err)
       toast.error('Could not save the new order.')
     })
-  }
-
-  const closeSearch = (): void => {
-    setSearching(false)
-    setQuery('')
   }
 
   // Don't create a session here — that left empty sessions behind. Route to the
@@ -153,7 +141,7 @@ export function SessionList(): React.JSX.Element {
     }
   }
 
-  // Shared row renderer used in both the plain (search) and sortable list paths.
+  // Row renderer for the sortable session list.
   const renderRow = (s: SessionSummary): React.JSX.Element => {
     const status = statusBySession.get(s.id) ?? 'idle'
     const title = s.title ?? 'Untitled chat'
@@ -273,7 +261,7 @@ export function SessionList(): React.JSX.Element {
   }
 
   const systemSession = sessions.find((s) => s.isSystem)
-  const userVisibleSessions = visibleSessions.filter((s) => !s.isSystem)
+  const userVisibleSessions = sessions.filter((s) => !s.isSystem)
 
   return (
     // The sidebar header (toggle + nav arrows) already clears the traffic
@@ -287,75 +275,47 @@ export function SessionList(): React.JSX.Element {
         <SquarePen className="size-4 shrink-0 stroke-[2.5px]" />
         New chat
       </button>
-      {searching ? (
-        <div className="flex h-10 shrink-0 items-center px-1">
-          <Input
-            autoFocus
-            className="h-8 rounded-lg border-none bg-muted/30 text-sm shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/20"
-            onBlur={() => {
-              if (!query.trim()) closeSearch()
-            }}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') closeSearch()
-            }}
-            placeholder="Search chats…"
-            value={query}
-          />
-        </div>
-      ) : (
-        <button
-          className="flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-3.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-tight transition-colors hover:bg-muted/30 hover:text-foreground"
-          onClick={() => setSearching(true)}
-          type="button"
-        >
-          <Search className="size-3.5 shrink-0" />
-          Search
-        </button>
-      )}
+      <button
+        className="flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-3.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-tight transition-colors hover:bg-muted/30 hover:text-foreground"
+        onClick={() => openSearch()}
+        type="button"
+      >
+        <Search className="size-3.5 shrink-0" />
+        Search
+        <kbd className="ml-auto font-sans text-[10px] text-muted-foreground/60 normal-case tracking-normal">⌘K</kbd>
+      </button>
       <ScrollArea className="mt-2 min-h-0 flex-1">
-        {systemSession && !query.trim() && (
+        {systemSession && (
           <div className="mb-1 flex flex-col gap-1 border-border/30 border-b pb-1">
             {renderSystemRow(systemSession)}
           </div>
         )}
-        {query.trim() ? (
-          // Search active: render plain list without drag (reorder during filter is out of scope).
-          <div className="flex flex-col gap-1">
-            {userVisibleSessions.map((s) => renderRow(s))}
-            {userVisibleSessions.length === 0 && (
-              <p className="px-3 py-2 text-muted-foreground text-xs">No matching chats.</p>
-            )}
-          </div>
-        ) : (
-          // No search: wrap in DndContext for drag-to-reorder.
-          <DndContext
-            collisionDetection={closestCenter}
-            modifiers={[restrictToVerticalAxis]}
-            onDragEnd={onDragEnd}
-            sensors={sensors}
-          >
-            <SortableContext items={userVisibleSessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-1">
-                {userVisibleSessions.map((s) => {
-                  const row = renderRow(s)
-                  // Rename input: don't wrap in SortableSessionRow (no drag while editing)
-                  if (renamingId === s.id) return row
-                  return (
-                    <SortableSessionRow id={s.id} key={s.id}>
-                      {row}
-                    </SortableSessionRow>
-                  )
-                })}
-                {userVisibleSessions.length === 0 && (
-                  <p className="px-3 py-2 text-muted-foreground text-xs">
-                    No chats yet. Click &quot;New chat&quot; above.
-                  </p>
-                )}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
+        <DndContext
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={onDragEnd}
+          sensors={sensors}
+        >
+          <SortableContext items={userVisibleSessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-1">
+              {userVisibleSessions.map((s) => {
+                const row = renderRow(s)
+                // Rename input: don't wrap in SortableSessionRow (no drag while editing)
+                if (renamingId === s.id) return row
+                return (
+                  <SortableSessionRow id={s.id} key={s.id}>
+                    {row}
+                  </SortableSessionRow>
+                )
+              })}
+              {userVisibleSessions.length === 0 && (
+                <p className="px-3 py-2 text-muted-foreground text-xs">
+                  No chats yet. Click &quot;New chat&quot; above.
+                </p>
+              )}
+            </div>
+          </SortableContext>
+        </DndContext>
       </ScrollArea>
 
       <AlertDialog onOpenChange={(open) => !open && setPendingDelete(null)} open={pendingDelete !== null}>

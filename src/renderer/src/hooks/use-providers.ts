@@ -2,7 +2,7 @@
 //
 // Subscribes to providers state from main and derives the `ready` flag used
 // by the main-window banner (Task 19) and any future task-creation surface.
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { type ProvidersStateView, providerViewById } from '@shared/types/provider'
 
 const EMPTY: ProvidersStateView = {
@@ -14,6 +14,7 @@ export type UseProviders = {
   state: ProvidersStateView
   ready: boolean
   decryptFailed: boolean
+  refetch: () => void
 }
 
 export function useProviders(): UseProviders {
@@ -34,10 +35,14 @@ export function useProviders(): UseProviders {
     }
   }, [])
 
+  const refetch = useCallback(() => {
+    void window.swarm.providers.get().then(setState)
+  }, [])
+
   const ready = useMemo(() => {
     const row = providerViewById(state, state.active)
     return row?.hasKey === true
   }, [state])
 
-  return { state, ready, decryptFailed }
+  return { state, ready, decryptFailed, refetch }
 }

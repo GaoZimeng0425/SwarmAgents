@@ -84,7 +84,7 @@ export function ToolsPopover(): React.JSX.Element {
           <p className="font-medium text-sm">Tools</p>
           <p className="text-muted-foreground text-xs">Enable or disable capabilities for every agent.</p>
         </div>
-        <ScrollArea className="max-h-[60vh]">
+        <ScrollArea className="[&_[data-slot=scroll-area-viewport]]:max-h-[60vh]">
           <div className="flex flex-col gap-4 px-3 py-3">
             <Section label="MCP servers">
               {servers.length === 0 ? (

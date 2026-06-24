@@ -37,7 +37,10 @@ export function SettingsDialog(): React.JSX.Element {
       open={open}
     >
       {/* No close button; base-ui Dialog dismisses on backdrop click / Esc. */}
-      <DialogContent className="flex h-[80vh] max-w-3xl gap-0 overflow-hidden p-0 sm:max-w-3xl" showCloseButton={false}>
+      <DialogContent
+        className="flex h-[90vh] w-[90vw] max-w-[90vw] gap-0 overflow-hidden p-0 sm:max-w-[90vw]"
+        showCloseButton={false}
+      >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <nav className="flex w-52 shrink-0 flex-col gap-0.5 border-r bg-muted/30 px-3 py-4">
           {SECTIONS.map(({ key, label, icon: Icon }) => (

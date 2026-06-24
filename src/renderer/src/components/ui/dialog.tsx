@@ -47,7 +47,9 @@ function DialogContent({
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {/* forceRender so nested dialogs still get a clickable backdrop (base-ui skips it otherwise),
+          which is what outside-press dismissal targets. */}
+      <DialogOverlay forceRender />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
