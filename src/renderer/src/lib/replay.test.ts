@@ -1,4 +1,4 @@
-import type { Task } from '@shared/types/task'
+import type { Task, TaskEvent } from '@shared/types/task'
 import { describe, expect, it } from 'vitest'
 
 import { tasksToRecords } from './replay'
@@ -66,6 +66,20 @@ describe('tasksToRecords', () => {
   it('leaves plan undefined when the persisted plan is empty', () => {
     const records = tasksToRecords('ses-1', [baseTask({ plan: [] })])
     expect(records[0].plan).toBeUndefined()
+  })
+
+  it('anchors a history event with a missing/invalid ts to the task createdAt', () => {
+    // Persisted history is JSON-parsed without zod re-validation, so a legacy or
+    // corrupt event can lack a ts. It must not produce a NaN/undefined event ts
+    // (which crashes the timeline), but fall back to the task's createdAt.
+    const records = tasksToRecords('ses-1', [
+      baseTask({
+        createdAt: 100,
+        history: [{ kind: 'reasoning', content: 'hmm' } as unknown as TaskEvent],
+      }),
+    ])
+    const progress = records[0].events.find((e) => e.kind === 'task.progress')
+    expect(progress?.ts).toBe(100)
   })
 
   it('restores usage + context numbers so the display survives a reload', () => {

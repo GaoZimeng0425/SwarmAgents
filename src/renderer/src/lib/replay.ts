@@ -34,7 +34,11 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       },
     ]
     for (const ev of t.history) {
-      events.push({ kind: 'task.progress', sessionId, taskId: t.id, event: ev, ts: ev.ts })
+      // History is JSON-parsed from storage without zod re-validation, so a
+      // legacy/corrupt event may lack a finite ts. Anchor it to the task's
+      // createdAt (always present) rather than emit an invalid timestamp.
+      const ts = Number.isFinite(ev.ts) ? ev.ts : t.createdAt
+      events.push({ kind: 'task.progress', sessionId, taskId: t.id, event: ev, ts })
     }
     if (t.result) {
       events.push({

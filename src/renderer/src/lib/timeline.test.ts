@@ -22,4 +22,15 @@ describe('timeline helpers', () => {
     expect(formatDayLabel(new Date(2026, 5, 22, 9, 0).getTime(), now)).toBe('Yesterday')
     expect(formatDayLabel(new Date(2026, 5, 20, 9, 0).getTime(), now)).toBe('Jun 20, 2026')
   })
+
+  // A non-finite timestamp must never throw (date-fns `format` raises
+  // "Invalid time value"): persisted history events are replayed unvalidated,
+  // and one bad value would otherwise crash the entire ConversationThread.
+  it('does not throw on a non-finite timestamp', () => {
+    for (const bad of [Number.NaN, undefined as unknown as number, null as unknown as number]) {
+      expect(() => dayKey(bad)).not.toThrow()
+      expect(() => formatMessageTime(bad)).not.toThrow()
+      expect(() => formatDayLabel(bad, Date.now())).not.toThrow()
+    }
+  })
 })
