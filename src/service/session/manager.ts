@@ -57,12 +57,17 @@ const PLAN_READONLY_ALLOWLIST = [
   'agent.update_plan',
 ]
 
+type QueuedTurn = { taskId: string; runTurn: () => Promise<void> }
+
 type Session = {
   id: string
   provider: ProviderInjection
   permissionRegistry: PermissionRegistry
   messages: AgentMessage[]
-  queue: Promise<void>
+  // FIFO queue of turns not yet started; the running turn is NOT in here.
+  pending: QueuedTurn[]
+  // taskId of the turn currently executing, or null when idle.
+  running: string | null
 }
 
 type SessionManagerConfig = {
@@ -180,6 +185,21 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const next = waitQueue.shift()
     if (next) next()
     else activeRunners--
+  }
+
+  // Run the next queued turn for a session, one at a time. A turn's finally
+  // clears `running` and re-pumps, so the queue drains in order; cancelling or
+  // completing the running turn naturally advances to the next.
+  const pump = (session: Session): void => {
+    if (session.running) return
+    const next = session.pending.shift()
+    if (!next) return
+    session.running = next.taskId
+    log.info({ msg: 'turn started', sessionId: session.id, taskId: next.taskId, queueDepth: session.pending.length })
+    void next.runTurn().finally(() => {
+      session.running = null
+      pump(session)
+    })
   }
 
   // Mark any sessions left 'active' from a previous run as interrupted.
@@ -563,7 +583,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       provider: stored.providerSnapshot,
       permissionRegistry: createPermissionRegistry(makeEmit(sessionId)),
       messages: store.getAgentSnapshot(sessionId),
-      queue: Promise.resolve(),
+      pending: [],
+      running: null,
     }
     store.updateSessionStatus(sessionId, 'active')
     sessions.set(sessionId, rehydrated)
@@ -609,7 +630,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         provider,
         permissionRegistry,
         messages: [],
-        queue: Promise.resolve(),
+        pending: [],
+        running: null,
       })
       broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
       log.info({ msg: 'session created', sessionId })
@@ -643,7 +665,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           provider: from.provider,
           permissionRegistry: createPermissionRegistry(makeEmit(SYSTEM_SESSION_ID)),
           messages: [],
-          queue: Promise.resolve(),
+          pending: [],
+          running: null,
         })
         store.setSessionTitle(SYSTEM_SESSION_ID, 'Scheduled tasks')
         log.info({ msg: 'system session created', fromSessionId })
@@ -763,7 +786,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         }
       }
 
-      session.queue = session.queue.then(runTurn, runTurn)
+      session.pending.push({ taskId, runTurn })
+      pump(session)
       return { taskId }
     },
 
