@@ -1,9 +1,12 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
-import type { Peer, PeerQuery } from '@shared/types/agent'
+import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { Outbound } from '@shared/types/ipc'
+import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
+
+import type { AgentMutationResult } from '../agents/store'
 
 const log = createLogger({ process: 'service' }).child({ component: 'tools' })
 
@@ -41,6 +44,10 @@ export interface ToolRunContext {
   sendAndWait(to: string, payload: string): Promise<string>
   /** Discover peer agents in this session by role/capability/free-text. Empty query → all live peers. */
   findPeers(q: PeerQuery): Peer[]
+  /** Author/overwrite an agent definition on disk (training team only; absent for other agents). */
+  writeAgent?(def: AgentDefinition): AgentMutationResult
+  /** Author/overwrite a skill on disk (training team only; absent for other agents). */
+  writeSkill?(skill: Skill): SkillMutationResult
 }
 
 export interface ToolSpec {

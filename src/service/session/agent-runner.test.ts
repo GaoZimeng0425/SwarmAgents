@@ -4,7 +4,7 @@ import type { Task } from '@shared/types/task'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createToolRegistry } from '../tools/registry'
-import { createAgentRunner, pricingToCost } from './agent-runner'
+import { buildToolContext, createAgentRunner, pricingToCost } from './agent-runner'
 
 const MockAgent = vi.hoisted(() => vi.fn())
 
@@ -217,6 +217,24 @@ describe('AgentRunner', () => {
 
     h.resolvePrompt()
     await p
+  })
+
+  it('forwards writeAgent/writeSkill from deps to the tool context', () => {
+    const calls: string[] = []
+    const ctx = buildToolContext({
+      ...baseDeps(mkTask('t-write')),
+      writeAgent: () => {
+        calls.push('agent')
+        return { ok: true, agents: [] }
+      },
+      writeSkill: () => {
+        calls.push('skill')
+        return { ok: true, skills: [] }
+      },
+    })
+    ctx.writeAgent?.({} as never)
+    ctx.writeSkill?.({} as never)
+    expect(calls).toEqual(['agent', 'skill'])
   })
 
   const usageWithSnapshot = (snapshotTokens: number) => ({

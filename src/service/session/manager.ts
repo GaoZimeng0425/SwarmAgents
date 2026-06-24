@@ -341,6 +341,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
       findPeers: (q) => directory.find(sessionId, q, actor.address),
+      writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+      writeSkill: (skill) =>
+        cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
     }
     void runResident(deps, mailbox, hooks, IDLE_TIMEOUT_MS)
       .then(() => store.updateTaskStatus(taskId, 'completed'))
@@ -506,6 +509,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
+          writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+          writeSkill: (skill) =>
+            cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
         })
         try {
           const { status, summary } = await runner.run()
@@ -724,6 +730,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
+          writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+          writeSkill: (skill) =>
+            cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
         })
         try {
           const { status } = await runner.run()
