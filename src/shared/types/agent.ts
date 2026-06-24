@@ -38,7 +38,7 @@ export const AgentDefinitionSchema = z.object({
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
 
 /** A discovery query against the session's live agents. All fields optional; empty → match all. */
-export type PeerQuery = { role?: string; capability?: string; query?: string }
+export type PeerQuery = { role?: string; capability?: string; query?: string; team?: string; teamRole?: 'head' }
 
 /** A discovered peer agent, returned by the directory and surfaced by the find_agents tool. */
 export type Peer = {
@@ -48,6 +48,8 @@ export type Peer = {
   capabilities: string[]
   description: string
   status: 'active' | 'dormant'
+  team?: string
+  teamRole?: 'head'
 }
 
 /**
