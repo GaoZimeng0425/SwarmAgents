@@ -19,6 +19,7 @@ export type ServiceMethod =
   | 'setWebSearchConfig'
   | 'setBudgetConfig'
   | 'listSkills'
+  | 'listAgents'
   | 'saveSkill'
   | 'deleteSkill'
   | 'importSkill'

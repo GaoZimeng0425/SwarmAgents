@@ -21,6 +21,7 @@ const mcpDeps = () => ({
   setWebSearchConfig: vi.fn(),
   setBudgetConfig: vi.fn(),
   listSkills: vi.fn().mockReturnValue([]),
+  listAgents: vi.fn().mockReturnValue([{ id: 'ceo' }]),
   saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   deleteSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   importSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
@@ -42,6 +43,15 @@ describe('dispatcher', () => {
     const result = dispatch('createSession', [provider])
     expect(registerProvider).toHaveBeenCalledWith(provider)
     expect(result).toEqual({ sessionId: 'ses-1' })
+  })
+
+  it('listAgents returns the agent roster from the store wiring', () => {
+    const manager = mockManager()
+    const deps = mcpDeps()
+    const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...deps })
+    const result = dispatch('listAgents', [])
+    expect(deps.listAgents).toHaveBeenCalled()
+    expect(result).toEqual([{ id: 'ceo' }])
   })
 
   it('submitGoal forwards to the manager', () => {

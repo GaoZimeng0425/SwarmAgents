@@ -120,6 +120,7 @@ const dispatch = createDispatcher({
   // Annotate the UI list with each skill's live enabled state (the agent-facing
   // catalog filters separately, in the session manager / use_skill).
   listSkills: () => skillStore.list().map((s) => ({ ...s, enabled: toolToggles.isSkillEnabled(s.name) })),
+  listAgents: () => agentStore.list(),
   saveSkill: (skill) => skillStore.save(skill),
   deleteSkill: (name) => skillStore.remove(name),
   importSkill: (sourceDir, overwrite) => skillStore.importFolder(sourceDir, overwrite),
