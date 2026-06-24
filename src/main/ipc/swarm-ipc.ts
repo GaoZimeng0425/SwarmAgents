@@ -79,6 +79,7 @@ export function wireSwarmIpc(args: {
 
   // ---- Skills (service owns the files; main is a thin passthrough) ----
   ipcMain.handle('skills:list', () => serviceClient.listSkills())
+  ipcMain.handle('agents:list', () => serviceClient.listAgents())
   ipcMain.handle('skills:save', (_e: Electron.IpcMainInvokeEvent, skill: import('@shared/types/skill').Skill) =>
     serviceClient.saveSkill(skill)
   )
@@ -291,6 +292,7 @@ export function wireSwarmIpc(args: {
       offBudgetsChange()
       ipcMain.removeHandler('mcp:getStatus')
       ipcMain.removeHandler('skills:list')
+      ipcMain.removeHandler('agents:list')
       ipcMain.removeHandler('skills:save')
       ipcMain.removeHandler('skills:delete')
       ipcMain.removeHandler('skills:import')

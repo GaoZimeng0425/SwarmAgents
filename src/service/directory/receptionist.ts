@@ -26,6 +26,8 @@ export function createAgentDirectory(deps: {
       capabilities: def?.capabilities ?? [],
       description: def?.description ?? '',
       status: deps.isLive(a.address) ? 'active' : 'dormant',
+      team: def?.team,
+      teamRole: def?.teamRole,
     }
   }
 
@@ -48,6 +50,8 @@ export function createAgentDirectory(deps: {
       if (selfAddress) peers = peers.filter((p) => p.address !== selfAddress)
       if (q.role) peers = peers.filter((p) => p.role === q.role)
       if (q.capability) peers = peers.filter((p) => p.capabilities.includes(q.capability as string))
+      if (q.team) peers = peers.filter((p) => p.team === q.team)
+      if (q.teamRole) peers = peers.filter((p) => p.teamRole === q.teamRole)
       return peers
         .map((p) => ({ p, score: scoreOf(p, q.query) }))
         .sort((a, b) => {

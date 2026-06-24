@@ -56,6 +56,8 @@ const FindParams = Type.Object({
   role: Type.Optional(Type.String({ description: 'Filter to agents whose role exactly equals this, e.g. "engineer".' })),
   capability: Type.Optional(Type.String({ description: 'Filter to agents advertising this capability tag.' })),
   query: Type.Optional(Type.String({ description: 'Free text to rank matches by (matched against role, name, capabilities, description).' })),
+  team: Type.Optional(Type.String({ description: 'Filter to agents on this team, e.g. "dev" or "training".' })),
+  teamRole: Type.Optional(Type.String({ description: 'Filter to a team role; use "head" to find each team\'s entry-point agent.' })),
 })
 
 export function findAgentsSpec(): ToolSpec {
@@ -77,7 +79,8 @@ export function findAgentsSpec(): ToolSpec {
         }
         const lines = peers.map((p) => {
           const caps = p.capabilities.length ? ` · caps: ${p.capabilities.join(', ')}` : ''
-          return `- ${p.name ?? '(unnamed)'} (role ${p.role}) · ${p.address} · ${p.status} · ${p.description}${caps}`
+          const team = p.team ? ` · team ${p.team}${p.teamRole === 'head' ? ' (head)' : ''}` : ''
+          return `- ${p.name ?? '(unnamed)'} (role ${p.role}) · ${p.address} · ${p.status}${team} · ${p.description}${caps}`
         })
         return { content: [{ type: 'text', text: lines.join('\n') }], details: { count: peers.length } }
       },

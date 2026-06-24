@@ -12,6 +12,7 @@ import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
+import type { AgentDefinition } from './agent'
 import type { Skill, SkillMutationResult } from './skill'
 import type {
   Attachment,
@@ -102,6 +103,8 @@ export type SessionSummary = {
   cwd?: string
   permissionMode?: PermissionMode
   executionMode?: ExecutionMode
+  /** Composer-chosen entry agent: 'ceo' (the company default) or a team head's id. */
+  agentType?: string
 }
 
 /** The per-session composer controls persisted on the session row. */
@@ -109,6 +112,8 @@ export type SessionSettings = {
   cwd?: string
   permissionMode?: PermissionMode
   executionMode?: ExecutionMode
+  /** Composer-chosen entry agent: 'ceo' (the company default) or a team head's id. */
+  agentType?: string
 }
 
 export type CronJobSummary = {
@@ -248,6 +253,10 @@ export type MemoryBridge = {
   list(namespace?: string): Promise<MemoryView[]>
 }
 
+export type AgentBridge = {
+  list(): Promise<AgentDefinition[]>
+}
+
 /** Global enable/disable for built-in tool groups + skills (MCP toggled via `mcp`). */
 export type ToolTogglesBridge = {
   get(): Promise<ToolToggles>
@@ -329,6 +338,7 @@ export type SwarmBridge = {
   skills: SkillBridge
   toolToggles: ToolTogglesBridge
   memory: MemoryBridge
+  agents: AgentBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.

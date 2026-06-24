@@ -42,6 +42,8 @@ describe('registerBuiltinTools', () => {
       'agent.spawn_sub_agent',
       'agent.update_plan',
       'agent.whoami',
+      'authoring.write_agent',
+      'authoring.write_skill',
       'fs.edit_file',
       'fs.glob',
       'fs.grep',

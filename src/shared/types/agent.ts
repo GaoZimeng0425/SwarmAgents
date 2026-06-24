@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'all'])
+export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'authoring', 'all'])
 export type ToolScope = z.infer<typeof ToolScopeSchema>
 
 export const AgentDefinitionSchema = z.object({
@@ -27,6 +27,10 @@ export const AgentDefinitionSchema = z.object({
   role: z.string().optional(),
   /** Capability tags for finer discovery queries. */
   capabilities: z.array(z.string()).optional(),
+  /** Team grouping tag for org-chart discovery; absent = not a team member (e.g. CEO, generic builtins). */
+  team: z.string().optional(),
+  /** Marks the team's entry-point agent (the "head"); absent = an individual contributor. */
+  teamRole: z.enum(['head']).optional(),
   maxIterations: z.number().int().positive().default(25),
   /** Override the provider's default model for this agent type. */
   model: z.string().optional(),
@@ -34,7 +38,7 @@ export const AgentDefinitionSchema = z.object({
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
 
 /** A discovery query against the session's live agents. All fields optional; empty → match all. */
-export type PeerQuery = { role?: string; capability?: string; query?: string }
+export type PeerQuery = { role?: string; capability?: string; query?: string; team?: string; teamRole?: 'head' }
 
 /** A discovered peer agent, returned by the directory and surfaced by the find_agents tool. */
 export type Peer = {
@@ -44,6 +48,8 @@ export type Peer = {
   capabilities: string[]
   description: string
   status: 'active' | 'dormant'
+  team?: string
+  teamRole?: 'head'
 }
 
 /**
@@ -66,5 +72,10 @@ export function deriveAllowlist(scope: ToolScope): string[] {
       return ['fs.*', 'agent.*']
     case 'memory':
       return ['memory.*', 'agent.*']
+    case 'authoring':
+      // Privileged: authoring.* is excluded from '*' (see tools/registry PRIVILEGED_GROUPS),
+      // so only this scope can reach write_agent/write_skill. Plus the coordination
+      // tools a team head needs to delegate and read.
+      return ['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*']
   }
 }

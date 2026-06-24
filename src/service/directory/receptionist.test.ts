@@ -84,4 +84,24 @@ describe('createAgentDirectory.find', () => {
     expect(p.capabilities).toEqual([])
     expect(p.description).toBe('')
   })
+
+  it('filters peers by team and by teamRole', () => {
+    const teamDefs: Record<string, AgentDefinition> = {
+      pm: { ...def('pm', 'pm', []), team: 'dev', teamRole: 'head' },
+      engineer: { ...def('engineer', 'engineer', []), team: 'dev' },
+      'training-head': { ...def('training-head', 'training-head', []), team: 'training', teamRole: 'head' },
+    }
+    const dir = createAgentDirectory({
+      listActors: () => [
+        actor('a1', 'pm', 'pm'),
+        actor('a2', 'engineer', 'eng'),
+        actor('a3', 'training-head', 'th'),
+      ],
+      isLive: () => true,
+      getAgentDef: (id) => teamDefs[id],
+    })
+    expect(dir.find('s1', { team: 'dev' }).map((p) => p.role).sort()).toEqual(['engineer', 'pm'])
+    expect(dir.find('s1', { teamRole: 'head' }).map((p) => p.role).sort()).toEqual(['pm', 'training-head'])
+    expect(dir.find('s1', { team: 'dev', teamRole: 'head' }).map((p) => p.role)).toEqual(['pm'])
+  })
 })
