@@ -104,6 +104,12 @@ export type SessionManager = {
   startCompany(sessionId: string, goal: string): Promise<{ reply: string } | { delivered: true }>
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
+  /**
+   * Promote a queued task to the front of its session queue and interrupt the
+   * running task (if any), so the promoted task runs next. The interrupted task
+   * is cancelled with its partial output preserved in the session history.
+   */
+  interruptWith(sessionId: string, taskId: string): void
   endSession(sessionId: string): void
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
@@ -830,6 +836,33 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         return
       }
       log.warn({ msg: 'cancelTask: unknown or already-finished task', sessionId, taskId })
+    },
+
+    interruptWith(sessionId, taskId) {
+      const session = sessions.get(sessionId)
+      if (!session) {
+        log.warn({ msg: 'interruptWith: unknown session', sessionId, taskId })
+        return
+      }
+      const idx = session.pending.findIndex((q) => q.taskId === taskId)
+      if (idx === -1) {
+        log.warn({ msg: 'interruptWith: task not in queue', sessionId, taskId })
+        return
+      }
+      // Jump the queue: move the chosen turn to the front.
+      const [item] = session.pending.splice(idx, 1)
+      session.pending.unshift(item)
+      const cancelledTaskId = session.running
+      log.info({ msg: 'task interrupted, promoted to front', sessionId, taskId, cancelledTaskId })
+      if (cancelledTaskId) {
+        // Abort the running task; its run returns 'cancelled' with partial
+        // output already saved via saveSnapshot, and its finally re-pumps,
+        // which now picks the promoted item.
+        oneShotHandles.get(cancelledTaskId)?.abort()
+      } else {
+        // Idle session — run the promoted item immediately.
+        pump(session)
+      }
     },
 
     endSession(sessionId) {

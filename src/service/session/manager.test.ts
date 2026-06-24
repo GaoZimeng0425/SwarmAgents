@@ -830,6 +830,40 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('interruptWith cancels the running task and runs the promoted one before the rest', async () => {
+    const ran: string[] = []
+    mockCreate.mockImplementation((deps: { task: { goal: string }; signal?: AbortSignal; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+      run: () =>
+        new Promise<{ status: 'completed' | 'cancelled'; summary: string }>((resolve) => {
+          ran.push(deps.task.goal)
+          if (deps.task.goal === 'A') {
+            // A stays running until interrupted (aborted).
+            deps.signal?.addEventListener('abort', () => resolve({ status: 'cancelled', summary: '' }))
+            return
+          }
+          deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+          resolve({ status: 'completed', summary: '' })
+        }),
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    manager.submitGoal(sessionId, 'A') // runs
+    manager.submitGoal(sessionId, 'B') // queued
+    const { taskId: cId } = manager.submitGoal(sessionId, 'C') // queued
+    await new Promise((r) => setTimeout(r, 0))
+
+    manager.interruptWith(sessionId, cId) // cancel A, jump C ahead of B
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(ran).toEqual(['A', 'C', 'B'])
+    store.close()
+  })
+
   it('falls back to default agent when options.agentType is unknown', () => {
     mockCreate.mockImplementation(() => ({
       run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }),
