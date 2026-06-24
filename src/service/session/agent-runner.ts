@@ -40,6 +40,35 @@ const API_FOR_STYLE: Record<ApiStyle, Api> = {
   anthropic: 'anthropic-messages',
 }
 
+// Transient-failure retry policy for the model request. A failed provider/
+// transport request is retried up to MAX_PROMPT_RETRIES extra times (so up to
+// MAX_PROMPT_RETRIES + 1 attempts total), pausing RETRY_DELAY_MS between tries.
+// Only genuine request errors retry — deliberate stops (cancel/budget/context)
+// never do.
+const MAX_PROMPT_RETRIES = 10
+const RETRY_DELAY_MS = 5_000
+
+// Sleep that resolves early if `signal` aborts, so a queued retry never delays
+// a user cancellation. Returns once the delay elapses OR the signal fires.
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve()
+      return
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    timer.unref?.()
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 function cloneTemplate(
   template: Model<Api>,
   p: ProviderInjection,
@@ -119,6 +148,11 @@ export type AgentRunnerDeps = {
   ): Promise<{ reply: string } | { delivered: true }>
   /** Discover peer agents in this session. */
   findPeers?(q: PeerQuery): Peer[]
+  /**
+   * Transient model-request retry overrides. Defaults: 10 retries, 5s apart.
+   * Tests inject smaller values to exercise the loop without real waits.
+   */
+  retry?: { maxRetries?: number; delayMs?: number }
 }
 
 export type AgentRunner = {
@@ -197,10 +231,16 @@ function createEventTranslator(
   getFinalSummary: () => string
   getError: () => string | null
   resetError: () => void
+  setSuppressError: (suppress: boolean) => void
 } {
   let textBuffer = ''
   let thinkingBuffer = ''
   let assembledSummary = ''
+  // While a retry is still pending the run isn't done failing, so the per-turn
+  // failure must NOT surface to the UI as task.error yet. The retry loop sets
+  // this true for every attempt that has a retry left and false for the last
+  // one, so the final failure emits exactly as it did before retries existed.
+  let suppressErrorEmit = false
   // pi does NOT throw on a failed model/transport request, and prompt() resolves
   // with `void` — the failure is delivered ONLY as an assistant message with
   // stopReason 'error' carried on message_end / turn_end / agent_end events.
@@ -306,12 +346,16 @@ function createEventTranslator(
         // carry the failure, so re-check in case message_end was never seen.
         for (const m of e.messages ?? []) captureFailure(m as { stopReason?: string; errorMessage?: string })
         if (errorMessage) {
-          // A failed run must surface the provider error, not a fake completion.
-          emit('task.error', {
-            taskId,
-            error: { code: 'agent_request_failed', message: errorMessage, tier: 'fatal' },
-            ts: Date.now(),
-          })
+          // A failed run must surface the provider error, not a fake completion —
+          // unless a retry is still pending, in which case the retry loop owns
+          // the final emit so transient failures stay invisible.
+          if (!suppressErrorEmit) {
+            emit('task.error', {
+              taskId,
+              error: { code: 'agent_request_failed', message: errorMessage, tier: 'fatal' },
+              ts: Date.now(),
+            })
+          }
           return
         }
         const summary = assembledSummary.trim() || `Completed task ${taskId}.`
@@ -331,7 +375,11 @@ function createEventTranslator(
     errorMessage = null
   }
 
-  return { handle, getFinalSummary, getError, resetError }
+  const setSuppressError = (suppress: boolean): void => {
+    suppressErrorEmit = suppress
+  }
+
+  return { handle, getFinalSummary, getError, resetError, setSuppressError }
 }
 
 // Prepend task-scoped context to the agent's base system prompt so the model
@@ -365,6 +413,8 @@ function composeSystemPrompt(base: string, task: Task): string {
  */
 export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   const { task, provider, agentDefinition, sessionId, emit, permissionRegistry, initialMessages, toolRegistry } = deps
+  const maxRetries = deps.retry?.maxRetries ?? MAX_PROMPT_RETRIES
+  const retryDelayMs = deps.retry?.delayMs ?? RETRY_DELAY_MS
   const taskLog = log.child({ taskId: task.id })
   taskLog.info({
     msg: 'buildAgentSession entered',
@@ -642,30 +692,17 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
     goal: string,
     images?: ImageContent[]
   ): Promise<{ status: 'completed' | 'failed' | 'cancelled'; summary: string }> => {
-    // Each turn starts clean for cancel/budget/context detection, while
-    // `used` and the wall-clock baseline keep accumulating across the
-    // residency (one budget envelope per residency).
-    stopCause = null
-    translator.resetError()
+    // A failed attempt appends the user goal + a stopReason 'error' assistant
+    // message to the transcript. Snapshot the pre-prompt transcript so a retry
+    // can restore it, discarding that failed turn instead of re-prompting on
+    // top of duplicated user/error messages.
+    const baselineMessages = agent.state.messages.slice()
 
-    taskLog.info({ msg: 'agent.prompt starting', sessionId })
-    const t0 = Date.now()
-    let promptError: unknown = null
-    // pi's prompt() resolves with `void`. A failed model/transport request is
-    // NOT thrown here either — pi routes a stopReason 'error' assistant message
-    // through the event stream, which the translator captures (getError). So a
-    // failure is detected via the translator, never the return value.
-    try {
-      await agent.prompt(goal, images && images.length > 0 ? images : undefined)
-      taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0, error: translator.getError() })
-    } catch (err) {
-      // An abort (cancel/budget) may surface here; stopCause disambiguates it
-      // from a genuine failure below.
-      promptError = err
-    }
-
-    if (stopCause === 'cancelled') {
-      taskLog.info({ msg: 'task cancelled', durationMs: Date.now() - t0 })
+    // The user-cancel that surfaces during the retry wait. Emits the same
+    // cancellation outcome as an in-prompt cancel so a queued retry never
+    // overrides a stop request.
+    const reportCancelled = (): { status: 'cancelled'; summary: string } => {
+      taskLog.info({ msg: 'task cancelled during retry wait' })
       emit('task.error', {
         taskId: task.id,
         error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
@@ -674,73 +711,154 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       return { status: 'cancelled', summary: translator.getFinalSummary() }
     }
 
-    if (stopCause === 'budget') {
-      taskLog.warn({ msg: 'task budget exhausted', dim: budgetDim, used, durationMs: Date.now() - t0 })
-      emit('task.error', {
-        taskId: task.id,
-        error: { code: 'budget_exhausted', message: `Budget exhausted (${budgetDim}).`, tier: 'gave_up' },
-        ts: Date.now(),
-      })
-      return { status: 'failed', summary: translator.getFinalSummary() }
-    }
-
-    if (stopCause === 'context') {
-      taskLog.warn({
-        msg: 'context window full',
-        contextTokens,
-        contextWindow: model.contextWindow,
-        durationMs: Date.now() - t0,
-      })
-      emit('task.error', {
-        taskId: task.id,
+    // Surface a retried failure in the transcript without ending the task. A
+    // 'transient'-tier error renders as a visible notice (the UI does not mark
+    // the task failed — only the terminal task.error does that on give-up).
+    const emitRetryNotice = (attempt: number, message: string): void => {
+      const event: TaskEvent = {
+        kind: 'error',
         error: {
-          code: 'context_window_full',
-          message: `Context window full (${contextTokens} > ${model.contextWindow} tokens).`,
-          tier: 'gave_up',
+          code: 'agent_request_retry',
+          message: `Provider request failed (attempt ${attempt + 1}/${maxRetries + 1}); retrying in ${Math.round(
+            retryDelayMs / 1000
+          )}s. ${message}`,
+          tier: 'transient',
         },
         ts: Date.now(),
-      })
-      return { status: 'failed', summary: translator.getFinalSummary() }
+      }
+      emit('task.progress', { taskId: task.id, event, ts: Date.now() })
     }
 
-    if (promptError) {
-      taskLog.error({
-        msg: 'agent.prompt threw',
-        durationMs: Date.now() - t0,
-        err:
-          promptError instanceof Error
-            ? { name: promptError.name, message: promptError.message, stack: promptError.stack }
-            : String(promptError),
-      })
-      emit('task.error', {
-        taskId: task.id,
-        error: {
-          code: 'agent_exception',
-          message: promptError instanceof Error ? promptError.message : String(promptError),
-          tier: 'fatal',
-        },
-        ts: Date.now(),
-      })
-      return { status: 'failed', summary: '' }
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const isLastAttempt = attempt === maxRetries
+      // Each attempt starts clean for cancel/budget/context detection, while
+      // `used` and the wall-clock baseline keep accumulating across the
+      // residency (one budget envelope per residency).
+      stopCause = null
+      translator.resetError()
+      // Hold the TERMINAL task.error back until the last attempt: a retried
+      // failure must not flip the task to 'failed' (that stops the run). The
+      // failure is still made visible — as a transient task.progress notice
+      // emitted before each retry below.
+      translator.setSuppressError(!isLastAttempt)
+      // Discard the prior failed turn before re-issuing the prompt.
+      if (attempt > 0) agent.state.messages = baselineMessages.slice()
+
+      taskLog.info({ msg: 'agent.prompt starting', sessionId, attempt, maxRetries })
+      const t0 = Date.now()
+      let promptError: unknown = null
+      // pi's prompt() resolves with `void`. A failed model/transport request is
+      // NOT thrown here either — pi routes a stopReason 'error' assistant message
+      // through the event stream, which the translator captures (getError). So a
+      // failure is detected via the translator, never the return value.
+      try {
+        await agent.prompt(goal, images && images.length > 0 ? images : undefined)
+        taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0, error: translator.getError() })
+      } catch (err) {
+        // An abort (cancel/budget) may surface here; stopCause disambiguates it
+        // from a genuine failure below.
+        promptError = err
+      }
+
+      // Deliberate stops are never transient — return immediately, no retry.
+      if (stopCause === 'cancelled') {
+        taskLog.info({ msg: 'task cancelled', durationMs: Date.now() - t0 })
+        emit('task.error', {
+          taskId: task.id,
+          error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
+          ts: Date.now(),
+        })
+        return { status: 'cancelled', summary: translator.getFinalSummary() }
+      }
+
+      if (stopCause === 'budget') {
+        taskLog.warn({ msg: 'task budget exhausted', dim: budgetDim, used, durationMs: Date.now() - t0 })
+        emit('task.error', {
+          taskId: task.id,
+          error: { code: 'budget_exhausted', message: `Budget exhausted (${budgetDim}).`, tier: 'gave_up' },
+          ts: Date.now(),
+        })
+        return { status: 'failed', summary: translator.getFinalSummary() }
+      }
+
+      if (stopCause === 'context') {
+        taskLog.warn({
+          msg: 'context window full',
+          contextTokens,
+          contextWindow: model.contextWindow,
+          durationMs: Date.now() - t0,
+        })
+        emit('task.error', {
+          taskId: task.id,
+          error: {
+            code: 'context_window_full',
+            message: `Context window full (${contextTokens} > ${model.contextWindow} tokens).`,
+            tier: 'gave_up',
+          },
+          ts: Date.now(),
+        })
+        return { status: 'failed', summary: translator.getFinalSummary() }
+      }
+
+      // A thrown transport error — retry while attempts remain, else give up.
+      if (promptError) {
+        taskLog.error({
+          msg: 'agent.prompt threw',
+          attempt,
+          durationMs: Date.now() - t0,
+          err:
+            promptError instanceof Error
+              ? { name: promptError.name, message: promptError.message, stack: promptError.stack }
+              : String(promptError),
+        })
+        if (!isLastAttempt) {
+          taskLog.warn({ msg: 'retrying after agent.prompt threw', attempt, delayMs: retryDelayMs })
+          emitRetryNotice(attempt, promptError instanceof Error ? promptError.message : String(promptError))
+          await abortableDelay(retryDelayMs, deps.signal)
+          if (deps.signal?.aborted) return reportCancelled()
+          continue
+        }
+        emit('task.error', {
+          taskId: task.id,
+          error: {
+            code: 'agent_exception',
+            message: promptError instanceof Error ? promptError.message : String(promptError),
+            tier: 'fatal',
+          },
+          ts: Date.now(),
+        })
+        return { status: 'failed', summary: '' }
+      }
+
+      // pi reports a failed model/transport request by routing a stopReason
+      // 'error' assistant message through the event stream (not by throwing or
+      // by a return value). The translator captured it; retry while attempts
+      // remain. On the final attempt the translator (unsuppressed) already
+      // emitted task.error on agent_end, so here we just log and report failed.
+      const requestError = translator.getError()
+      if (requestError) {
+        taskLog.error({
+          msg: 'agent.prompt resolved with error',
+          attempt,
+          errorMessage: requestError,
+          durationMs: Date.now() - t0,
+        })
+        if (!isLastAttempt) {
+          taskLog.warn({ msg: 'retrying after agent.prompt error', attempt, delayMs: retryDelayMs })
+          emitRetryNotice(attempt, requestError)
+          await abortableDelay(retryDelayMs, deps.signal)
+          if (deps.signal?.aborted) return reportCancelled()
+          continue
+        }
+        return { status: 'failed', summary: translator.getFinalSummary() }
+      }
+
+      return { status: 'completed', summary: translator.getFinalSummary() }
     }
 
-    // pi reports a failed model/transport request by routing a stopReason
-    // 'error' assistant message through the event stream (not by throwing or by
-    // a return value). The translator captured it and already emitted task.error
-    // on agent_end; here we just log it and report 'failed' so the empty turn is
-    // never misread as a successful completion. Without this the user sees no
-    // reply and the error never reaches the log.
-    const requestError = translator.getError()
-    if (requestError) {
-      taskLog.error({
-        msg: 'agent.prompt resolved with error',
-        errorMessage: requestError,
-        durationMs: Date.now() - t0,
-      })
-      return { status: 'failed', summary: translator.getFinalSummary() }
-    }
-
-    return { status: 'completed', summary: translator.getFinalSummary() }
+    // Unreachable: the loop returns on every terminal branch. Satisfies the
+    // non-void return type without a misleading fallback outcome.
+    throw new Error('promptOnce retry loop exited without a result')
   }
 
   return {

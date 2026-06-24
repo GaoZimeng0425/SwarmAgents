@@ -52,6 +52,9 @@ const deps = (emit: (event: string, data: unknown) => void): AgentRunnerDeps =>
     toolRegistry: { resolve: () => ({ tools: [], riskOf: () => 'low' }) } as any,
     initialMessages: [],
     spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
+    // Keep the retry loop instant; this test asserts the final-failure behavior,
+    // not the retry timing.
+    retry: { maxRetries: 10, delayMs: 0 },
   }) as any
 
 describe('promptOnce — model request failure (stopReason: error)', () => {
