@@ -29,21 +29,45 @@ Status: Approved (design)
 
 ---
 
-## Task 1 — 布局统一
+## Task 1 — 布局统一（以 providers tab 为基准）
 
-### 新增组件
+**样式基准 = providers-view。** 其它 tab 对齐 providers 的视觉语言：标题字号、描述、区块（Section）、间距。从 providers-view 提取的 token：
 
-`src/renderer/src/components/views/settings-header.tsx`：
+- 标题 `<h2 className="font-medium text-lg">`、描述 `<p className="mt-1 text-muted-foreground text-sm">`
+- 顶部为 `flex items-start justify-between gap-4` 行（标题/描述在左，操作按钮在右）
+- 区块 = `Section`：`space-y-2` 容器 + `<div className="font-medium text-sm">{label}</div>` 标签 + 内容
+- 外层 rhythm `space-y-5`
+
+### 新增共享组件
+
+`src/renderer/src/components/views/settings-primitives.tsx`，承载 providers-view 当前私有的样式 helper，供所有 tab 复用：
 
 ```tsx
-export function SettingsHeader({ title, description }: {
+export function SettingsHeader({ title, description, action }: {
   title: React.ReactNode
   description?: React.ReactNode
+  action?: React.ReactNode      // 右侧操作区（如 providers 的刷新按钮）
 }): React.JSX.Element {
   return (
-    <div>
-      <h2 className="font-semibold text-lg">{title}</h2>
-      {description && <p className="mt-1 text-muted-foreground text-sm">{description}</p>}
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h2 className="font-medium text-lg">{title}</h2>
+        {description && <p className="mt-1 text-muted-foreground text-sm">{description}</p>}
+      </div>
+      {action}
+    </div>
+  )
+}
+
+// 提升自 providers-view 的私有 Section，成为共享区块原语。
+export function Section({ label, children }: {
+  label: React.ReactNode
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div className="space-y-2">
+      <div className="font-medium text-sm">{label}</div>
+      {children}
     </div>
   )
 }
@@ -51,14 +75,13 @@ export function SettingsHeader({ title, description }: {
 
 ### 各 view 改造
 
-基准规格（已被 budgets/web-search 采用）：外层容器 `max-w-2xl space-y-6`。
-
-- **about / general / permissions**：`max-w-xl` → `max-w-2xl`，间距 → `space-y-6`，顶部 `<h2>+<p>` 换 `<SettingsHeader>`。
-- **budgets / web-search**：仅把顶部块换成 `<SettingsHeader>`（已是基准规格）。
-- **skills / mcp-servers**：删除各自的 `mx-auto … p-6`（与 dialog 外层 `p-6` 重复）和 `font-semibold text-xl` 标题块，外层改 `max-w-2xl space-y-6`（用 `space-y` 而非 `flex flex-col gap`，保持一致），顶部换 `<SettingsHeader>`。
-- **providers**：保留宽幅 master-detail 布局（不套 `max-w-2xl`），仅把右上角中文标题块换用 `<SettingsHeader>`（文案保持中文）。
+- **providers**：删除其私有的 `Section`（291-298）改为从 `settings-primitives` 导入；右上角中文标题块换用 `<SettingsHeader … action={刷新按钮}>`（文案保持中文）。providers 保留宽幅 master-detail 布局（不套 `max-w-2xl`），它是基准。
+- **about / general / permissions**：外层 `max-w-xl` → `max-w-2xl`，间距 → `space-y-5`，顶部 `<h2>+<p>` 换 `<SettingsHeader>`。permissions 内的 `<h3>` 小节标题块改用共享 `<Section>`（或保留 h3，但统一为 `font-medium text-sm`）。
+- **budgets / web-search**：外层间距 `space-y-6` → `space-y-5`，顶部块换 `<SettingsHeader>`，把各自的 label 块换成共享 `<Section>`（web-search 已有同款手写块；budgets 的 `BudgetSection` 内层 `font-medium text-sm` 标题可保留）。
+- **skills / mcp-servers**：删除各自的 `mx-auto … p-6`（与 dialog 外层 `p-6` 重复）与 `font-semibold text-xl` 标题块；外层改 `max-w-2xl space-y-5`（用 `space-y` 而非 `flex flex-col gap`）；顶部 `<h2>+<p>`（含右侧按钮组）换 `<SettingsHeader … action={按钮组}>`。
 
 > dialog 外层 `ScrollArea > div.p-6` 不变；所有 view 不再自带外层 padding。
+> 表单型 tab 保留 `max-w-2xl` 以保证可读性（providers 之所以全宽是因为它是双栏 master-detail，表单不需要全宽）。
 
 ---
 
@@ -209,5 +232,5 @@ preload + `ui.ts` 增加对应签名。
 
 ## 影响面
 
-- 改动文件：`src/shared/types/provider.ts`、`src/shared/types/ui.ts`、`src/main/providers/{service,ipc,redact}.ts`、新增 `src/main/providers/openrouter.ts`、`src/preload/index.ts`、`src/service/session/agent-runner.ts`、`src/renderer/src/components/views/*.tsx`、新增 `settings-header.tsx`、`src/renderer/src/hooks/use-providers.ts`（若类型引用）。
+- 改动文件：`src/shared/types/provider.ts`、`src/shared/types/ui.ts`、`src/main/providers/{service,ipc,redact}.ts`、新增 `src/main/providers/openrouter.ts`、`src/preload/index.ts`、`src/service/session/agent-runner.ts`、`src/renderer/src/components/views/*.tsx`、新增 `src/renderer/src/components/views/settings-primitives.tsx`（SettingsHeader + Section）、`src/renderer/src/hooks/use-providers.ts`（若类型引用）。
 - 数据迁移：v3→v4，向后兼容，旧数据自动升级。
