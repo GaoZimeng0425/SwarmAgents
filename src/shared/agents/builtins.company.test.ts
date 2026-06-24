@@ -18,15 +18,16 @@ describe('company role agent definitions', () => {
     }
   })
 
-  it('each company role prompt names its delegation teammates by fixed name', () => {
+  it('the dev-team head prompt names its teammates and caps the review loop', () => {
     const pm = builtinAgents.find((a) => a.id === 'pm')!
-    // The PM coordinates engineer + reviewer, so both fixed names appear in its prompt.
+    // The PM coordinates engineer + reviewer, so both teammate roles appear in its prompt.
     expect(pm.systemPrompt).toContain('engineer')
     expect(pm.systemPrompt).toContain('reviewer')
     // The spec mandates a 10-round cap on the fix/review loop.
     expect(pm.systemPrompt).toContain('10')
+    // The CEO no longer names the PM directly — it discovers team heads by tag.
     const ceo = builtinAgents.find((a) => a.id === 'ceo')!
-    expect(ceo.systemPrompt).toContain('pm')
+    expect(ceo.systemPrompt).toContain("teamRole: 'head'")
   })
 
   it('keeps the pre-existing builtin roles intact', () => {
