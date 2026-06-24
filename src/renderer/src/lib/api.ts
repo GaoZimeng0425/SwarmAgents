@@ -21,6 +21,7 @@ export const swarmApi = {
     options?: TaskOptions
   ): Promise<SubmitGoalResult> => window.swarm.submitGoal(sessionId, goal, attachments, options),
   cancelTask: (sessionId: string, taskId: string): Promise<void> => window.swarm.cancelTask(sessionId, taskId),
+  interruptWith: (sessionId: string, taskId: string): Promise<void> => window.swarm.interruptWith(sessionId, taskId),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),

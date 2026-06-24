@@ -44,6 +44,7 @@ export type ServiceClient = {
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   cancelTask(sessionId: string, taskId: string): Promise<void>
+  interruptWith(sessionId: string, taskId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
@@ -137,6 +138,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     async cancelTask(sessionId, taskId) {
       await call('cancelTask', [sessionId, taskId])
+    },
+    async interruptWith(sessionId, taskId) {
+      await call('interruptWith', [sessionId, taskId])
     },
     async setMcpServers(configs) {
       await call('setMcpServers', [configs])
