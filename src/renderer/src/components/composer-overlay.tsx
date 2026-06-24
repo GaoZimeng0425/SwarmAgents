@@ -60,7 +60,7 @@ export function ComposerOverlay({
         {running && (
           <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
             <span className="flex items-center gap-2">
-              <span className="size-2 animate-pulse rounded-full bg-green-500" aria-hidden />
+              <span className="size-2 animate-pulse rounded-full bg-green-500" aria-hidden={true} />
               执行中…
             </span>
             <Button aria-label="停止" onClick={onStopRunning} size="icon-sm" variant="ghost">
@@ -75,7 +75,7 @@ export function ComposerOverlay({
             className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-1.5 text-sm"
           >
             <span className="flex min-w-0 items-center gap-2">
-              <span className="text-muted-foreground" aria-hidden>
+              <span className="text-muted-foreground" aria-hidden={true}>
                 ⏳
               </span>
               <span className="truncate">{q.goal}</span>

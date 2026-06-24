@@ -4,6 +4,8 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ChatInput } from './chat-input'
+
 // Helper so tests don't repeat the minimum required props.
 function renderChatInput(props: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
   return render(
@@ -15,8 +17,6 @@ function renderChatInput(props: Partial<React.ComponentProps<typeof ChatInput>> 
     />
   )
 }
-
-import { ChatInput } from './chat-input'
 
 // No configured providers → the model/thinking pickers stay hidden, keeping the
 // render focused on the three composer controls under test.

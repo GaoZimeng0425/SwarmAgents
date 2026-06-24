@@ -129,6 +129,8 @@ export type SessionManager = {
     payload: string,
     kind: 'send' | 'rpc'
   ): Promise<{ reply: string } | { delivered: true }>
+  /** @internal test hook */
+  __enqueueWithoutPumpForTest?(sessionId: string, goal: string): string
 }
 
 // session-manager owns sensible defaults for the agent-execution subsystem
@@ -740,9 +742,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       }
 
       const runTurn = async (): Promise<void> => {
-        await acquireSlot()
+        // Register the abort handle BEFORE awaiting a slot: pump() has already
+        // set session.running and shifted this turn out of pending, so until the
+        // handle exists a cancel/interrupt issued while we wait for a slot would
+        // find the turn nowhere and silently no-op. Registering first latches the
+        // signal; the runner short-circuits to 'cancelled' once it starts.
         const abort = new AbortController()
         oneShotHandles.set(taskId, abort)
+        await acquireSlot()
         const runner = createAgentRunner({
           task,
           provider: session.provider,
@@ -918,6 +925,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // Test-only: exercise actor resolution without driving a full run.
     __ensureActorForTest(sessionId: string, agentDefId: string, name?: string) {
       return ensureActor(sessionId, agentDefId, name)
+    },
+
+    // Test-only: enqueue a goal WITHOUT auto-pumping, leaving the session idle
+    // with a pending turn. submitGoal always pumps, so the only way to reach the
+    // idle-with-pending state (exercised by interruptWith's else branch) is to
+    // briefly block pump with a sentinel `running`, then clear it. Returns taskId.
+    __enqueueWithoutPumpForTest(sessionId: string, goal: string): string {
+      const session = sessions.get(sessionId)
+      if (!session) throw new Error(`session ${sessionId} not found`)
+      const prevRunning = session.running
+      session.running = '__test_block__'
+      const { taskId } = this.submitGoal(sessionId, goal)
+      session.running = prevRunning
+      return taskId
     },
 
     // Test-only: drive sendMessage directly.
