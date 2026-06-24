@@ -20,7 +20,7 @@ export function ThemeToggle(): React.JSX.Element {
           aria-label={label}
           aria-pressed={active === value}
           className={cn(
-            'flex flex-1 items-center justify-center rounded-[5px] py-1 text-muted-foreground transition-colors hover:text-foreground',
+            'flex flex-1 items-center justify-center rounded-[5px] px-2.5 py-1 text-muted-foreground transition-colors hover:text-foreground',
             active === value && 'bg-background text-foreground shadow-sm'
           )}
           key={value}

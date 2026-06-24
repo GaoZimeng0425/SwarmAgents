@@ -14,8 +14,13 @@ export function AppSidebar(): React.JSX.Element {
   const openSettings = useSettingsDialog((s) => s.openSettings)
 
   return (
-    <Sidebar variant="inset">
-      {/* inset variant: window tinted with sidebar color, content floats as rounded card */}
+    // floating variant: the sidebar is a rounded, shadowed card with a gap around
+    // it (showing the window vibrancy) — no hard border line on the chat's left.
+    // The card reaches near the top so it wraps the native traffic lights inside
+    // its rounded top corner; the inner pt-9 (ui/sidebar.tsx) keeps the session
+    // list clear of that top control band. The fixed TopBar — not the card —
+    // owns the toggle, so it stays reachable when the sidebar is collapsed.
+    <Sidebar variant="floating">
       <SidebarContent>
         <SessionList />
       </SidebarContent>

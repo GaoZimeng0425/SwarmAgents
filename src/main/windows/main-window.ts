@@ -26,6 +26,10 @@ export function createMainWindow(): BrowserWindow {
     ...(isMac
       ? {
           titleBarStyle: 'hiddenInset',
+          // Nudge the native traffic lights down from the very top edge so they
+          // sit comfortably within the top control band (aligned with the
+          // TopBar's pt-offset controls). Tune `y` to taste.
+          trafficLightPosition: { x: 19, y: 19 },
           vibrancy: 'sidebar',
           visualEffectState: 'active',
         }

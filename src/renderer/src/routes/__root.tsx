@@ -36,11 +36,14 @@ function RootLayout(): React.JSX.Element {
           navigation (incl. swarm:navigate-settings). Must never unmount. */}
       <EventsBridge />
       <SettingsDialog />
-      <SidebarProvider>
+      {/* The whole window backdrop is the conversation surface (--window-content);
+          the floating sidebar card sits on it, so the gap around the card matches
+          the chat area instead of showing raw desktop vibrancy. */}
+      <SidebarProvider className="bg-[var(--window-content)]">
         <TopBar />
         <AppSidebar />
         <SidebarInset className="min-w-0 overflow-hidden">
-          <main className="flex h-svh flex-col overflow-hidden bg-[var(--window-content)] pt-9">
+          <main className="flex h-svh flex-col overflow-hidden pt-9">
             <NoProviderBanner />
             <div className="min-h-0 flex-1">
               <Outlet />
@@ -58,17 +61,22 @@ function RootLayout(): React.JSX.Element {
   )
 }
 
+// Fixed, transparent control strip pinned to the window's top edge. It carries
+// no background (no visible title bar) — only the window controls, vertically
+// aligned with the native macOS traffic lights. Living here (outside the
+// floating sidebar card) keeps the sidebar toggle reachable even when the
+// sidebar is collapsed, and on the same row as the traffic lights.
 function TopBar(): React.JSX.Element {
   const router = useRouter()
   return (
     <div
-      className="fixed inset-x-0 top-0 z-30 flex h-9 shrink-0 items-center gap-0.5 bg-[var(--window-content)]/80 px-2 backdrop-blur-md"
+      className="fixed inset-x-0 top-0 z-30 flex h-9 shrink-0 items-center gap-0.5 px-2 pt-4"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Fixed control cluster, offset clear of the macOS traffic lights.
-         no-drag so the buttons are clickable; the rest of the strip drags. */}
+      {/* Left cluster, offset clear of the traffic lights. no-drag so the
+          buttons stay clickable; the rest of the strip drags the window. */}
       <div
-        className="flex items-center gap-0.5 pl-[70px]"
+        className="flex items-center gap-0.5 pl-[88px]"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
         <SidebarTrigger aria-label="Toggle sidebar" className="text-muted-foreground" />
@@ -91,7 +99,7 @@ function TopBar(): React.JSX.Element {
           <ArrowRight />
         </Button>
       </div>
-      {/* Right cluster: global tools/skills/MCP toggle. no-drag so it's clickable. */}
+      {/* Right cluster: global tools/skills/MCP toggle. */}
       <div className="ml-auto flex items-center gap-0.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <ToolsPopover />
       </div>
