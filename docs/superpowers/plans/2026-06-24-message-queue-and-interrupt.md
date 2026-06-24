@@ -516,9 +516,9 @@ git commit -m "feat(ipc): thread interruptWith from renderer to session manager"
 先看 `src/renderer/src/components/chat-input.test.tsx` 现有渲染辅助（如何 mock `window.swarm`/providers、如何 render `<ChatInput>`），沿用同样的 wrapper。新增用例：
 
 ```ts
-  it('submits even while a task is running (no stop button on the composer)', async () => {
+  it('always exposes a submit affordance and never a stop one', async () => {
     const onSubmit = vi.fn()
-    renderChatInput({ onSubmit, status: 'streaming' }) // status no longer turns submit into stop
+    renderChatInput({ onSubmit }) // composer is status-agnostic after this task
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'hello' } })
     fireEvent.submit(textarea.closest('form')!)
@@ -529,7 +529,7 @@ git commit -m "feat(ipc): thread interruptWith from renderer to session manager"
   })
 ```
 
-> 注：`renderChatInput` 用 `chat-input.test.tsx` 既有的渲染 helper；若该文件用的是内联 `render(<ChatInput .../>)`，照搬其 props 装配方式并补 `status`/`onSubmit`。`PromptInputSubmit` 的 aria-label 为 `'Submit'`/`'Stop'`（见 `prompt-input.tsx:1081`）。
+> 注：`renderChatInput` 用 `chat-input.test.tsx` 既有的渲染 helper；若该文件用的是内联 `render(<ChatInput .../>)`，照搬其 props 装配方式并补 `onSubmit`（不再需要 `status`/`onStop`）。`PromptInputSubmit` 的 aria-label 为 `'Submit'`/`'Stop'`（见 `prompt-input.tsx:1081`）。该用例先失败的原因：当前 `ChatInput` 在无 `status` 时默认渲染 Submit，但既有用例/实现仍保留 stop 分支——若现状下它已通过，则把断言强化为「移除 `status`/`onStop` prop 后仍成立」，真正的红→绿信号来自 Step 5 既有 stop 相关用例的更新。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -566,12 +566,7 @@ Expected: FAIL（当前 `status='streaming'` 会渲染 Stop 按钮、且 submit 
 Run: `npm test -- src/renderer/src/components/chat-input.test.tsx`
 Expected: PASS（新用例通过；既有用例若断言过 Stop 行为，按本任务语义更新——发送键不再变停止键）
 
-- [ ] **Step 6: typecheck:web**
-
-Run: `npm run typecheck:web`
-Expected: PASS（`tasks-view.tsx` 仍传 `status`/`onStop` 给 `ChatInput`——TS 会因多余 prop 报错。这是预期信号，Task 6 会移除这些传参；若想本任务即保持绿色，可临时在 tasks-view 删除这两个传参，Task 6 再补 overlay 接线。**采用后者**：见下一步。）
-
-- [ ] **Step 7: 同步移除 tasks-view 对已删 props 的传参**
+- [ ] **Step 6: 同步移除 tasks-view 对已删 props 的传参**
 
 `src/renderer/src/components/views/tasks-view.tsx`：在 `<ChatInput .../>` 中删除这两行（Task 6 会把停止接到 overlay）：
 
@@ -584,10 +579,10 @@ Expected: PASS（`tasks-view.tsx` 仍传 `status`/`onStop` 给 `ChatInput`——
           status={activeTask ? (activeTask.status === 'pending' ? 'submitted' : 'streaming') : 'ready'}
 ```
 
-Run: `npm run typecheck:web`
-Expected: PASS
+Run: `npm run typecheck:web && npm test -- src/renderer/src/components/chat-input.test.tsx`
+Expected: PASS（移除 props 后 web 侧类型一致；composer 测试全绿）
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/renderer/src/components/chat-input.tsx src/renderer/src/components/chat-input.test.tsx src/renderer/src/components/views/tasks-view.tsx
