@@ -807,7 +807,29 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     cancelTask(sessionId, taskId) {
       log.info({ msg: 'task cancel requested', sessionId, taskId })
-      oneShotHandles.get(taskId)?.abort()
+      // Running (or about-to-run with a registered abort handle): abort the run.
+      const handle = oneShotHandles.get(taskId)
+      if (handle) {
+        handle.abort()
+        return
+      }
+      // Queued but not yet started: remove from the queue and mark cancelled.
+      const session = sessions.get(sessionId)
+      const idx = session ? session.pending.findIndex((q) => q.taskId === taskId) : -1
+      if (session && idx !== -1) {
+        session.pending.splice(idx, 1)
+        store.updateTaskStatus(taskId, 'cancelled')
+        // Surface to the UI so the queued card is dropped; reducer maps a
+        // task.error with code 'cancelled' to the cancelled status.
+        makeEmit(sessionId)('task.error', {
+          taskId,
+          error: { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' },
+          ts: Date.now(),
+        })
+        log.info({ msg: 'queued task cancelled', sessionId, taskId })
+        return
+      }
+      log.warn({ msg: 'cancelTask: unknown or already-finished task', sessionId, taskId })
     },
 
     endSession(sessionId) {

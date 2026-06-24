@@ -666,6 +666,42 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('cancelTask drops a queued task so it never runs and marks it cancelled', async () => {
+    const ran: string[] = []
+    let resolveA: (() => void) | null = null
+    mockCreate.mockImplementation((deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+      run: async () => {
+        ran.push(deps.task.goal)
+        if (deps.task.goal === 'A') {
+          await new Promise<void>((r) => {
+            resolveA = r
+          })
+        }
+        deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+        return { status: 'completed' as const, summary: '' }
+      },
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    manager.submitGoal(sessionId, 'A')
+    const { taskId: bId } = manager.submitGoal(sessionId, 'B')
+    await new Promise((r) => setTimeout(r, 0))
+
+    manager.cancelTask(sessionId, bId)
+    expect(store.getSessionTasks(sessionId).find((t) => t.id === bId)?.status).toBe('cancelled')
+
+    resolveA!()
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(ran).toEqual(['A']) // B was cancelled before it could run
+    store.close()
+  })
+
   it('invokes onComplete with failed + message when the run throws', async () => {
     mockCreate.mockImplementation(() => ({
       run: vi.fn().mockRejectedValue(new Error('boom')),
