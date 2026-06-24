@@ -42,7 +42,7 @@ function parsePricing(raw: unknown): ModelPricing | undefined {
 
 export function parseCatalog(json: unknown): Catalog {
   const out: Catalog = new Map()
-  const data = (json as { data?: unknown } | null)?.data
+  const data = json != null && typeof json === 'object' ? (json as { data?: unknown }).data : undefined
   if (!Array.isArray(data)) return out
   for (const entry of data) {
     if (!entry || typeof entry !== 'object') continue

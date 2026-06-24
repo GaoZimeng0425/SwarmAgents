@@ -12,6 +12,7 @@ const sample = {
     { id: 'openai/gpt-4o', context_length: 128000, pricing: { prompt: '0.0000025', completion: '0.00001' } },
     { id: 'broken/no-price', context_length: 1000, pricing: { prompt: 'n/a', completion: 'n/a' } },
     { id: 'no-context-no-price' },
+    { id: 'price/only', pricing: { prompt: '0.000001', completion: '0.000002' } },
   ],
 }
 
@@ -28,6 +29,11 @@ describe('parseCatalog', () => {
   })
   it('drops entries with neither context nor price', () => {
     expect(parseCatalog(sample).has('no-context-no-price')).toBe(false)
+  })
+  it('keeps a price-only entry with no contextWindow', () => {
+    expect(parseCatalog(sample).get('price/only')).toEqual({
+      pricing: { inputPerM: 1, outputPerM: 2 },
+    })
   })
   it('tolerates malformed input', () => {
     expect(parseCatalog(null).size).toBe(0)
