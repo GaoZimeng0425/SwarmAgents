@@ -8,7 +8,7 @@ import { ConversationThread } from '@/components/conversation-thread'
 import { RightPanel } from '@/components/right-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useCancelTask, useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
+import { useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
@@ -20,7 +20,6 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const sessions = useSessionsStore((s) => s.sessions)
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
   const submitGoal = useSubmitGoal()
-  const cancelTask = useCancelTask()
   const decide = useDecidePermission()
   const { ready, state } = useProviders()
 
@@ -99,15 +98,11 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           onCwdChange={setCwd}
           onExecutionModeChange={setExecutionMode}
           onPermissionModeChange={setPermissionMode}
-          onStop={() => {
-            if (activeTask) cancelTask.mutate({ sessionId: activeTask.sessionId, taskId: activeTask.id })
-          }}
           onSubmit={async (g, attachments) => {
             if (!ready) return
             await submitGoal.mutateAsync({ goal: g, attachments, options: taskOptions })
           }}
           permissionMode={permissionMode}
-          status={activeTask ? (activeTask.status === 'pending' ? 'submitted' : 'streaming') : 'ready'}
           supportsImages={!!providerViewById(state, state.active)?.supportsImages}
           usdCents={latestTask?.used?.usdCents}
         />

@@ -49,7 +49,6 @@ export function HomeComposer(): React.JSX.Element {
             void navigate({ to: '/session/$sessionId', params: { sessionId } })
           }}
           permissionMode={permissionMode}
-          status="ready"
           supportsImages={!!providerViewById(state, state.active)?.supportsImages}
           teamOptions={teamOptions}
         />
