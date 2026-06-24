@@ -103,6 +103,8 @@ export type SessionSummary = {
   cwd?: string
   permissionMode?: PermissionMode
   executionMode?: ExecutionMode
+  /** Composer-chosen entry agent: 'ceo' (the company default) or a team head's id. */
+  agentType?: string
 }
 
 /** The per-session composer controls persisted on the session row. */
@@ -110,6 +112,8 @@ export type SessionSettings = {
   cwd?: string
   permissionMode?: PermissionMode
   executionMode?: ExecutionMode
+  /** Composer-chosen entry agent: 'ceo' (the company default) or a team head's id. */
+  agentType?: string
 }
 
 export type CronJobSummary = {

@@ -216,6 +216,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     'ALTER TABLE sessions ADD COLUMN cwd TEXT',
     'ALTER TABLE sessions ADD COLUMN permission_mode TEXT',
     'ALTER TABLE sessions ADD COLUMN execution_mode TEXT',
+    'ALTER TABLE sessions ADD COLUMN agent_type TEXT',
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
@@ -460,13 +461,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtListSessions = db.prepare(
     `SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
             s.cwd, s.permission_mode AS permissionMode, s.execution_mode AS executionMode,
+            s.agent_type AS agentType,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
      FROM sessions s
      WHERE s.status != 'ended'
      ORDER BY s.pinned DESC, s.sort_order ASC`
   )
   const stmtSetSessionSettings = db.prepare(
-    'UPDATE sessions SET cwd = ?, permission_mode = ?, execution_mode = ? WHERE id = ?'
+    'UPDATE sessions SET cwd = ?, permission_mode = ?, execution_mode = ?, agent_type = ? WHERE id = ?'
   )
 
   // Hard-delete a session and everything that references it (FK constraints
@@ -548,6 +550,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         cwd: (r.cwd as string | null) ?? undefined,
         permissionMode: (r.permissionMode as 'ask' | 'full' | null) ?? undefined,
         executionMode: (r.executionMode as 'goal' | 'plan' | null) ?? undefined,
+        agentType: (r.agentType as string | null) ?? undefined,
       }))
     },
     setSessionSettings(id, settings) {
@@ -555,6 +558,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         settings.cwd ?? null,
         settings.permissionMode ?? null,
         settings.executionMode ?? null,
+        settings.agentType ?? null,
         id
       )
     },

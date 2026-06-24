@@ -86,4 +86,40 @@ describe('ChatInput composer controls', () => {
     await waitFor(() => expect(pickDirectory).toHaveBeenCalledTimes(1))
     expect(onCwdChange).not.toHaveBeenCalled()
   })
+
+  // The team selector's trigger reflects the chosen team head's label; it is
+  // absent entirely when no team options are supplied (e.g. roster not loaded).
+  it('renders the team selector reflecting the chosen team head, and hides it without options', () => {
+    const teams = [
+      { id: 'ceo', label: '公司 (CEO)' },
+      { id: 'pm', label: '开发团队' },
+      { id: 'training-head', label: 'Agent 训练团队' },
+    ]
+    const { rerender } = render(
+      <ChatInput
+        agentType="ceo"
+        executionMode="goal"
+        onAgentTypeChange={vi.fn()}
+        onSubmit={vi.fn()}
+        permissionMode="ask"
+        teamOptions={teams}
+      />
+    )
+    expect(screen.getAllByText('公司 (CEO)').length).toBeGreaterThan(0)
+
+    rerender(
+      <ChatInput
+        agentType="training-head"
+        executionMode="goal"
+        onAgentTypeChange={vi.fn()}
+        onSubmit={vi.fn()}
+        permissionMode="ask"
+        teamOptions={teams}
+      />
+    )
+    expect(screen.getAllByText('Agent 训练团队').length).toBeGreaterThan(0)
+
+    rerender(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
+    expect(screen.queryByText('Agent 训练团队')).not.toBeInTheDocument()
+  })
 })

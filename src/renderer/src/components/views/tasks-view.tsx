@@ -6,6 +6,7 @@ import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
 import { RightPanel } from '@/components/right-panel'
+import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
 import { useCancelTask, useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
@@ -47,16 +48,19 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const cwd = session?.cwd
   const permissionMode = session?.permissionMode ?? 'ask'
   const executionMode = session?.executionMode ?? 'goal'
+  const agentType = session?.agentType ?? 'ceo'
+  const teamOptions = useTeamOptions()
   const persistSettings = (patch: Partial<SessionSettings>): void => {
     if (!selectedSessionId) return
-    const next: SessionSettings = { cwd, permissionMode, executionMode, ...patch }
+    const next: SessionSettings = { cwd, permissionMode, executionMode, agentType, ...patch }
     setSessionSettings(selectedSessionId, next)
     void swarmApi.updateSessionSettings(selectedSessionId, next)
   }
   const setCwd = (next: string | undefined): void => persistSettings({ cwd: next })
   const setPermissionMode = (next: PermissionMode): void => persistSettings({ permissionMode: next })
   const setExecutionMode = (next: ExecutionMode): void => persistSettings({ executionMode: next })
-  const taskOptions = { cwd, permissionMode, executionMode }
+  const setAgentType = (id: string): void => persistSettings({ agentType: id })
+  const taskOptions = { cwd, permissionMode, executionMode, agentType }
 
   return (
     <div className="flex h-full min-w-0 overflow-hidden">
@@ -86,9 +90,12 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           cacheReadTokens={latestTask?.used?.cacheRead}
           contextTokens={latestTask?.contextTokens}
           contextWindow={latestTask?.contextWindow}
+          agentType={agentType}
           cwd={cwd}
           disabled={!ready}
+          teamOptions={teamOptions}
           executionMode={executionMode}
+          onAgentTypeChange={setAgentType}
           onCwdChange={setCwd}
           onExecutionModeChange={setExecutionMode}
           onPermissionModeChange={setPermissionMode}

@@ -816,6 +816,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         cwd: settings.cwd ?? null,
         permissionMode: settings.permissionMode ?? null,
         executionMode: settings.executionMode ?? null,
+        agentType: settings.agentType ?? null,
       })
     },
 
