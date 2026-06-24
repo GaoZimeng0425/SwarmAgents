@@ -480,8 +480,11 @@ function ModelRow({
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(meta?.contextWindow != null ? String(meta.contextWindow) : '')
+  const committed = useRef(false)
 
   const commit = (): void => {
+    if (committed.current) return
+    committed.current = true
     setEditing(false)
     const t = draft.trim()
     if (t === '') {
@@ -539,6 +542,7 @@ function ModelRow({
             <button
               className="rounded px-1 hover:bg-accent hover:text-foreground"
               onClick={() => {
+                committed.current = false
                 setDraft(meta?.contextWindow != null ? String(meta.contextWindow) : '')
                 setEditing(true)
               }}
