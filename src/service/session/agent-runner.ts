@@ -82,6 +82,18 @@ function cloneTemplate(
     baseUrl: p.baseUrl ?? template.baseUrl,
     api: API_FOR_STYLE[style],
     ...(contextWindow != null ? { contextWindow } : {}),
+    // Custom-model pricing (from OpenRouter) overrides the fallback template's
+    // cost so pi-ai's calculateCost() produces real per-turn cost for usdCents.
+    ...(p.pricing
+      ? {
+          cost: {
+            input: p.pricing.inputPerM,
+            output: p.pricing.outputPerM,
+            cacheRead: p.pricing.cacheReadPerM ?? 0,
+            cacheWrite: p.pricing.cacheWritePerM ?? 0,
+          },
+        }
+      : {}),
   }
 }
 
