@@ -135,7 +135,8 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
         code: 'invalid' as const,
         message: 'OpenRouter fetch applies to custom providers only',
       }
-    log.info({ msg: 'fetch model info', id, total: provider.models.length })
+    const total = provider.models.length
+    log.info({ msg: 'fetch model info', id, total })
     let catalog: Awaited<ReturnType<typeof fetchCatalog>>
     try {
       catalog = await fetchCatalog()
@@ -153,9 +154,9 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     const r = await service.mergeModelMeta(id, map)
     if (!r.ok) return { ok: false as const, code: 'invalid' as const, message: r.message }
     if (unmatched.length) log.warn({ msg: 'models unmatched on openrouter', id, unmatched })
-    const matched = provider.models.length - unmatched.length
-    log.info({ msg: 'fetch model info done', id, matched, total: provider.models.length })
-    return { ok: true as const, matched, total: provider.models.length, unmatched }
+    const matched = total - unmatched.length
+    log.info({ msg: 'fetch model info done', id, matched, total })
+    return { ok: true as const, matched, total, unmatched }
   })
 
   ipcMain.handle('providers:setBaseUrl', (_e: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
