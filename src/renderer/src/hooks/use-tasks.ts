@@ -103,3 +103,11 @@ export function useCancelTask() {
       swarmApi.cancelTask(sessionId, taskId),
   })
 }
+
+/** Interrupt the running task and run a queued task next (promotes it to front). */
+export function useInterruptWith() {
+  return useMutation({
+    mutationFn: ({ sessionId, taskId }: { sessionId: string; taskId: string }) =>
+      swarmApi.interruptWith(sessionId, taskId),
+  })
+}

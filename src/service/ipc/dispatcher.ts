@@ -100,6 +100,11 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         manager.cancelTask(sessionId, taskId)
         return { ok: true }
       }
+      case 'interruptWith': {
+        const [sessionId, taskId] = args as [string, string]
+        manager.interruptWith(sessionId, taskId)
+        return { ok: true }
+      }
       case 'setMcpServers': {
         const [configs] = args as [McpServerConfig[]]
         return cfg.setMcpServers(configs).then(() => ({ ok: true }))

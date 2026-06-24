@@ -666,6 +666,49 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('cancelTask drops a queued task so it never runs and marks it cancelled', async () => {
+    const ran: string[] = []
+    let resolveA: (() => void) | null = null
+    mockCreate.mockImplementation((deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+      run: async () => {
+        ran.push(deps.task.goal)
+        if (deps.task.goal === 'A') {
+          await new Promise<void>((r) => {
+            resolveA = r
+          })
+        }
+        deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+        return { status: 'completed' as const, summary: '' }
+      },
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const broadcastSpy = vi.spyOn(broadcaster, 'broadcast')
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    manager.submitGoal(sessionId, 'A')
+    const { taskId: bId } = manager.submitGoal(sessionId, 'B')
+    await new Promise((r) => setTimeout(r, 0))
+
+    manager.cancelTask(sessionId, bId)
+    expect(store.getSessionTasks(sessionId).find((t) => t.id === bId)?.status).toBe('cancelled')
+    // The queued-cancel must surface a task.error with code 'cancelled' so the UI
+    // drops the queued card.
+    expect(broadcastSpy).toHaveBeenCalledWith(
+      'task.error',
+      expect.objectContaining({ taskId: bId, error: expect.objectContaining({ code: 'cancelled' }) })
+    )
+
+    resolveA!()
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(ran).toEqual(['A']) // B was cancelled before it could run
+    store.close()
+  })
+
   it('invokes onComplete with failed + message when the run throws', async () => {
     mockCreate.mockImplementation(() => ({
       run: vi.fn().mockRejectedValue(new Error('boom')),
@@ -791,6 +834,146 @@ describe('SessionManager', () => {
     const tasks = store.getSessionTasks(sessionId)
     expect(tasks).toHaveLength(1)
     expect(tasks[0].agentDefId).toBe('researcher')
+    store.close()
+  })
+
+  it('interruptWith cancels the running task and runs the promoted one before the rest', async () => {
+    const ran: string[] = []
+    const seeds: Record<string, unknown> = {}
+    mockCreate.mockImplementation((deps: { task: { goal: string }; signal?: AbortSignal; initialMessages?: unknown; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+      run: () =>
+        new Promise<{ status: 'completed' | 'cancelled'; summary: string }>((resolve) => {
+          ran.push(deps.task.goal)
+          seeds[deps.task.goal] = deps.initialMessages
+          if (deps.task.goal === 'A') {
+            // A stays running until interrupted (aborted). On abort it persists a
+            // partial transcript via saveSnapshot before resolving cancelled, so
+            // the promoted turn must seed from that partial output.
+            deps.signal?.addEventListener('abort', () => {
+              deps.saveSnapshot?.([{ role: 'assistant', content: 'partial-A' }], {
+                tokens: 0,
+                calls: 0,
+                wallMs: 0,
+                usdCents: 0,
+              })
+              resolve({ status: 'cancelled', summary: '' })
+            })
+            return
+          }
+          deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+          resolve({ status: 'completed', summary: '' })
+        }),
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    manager.submitGoal(sessionId, 'A') // runs
+    manager.submitGoal(sessionId, 'B') // queued
+    const { taskId: cId } = manager.submitGoal(sessionId, 'C') // queued
+    await new Promise((r) => setTimeout(r, 0))
+
+    manager.interruptWith(sessionId, cId) // cancel A, jump C ahead of B
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(ran).toEqual(['A', 'C', 'B'])
+    // The promoted turn C seeds from the partial output A saved on abort.
+    expect(seeds.C).toEqual([{ role: 'assistant', content: 'partial-A' }])
+    store.close()
+  })
+
+  it('interruptWith pumps the promoted queued turn when the session is idle (else branch)', async () => {
+    // Exercise interruptWith's `else { pump(session) }` branch: no running turn to
+    // abort, so interruptWith must start the promoted turn itself. The public
+    // submitGoal always pumps, so we reach an idle-with-pending state via the
+    // test-only enqueue seam, then promote C ahead of B and assert C runs first.
+    const ran: string[] = []
+    mockCreate.mockImplementation((deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+      run: async () => {
+        ran.push(deps.task.goal)
+        deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+        return { status: 'completed' as const, summary: '' }
+      },
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    // Enqueue B then C without auto-pumping: the session stays idle with two
+    // pending turns — the only state from which the idle else branch is reachable.
+    const mgr = manager as unknown as { __enqueueWithoutPumpForTest(s: string, g: string): string }
+    mgr.__enqueueWithoutPumpForTest(sessionId, 'B')
+    const cId = mgr.__enqueueWithoutPumpForTest(sessionId, 'C')
+    expect(ran).toEqual([]) // nothing started — session is idle
+
+    manager.interruptWith(sessionId, cId) // promote C; no running task -> pump
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(ran).toEqual(['C', 'B']) // C ran first via the idle pump branch
+    store.close()
+  })
+
+  it('cancelTask while a turn waits for a slot aborts it before it does any work', async () => {
+    // FIX 1 regression: pump() shifts a turn out of pending and sets
+    // session.running synchronously, then runTurn() awaits a slot. The abort
+    // handle must be registered BEFORE that await, or a cancel issued during the
+    // slot wait finds the turn nowhere and silently no-ops.
+    const sawAbortedAtEntry: Record<string, boolean> = {}
+    mockCreate.mockImplementation(
+      (deps: { task: { goal: string }; signal?: AbortSignal; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+        run: () =>
+          new Promise<{ status: 'completed' | 'cancelled'; summary: string }>((resolve) => {
+            // Record whether the signal was already aborted when run() started.
+            sawAbortedAtEntry[deps.task.goal] = deps.signal?.aborted ?? false
+            if (deps.signal?.aborted) {
+              resolve({ status: 'cancelled', summary: '' })
+              return
+            }
+            // A holds the single slot until it is itself aborted.
+            deps.signal?.addEventListener('abort', () => resolve({ status: 'cancelled', summary: '' }))
+          }),
+      })
+    )
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    // maxConcurrent: 1 — one global slot shared across sessions.
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 1, getProvider: () => undefined })
+    const { sessionId: s1 } = manager.createSession(providerA)
+    const { sessionId: s2 } = manager.createSession(providerA)
+
+    // A grabs the only slot and runs.
+    const { taskId: aId } = manager.submitGoal(s1, 'A')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(sawAbortedAtEntry.A).toBe(false)
+
+    // B is dequeued by pump (session2.running set, B shifted out of pending) and
+    // now blocks on acquireSlot() — A holds the slot.
+    const { taskId: bId } = manager.submitGoal(s2, 'B')
+    await new Promise((r) => setTimeout(r, 0))
+    // B has not entered run() yet — no slot.
+    expect(sawAbortedAtEntry.B).toBeUndefined()
+
+    // Cancel B while it waits for the slot. With FIX 1 its handle is registered,
+    // so this aborts B's latched signal.
+    manager.cancelTask(s2, bId)
+
+    // Free the slot by cancelling A → A resolves cancelled → releaseSlot → B
+    // acquires the slot and starts; its run() entry must observe an aborted signal.
+    manager.cancelTask(s1, aId)
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(sawAbortedAtEntry.B).toBe(true)
+    expect(store.getSessionTasks(s2).find((t) => t.id === bId)?.status).toBe('cancelled')
     store.close()
   })
 

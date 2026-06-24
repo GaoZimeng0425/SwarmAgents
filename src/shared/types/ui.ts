@@ -286,6 +286,7 @@ export type SwarmBridge = {
     options?: TaskOptions
   ): Promise<SubmitGoalResult>
   cancelTask(sessionId: string, taskId: string): Promise<void>
+  interruptWith(sessionId: string, taskId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>

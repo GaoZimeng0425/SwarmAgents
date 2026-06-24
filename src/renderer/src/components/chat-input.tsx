@@ -24,7 +24,6 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
-import type { ChatStatus } from '@/components/ai-elements/types'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
 import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
@@ -36,8 +35,6 @@ import { useRecentDirs } from '@/stores/recent-dirs'
 type Props = {
   onSubmit: (goal: string, attachments?: Attachment[]) => void | Promise<void>
   disabled?: boolean
-  status?: ChatStatus
-  onStop?: () => void
   supportsImages?: boolean
   contextTokens?: number
   contextWindow?: number
@@ -261,8 +258,6 @@ function ComposerCwdMenu({
 export function ChatInput({
   onSubmit,
   disabled,
-  status,
-  onStop,
   supportsImages = true,
   contextTokens,
   contextWindow,
@@ -450,7 +445,7 @@ export function ChatInput({
                   </PromptInputSelectContent>
                 </PromptInputSelect>
               )}
-              <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
+              <PromptInputSubmit disabled={disabled} />
             </div>
           </PromptInputFooter>
         </PromptInput>
