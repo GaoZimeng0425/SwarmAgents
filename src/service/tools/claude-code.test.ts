@@ -13,6 +13,7 @@ function fakeManager(over: Partial<ClaudeCodeManager> = {}): ClaudeCodeManager {
     start: vi.fn(async () => obs({ events: [{ kind: 'text', text: 'echo:hi' }] })),
     send: vi.fn(async () => obs()),
     observe: vi.fn(() => obs()),
+    approve: vi.fn(async () => obs()),
     interrupt: vi.fn(async () => obs()),
     stop: vi.fn(() => obs({ status: 'completed' })),
     has: vi.fn(() => true),
@@ -30,11 +31,19 @@ function toolByName(manager: ClaudeCodeManager, name: string) {
 }
 
 describe('cc_* tools', () => {
-  it('registers the five Phase 1 tools under the claude-code group', () => {
+  it('registers the cc_* tools under the claude-code group', () => {
     const specs = claudeCodeSpecs(fakeManager())
-    expect(specs.map((s) => s.name).sort()).toEqual(['cc_interrupt', 'cc_observe', 'cc_send', 'cc_start', 'cc_stop'])
+    expect(specs.map((s) => s.name).sort()).toEqual([
+      'cc_approve',
+      'cc_interrupt',
+      'cc_observe',
+      'cc_send',
+      'cc_start',
+      'cc_stop',
+    ])
     expect(specs.every((s) => s.group === 'claude-code')).toBe(true)
     expect(specs.find((s) => s.name === 'cc_start')?.risk).toBe('high')
+    expect(specs.find((s) => s.name === 'cc_approve')?.risk).toBe('high')
     expect(specs.find((s) => s.name === 'cc_observe')?.risk).toBe('low')
   })
 
@@ -55,6 +64,35 @@ describe('cc_* tools', () => {
     const tool = toolByName(manager, 'cc_send')
     await tool.execute('t1', { handle: 'cc1', message: 'go left' })
     expect(manager.send).toHaveBeenCalledWith('cc1', 'go left')
+  })
+
+  it('cc_start forwards mode and resume', async () => {
+    const manager = fakeManager()
+    const tool = toolByName(manager, 'cc_start')
+    await tool.execute('t1', { prompt: 'do it', mode: 'bypassPermissions', resume: 'sdk-prev' })
+    expect(manager.start).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'bypassPermissions', resume: 'sdk-prev' })
+    )
+  })
+
+  it('cc_approve forwards handle, requestId and decision', async () => {
+    const manager = fakeManager()
+    const tool = toolByName(manager, 'cc_approve')
+    await tool.execute('t1', { handle: 'cc1', requestId: 'req-1', decision: 'allow' })
+    expect(manager.approve).toHaveBeenCalledWith('cc1', 'req-1', 'allow')
+  })
+
+  it('render surfaces a pending approval prompt', async () => {
+    const manager = fakeManager({
+      observe: vi.fn(() =>
+        obs({ status: 'needs_approval', pendingApproval: { requestId: 'req-9', toolName: 'Bash' } })
+      ),
+    })
+    const tool = toolByName(manager, 'cc_observe')
+    const res = await tool.execute('t1', { handle: 'cc1' })
+    expect(res.content[0].text).toContain('needs_approval')
+    expect(res.content[0].text).toContain('req-9')
+    expect(res.content[0].text).toContain('cc_approve')
   })
 
   it('cc_stop reports completed status', async () => {

@@ -37,6 +37,30 @@ function echoQueryFn(onInterrupt?: () => void): CCQueryFn {
   }
 }
 
+// A fake whose single turn requests one tool approval via canUseTool, then
+// emits a tool_use (on allow) or a denial note (on deny) and a result.
+function approvalQueryFn(): CCQueryFn {
+  return ({ prompt, options }) => {
+    const gen = (async function* (): AsyncGenerator<CCRawMessage, void> {
+      for await (const _msg of prompt) {
+        yield { type: 'system', subtype: 'init', session_id: 'sdk-x' }
+        const verdict = await options.canUseTool?.('Bash', { command: 'ls' }, { toolUseID: 'req-1' })
+        if (verdict?.behavior === 'allow') {
+          yield {
+            type: 'assistant',
+            message: { content: [{ type: 'tool_use', name: 'Bash', input: verdict.updatedInput }] },
+            session_id: 'sdk-x',
+          }
+          yield { type: 'result', subtype: 'success', session_id: 'sdk-x', result: 'ran ls' }
+        } else {
+          yield { type: 'result', subtype: 'success', session_id: 'sdk-x', result: `denied: ${verdict?.message}` }
+        }
+      }
+    })()
+    return Object.assign(gen, { interrupt: async () => {} }) as CCQuery
+  }
+}
+
 describe('ClaudeCodeManager', () => {
   it('starts a session and returns the first turn at the pause', async () => {
     const m = createClaudeCodeManager({ queryFn: echoQueryFn(), pauseTimeoutMs: 1000 })
@@ -117,5 +141,48 @@ describe('ClaudeCodeManager', () => {
     expect(obs.status).toBe('failed')
     expect(obs.error).toBe('boom')
     expect(obs.events).toContainEqual({ kind: 'error', text: 'boom' })
+  })
+
+  it('surfaces a tool approval and resumes after cc_approve(allow)', async () => {
+    const m = createClaudeCodeManager({ queryFn: approvalQueryFn(), pauseTimeoutMs: 1000 })
+    const started = await m.start({ ccSessionId: 'cc1', prompt: 'list files' })
+
+    expect(started.status).toBe('needs_approval')
+    expect(started.pendingApproval).toMatchObject({ requestId: 'req-1', toolName: 'Bash' })
+    expect(started.events).toContainEqual({ kind: 'approval', tool: 'Bash', requestId: 'req-1' })
+
+    const resumed = await m.approve('cc1', 'req-1', 'allow')
+    expect(resumed.status).toBe('idle')
+    expect(resumed.pendingApproval).toBeUndefined()
+    expect(resumed.events).toContainEqual({ kind: 'tool_use', tool: 'Bash', input: { command: 'ls' } })
+    expect(resumed.events).toContainEqual({ kind: 'result', text: 'ran ls', isError: false })
+  })
+
+  it('denies a tool with cc_approve(deny)', async () => {
+    const m = createClaudeCodeManager({ queryFn: approvalQueryFn(), pauseTimeoutMs: 1000 })
+    await m.start({ ccSessionId: 'cc1', prompt: 'list files' })
+
+    const resumed = await m.approve('cc1', 'req-1', 'deny')
+    expect(resumed.status).toBe('idle')
+    expect(resumed.events.some((e) => e.kind === 'result' && e.text.includes('denied'))).toBe(true)
+  })
+
+  it('throws when approving an unknown requestId', async () => {
+    const m = createClaudeCodeManager({ queryFn: approvalQueryFn(), pauseTimeoutMs: 1000 })
+    await m.start({ ccSessionId: 'cc1', prompt: 'list files' })
+    await expect(m.approve('cc1', 'wrong-id', 'allow')).rejects.toThrow(/no pending approval/)
+  })
+
+  it('threads mode and resume into the query options', async () => {
+    let captured: { permissionMode?: string; resume?: string } | undefined
+    const base = echoQueryFn()
+    const spyFn: CCQueryFn = (input) => {
+      captured = input.options
+      return base(input)
+    }
+    const m = createClaudeCodeManager({ queryFn: spyFn, pauseTimeoutMs: 1000 })
+    await m.start({ ccSessionId: 'cc1', prompt: 'hi', mode: 'bypassPermissions', resume: 'sdk-prev' })
+    expect(captured?.permissionMode).toBe('bypassPermissions')
+    expect(captured?.resume).toBe('sdk-prev')
   })
 })

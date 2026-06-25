@@ -2,11 +2,14 @@ import { createLogger } from '@shared/logger'
 
 const log = createLogger({ process: 'service' }).child({ component: 'claude-code' })
 
-// Phase 1 runs each Claude Code session under bypassPermissions so the SDK never
-// raises a `canUseTool` request the operator hasn't wired up yet. The approval
-// bridge (canUseTool -> cc_approve) lands in Phase 2; until then the operating
-// agent steers via cc_send and supervises via cc_observe inside a chosen cwd.
-const DEFAULT_PERMISSION_MODE = 'bypassPermissions'
+// Default mode: 'default' routes each consequential Claude Code tool call
+// through the canUseTool bridge, surfacing it to the operating agent as a
+// pending approval (status 'needs_approval') it resolves with cc_approve. The
+// agent can instead launch with 'acceptEdits' or 'bypassPermissions' to run the
+// session autonomously (no approval round-trips).
+const DEFAULT_PERMISSION_MODE = 'default'
+const PERMISSION_MODES = ['default', 'acceptEdits', 'bypassPermissions'] as const
+export type CCPermissionMode = (typeof PERMISSION_MODES)[number]
 // How long a start/send/interrupt call waits for the session to reach a pause
 // (turn finished, session ended, or error) before returning what it has so far
 // with status 'running'. Prevents a long Claude turn from blocking the tool call
@@ -16,7 +19,7 @@ const DEFAULT_PAUSE_TIMEOUT_MS = 120_000
 // between cc_observe drains.
 const MAX_BUFFERED_EVENTS = 1000
 
-export type CCStatus = 'running' | 'idle' | 'completed' | 'failed'
+export type CCStatus = 'running' | 'idle' | 'needs_approval' | 'completed' | 'failed'
 
 // Normalized, harness-agnostic event surfaced to the operating agent. A narrow
 // projection of the SDK's much larger message union — only what cc_observe needs.
@@ -25,10 +28,14 @@ export type CCEvent =
   | { kind: 'thinking'; text: string }
   | { kind: 'text'; text: string }
   | { kind: 'tool_use'; tool: string; input?: unknown }
+  | { kind: 'approval'; tool: string; requestId: string }
   | { kind: 'result'; text: string; isError: boolean }
   | { kind: 'error'; text: string }
 
 export type CCUsage = { inputTokens: number; outputTokens: number }
+
+// A Claude Code tool call awaiting the operator's allow/deny via cc_approve.
+export type CCPendingApproval = { requestId: string; toolName: string; input?: unknown; title?: string }
 
 export type CCObservation = {
   ccSessionId: string
@@ -39,6 +46,8 @@ export type CCObservation = {
   sdkSessionId?: string
   usage?: CCUsage
   error?: string
+  /** Set when status is 'needs_approval': the tool call to resolve with cc_approve. */
+  pendingApproval?: CCPendingApproval
 }
 
 // --- Narrow SDK slice -------------------------------------------------------
@@ -78,22 +87,49 @@ export type CCQuery = AsyncGenerator<CCRawMessage, void> & {
   interrupt(): Promise<void>
 }
 
+// The SDK's tool-permission verdict. 'allow' echoes (optionally edited) input back;
+// 'deny' carries a message Claude Code shows the model.
+export type CCPermissionResult =
+  | { behavior: 'allow'; updatedInput: Record<string, unknown> }
+  | { behavior: 'deny'; message: string }
+
+export type CCCanUseTool = (
+  toolName: string,
+  input: Record<string, unknown>,
+  options: { toolUseID: string; title?: string; signal?: AbortSignal }
+) => Promise<CCPermissionResult>
+
 export type CCQueryOptions = {
   cwd?: string
   model?: string
   permissionMode?: string
   abortController?: AbortController
+  /** Claude Code session UUID to continue from. */
+  resume?: string
+  /** Called per consequential tool use; resolving it allows/denies the call. */
+  canUseTool?: CCCanUseTool
 }
 
 export type CCQueryFn = (input: { prompt: AsyncIterable<CCUserMessage>; options: CCQueryOptions }) => CCQuery
 
 export type ClaudeCodeManager = {
   /** Open a streaming session and run the first prompt; resolves at the first pause. */
-  start(input: { ccSessionId: string; cwd?: string; model?: string; prompt: string }): Promise<CCObservation>
+  start(input: {
+    ccSessionId: string
+    cwd?: string
+    model?: string
+    prompt: string
+    /** Permission mode for the session; defaults to 'default' (approvals bubble up). */
+    mode?: CCPermissionMode
+    /** Resume a prior Claude Code session by its sdkSessionId. */
+    resume?: string
+  }): Promise<CCObservation>
   /** Push a follow-up instruction into a live session; resolves at the next pause. */
   send(ccSessionId: string, message: string): Promise<CCObservation>
   /** Snapshot the session and drain buffered events without waiting. */
   observe(ccSessionId: string): CCObservation
+  /** Resolve the pending tool approval; resolves at the next pause. */
+  approve(ccSessionId: string, requestId: string, decision: 'allow' | 'deny'): Promise<CCObservation>
   /** Interrupt the current turn; resolves at the resulting pause. */
   interrupt(ccSessionId: string): Promise<CCObservation>
   /** End the session: abort the SDK process and close the input channel. */
@@ -161,6 +197,8 @@ function createPushable<T>(): Pushable<T> {
 
 // --- Session bookkeeping ----------------------------------------------------
 
+type PendingApprovalSlot = CCPendingApproval & { resolve: (r: CCPermissionResult) => void }
+
 type CCSession = {
   id: string
   input: Pushable<CCUserMessage>
@@ -174,6 +212,8 @@ type CCSession = {
   buffer: CCEvent[]
   /** Resolved by the consumer loop when the session reaches a pause point. */
   pauseWaiter: Deferred<void> | null
+  /** A tool call parked by canUseTool, awaiting cc_approve. */
+  pendingApproval: PendingApprovalSlot | null
 }
 
 function userMessage(text: string): CCUserMessage {
@@ -243,6 +283,14 @@ export function createClaudeCodeManager(deps?: {
       sdkSessionId: s.sdkSessionId,
       usage: s.usage,
       error: s.error,
+      pendingApproval: s.pendingApproval
+        ? {
+            requestId: s.pendingApproval.requestId,
+            toolName: s.pendingApproval.toolName,
+            input: s.pendingApproval.input,
+            title: s.pendingApproval.title,
+          }
+        : undefined,
     }
   }
 
@@ -309,26 +357,62 @@ export function createClaudeCodeManager(deps?: {
     return s
   }
 
+  // Resolve a parked approval as a denial so the SDK's awaiting canUseTool
+  // promise settles instead of hanging when the session is stopped/disposed.
+  const denyPending = (s: CCSession): void => {
+    if (s.pendingApproval) {
+      s.pendingApproval.resolve({ behavior: 'deny', message: 'Claude Code session stopped.' })
+      s.pendingApproval = null
+    }
+  }
+
   return {
-    async start({ ccSessionId, cwd, model, prompt }) {
+    async start({ ccSessionId, cwd, model, prompt, mode, resume }) {
       if (sessions.has(ccSessionId)) throw new Error(`Claude Code session already exists: ${ccSessionId}`)
       const input = createPushable<CCUserMessage>()
       const abort = new AbortController()
-      log.info({ msg: 'start', ccSessionId, cwd, model })
-      const fn = await resolveQueryFn()
-      const query = fn({
-        prompt: input,
-        options: { cwd, model, permissionMode: DEFAULT_PERMISSION_MODE, abortController: abort },
-      })
+      log.info({ msg: 'start', ccSessionId, cwd, model, mode: mode ?? DEFAULT_PERMISSION_MODE, resume })
+      // Build the session first so canUseTool can close over it (the query needs
+      // the callback at construction, the callback needs the session).
       const session: CCSession = {
         id: ccSessionId,
         input,
-        query,
+        query: undefined as unknown as CCQuery,
         abort,
         status: 'running',
         buffer: [],
         pauseWaiter: null,
+        pendingApproval: null,
       }
+      // Park each consequential tool call as a pending approval and pause so the
+      // operating agent can resolve it with cc_approve. Resolving the returned
+      // promise is what lets Claude Code proceed (or abort) the tool call.
+      const canUseTool: CCCanUseTool = (toolName, toolInput, options) =>
+        new Promise<CCPermissionResult>((resolve) => {
+          session.pendingApproval = {
+            requestId: options.toolUseID,
+            toolName,
+            input: toolInput,
+            title: options.title,
+            resolve,
+          }
+          session.status = 'needs_approval'
+          pushEvents(session, [{ kind: 'approval', tool: toolName, requestId: options.toolUseID }])
+          log.info({ msg: 'approval requested', ccSessionId, toolName, requestId: options.toolUseID })
+          wake(session)
+        })
+      const fn = await resolveQueryFn()
+      session.query = fn({
+        prompt: input,
+        options: {
+          cwd,
+          model,
+          permissionMode: mode ?? DEFAULT_PERMISSION_MODE,
+          abortController: abort,
+          canUseTool,
+          ...(resume ? { resume } : {}),
+        },
+      })
       sessions.set(ccSessionId, session)
       void consume(session)
       input.push(userMessage(prompt))
@@ -350,6 +434,23 @@ export function createClaudeCodeManager(deps?: {
       return drain(get(ccSessionId))
     },
 
+    async approve(ccSessionId, requestId, decision) {
+      const s = get(ccSessionId)
+      const pa = s.pendingApproval
+      if (!pa || pa.requestId !== requestId) {
+        throw new Error(`no pending approval ${requestId} for Claude Code session ${ccSessionId}`)
+      }
+      log.info({ msg: 'approve', ccSessionId, requestId, decision })
+      s.pendingApproval = null
+      s.status = 'running'
+      pa.resolve(
+        decision === 'allow'
+          ? { behavior: 'allow', updatedInput: (pa.input as Record<string, unknown>) ?? {} }
+          : { behavior: 'deny', message: 'Denied by the operating agent.' }
+      )
+      return waitForPause(s)
+    },
+
     async interrupt(ccSessionId) {
       const s = get(ccSessionId)
       log.info({ msg: 'interrupt', ccSessionId })
@@ -364,6 +465,7 @@ export function createClaudeCodeManager(deps?: {
     stop(ccSessionId) {
       const s = get(ccSessionId)
       log.info({ msg: 'stop', ccSessionId })
+      denyPending(s)
       s.abort.abort()
       s.input.end()
       const snapshot = drain(s)
@@ -375,6 +477,7 @@ export function createClaudeCodeManager(deps?: {
 
     dispose() {
       for (const s of sessions.values()) {
+        denyPending(s)
         s.abort.abort()
         s.input.end()
       }
