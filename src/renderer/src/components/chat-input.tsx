@@ -35,6 +35,9 @@ import { useRecentDirs } from '@/stores/recent-dirs'
 type Props = {
   onSubmit: (goal: string, attachments?: Attachment[]) => void | Promise<void>
   disabled?: boolean
+  // A turn is in flight: the submit button flips to a stop control that calls onStop.
+  running?: boolean
+  onStop?: () => void
   supportsImages?: boolean
   contextTokens?: number
   contextWindow?: number
@@ -258,6 +261,8 @@ function ComposerCwdMenu({
 export function ChatInput({
   onSubmit,
   disabled,
+  running = false,
+  onStop,
   supportsImages = true,
   contextTokens,
   contextWindow,
@@ -445,7 +450,11 @@ export function ChatInput({
                   </PromptInputSelectContent>
                 </PromptInputSelect>
               )}
-              <PromptInputSubmit disabled={disabled} />
+              <PromptInputSubmit
+                disabled={running ? false : disabled}
+                onStop={onStop}
+                status={running ? 'streaming' : undefined}
+              />
             </div>
           </PromptInputFooter>
         </PromptInput>

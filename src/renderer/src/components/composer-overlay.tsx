@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import type { PlanTodo } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
-import { SquareIcon, XIcon, ZapIcon } from 'lucide-react'
+import { XIcon, ZapIcon } from 'lucide-react'
 
 import { PermissionCard } from '@/components/permission-card'
 import { PlanStatusBar } from '@/components/plan-status-bar'
@@ -15,25 +15,25 @@ type Props = {
   onDecide: (actionId: string, decision: PermissionDecision) => void
   todos: PlanTodo[]
   running: boolean
-  onStopRunning?: () => void
   queued?: QueuedItem[]
   onCancelQueued?: (taskId: string) => void
   onInterrupt?: (taskId: string) => void
 }
 
 /**
- * Unified stack of pinned items above the composer. Top-to-bottom: the running
- * status/stop bar, the plan progress bar, queued-message cards (each cancellable
- * or interrupt-to-front), then any pending permission requests closest to the
- * input. Renders nothing when fully idle and empty. Width mirrors ChatInput
- * (px-4 outer + mx-auto max-w-3xl inner) so cards never exceed the input width.
+ * Unified stack of pinned items above the composer. Top-to-bottom: the plan
+ * progress bar, queued-message cards (each cancellable or interrupt-to-front),
+ * then any pending permission requests closest to the input. Stopping a run is
+ * the composer submit button's job (it flips to a stop control while running),
+ * so this stack carries no run/stop bar. Renders nothing when there is nothing
+ * to pin. Width mirrors ChatInput (px-4 outer + mx-auto max-w-3xl inner) so
+ * cards never exceed the input width.
  */
 export function ComposerOverlay({
   prompts,
   onDecide,
   todos,
   running,
-  onStopRunning,
   queued = [],
   onCancelQueued,
   onInterrupt,
@@ -52,30 +52,20 @@ export function ComposerOverlay({
     }
   }, [top, onDecide])
 
-  if (!running && prompts.length === 0 && queued.length === 0) return null
+  // Nothing to pin unless there's a prompt, a queued turn, or a live plan to show.
+  if (prompts.length === 0 && queued.length === 0 && !(running && todos.length > 0)) return null
 
   return (
     <div className="shrink-0 px-4 pb-1">
       <div className="mx-auto flex max-w-3xl flex-col gap-2">
-        {running && (
-          <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <span className="size-2 animate-pulse rounded-full bg-green-500" aria-hidden={true} />
-              执行中…
-            </span>
-            <Button aria-label="停止" onClick={onStopRunning} size="icon-sm" variant="ghost">
-              <SquareIcon className="size-4" />
-            </Button>
-          </div>
-        )}
         <PlanStatusBar running={running} todos={todos} />
         {queued.map((q) => (
           <div
-            key={q.id}
             className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-1.5 text-sm"
+            key={q.id}
           >
             <span className="flex min-w-0 items-center gap-2">
-              <span className="text-muted-foreground" aria-hidden={true}>
+              <span aria-hidden={true} className="text-muted-foreground">
                 ⏳
               </span>
               <span className="truncate">{q.goal}</span>
