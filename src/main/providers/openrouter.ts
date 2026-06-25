@@ -59,12 +59,16 @@ export function parseCatalog(json: unknown): Catalog {
 }
 
 // Exact id match first, else match by the segment after the last '/' (custom
-// model ids often omit the OpenRouter "vendor/" prefix).
+// model ids often omit the OpenRouter "vendor/" prefix). Matching is
+// case-insensitive: configured ids and OpenRouter ids may differ in case.
 export function lookupModel(catalog: Catalog, modelId: string): ModelMeta | null {
-  const exact = catalog.get(modelId)
-  if (exact) return exact
+  const needle = modelId.toLowerCase()
   for (const [orId, meta] of catalog) {
-    if (orId.slice(orId.lastIndexOf('/') + 1) === modelId) return meta
+    if (orId.toLowerCase() === needle) return meta
+  }
+  for (const [orId, meta] of catalog) {
+    const lc = orId.toLowerCase()
+    if (lc.slice(lc.lastIndexOf('/') + 1) === needle) return meta
   }
   return null
 }

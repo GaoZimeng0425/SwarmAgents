@@ -7,6 +7,7 @@ import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { ModelPricing, ProviderInjection } from '@shared/types/provider'
+import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
@@ -15,6 +16,7 @@ import {
 } from '@shared/types/provider'
 import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
+import type { AgentMutationResult } from '../agents/store'
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
 import { encodeActorState } from '../actor/state'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from '../tools/registry'
@@ -163,6 +165,10 @@ export type AgentRunnerDeps = {
   ): Promise<{ reply: string } | { delivered: true }>
   /** Discover peer agents in this session. */
   findPeers?(q: PeerQuery): Peer[]
+  /** Author/overwrite an agent definition on disk (training team only). */
+  writeAgent?(def: AgentDefinition): AgentMutationResult
+  /** Author/overwrite a skill on disk (training team only). */
+  writeSkill?(skill: Skill): SkillMutationResult
   /**
    * Transient model-request retry overrides. Defaults: 10 retries, 5s apart.
    * Tests inject smaller values to exercise the loop without real waits.
@@ -226,6 +232,8 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
       return res && 'reply' in res ? res.reply : ''
     },
     findPeers: (q) => deps.findPeers?.(q) ?? [],
+    writeAgent: deps.writeAgent,
+    writeSkill: deps.writeSkill,
   }
 }
 

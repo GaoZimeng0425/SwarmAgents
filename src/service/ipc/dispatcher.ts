@@ -6,6 +6,7 @@
 import type { BudgetConfig } from '@shared/types/budgets'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
+import type { AgentDefinition } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
@@ -23,6 +24,7 @@ type DispatcherConfig = {
   setWebSearchConfig(config: WebSearchInjection): void
   setBudgetConfig(config: BudgetConfig): void
   listSkills(): Skill[]
+  listAgents(): AgentDefinition[]
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
   importSkill(sourceDir: string, overwrite?: boolean): SkillMutationResult
@@ -98,6 +100,11 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         manager.cancelTask(sessionId, taskId)
         return { ok: true }
       }
+      case 'interruptWith': {
+        const [sessionId, taskId] = args as [string, string]
+        manager.interruptWith(sessionId, taskId)
+        return { ok: true }
+      }
       case 'setMcpServers': {
         const [configs] = args as [McpServerConfig[]]
         return cfg.setMcpServers(configs).then(() => ({ ok: true }))
@@ -116,6 +123,8 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       }
       case 'listSkills':
         return cfg.listSkills()
+      case 'listAgents':
+        return cfg.listAgents()
       case 'saveSkill': {
         const [skill] = args as [Skill]
         return cfg.saveSkill(skill)

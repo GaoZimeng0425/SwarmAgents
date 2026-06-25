@@ -28,10 +28,11 @@ import { createReplyRegistry } from './reply-registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
-// Fixed company roster (approach A). Single source of truth: the seeded actor
-// name equals the agent-def id, and role prompts address teammates by these
-// exact names. The CEO is first — it receives the kickoff goal.
-const COMPANY_ROLES = ['ceo', 'pm', 'engineer', 'reviewer'] as const
+// Fixed company roster. Single source of truth: the seeded actor name equals
+// the agent-def id. The CEO is first — it receives the kickoff goal — and then
+// discovers the team heads (pm = dev, training-head = training) at runtime via
+// find_agents({ teamRole: 'head' }), so heads must be seeded alongside their ICs.
+const COMPANY_ROLES = ['ceo', 'pm', 'engineer', 'reviewer', 'training-head', 'training-author'] as const
 
 // A resident actor sleeps (its loop returns) after this long with an empty mailbox.
 const IDLE_TIMEOUT_MS = 30_000
@@ -56,12 +57,17 @@ const PLAN_READONLY_ALLOWLIST = [
   'agent.update_plan',
 ]
 
+type QueuedTurn = { taskId: string; runTurn: () => Promise<void> }
+
 type Session = {
   id: string
   provider: ProviderInjection
   permissionRegistry: PermissionRegistry
   messages: AgentMessage[]
-  queue: Promise<void>
+  // FIFO queue of turns not yet started; the running turn is NOT in here.
+  pending: QueuedTurn[]
+  // taskId of the turn currently executing, or null when idle.
+  running: string | null
 }
 
 type SessionManagerConfig = {
@@ -98,6 +104,12 @@ export type SessionManager = {
   startCompany(sessionId: string, goal: string): Promise<{ reply: string } | { delivered: true }>
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
+  /**
+   * Promote a queued task to the front of its session queue and interrupt the
+   * running task (if any), so the promoted task runs next. The interrupted task
+   * is cancelled with its partial output preserved in the session history.
+   */
+  interruptWith(sessionId: string, taskId: string): void
   endSession(sessionId: string): void
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
@@ -117,6 +129,8 @@ export type SessionManager = {
     payload: string,
     kind: 'send' | 'rpc'
   ): Promise<{ reply: string } | { delivered: true }>
+  /** @internal test hook */
+  __enqueueWithoutPumpForTest?(sessionId: string, goal: string): string
 }
 
 // session-manager owns sensible defaults for the agent-execution subsystem
@@ -179,6 +193,26 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const next = waitQueue.shift()
     if (next) next()
     else activeRunners--
+  }
+
+  // Run the next queued turn for a session, one at a time. A turn's finally
+  // clears `running` and re-pumps, so the queue drains in order; cancelling or
+  // completing the running turn naturally advances to the next.
+  const pump = (session: Session): void => {
+    if (session.running) return
+    const next = session.pending.shift()
+    if (!next) return
+    session.running = next.taskId
+    log.info({ msg: 'turn started', sessionId: session.id, taskId: next.taskId, queueDepth: session.pending.length })
+    // Mark this turn as the active run in the UI. The renderer reducer maps
+    // task.dispatched -> status 'running'; without it the turn stays 'pending'
+    // and is misclassified as a queued card. workerId is vestigial in the
+    // single-process model, so it is left empty.
+    makeEmit(session.id)('task.dispatched', { taskId: next.taskId, workerId: '', ts: Date.now() })
+    void next.runTurn().finally(() => {
+      session.running = null
+      pump(session)
+    })
   }
 
   // Mark any sessions left 'active' from a previous run as interrupted.
@@ -341,6 +375,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
       findPeers: (q) => directory.find(sessionId, q, actor.address),
+      writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+      writeSkill: (skill) =>
+        cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
     }
     void runResident(deps, mailbox, hooks, IDLE_TIMEOUT_MS)
       .then(() => store.updateTaskStatus(taskId, 'completed'))
@@ -506,6 +543,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
+          writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+          writeSkill: (skill) =>
+            cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
         })
         try {
           const { status, summary } = await runner.run()
@@ -556,7 +596,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       provider: stored.providerSnapshot,
       permissionRegistry: createPermissionRegistry(makeEmit(sessionId)),
       messages: store.getAgentSnapshot(sessionId),
-      queue: Promise.resolve(),
+      pending: [],
+      running: null,
     }
     store.updateSessionStatus(sessionId, 'active')
     sessions.set(sessionId, rehydrated)
@@ -602,7 +643,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         provider,
         permissionRegistry,
         messages: [],
-        queue: Promise.resolve(),
+        pending: [],
+        running: null,
       })
       broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
       log.info({ msg: 'session created', sessionId })
@@ -636,7 +678,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           provider: from.provider,
           permissionRegistry: createPermissionRegistry(makeEmit(SYSTEM_SESSION_ID)),
           messages: [],
-          queue: Promise.resolve(),
+          pending: [],
+          running: null,
         })
         store.setSessionTitle(SYSTEM_SESSION_ID, 'Scheduled tasks')
         log.info({ msg: 'system session created', fromSessionId })
@@ -704,9 +747,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       }
 
       const runTurn = async (): Promise<void> => {
-        await acquireSlot()
+        // Register the abort handle BEFORE awaiting a slot: pump() has already
+        // set session.running and shifted this turn out of pending, so until the
+        // handle exists a cancel/interrupt issued while we wait for a slot would
+        // find the turn nowhere and silently no-op. Registering first latches the
+        // signal; the runner short-circuits to 'cancelled' once it starts.
         const abort = new AbortController()
         oneShotHandles.set(taskId, abort)
+        await acquireSlot()
         const runner = createAgentRunner({
           task,
           provider: session.provider,
@@ -724,6 +772,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
+          writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+          writeSkill: (skill) =>
+            cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
         })
         try {
           const { status } = await runner.run()
@@ -753,7 +804,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         }
       }
 
-      session.queue = session.queue.then(runTurn, runTurn)
+      session.pending.push({ taskId, runTurn })
+      pump(session)
       return { taskId }
     },
 
@@ -773,7 +825,56 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     cancelTask(sessionId, taskId) {
       log.info({ msg: 'task cancel requested', sessionId, taskId })
-      oneShotHandles.get(taskId)?.abort()
+      // Running (or about-to-run with a registered abort handle): abort the run.
+      const handle = oneShotHandles.get(taskId)
+      if (handle) {
+        handle.abort()
+        return
+      }
+      // Queued but not yet started: remove from the queue and mark cancelled.
+      const session = sessions.get(sessionId)
+      const idx = session ? session.pending.findIndex((q) => q.taskId === taskId) : -1
+      if (session && idx !== -1) {
+        session.pending.splice(idx, 1)
+        store.updateTaskStatus(taskId, 'cancelled')
+        // Surface to the UI so the queued card is dropped; reducer maps a
+        // task.error with code 'cancelled' to the cancelled status.
+        makeEmit(sessionId)('task.error', {
+          taskId,
+          error: { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' },
+          ts: Date.now(),
+        })
+        log.info({ msg: 'queued task cancelled', sessionId, taskId })
+        return
+      }
+      log.warn({ msg: 'cancelTask: unknown or already-finished task', sessionId, taskId })
+    },
+
+    interruptWith(sessionId, taskId) {
+      const session = sessions.get(sessionId)
+      if (!session) {
+        log.warn({ msg: 'interruptWith: unknown session', sessionId, taskId })
+        return
+      }
+      const idx = session.pending.findIndex((q) => q.taskId === taskId)
+      if (idx === -1) {
+        log.warn({ msg: 'interruptWith: task not in queue', sessionId, taskId })
+        return
+      }
+      // Jump the queue: move the chosen turn to the front.
+      const [item] = session.pending.splice(idx, 1)
+      session.pending.unshift(item)
+      const cancelledTaskId = session.running
+      log.info({ msg: 'task interrupted, promoted to front', sessionId, taskId, cancelledTaskId })
+      if (cancelledTaskId) {
+        // Abort the running task; its run returns 'cancelled' with partial
+        // output already saved via saveSnapshot, and its finally re-pumps,
+        // which now picks the promoted item.
+        oneShotHandles.get(cancelledTaskId)?.abort()
+      } else {
+        // Idle session — run the promoted item immediately.
+        pump(session)
+      }
     },
 
     endSession(sessionId) {
@@ -806,6 +907,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         cwd: settings.cwd ?? null,
         permissionMode: settings.permissionMode ?? null,
         executionMode: settings.executionMode ?? null,
+        agentType: settings.agentType ?? null,
       })
     },
 
@@ -828,6 +930,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // Test-only: exercise actor resolution without driving a full run.
     __ensureActorForTest(sessionId: string, agentDefId: string, name?: string) {
       return ensureActor(sessionId, agentDefId, name)
+    },
+
+    // Test-only: enqueue a goal WITHOUT auto-pumping, leaving the session idle
+    // with a pending turn. submitGoal always pumps, so the only way to reach the
+    // idle-with-pending state (exercised by interruptWith's else branch) is to
+    // briefly block pump with a sentinel `running`, then clear it. Returns taskId.
+    __enqueueWithoutPumpForTest(sessionId: string, goal: string): string {
+      const session = sessions.get(sessionId)
+      if (!session) throw new Error(`session ${sessionId} not found`)
+      const prevRunning = session.running
+      session.running = '__test_block__'
+      const { taskId } = this.submitGoal(sessionId, goal)
+      session.running = prevRunning
+      return taskId
     },
 
     // Test-only: drive sendMessage directly.

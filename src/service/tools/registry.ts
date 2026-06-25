@@ -1,9 +1,12 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
-import type { Peer, PeerQuery } from '@shared/types/agent'
+import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { Outbound } from '@shared/types/ipc'
+import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
+
+import type { AgentMutationResult } from '../agents/store'
 
 const log = createLogger({ process: 'service' }).child({ component: 'tools' })
 
@@ -41,6 +44,10 @@ export interface ToolRunContext {
   sendAndWait(to: string, payload: string): Promise<string>
   /** Discover peer agents in this session by role/capability/free-text. Empty query → all live peers. */
   findPeers(q: PeerQuery): Peer[]
+  /** Author/overwrite an agent definition on disk (training team only; absent for other agents). */
+  writeAgent?(def: AgentDefinition): AgentMutationResult
+  /** Author/overwrite a skill on disk (training team only; absent for other agents). */
+  writeSkill?(skill: Skill): SkillMutationResult
 }
 
 export interface ToolSpec {
@@ -109,10 +116,15 @@ function withLogging(spec: ToolSpec, tool: AgentTool, ctx: ToolRunContext): Agen
   }
 }
 
+// Privileged groups are NOT granted by the `*`/`all` wildcard — they must be
+// listed explicitly (e.g. `authoring.*`). This is how a capability stays
+// exclusive to specific agents even though most agents run with toolScope 'all'.
+const PRIVILEGED_GROUPS = new Set(['authoring'])
+
 // Patterns that don't conform (e.g. 'group.' with no star) simply match nothing.
 function specMatches(spec: ToolSpec, allowlist: string[]): boolean {
   return allowlist.some((pattern) => {
-    if (pattern === '*' || pattern === 'all') return true
+    if (pattern === '*' || pattern === 'all') return !PRIVILEGED_GROUPS.has(spec.group)
     if (pattern.endsWith('.*')) return spec.group === pattern.slice(0, -2)
     return pattern === `${spec.group}.${spec.name}`
   })

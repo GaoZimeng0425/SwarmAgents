@@ -3,6 +3,7 @@ import type { WebSearchInjection } from '@shared/types/web-search'
 import type { CronScheduler } from '../cron/scheduler'
 import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
+import { writeAgentSpec, writeSkillSpec } from './authoring'
 import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
@@ -63,6 +64,8 @@ export function registerBuiltinTools(
   registry.register(sendAndWaitSpec())
   registry.register(whoamiSpec())
   registry.register(findAgentsSpec())
+  registry.register(writeAgentSpec())
+  registry.register(writeSkillSpec())
   registry.register(updatePlanSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())

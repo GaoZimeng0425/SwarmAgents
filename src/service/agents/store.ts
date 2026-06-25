@@ -41,6 +41,10 @@ export function parseAgent(raw: string, id: string): AgentDefinition | undefined
     description: meta.description,
     systemPrompt: body,
     toolScope: meta.toolScope,
+    role: meta.role,
+    capabilities: meta.capabilities,
+    team: meta.team,
+    teamRole: meta.teamRole,
     maxIterations: meta.maxIterations,
     model: meta.model,
   })
@@ -55,6 +59,10 @@ export function serializeAgent(def: AgentDefinition): string {
     `toolScope: ${def.toolScope}`,
     `maxIterations: ${def.maxIterations}`,
   ]
+  if (def.role) lines.push(`role: ${JSON.stringify(def.role)}`)
+  if (def.capabilities?.length) lines.push(`capabilities: ${JSON.stringify(def.capabilities)}`)
+  if (def.team) lines.push(`team: ${JSON.stringify(def.team)}`)
+  if (def.teamRole) lines.push(`teamRole: ${JSON.stringify(def.teamRole)}`)
   if (def.model) lines.push(`model: ${JSON.stringify(def.model)}`)
   return `---\n${lines.join('\n')}\n---\n\n${def.systemPrompt.trim()}\n`
 }

@@ -71,4 +71,30 @@ describe('find_agents tool', () => {
     const text = res.content.map((c) => (c.type === 'text' ? c.text : '')).join('')
     expect(text).toMatch(/no matching agents/i)
   })
+
+  it('forwards team/teamRole to findPeers and shows team in output', async () => {
+    const seen: unknown[] = []
+    const fCtx = fakeCtx({
+      findPeers: (q) => {
+        seen.push(q)
+        return [
+          {
+            name: 'PM',
+            address: 'a1',
+            role: 'pm',
+            capabilities: [],
+            description: 'lead',
+            status: 'active',
+            team: 'dev',
+            teamRole: 'head',
+          },
+        ]
+      },
+    })
+    const tool = findAgentsSpec().build(fCtx)
+    const res = await tool.execute('1', { team: 'dev', teamRole: 'head' })
+    expect(seen[0]).toEqual({ team: 'dev', teamRole: 'head' })
+    const text = res.content.map((c) => (c.type === 'text' ? c.text : '')).join('')
+    expect(text).toContain('team dev')
+  })
 })

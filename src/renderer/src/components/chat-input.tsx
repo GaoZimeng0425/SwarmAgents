@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@shared/types/provider'
 import type { Attachment, ExecutionMode, PermissionMode } from '@shared/types/task'
-import { Check, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, X } from 'lucide-react'
+import { Check, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, Users, X } from 'lucide-react'
 
 import {
   PromptInput,
@@ -24,7 +24,6 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
-import type { ChatStatus } from '@/components/ai-elements/types'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
 import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
@@ -36,8 +35,6 @@ import { useRecentDirs } from '@/stores/recent-dirs'
 type Props = {
   onSubmit: (goal: string, attachments?: Attachment[]) => void | Promise<void>
   disabled?: boolean
-  status?: ChatStatus
-  onStop?: () => void
   supportsImages?: boolean
   contextTokens?: number
   contextWindow?: number
@@ -52,6 +49,11 @@ type Props = {
   onPermissionModeChange?: (mode: PermissionMode) => void
   executionMode?: ExecutionMode
   onExecutionModeChange?: (mode: ExecutionMode) => void
+  // Team selector: the company (CEO) default plus one entry per team head. The
+  // chosen id flows into options.agentType so the run starts at that team's head.
+  teamOptions?: { id: string; label: string }[]
+  agentType?: string
+  onAgentTypeChange?: (id: string) => void
 }
 
 type ModelOption = { providerId: string; providerName: string; modelId: string; key: string }
@@ -256,8 +258,6 @@ function ComposerCwdMenu({
 export function ChatInput({
   onSubmit,
   disabled,
-  status,
-  onStop,
   supportsImages = true,
   contextTokens,
   contextWindow,
@@ -270,6 +270,9 @@ export function ChatInput({
   onPermissionModeChange,
   executionMode = 'goal',
   onExecutionModeChange,
+  teamOptions,
+  agentType,
+  onAgentTypeChange,
 }: Props): React.JSX.Element {
   const { state } = useProviders()
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
@@ -344,6 +347,25 @@ export function ChatInput({
                   supportsImages={supportsImages}
                 />
                 <ComposerCwdMenu anchor={composerRef} cwd={cwd} onCwdChange={onCwdChange} />
+                {teamOptions && teamOptions.length > 0 && (
+                  <PromptInputSelect onValueChange={(v) => onAgentTypeChange?.(String(v))} value={agentType ?? 'ceo'}>
+                    <PromptInputSelectTrigger>
+                      <Users className="size-4" />
+                      <PromptInputSelectValue>
+                        {(v) =>
+                          teamOptions.find((t) => t.id === ((v as string) ?? 'ceo'))?.label ?? teamOptions[0]?.label
+                        }
+                      </PromptInputSelectValue>
+                    </PromptInputSelectTrigger>
+                    <PromptInputSelectContent>
+                      {teamOptions.map((t) => (
+                        <PromptInputSelectItem key={t.id} value={t.id}>
+                          {t.label}
+                        </PromptInputSelectItem>
+                      ))}
+                    </PromptInputSelectContent>
+                  </PromptInputSelect>
+                )}
                 <PromptInputSelect
                   onValueChange={(v) => onPermissionModeChange?.(String(v) as PermissionMode)}
                   value={permissionMode}
@@ -423,7 +445,7 @@ export function ChatInput({
                   </PromptInputSelectContent>
                 </PromptInputSelect>
               )}
-              <PromptInputSubmit disabled={disabled} onStop={onStop} status={status} />
+              <PromptInputSubmit disabled={disabled} />
             </div>
           </PromptInputFooter>
         </PromptInput>

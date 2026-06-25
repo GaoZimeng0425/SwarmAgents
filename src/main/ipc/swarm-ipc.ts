@@ -79,6 +79,7 @@ export function wireSwarmIpc(args: {
 
   // ---- Skills (service owns the files; main is a thin passthrough) ----
   ipcMain.handle('skills:list', () => serviceClient.listSkills())
+  ipcMain.handle('agents:list', () => serviceClient.listAgents())
   ipcMain.handle('skills:save', (_e: Electron.IpcMainInvokeEvent, skill: import('@shared/types/skill').Skill) =>
     serviceClient.saveSkill(skill)
   )
@@ -186,6 +187,15 @@ export function wireSwarmIpc(args: {
     }
   }
 
+  const interruptWith = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, taskId: string): Promise<void> => {
+    try {
+      await serviceClient.interruptWith(sessionId, taskId)
+      log.info({ msg: 'interruptWith requested', sessionId, taskId })
+    } catch (err) {
+      log.warn({ msg: 'interruptWith failed', sessionId, taskId, err: String(err) })
+    }
+  }
+
   const decidePermission = (
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
@@ -215,6 +225,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:reorderSessions', reorderSessions)
   ipcMain.handle('swarm:submitGoal', submitGoal)
   ipcMain.handle('swarm:cancelTask', cancelTask)
+  ipcMain.handle('swarm:interruptWith', interruptWith)
   ipcMain.handle('swarm:decidePermission', decidePermission)
   ipcMain.handle('swarm:listCronJobsForSession', listCronJobsForSession)
   ipcMain.handle('swarm:listAllCronJobs', () => listAllCronJobs())
@@ -291,6 +302,7 @@ export function wireSwarmIpc(args: {
       offBudgetsChange()
       ipcMain.removeHandler('mcp:getStatus')
       ipcMain.removeHandler('skills:list')
+      ipcMain.removeHandler('agents:list')
       ipcMain.removeHandler('skills:save')
       ipcMain.removeHandler('skills:delete')
       ipcMain.removeHandler('skills:import')
@@ -318,6 +330,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:reorderSessions')
       ipcMain.removeHandler('swarm:submitGoal')
       ipcMain.removeHandler('swarm:cancelTask')
+      ipcMain.removeHandler('swarm:interruptWith')
       ipcMain.removeHandler('swarm:decidePermission')
       ipcMain.removeHandler('swarm:listCronJobsForSession')
       ipcMain.removeHandler('swarm:listAllCronJobs')

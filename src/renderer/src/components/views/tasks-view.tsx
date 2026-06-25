@@ -6,8 +6,9 @@ import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
 import { RightPanel } from '@/components/right-panel'
+import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useCancelTask, useDecidePermission, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
+import { useCancelTask, useDecidePermission, useInterruptWith, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
@@ -19,8 +20,9 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const sessions = useSessionsStore((s) => s.sessions)
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
   const submitGoal = useSubmitGoal()
-  const cancelTask = useCancelTask()
   const decide = useDecidePermission()
+  const cancelTask = useCancelTask()
+  const interruptWith = useInterruptWith()
   const { ready, state } = useProviders()
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
@@ -28,9 +30,16 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // event reducer prepends newest-first, so find() yields the active run.
   // 'awaiting_user' counts as in-flight: the run is blocked on a permission
   // prompt but still cancellable, and no event resets it back to 'running'.
-  const activeTask = sessionTasks.find(
-    (t) => t.status === 'running' || t.status === 'pending' || t.status === 'awaiting_user'
+  // Only top-level turns (no parentTaskId) are the conversation's run/queue;
+  // sub-agent children are also 'pending' while in flight but belong inside the
+  // transcript, not the composer's running bar or queue.
+  const runningTask = sessionTasks.find(
+    (t) => !t.parentTaskId && (t.status === 'running' || t.status === 'awaiting_user')
   )
+  // Sort pending top-level turns ascending by startedAt (creation order) so the overlay renders FIFO.
+  const queuedTasks = sessionTasks
+    .filter((t) => !t.parentTaskId && t.status === 'pending')
+    .sort((a, b) => a.startedAt - b.startedAt)
   const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
   const byRecent = [...sessionTasks].sort((a, b) => b.startedAt - a.startedAt)
   // Most recent plan in the session (the agent replaces it wholesale).
@@ -47,16 +56,19 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const cwd = session?.cwd
   const permissionMode = session?.permissionMode ?? 'ask'
   const executionMode = session?.executionMode ?? 'goal'
+  const agentType = session?.agentType ?? 'ceo'
+  const teamOptions = useTeamOptions()
   const persistSettings = (patch: Partial<SessionSettings>): void => {
     if (!selectedSessionId) return
-    const next: SessionSettings = { cwd, permissionMode, executionMode, ...patch }
+    const next: SessionSettings = { cwd, permissionMode, executionMode, agentType, ...patch }
     setSessionSettings(selectedSessionId, next)
     void swarmApi.updateSessionSettings(selectedSessionId, next)
   }
   const setCwd = (next: string | undefined): void => persistSettings({ cwd: next })
   const setPermissionMode = (next: PermissionMode): void => persistSettings({ permissionMode: next })
   const setExecutionMode = (next: ExecutionMode): void => persistSettings({ executionMode: next })
-  const taskOptions = { cwd, permissionMode, executionMode }
+  const setAgentType = (id: string): void => persistSettings({ agentType: id })
+  const taskOptions = { cwd, permissionMode, executionMode, agentType }
 
   return (
     <div className="flex h-full min-w-0 overflow-hidden">
@@ -79,28 +91,37 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
             decide.mutate({ sessionId: p.sessionId, actionId, decision })
           }}
           prompts={sessionPrompts}
-          running={!!activeTask}
+          running={!!runningTask}
           todos={activePlan ?? []}
+          onStopRunning={() => {
+            if (runningTask) cancelTask.mutate({ sessionId: runningTask.sessionId, taskId: runningTask.id })
+          }}
+          queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}
+          onCancelQueued={(taskId) => {
+            if (selectedSessionId) cancelTask.mutate({ sessionId: selectedSessionId, taskId })
+          }}
+          onInterrupt={(taskId) => {
+            if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, taskId })
+          }}
         />
         <ChatInput
           cacheReadTokens={latestTask?.used?.cacheRead}
           contextTokens={latestTask?.contextTokens}
           contextWindow={latestTask?.contextWindow}
+          agentType={agentType}
           cwd={cwd}
           disabled={!ready}
+          teamOptions={teamOptions}
           executionMode={executionMode}
+          onAgentTypeChange={setAgentType}
           onCwdChange={setCwd}
           onExecutionModeChange={setExecutionMode}
           onPermissionModeChange={setPermissionMode}
-          onStop={() => {
-            if (activeTask) cancelTask.mutate({ sessionId: activeTask.sessionId, taskId: activeTask.id })
-          }}
           onSubmit={async (g, attachments) => {
             if (!ready) return
             await submitGoal.mutateAsync({ goal: g, attachments, options: taskOptions })
           }}
           permissionMode={permissionMode}
-          status={activeTask ? (activeTask.status === 'pending' ? 'submitted' : 'streaming') : 'ready'}
           supportsImages={!!providerViewById(state, state.active)?.supportsImages}
           usdCents={latestTask?.used?.usdCents}
         />

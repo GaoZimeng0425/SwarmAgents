@@ -6,6 +6,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatInput } from './chat-input'
 
+// Helper so tests don't repeat the minimum required props.
+function renderChatInput(props: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
+  return render(
+    <ChatInput
+      executionMode="goal"
+      onSubmit={vi.fn()}
+      permissionMode="ask"
+      {...props}
+    />
+  )
+}
+
 // No configured providers → the model/thinking pickers stay hidden, keeping the
 // render focused on the three composer controls under test.
 vi.mock('@/hooks/use-providers', () => ({
@@ -85,5 +97,53 @@ describe('ChatInput composer controls', () => {
 
     await waitFor(() => expect(pickDirectory).toHaveBeenCalledTimes(1))
     expect(onCwdChange).not.toHaveBeenCalled()
+  })
+
+  it('always exposes a submit affordance and never a stop one', async () => {
+    const onSubmit = vi.fn()
+    renderChatInput({ onSubmit }) // composer is status-agnostic after this task
+    const textarea = screen.getByRole('textbox')
+    fireEvent.change(textarea, { target: { value: 'hello' } })
+    fireEvent.submit(textarea.closest('form')!)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith('hello', undefined))
+    // The composer exposes a Submit affordance, never a Stop one.
+    expect(screen.queryByLabelText('Stop')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Submit')).toBeInTheDocument()
+  })
+
+  // The team selector's trigger reflects the chosen team head's label; it is
+  // absent entirely when no team options are supplied (e.g. roster not loaded).
+  it('renders the team selector reflecting the chosen team head, and hides it without options', () => {
+    const teams = [
+      { id: 'ceo', label: '公司 (CEO)' },
+      { id: 'pm', label: '开发团队' },
+      { id: 'training-head', label: 'Agent 训练团队' },
+    ]
+    const { rerender } = render(
+      <ChatInput
+        agentType="ceo"
+        executionMode="goal"
+        onAgentTypeChange={vi.fn()}
+        onSubmit={vi.fn()}
+        permissionMode="ask"
+        teamOptions={teams}
+      />
+    )
+    expect(screen.getAllByText('公司 (CEO)').length).toBeGreaterThan(0)
+
+    rerender(
+      <ChatInput
+        agentType="training-head"
+        executionMode="goal"
+        onAgentTypeChange={vi.fn()}
+        onSubmit={vi.fn()}
+        permissionMode="ask"
+        teamOptions={teams}
+      />
+    )
+    expect(screen.getAllByText('Agent 训练团队').length).toBeGreaterThan(0)
+
+    rerender(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
+    expect(screen.queryByText('Agent 训练团队')).not.toBeInTheDocument()
   })
 })

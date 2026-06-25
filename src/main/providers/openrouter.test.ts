@@ -49,6 +49,10 @@ describe('lookupModel', () => {
   it('matches by suffix after the last slash', () => {
     expect(lookupModel(cat, 'gpt-4o')?.contextWindow).toBe(128000)
   })
+  it('matches case-insensitively (exact and by suffix)', () => {
+    expect(lookupModel(cat, 'OpenAI/GPT-4o')?.contextWindow).toBe(128000)
+    expect(lookupModel(cat, 'GPT-4O')?.contextWindow).toBe(128000)
+  })
   it('returns null when nothing matches', () => {
     expect(lookupModel(cat, 'totally-unknown')).toBeNull()
   })

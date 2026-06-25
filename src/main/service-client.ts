@@ -4,6 +4,7 @@ import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
+import type { AgentDefinition } from '@shared/types/agent'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { ToolGroupInfo, ToolToggles } from '@shared/types/tool-toggles'
 import type { PermissionDecision } from '@shared/types/ui'
@@ -43,11 +44,13 @@ export type ServiceClient = {
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   cancelTask(sessionId: string, taskId: string): Promise<void>
+  interruptWith(sessionId: string, taskId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
   setBudgetConfig(config: BudgetConfig): Promise<void>
   listSkills(): Promise<Skill[]>
+  listAgents(): Promise<AgentDefinition[]>
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
   importSkill(sourceDir: string, overwrite?: boolean): Promise<SkillMutationResult>
@@ -136,6 +139,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     async cancelTask(sessionId, taskId) {
       await call('cancelTask', [sessionId, taskId])
     },
+    async interruptWith(sessionId, taskId) {
+      await call('interruptWith', [sessionId, taskId])
+    },
     async setMcpServers(configs) {
       await call('setMcpServers', [configs])
     },
@@ -150,6 +156,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     listSkills() {
       return call('listSkills', [])
+    },
+    listAgents() {
+      return call('listAgents', [])
     },
     saveSkill(skill) {
       return call('saveSkill', [skill])

@@ -1,6 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
+import type { AgentDefinition } from '../shared/types/agent'
 import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
@@ -19,6 +20,7 @@ import type {
   ProvidersFetchModelInfoResult,
   ProvidersSetResult,
   ProvidersTestResult,
+  AgentBridge,
   SkillBridge,
   SubmitGoalResult,
   SwarmBridge,
@@ -162,10 +164,15 @@ const memory: MemoryBridge = {
     ipcRenderer.invoke('memory:list', namespace) as Promise<import('../shared/types/memory').MemoryView[]>,
 }
 
+const agents: AgentBridge = {
+  list: () => ipcRenderer.invoke('agents:list') as Promise<AgentDefinition[]>,
+}
+
 const swarm: SwarmBridge = {
   submitGoal: (sessionId, goal, attachments, options) =>
     ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
   cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
+  interruptWith: (sessionId, taskId) => ipcRenderer.invoke('swarm:interruptWith', sessionId, taskId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
   sessions: {
@@ -241,6 +248,7 @@ const swarm: SwarmBridge = {
   skills,
   toolToggles,
   memory,
+  agents,
 }
 
 if (process.contextIsolated) {
