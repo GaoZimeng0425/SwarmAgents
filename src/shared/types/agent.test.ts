@@ -23,19 +23,23 @@ describe('deriveAllowlist', () => {
   })
 })
 
-describe('allowlistForAgent — claude-code is reserved for the dev engineer', () => {
-  it('grants claude-code.* to the dev team engineer', () => {
-    expect(allowlistForAgent({ toolScope: 'all', team: 'dev', role: 'engineer' })).toEqual(['*', 'claude-code.*'])
+describe('allowlistForAgent — claude-code is reserved for developer (code) agents', () => {
+  it('grants claude-code.* to agents with the code capability (builtin engineer, FE/BE engineers)', () => {
+    expect(allowlistForAgent({ toolScope: 'all', capabilities: ['code', 'tests', 'shell'] })).toEqual([
+      '*',
+      'claude-code.*',
+    ])
+    expect(allowlistForAgent({ toolScope: 'all', capabilities: ['frontend', 'code', 'react'] })).toEqual([
+      '*',
+      'claude-code.*',
+    ])
   })
-  it('does not grant it to other dev-team roles (pm/reviewer)', () => {
-    expect(allowlistForAgent({ toolScope: 'all', team: 'dev', role: 'pm' })).toEqual(['*'])
-    expect(allowlistForAgent({ toolScope: 'all', team: 'dev', role: 'reviewer' })).toEqual(['*'])
+  it('does not grant it to non-code roles (qa, designer, pm, head)', () => {
+    expect(allowlistForAgent({ toolScope: 'all', capabilities: ['testing', 'qa', 'automation'] })).toEqual(['*'])
+    expect(allowlistForAgent({ toolScope: 'all', capabilities: ['design', 'ux'] })).toEqual(['*'])
+    expect(allowlistForAgent({ toolScope: 'all', capabilities: ['planning', 'coordination'] })).toEqual(['*'])
   })
-  it('does not grant it to an engineer on another team', () => {
-    expect(allowlistForAgent({ toolScope: 'all', team: 'training', role: 'engineer' })).toEqual(['*'])
-  })
-  it('does not grant it to the ceo or unteamed agents', () => {
-    expect(allowlistForAgent({ toolScope: 'all', role: 'ceo' })).toEqual(['*'])
+  it('does not grant it when capabilities are absent', () => {
     expect(allowlistForAgent({ toolScope: 'all' })).toEqual(['*'])
   })
 })

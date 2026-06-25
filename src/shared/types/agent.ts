@@ -80,14 +80,18 @@ export function deriveAllowlist(scope: ToolScope): string[] {
   }
 }
 
+/** Capability tag that marks an agent as a developer (writes code). */
+export const CODE_CAPABILITY = 'code'
+
 /**
  * Seed allowlist for a specific agent: its scope's default plus any
- * role-restricted grants. `claude-code` is a privileged group (excluded from
- * `*`), reserved for the dev team's developer — only that agent may operate a
- * Claude Code session via the cc_* tools.
+ * capability-restricted grants. `claude-code` is a privileged group (excluded
+ * from `*`), reserved for developer agents — those advertising the `code`
+ * capability (the built-in engineer, plus runtime-authored frontend/backend
+ * engineers). Only they may operate a Claude Code session via the cc_* tools.
  */
-export function allowlistForAgent(def: Pick<AgentDefinition, 'toolScope' | 'team' | 'role'>): string[] {
+export function allowlistForAgent(def: Pick<AgentDefinition, 'toolScope' | 'capabilities'>): string[] {
   const allow = deriveAllowlist(def.toolScope)
-  if (def.team === 'dev' && def.role === 'engineer') allow.push('claude-code.*')
+  if (def.capabilities?.includes(CODE_CAPABILITY)) allow.push('claude-code.*')
   return allow
 }
