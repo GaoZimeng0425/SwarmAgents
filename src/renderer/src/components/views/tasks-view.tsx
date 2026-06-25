@@ -29,7 +29,8 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // Runs are sequential per session, so at most one task is in flight; the
   // event reducer prepends newest-first, so find() yields the active run.
   // 'awaiting_user' counts as in-flight: the run is blocked on a permission
-  // prompt but still cancellable, and no event resets it back to 'running'.
+  // prompt but still cancellable. It is transient — the next task.progress
+  // resets it to 'running' once the operator decides (see apply-event).
   // Only top-level turns (no parentTaskId) are the conversation's run/queue;
   // sub-agent children are also 'pending' while in flight but belong inside the
   // transcript, not the composer's stop control or queue.
