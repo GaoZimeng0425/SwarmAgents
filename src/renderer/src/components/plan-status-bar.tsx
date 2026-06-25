@@ -18,11 +18,13 @@ function stepNumber(todos: PlanTodo[]): number {
 /**
  * Collapsible plan progress bar pinned above the composer while a task runs.
  * Collapsed: one line (step N/M + current step title). Expanded: the full
- * checklist. Renders nothing when idle or planless.
+ * checklist. Renders nothing when idle, planless, or once every step is done —
+ * a finished plan carries no progress worth pinning above the input.
  */
 export function PlanStatusBar({ todos, running }: Props): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
-  if (!running || todos.length === 0) return null
+  const allDone = todos.length > 0 && todos.every((t) => t.status === 'completed')
+  if (!running || todos.length === 0 || allDone) return null
 
   const current = todos.find((t) => t.status === 'in_progress') ?? todos.find((t) => t.status === 'pending')
   const n = stepNumber(todos)

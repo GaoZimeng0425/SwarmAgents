@@ -52,8 +52,10 @@ export function ComposerOverlay({
     }
   }, [top, onDecide])
 
-  // Nothing to pin unless there's a prompt, a queued turn, or a live plan to show.
-  if (prompts.length === 0 && queued.length === 0 && !(running && todos.length > 0)) return null
+  // Nothing to pin unless there's a prompt, a queued turn, or a live plan with
+  // still-unfinished steps (a fully-completed plan hides — see PlanStatusBar).
+  const planVisible = running && todos.some((t) => t.status !== 'completed')
+  if (prompts.length === 0 && queued.length === 0 && !planVisible) return null
 
   return (
     <div className="shrink-0 px-4 pb-1">
