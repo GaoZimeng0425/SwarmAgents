@@ -57,6 +57,15 @@ describe('ComposerOverlay', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('hides the plan progress bar once every step is completed, even while running', () => {
+    const todos: PlanTodo[] = [
+      { content: 'first step', status: 'completed' },
+      { content: 'second step', status: 'completed' },
+    ]
+    const { container } = render(<ComposerOverlay onDecide={() => {}} prompts={[]} running todos={todos} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
   const queued = [
     { id: 'q1', sessionId: 'sess-1', goal: '修复登录 bug' },
     { id: 'q2', sessionId: 'sess-1', goal: '加个导航' },
