@@ -126,7 +126,7 @@ function withLogging(spec: ToolSpec, tool: AgentTool, ctx: ToolRunContext): Agen
 // Privileged groups are NOT granted by the `*`/`all` wildcard — they must be
 // listed explicitly (e.g. `authoring.*`). This is how a capability stays
 // exclusive to specific agents even though most agents run with toolScope 'all'.
-const PRIVILEGED_GROUPS = new Set(['authoring'])
+const PRIVILEGED_GROUPS = new Set(['authoring', 'claude-code'])
 
 // Patterns that don't conform (e.g. 'group.' with no star) simply match nothing.
 function specMatches(spec: ToolSpec, allowlist: string[]): boolean {

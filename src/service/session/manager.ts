@@ -4,7 +4,7 @@ import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition } from '@shared/types/agent'
-import { deriveAllowlist } from '@shared/types/agent'
+import { allowlistForAgent } from '@shared/types/agent'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shared/types/task'
@@ -298,7 +298,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       goal: `actor:${actor.address}`,
       status: 'pending',
       assignedWorkerId: null,
-      toolAllowlist: deriveAllowlist(def.toolScope),
+      toolAllowlist: allowlistForAgent(def),
       budget: budgets().sub,
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
       history: [],
@@ -375,7 +375,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
       findPeers: (q) => directory.find(sessionId, q, actor.address),
-      writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+      writeAgent: (def) =>
+        cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
       writeSkill: (skill) =>
         cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
     }
@@ -498,7 +499,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       goal: newGoal,
       status: 'pending',
       assignedWorkerId: null,
-      toolAllowlist: suggestedTools ?? deriveAllowlist(def.toolScope),
+      toolAllowlist: suggestedTools ?? allowlistForAgent(def),
       budget: budgets().sub,
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
       history: [],
@@ -543,7 +544,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
-          writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+          writeAgent: (def) =>
+            cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
         })
@@ -705,8 +707,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const isFirst = store.getSessionTasks(sessionId).length === 0
       // Plan mode forces the read-only tool set regardless of the agent's scope,
       // so the agent can investigate but not mutate while planning.
-      const toolAllowlist =
-        options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : deriveAllowlist(agentDef.toolScope)
+      const toolAllowlist = options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
       const task: Task = {
         id: taskId,
         parentId: null,
@@ -772,7 +773,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
-          writeAgent: (def) => cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+          writeAgent: (def) =>
+            cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
         })

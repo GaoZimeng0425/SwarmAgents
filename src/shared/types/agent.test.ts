@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentDefinitionSchema, deriveAllowlist } from './agent'
+import { AgentDefinitionSchema, allowlistForAgent, deriveAllowlist } from './agent'
 
 describe('deriveAllowlist', () => {
   it('all -> wildcard', () => {
@@ -20,6 +20,23 @@ describe('deriveAllowlist', () => {
   })
   it('maps the authoring scope to the authoring group plus coordination tools', () => {
     expect(deriveAllowlist('authoring')).toEqual(['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*'])
+  })
+})
+
+describe('allowlistForAgent — claude-code is reserved for the dev engineer', () => {
+  it('grants claude-code.* to the dev team engineer', () => {
+    expect(allowlistForAgent({ toolScope: 'all', team: 'dev', role: 'engineer' })).toEqual(['*', 'claude-code.*'])
+  })
+  it('does not grant it to other dev-team roles (pm/reviewer)', () => {
+    expect(allowlistForAgent({ toolScope: 'all', team: 'dev', role: 'pm' })).toEqual(['*'])
+    expect(allowlistForAgent({ toolScope: 'all', team: 'dev', role: 'reviewer' })).toEqual(['*'])
+  })
+  it('does not grant it to an engineer on another team', () => {
+    expect(allowlistForAgent({ toolScope: 'all', team: 'training', role: 'engineer' })).toEqual(['*'])
+  })
+  it('does not grant it to the ceo or unteamed agents', () => {
+    expect(allowlistForAgent({ toolScope: 'all', role: 'ceo' })).toEqual(['*'])
+    expect(allowlistForAgent({ toolScope: 'all' })).toEqual(['*'])
   })
 })
 

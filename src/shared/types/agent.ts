@@ -79,3 +79,15 @@ export function deriveAllowlist(scope: ToolScope): string[] {
       return ['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*']
   }
 }
+
+/**
+ * Seed allowlist for a specific agent: its scope's default plus any
+ * role-restricted grants. `claude-code` is a privileged group (excluded from
+ * `*`), reserved for the dev team's developer — only that agent may operate a
+ * Claude Code session via the cc_* tools.
+ */
+export function allowlistForAgent(def: Pick<AgentDefinition, 'toolScope' | 'team' | 'role'>): string[] {
+  const allow = deriveAllowlist(def.toolScope)
+  if (def.team === 'dev' && def.role === 'engineer') allow.push('claude-code.*')
+  return allow
+}
