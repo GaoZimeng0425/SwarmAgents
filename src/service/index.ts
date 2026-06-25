@@ -8,6 +8,7 @@ import type { ServiceRequest } from '@shared/types/service-ipc'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
 import { createAgentStore } from './agents/store'
+import { createClaudeCodeManager } from './claude-code/manager'
 import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
 import { createBroadcaster } from './ipc/broadcaster'
@@ -90,10 +91,14 @@ const scheduler = createCronScheduler({
   // they survive that conversation's deletion.
   resolveJobSession: (fromSessionId) => manager.ensureSystemSession(fromSessionId),
 })
+// Drives Claude Code sessions the agent operates via cc_* tools. The SDK is
+// loaded lazily on first cc_start, so constructing it here is cheap.
+const claudeCode = createClaudeCodeManager()
 registerBuiltinTools(toolRegistry, {
   memoryStore,
   skillStore,
   scheduler,
+  claudeCode,
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
 })
@@ -183,5 +188,6 @@ process.on('exit', () => {
   offSkillWatch()
   scheduler.dispose()
   void mcpManager.dispose()
+  claudeCode.dispose()
   store.close()
 })

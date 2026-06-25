@@ -48,6 +48,13 @@ export interface ToolRunContext {
   writeAgent?(def: AgentDefinition): AgentMutationResult
   /** Author/overwrite a skill on disk (training team only; absent for other agents). */
   writeSkill?(skill: Skill): SkillMutationResult
+  /**
+   * Charge externally-incurred spend (e.g. a delegated Claude Code session) to
+   * this task's budget. `costUsd` is the incremental cost since the last report.
+   * Wired in agent-runner to fold into `used.usdCents`; absent in standalone
+   * tool tests.
+   */
+  reportExternalUsage?(usage: { costUsd?: number; inputTokens?: number; outputTokens?: number }): void
 }
 
 export interface ToolSpec {
