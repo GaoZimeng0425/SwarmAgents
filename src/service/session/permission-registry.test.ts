@@ -28,10 +28,9 @@ describe('PermissionRegistry', () => {
     expect(() => registry.resolve('unknown', 'deny')).not.toThrow()
   })
 
-  it('auto-denies after 30s timeout', async () => {
+  it('does not auto-resolve — waits indefinitely for an explicit decision', async () => {
     vi.useFakeTimers()
-    const broadcast = vi.fn()
-    const registry = createPermissionRegistry(broadcast)
+    const registry = createPermissionRegistry(vi.fn())
 
     const promise = registry.request({
       taskId: 'task-1',
@@ -41,8 +40,38 @@ describe('PermissionRegistry', () => {
       payload: {},
     })
 
-    vi.advanceTimersByTime(30_001)
-    await expect(promise).resolves.toBe('deny')
+    // No timer should ever auto-resolve this; even an hour later it stays pending.
+    vi.advanceTimersByTime(60 * 60_000)
+    const race = await Promise.race([promise.then(() => 'settled'), Promise.resolve('pending')])
+    expect(race).toBe('pending')
     vi.useRealTimers()
+  })
+
+  it('fail-safe denies when the task is aborted while pending', async () => {
+    const ac = new AbortController()
+    const registry = createPermissionRegistry(vi.fn())
+
+    const promise = registry.request(
+      { taskId: 'task-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
+      ac.signal,
+    )
+
+    ac.abort()
+    await expect(promise).resolves.toBe('deny')
+  })
+
+  it('fail-safe denies without prompting if the signal is already aborted', async () => {
+    const ac = new AbortController()
+    ac.abort()
+    const broadcast = vi.fn()
+    const registry = createPermissionRegistry(broadcast)
+
+    await expect(
+      registry.request(
+        { taskId: 'task-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
+        ac.signal,
+      ),
+    ).resolves.toBe('deny')
+    expect(broadcast).not.toHaveBeenCalled()
   })
 })

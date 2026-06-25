@@ -1,24 +1,28 @@
 import type { PermissionDecision } from '@shared/types/ui'
 import type { Risk } from '@shared/types/ipc'
 import { ulid } from 'ulid'
+import { createLogger } from '@shared/logger'
+
+const log = createLogger({ process: 'service' }).child({ component: 'permission' })
 
 type PendingPermission = {
   resolve: (d: PermissionDecision) => void
-  timer: NodeJS.Timeout
+  cleanup: () => void
 }
 
 export type PermissionRegistry = {
-  request(req: {
-    taskId: string
-    toolName: string
-    risk: Risk
-    summary: string
-    payload: unknown
-  }): Promise<PermissionDecision>
+  request(
+    req: {
+      taskId: string
+      toolName: string
+      risk: Risk
+      summary: string
+      payload: unknown
+    },
+    signal?: AbortSignal,
+  ): Promise<PermissionDecision>
   resolve(actionId: string, decision: PermissionDecision): void
 }
-
-const PERMISSION_TIMEOUT_MS = 30_000
 
 export function createPermissionRegistry(
   broadcast: (event: string, data: unknown) => void,
@@ -26,23 +30,42 @@ export function createPermissionRegistry(
   const pending = new Map<string, PendingPermission>()
 
   return {
-    request(req) {
+    // Approval is a human action, so a request waits indefinitely for an
+    // explicit decision — there is no auto-deny timeout. The only non-user
+    // resolution is task abort via `signal`, which fail-safe denies so a
+    // pending medium/high tool never runs without consent.
+    request(req, signal) {
       const actionId = ulid()
       return new Promise<PermissionDecision>((resolve) => {
-        const timer = setTimeout(() => {
-          if (pending.delete(actionId)) resolve('deny')
-        }, PERMISSION_TIMEOUT_MS)
-        timer.unref?.()
-        pending.set(actionId, { resolve, timer })
+        if (signal?.aborted) {
+          log.warn({ msg: 'permission request aborted before prompt', taskId: req.taskId, toolName: req.toolName })
+          resolve('deny')
+          return
+        }
+        const onAbort = (): void => {
+          if (pending.delete(actionId)) {
+            log.warn({ msg: 'permission request aborted while pending', actionId, taskId: req.taskId, toolName: req.toolName })
+            resolve('deny')
+          }
+        }
+        const cleanup = (): void => signal?.removeEventListener('abort', onAbort)
+        signal?.addEventListener('abort', onAbort, { once: true })
+        pending.set(actionId, { resolve, cleanup })
+        log.info({ msg: 'permission requested', actionId, taskId: req.taskId, toolName: req.toolName, risk: req.risk })
         broadcast('task.permission_request', { actionId, ...req })
       })
     },
 
     resolve(actionId, decision) {
       const p = pending.get(actionId)
-      if (!p) return
-      clearTimeout(p.timer)
+      if (!p) {
+        // Stale decision: the request was already resolved (decided or aborted).
+        log.warn({ msg: 'permission resolve for unknown action', actionId, decision })
+        return
+      }
+      p.cleanup()
       pending.delete(actionId)
+      log.info({ msg: 'permission resolved', actionId, decision })
       p.resolve(decision)
     },
   }

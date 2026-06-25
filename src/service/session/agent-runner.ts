@@ -662,15 +662,31 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       // calls auto-run and medium/high escalate to the user.
       if (risk === 'low' || task.permissionMode === 'full') return undefined
 
-      const decision = await permissionRegistry.request({
-        taskId: task.id,
-        toolName: toolCall.name,
-        risk,
-        summary: `Run tool: ${toolCall.name}`,
-        payload: args,
-      })
+      const decision = await permissionRegistry.request(
+        {
+          taskId: task.id,
+          toolName: toolCall.name,
+          risk,
+          summary: `Run tool: ${toolCall.name}`,
+          payload: args,
+        },
+        deps.signal,
+      )
 
-      if (decision === 'grant') return undefined
+      // The request resolves on abort too (fail-safe deny), so re-check the
+      // signal first — a cancelled task must report cancellation, not a
+      // misleading "user denied".
+      if (deps.signal?.aborted) {
+        stopCause = 'cancelled'
+        taskLog.info({ msg: 'tool call cancelled awaiting approval', toolName: toolCall.name })
+        return { block: true, reason: 'Cancelled by user.' }
+      }
+
+      if (decision === 'grant') {
+        taskLog.info({ msg: 'tool call approved', toolName: toolCall.name, risk })
+        return undefined
+      }
+      taskLog.warn({ msg: 'tool call blocked by user', toolName: toolCall.name, risk, decision })
       return { block: true, reason: `User ${decision} the action.` }
     },
   })
