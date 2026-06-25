@@ -262,6 +262,8 @@ describe('AgentRunner', () => {
       (e) => e.event === 'task.error' && (e.data as { error?: { code?: string } }).error?.code === 'max_iterations'
     )
     expect(errEvent).toBeDefined()
+  })
+
   it('forwards writeAgent/writeSkill from deps to the tool context', () => {
     const calls: string[] = []
     const ctx = buildToolContext({
