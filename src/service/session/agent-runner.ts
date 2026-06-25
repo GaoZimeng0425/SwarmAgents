@@ -7,18 +7,18 @@ import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { ModelPricing, ProviderInjection } from '@shared/types/provider'
-import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
   DEFAULT_CONTEXT_WINDOW,
   OPENAI_MODEL_SUGGESTIONS,
 } from '@shared/types/provider'
+import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
-import type { AgentMutationResult } from '../agents/store'
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
 import { encodeActorState } from '../actor/state'
+import type { AgentMutationResult } from '../agents/store'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from '../tools/registry'
 import type { PermissionRegistry } from './permission-registry'
 
@@ -516,6 +516,15 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   let model: Model<Api>
   try {
     const runCtx = buildToolContext(deps)
+    // Fold spend from delegated runtimes (e.g. a Claude Code session driven via
+    // cc_* tools) into this task's cost budget, so the usdCents guard and the
+    // live usage UI account for it. costUsd is already the incremental amount.
+    runCtx.reportExternalUsage = (usage) => {
+      if (!usage.costUsd || usage.costUsd <= 0) return
+      used.usdCents += Math.round(usage.costUsd * 100)
+      taskLog.info({ msg: 'external usage charged', costUsd: usage.costUsd, usdCents: used.usdCents })
+      emit('task.usage', { taskId: task.id, used: snapshotUsed(), contextWindow: model.contextWindow, ts: Date.now() })
+    }
     const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
     tools = resolved.tools
     riskOf = resolved.riskOf

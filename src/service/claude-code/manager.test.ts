@@ -61,6 +61,21 @@ function approvalQueryFn(): CCQueryFn {
   }
 }
 
+// A fake that reports a cumulative session cost on each turn's result.
+function costQueryFn(cumulativeCosts: number[]): CCQueryFn {
+  return ({ prompt }) => {
+    let i = 0
+    const gen = (async function* (): AsyncGenerator<CCRawMessage, void> {
+      for await (const _msg of prompt) {
+        const total = cumulativeCosts[Math.min(i, cumulativeCosts.length - 1)]
+        i++
+        yield { type: 'result', subtype: 'success', session_id: 'sdk-c', result: 'ok', total_cost_usd: total }
+      }
+    })()
+    return Object.assign(gen, { interrupt: async () => {} }) as CCQuery
+  }
+}
+
 describe('ClaudeCodeManager', () => {
   it('starts a session and returns the first turn at the pause', async () => {
     const m = createClaudeCodeManager({ queryFn: echoQueryFn(), pauseTimeoutMs: 1000 })
@@ -171,6 +186,19 @@ describe('ClaudeCodeManager', () => {
     const m = createClaudeCodeManager({ queryFn: approvalQueryFn(), pauseTimeoutMs: 1000 })
     await m.start({ ccSessionId: 'cc1', prompt: 'list files' })
     await expect(m.approve('cc1', 'wrong-id', 'allow')).rejects.toThrow(/no pending approval/)
+  })
+
+  it('reports the incremental cost delta on each turn-advancing call', async () => {
+    const m = createClaudeCodeManager({ queryFn: costQueryFn([0.01, 0.03]), pauseTimeoutMs: 1000 })
+
+    const t1 = await m.start({ ccSessionId: 'cc1', prompt: 'a' })
+    expect(t1.costDeltaUsd).toBeCloseTo(0.01)
+
+    const t2 = await m.send('cc1', 'b')
+    expect(t2.costDeltaUsd).toBeCloseTo(0.02) // cumulative 0.03 − already-charged 0.01
+
+    // observe does not re-account the same spend.
+    expect(m.observe('cc1').costDeltaUsd).toBeUndefined()
   })
 
   it('threads mode and resume into the query options', async () => {

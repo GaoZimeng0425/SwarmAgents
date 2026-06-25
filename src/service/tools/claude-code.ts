@@ -43,6 +43,17 @@ function render(obs: CCObservation): string {
   return lines.join('\n')
 }
 
+// Charge a turn-advancing call's incremental Claude Code cost to the task budget.
+function chargeUsage(ctx: ToolRunContext, obs: CCObservation): void {
+  if (obs.costDeltaUsd && obs.costDeltaUsd > 0) {
+    ctx.reportExternalUsage?.({
+      costUsd: obs.costDeltaUsd,
+      inputTokens: obs.usage?.inputTokens,
+      outputTokens: obs.usage?.outputTokens,
+    })
+  }
+}
+
 const StartParams = Type.Object({
   prompt: Type.String({ description: 'The initial instruction for the Claude Code session.' }),
   cwd: Type.Optional(
@@ -89,6 +100,7 @@ function startSpec(manager: ClaudeCodeManager): ToolSpec {
           mode: p.mode,
           resume: p.resume,
         })
+        chargeUsage(ctx, obs)
         return { content: [{ type: 'text', text: render(obs) }], details: { handle: ccSessionId, status: obs.status } }
       },
     }),
@@ -110,7 +122,7 @@ function sendSpec(manager: ClaudeCodeManager): ToolSpec {
     name: 'cc_send',
     risk: 'medium',
     source: 'builtin',
-    build: (): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'cc_send',
       label: 'Send to Claude Code',
       description:
@@ -119,6 +131,7 @@ function sendSpec(manager: ClaudeCodeManager): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const p = params as { handle: string; message: string }
         const obs = await manager.send(p.handle, p.message)
+        chargeUsage(ctx, obs)
         return { content: [{ type: 'text', text: render(obs) }], details: { status: obs.status } }
       },
     }),
@@ -139,7 +152,7 @@ function approveSpec(manager: ClaudeCodeManager): ToolSpec {
     name: 'cc_approve',
     risk: 'high',
     source: 'builtin',
-    build: (): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'cc_approve',
       label: 'Approve Claude Code tool',
       description:
@@ -148,6 +161,7 @@ function approveSpec(manager: ClaudeCodeManager): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const p = params as { handle: string; requestId: string; decision: 'allow' | 'deny' }
         const obs = await manager.approve(p.handle, p.requestId, p.decision)
+        chargeUsage(ctx, obs)
         return { content: [{ type: 'text', text: render(obs) }], details: { status: obs.status } }
       },
     }),
@@ -181,7 +195,7 @@ function interruptSpec(manager: ClaudeCodeManager): ToolSpec {
     name: 'cc_interrupt',
     risk: 'low',
     source: 'builtin',
-    build: (): AgentTool => ({
+    build: (ctx: ToolRunContext): AgentTool => ({
       name: 'cc_interrupt',
       label: 'Interrupt Claude Code',
       description:
@@ -190,6 +204,7 @@ function interruptSpec(manager: ClaudeCodeManager): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const p = params as { handle: string }
         const obs = await manager.interrupt(p.handle)
+        chargeUsage(ctx, obs)
         return { content: [{ type: 'text', text: render(obs) }], details: { status: obs.status } }
       },
     }),

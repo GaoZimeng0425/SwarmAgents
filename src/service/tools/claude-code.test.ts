@@ -82,6 +82,28 @@ describe('cc_* tools', () => {
     expect(manager.approve).toHaveBeenCalledWith('cc1', 'req-1', 'allow')
   })
 
+  it('cc_start charges the cost delta to the task budget', async () => {
+    const reportExternalUsage = vi.fn()
+    const budgetCtx = { cwd: '/work', reportExternalUsage } as unknown as ToolRunContext
+    const manager = fakeManager({
+      start: vi.fn(async () => obs({ costDeltaUsd: 0.05, usage: { inputTokens: 10, outputTokens: 20 } })),
+    })
+    const spec = claudeCodeSpecs(manager).find((s) => s.name === 'cc_start')
+    if (!spec) throw new Error('no cc_start')
+    await spec.build(budgetCtx).execute('t1', { prompt: 'x' })
+    expect(reportExternalUsage).toHaveBeenCalledWith(expect.objectContaining({ costUsd: 0.05 }))
+  })
+
+  it('cc_observe does not charge the budget', async () => {
+    const reportExternalUsage = vi.fn()
+    const budgetCtx = { cwd: '/work', reportExternalUsage } as unknown as ToolRunContext
+    const manager = fakeManager()
+    const spec = claudeCodeSpecs(manager).find((s) => s.name === 'cc_observe')
+    if (!spec) throw new Error('no cc_observe')
+    await spec.build(budgetCtx).execute('t1', { handle: 'cc1' })
+    expect(reportExternalUsage).not.toHaveBeenCalled()
+  })
+
   it('render surfaces a pending approval prompt', async () => {
     const manager = fakeManager({
       observe: vi.fn(() =>

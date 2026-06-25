@@ -48,6 +48,12 @@ export type CCObservation = {
   error?: string
   /** Set when status is 'needs_approval': the tool call to resolve with cc_approve. */
   pendingApproval?: CCPendingApproval
+  /**
+   * Incremental session cost (USD) accrued since the previous turn-advancing
+   * return. Set only by start/send/approve/interrupt (not observe/stop), so the
+   * caller can charge it to a budget exactly once.
+   */
+  costDeltaUsd?: number
 }
 
 // --- Narrow SDK slice -------------------------------------------------------
@@ -80,6 +86,8 @@ export type CCRawMessage =
       is_error?: boolean
       result?: string
       usage?: { input_tokens?: number; output_tokens?: number }
+      /** Cumulative session cost in USD reported by Claude Code on each result. */
+      total_cost_usd?: number
     }
   | { type: string; session_id?: string }
 
@@ -214,6 +222,10 @@ type CCSession = {
   pauseWaiter: Deferred<void> | null
   /** A tool call parked by canUseTool, awaiting cc_approve. */
   pendingApproval: PendingApprovalSlot | null
+  /** Cumulative session cost (USD) from the latest result message. */
+  costUsd: number
+  /** Cumulative cost already charged to the caller via costDeltaUsd. */
+  reportedCostUsd: number
 }
 
 function userMessage(text: string): CCUserMessage {
@@ -273,9 +285,20 @@ export function createClaudeCodeManager(deps?: {
     }
   }
 
-  const drain = (s: CCSession): CCObservation => {
+  // accountCost=true (turn-advancing returns) emits the unreported cost delta
+  // and marks it charged; false (observe/stop) leaves the delta for a later
+  // turn-advancing call so cost is never double-counted.
+  const drain = (s: CCSession, accountCost = false): CCObservation => {
     const events = s.buffer
     s.buffer = []
+    let costDeltaUsd: number | undefined
+    if (accountCost) {
+      const delta = s.costUsd - s.reportedCostUsd
+      if (delta > 0) {
+        costDeltaUsd = delta
+        s.reportedCostUsd = s.costUsd
+      }
+    }
     return {
       ccSessionId: s.id,
       status: s.status,
@@ -291,13 +314,15 @@ export function createClaudeCodeManager(deps?: {
             title: s.pendingApproval.title,
           }
         : undefined,
+      costDeltaUsd,
     }
   }
 
   // Wait until the session reaches a pause (turn done / ended / error) or the
-  // timeout fires, then drain. On timeout the session is still 'running'.
+  // timeout fires, then drain. On timeout the session is still 'running'. This
+  // is the turn-advancing path, so it accounts the cost delta.
   const waitForPause = async (s: CCSession, timeoutMs = pauseTimeoutMs): Promise<CCObservation> => {
-    if (s.status === 'completed' || s.status === 'failed') return drain(s)
+    if (s.status === 'completed' || s.status === 'failed') return drain(s, true)
     const w = deferred<void>()
     s.pauseWaiter = w
     let timer: NodeJS.Timeout | null = setTimeout(() => {
@@ -307,7 +332,7 @@ export function createClaudeCodeManager(deps?: {
     timer.unref?.()
     await w.promise
     if (timer) clearTimeout(timer)
-    return drain(s)
+    return drain(s, true)
   }
 
   const pushEvents = (s: CCSession, events: CCEvent[]): void => {
@@ -330,6 +355,7 @@ export function createClaudeCodeManager(deps?: {
           if (r.usage) {
             s.usage = { inputTokens: r.usage.input_tokens ?? 0, outputTokens: r.usage.output_tokens ?? 0 }
           }
+          if (typeof r.total_cost_usd === 'number') s.costUsd = r.total_cost_usd
           pushEvents(s, normalize(raw))
           s.status = 'idle'
           sessionLog.info({ msg: 'turn finished', subtype: r.subtype, isError: Boolean(r.is_error) })
@@ -383,6 +409,8 @@ export function createClaudeCodeManager(deps?: {
         buffer: [],
         pauseWaiter: null,
         pendingApproval: null,
+        costUsd: 0,
+        reportedCostUsd: 0,
       }
       // Park each consequential tool call as a pending approval and pause so the
       // operating agent can resolve it with cc_approve. Resolving the returned
