@@ -8,6 +8,7 @@ export type SettingsSection =
   | 'mcp'
   | 'web-search'
   | 'skills'
+  | 'agents'
   | 'budgets'
   | 'permissions'
   | 'about'
@@ -18,6 +19,7 @@ const SECTIONS: SettingsSection[] = [
   'mcp',
   'web-search',
   'skills',
+  'agents',
   'budgets',
   'permissions',
   'about',

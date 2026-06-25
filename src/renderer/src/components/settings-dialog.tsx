@@ -1,8 +1,9 @@
-import { Bot, Boxes, DollarSign, Info, Lock, Search, Settings as SettingsIcon, Sparkles } from 'lucide-react'
+import { Bot, Boxes, DollarSign, Info, Lock, Search, Settings as SettingsIcon, Sparkles, Users } from 'lucide-react'
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { AboutView } from '@/components/views/about-view'
+import { AgentsView } from '@/components/views/agents-view'
 import { BudgetsView } from '@/components/views/budgets-view'
 import { GeneralView } from '@/components/views/general-view'
 import { McpServersView } from '@/components/views/mcp-servers-view'
@@ -19,6 +20,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: typeof SettingsIcon
   { key: 'mcp', label: 'MCP Servers', icon: Boxes, View: McpServersView },
   { key: 'web-search', label: 'Web Search', icon: Search, View: WebSearchView },
   { key: 'skills', label: 'Skills', icon: Sparkles, View: SkillsView },
+  { key: 'agents', label: 'Agents', icon: Users, View: AgentsView },
   { key: 'budgets', label: 'Budgets', icon: DollarSign, View: BudgetsView },
   { key: 'permissions', label: 'Permissions', icon: Lock, View: PermissionsView },
   { key: 'about', label: 'About', icon: Info, View: AboutView },
