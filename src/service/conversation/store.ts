@@ -57,6 +57,8 @@ export type ConversationStore = {
   setSessionTitle(id: string, title: string): void
   setSessionPinned(id: string, pinned: boolean): void
   setSessionSettings(id: string, settings: import('@shared/types/ui').SessionSettings): void
+  /** Read the persisted composer settings (cwd / permission / execution / agent) for a session. */
+  getSessionSettings(id: string): import('@shared/types/ui').SessionSettings | undefined
   reorderSessions(orderedIds: string[]): void
   deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
@@ -470,6 +472,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtSetSessionSettings = db.prepare(
     'UPDATE sessions SET cwd = ?, permission_mode = ?, execution_mode = ?, agent_type = ? WHERE id = ?'
   )
+  const stmtGetSessionSettings = db.prepare(
+    `SELECT cwd, permission_mode AS permissionMode, execution_mode AS executionMode,
+            agent_type AS agentType
+     FROM sessions WHERE id = ?`
+  )
 
   // Hard-delete a session and everything that references it (FK constraints
   // forbid orphaning tasks / tool-state rows).
@@ -561,6 +568,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
         settings.agentType ?? null,
         id
       )
+    },
+    getSessionSettings(id) {
+      const r = stmtGetSessionSettings.get(id) as Record<string, unknown> | undefined
+      if (!r) return undefined
+      return {
+        cwd: (r.cwd as string | null) ?? undefined,
+        permissionMode: (r.permissionMode as 'ask' | 'full' | null) ?? undefined,
+        executionMode: (r.executionMode as 'goal' | 'plan' | null) ?? undefined,
+        agentType: (r.agentType as string | null) ?? undefined,
+      }
     },
     setSessionTitle(id, title) {
       stmtSetTitle.run(title, id)

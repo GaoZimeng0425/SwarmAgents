@@ -354,6 +354,34 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('resolves the permission gate live so a mid-run toggle takes effect', async () => {
+    // The composer permission toggle only persists to session settings; the
+    // runner resolves permissionMode live via getPermissionMode on each tool
+    // call. So flipping "full" after a chat has started — at any time — drops
+    // the prompt on the next call without freezing the task's submit snapshot.
+    let getPermissionMode: (() => 'ask' | 'full') | undefined
+    mockCreate.mockImplementation((deps) => {
+      getPermissionMode = deps.getPermissionMode
+      // A never-resolving run keeps the turn in-flight while we toggle the gate.
+      return { run: () => new Promise<{ status: 'completed'; summary: string }>(() => {}) }
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    manager.submitGoal(sessionId, 'goal')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(getPermissionMode).toBeTypeOf('function')
+    expect(getPermissionMode!()).toBe('ask')
+
+    manager.updateSessionSettings(sessionId, { permissionMode: 'full' })
+    expect(getPermissionMode!()).toBe('full')
+
+    store.close()
+  })
+
   it('uses session provider when providerKey is not given', async () => {
     const sessionProvider = {
       id: 'anthropic' as const,

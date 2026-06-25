@@ -374,6 +374,33 @@ describe('AgentRunner', () => {
     await p
   })
 
+  it('resolves the gate from getPermissionMode live, so a mid-run switch to full takes effect', async () => {
+    const h = installAgent()
+    const request = vi.fn(async () => 'grant' as const)
+    let mode: 'ask' | 'full' = 'ask'
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-live')),
+      getPermissionMode: () => mode,
+      permissionRegistry: { request, resolve: vi.fn() },
+    })
+    const p = runner.run()
+
+    // First medium-risk call under 'ask' escalates to the user.
+    await h.getBeforeToolCall()({ toolCall: { name: 'mutate' }, args: {} })
+    expect(request).toHaveBeenCalledTimes(1)
+
+    // User flips the composer toggle to 'full' mid-run.
+    mode = 'full'
+
+    // The next call reads the live mode and bypasses the prompt — no new request.
+    const result = await h.getBeforeToolCall()({ toolCall: { name: 'mutate' }, args: {} })
+    expect(result).toBeUndefined()
+    expect(request).toHaveBeenCalledTimes(1)
+
+    h.resolvePrompt()
+    await p
+  })
+
   it('aborts the agent and returns status cancelled when the provided signal fires', async () => {
     const h = installAgent()
     const ac = new AbortController()

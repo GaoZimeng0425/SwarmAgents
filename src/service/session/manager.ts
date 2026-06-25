@@ -7,7 +7,7 @@ import type { AgentDefinition } from '@shared/types/agent'
 import { allowlistForAgent } from '@shared/types/agent'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
-import type { Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shared/types/task'
+import type { PermissionMode, Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
 import { ulid } from 'ulid'
 
@@ -170,6 +170,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   const waitQueue: Array<() => void> = []
   // One-shot task runs, keyed by taskId, so cancelTask can abort a specific in-flight run.
   const oneShotHandles = new Map<string, AbortController>()
+  // The permission gate is resolved live from the session's persisted settings
+  // at each tool call (see createAgentRunner.getPermissionMode), so toggling the
+  // composer's permission mode takes effect on any in-flight or queued task in
+  // the session regardless of when it was flipped. Defaults to 'ask'.
+  const resolvePermissionMode = (sid: string): PermissionMode => store.getSessionSettings(sid)?.permissionMode ?? 'ask'
   // Resident actor run-loops, keyed by actor address. Populated in Task 6.
   const residentHandles = new Map<string, { abort(): void; deliver(msg: ActorMessage): void }>()
   const directory = createAgentDirectory({
@@ -366,6 +371,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       provider: def.model ? { ...session.provider, model: def.model } : session.provider,
       agentDefinition: withPrompt(def),
       sessionId,
+      getPermissionMode: () => resolvePermissionMode(sessionId),
       emit: makeEmit(sessionId),
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
@@ -537,6 +543,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           provider: resolvedProvider,
           agentDefinition: withPrompt(def),
           sessionId,
+          getPermissionMode: () => resolvePermissionMode(sessionId),
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
@@ -761,6 +768,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           provider: session.provider,
           agentDefinition: withPrompt(agentDef),
           sessionId,
+          getPermissionMode: () => resolvePermissionMode(sessionId),
           emit: makeEmit(sessionId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
@@ -902,6 +910,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     },
 
     updateSessionSettings(sessionId, settings) {
+      // Persisting is all that's needed for the permission gate to follow the
+      // toggle: the runner resolves permissionMode live from these settings on
+      // each tool call (resolvePermissionMode), so any in-flight or queued task
+      // in the session picks up the change on its next call.
       store.setSessionSettings(sessionId, settings)
       log.info({
         msg: 'session settings updated',

@@ -14,7 +14,7 @@ import {
   OPENAI_MODEL_SUGGESTIONS,
 } from '@shared/types/provider'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import { type ConsumedResources, emptyUsed, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
+import { type ConsumedResources, emptyUsed, type PermissionMode, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
 
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
 import { encodeActorState } from '../actor/state'
@@ -143,6 +143,13 @@ export type AgentRunnerDeps = {
   permissionRegistry: PermissionRegistry
   toolRegistry: ToolRegistry
   initialMessages: AgentMessage[]
+  /**
+   * Resolve the permission gate live, at each tool call. Lets the composer's
+   * permission toggle take effect mid-run regardless of when it was flipped —
+   * the gate is never frozen to the task's submit-time snapshot. Falls back to
+   * the task snapshot (then 'ask') when not supplied.
+   */
+  getPermissionMode?: () => PermissionMode
   /** Aborts the run when fired. The manager wires this to cancelTask. */
   signal?: AbortSignal
   /** Persist the conversation + usage at each turn boundary so they survive an interrupt. */
@@ -553,7 +560,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
     msg: 'task starting',
     toolCount: tools.length,
     cwd: task.cwd ?? null,
-    permissionMode: task.permissionMode ?? 'ask',
+    permissionMode: deps.getPermissionMode?.() ?? task.permissionMode ?? 'ask',
     executionMode: task.executionMode ?? 'goal',
     resolvedModel: {
       id: model.id,
@@ -659,8 +666,12 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       const risk = riskOf(toolCall.name, args)
 
       // 'full' permission mode bypasses every prompt; otherwise low-risk
-      // calls auto-run and medium/high escalate to the user.
-      if (risk === 'low' || task.permissionMode === 'full') return undefined
+      // calls auto-run and medium/high escalate to the user. The mode is read
+      // live (not the task's submit-time snapshot) so toggling the gate mid-run
+      // takes effect on the very next tool call.
+      if (risk === 'low') return undefined
+      const permissionMode = deps.getPermissionMode?.() ?? task.permissionMode ?? 'ask'
+      if (permissionMode === 'full') return undefined
 
       const decision = await permissionRegistry.request(
         {
