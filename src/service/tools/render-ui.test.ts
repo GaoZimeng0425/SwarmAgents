@@ -27,4 +27,20 @@ describe('render_ui', () => {
     const res = (await tool.execute('id', { props: {} })) as { details: { error?: string } }
     expect(res.details.error).toBeDefined()
   })
+
+  it('terminates the turn for an interactive choice card', async () => {
+    const tool = renderUiSpec().build(ctx)
+    const res = (await tool.execute('id', { type: 'choice', props: { options: ['a', 'b'] } })) as {
+      terminate?: boolean
+    }
+    expect(res.terminate).toBe(true)
+  })
+
+  it('does not terminate the turn for a non-interactive card', async () => {
+    const tool = renderUiSpec().build(ctx)
+    const res = (await tool.execute('id', { type: 'weather', props: { city: 'SF' } })) as {
+      terminate?: boolean
+    }
+    expect(res.terminate).toBeUndefined()
+  })
 })

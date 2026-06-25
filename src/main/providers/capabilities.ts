@@ -1,5 +1,6 @@
 import type { Api, KnownProvider, Model } from '@earendil-works/pi-ai'
-import { clampThinkingLevel, getModel, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
+import { clampThinkingLevel, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
+import { getBuiltinModel as getModel } from '@earendil-works/pi-ai/providers/all'
 import type { ApiStyle, BuiltinProviderId, ModelThinkingLevel } from '@shared/types/provider'
 
 // pi-ai's getModel is strictly typed per known provider; loosen it like agent-runner does.

@@ -11,6 +11,13 @@ const RenderUiParams = Type.Object({
   props: Type.Optional(Type.Any({ description: 'Arbitrary data the chosen renderer consumes.' })),
 })
 
+// Card types that wait on a user decision. After rendering one of these the
+// agent has nothing more to do this turn — its tool result carries
+// `terminate: true` so pi's loop ends the turn instead of issuing another LLM
+// call. Without this the model spins on "let me wait for the user" reasoning,
+// since there is no other signal that the turn is over.
+const INTERACTIVE_CARD_TYPES = new Set(['choice'])
+
 // Renders a typed UI card into the conversation. Non-blocking: the tool returns
 // immediately and the card rides the persisted tool-call event. Interactive
 // cards (e.g. 'choice') surface the user's click as a brand-new user message,
@@ -40,10 +47,21 @@ export function renderUiSpec(): ToolSpec {
           toolLog.warn({ msg: 'render_ui invalid input' })
           return { content: [{ type: 'text', text: `error: ${msg}` }], details: { error: msg } }
         }
-        toolLog.info({ msg: 'render_ui card emitted', type })
+        const interactive = INTERACTIVE_CARD_TYPES.has(type)
+        toolLog.info({ msg: 'render_ui card emitted', type, interactive })
         return {
-          content: [{ type: 'text', text: `rendered ui card: ${type}` }],
+          content: [
+            {
+              type: 'text',
+              text: interactive
+                ? `Rendered ${type} card. End your turn now — do not call more tools or keep reasoning. The user's choice arrives later as a new message.`
+                : `rendered ui card: ${type}`,
+            },
+          ],
           details: { type, props: p.props },
+          // Interactive cards end the turn structurally: pi reads this hint and
+          // stops after the batch instead of prompting the model again.
+          ...(interactive ? { terminate: true } : {}),
         }
       },
     }),

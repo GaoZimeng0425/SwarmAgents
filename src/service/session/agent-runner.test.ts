@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { getModel } from '@earendil-works/pi-ai'
+import { getBuiltinModel as getModel } from '@earendil-works/pi-ai/providers/all'
 import type { Task } from '@shared/types/task'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,16 +15,20 @@ vi.mock('@earendil-works/pi-agent-core', () => ({
   DEFAULT_COMPACTION_SETTINGS: {},
 }))
 
-// Mock pi-ai so resolveModel and the dynamic Type import succeed
-vi.mock('@earendil-works/pi-ai', () => ({
-  getModel: vi.fn(() => ({
+// Mock the builtin model catalog (moved out of the pi-ai root in 0.80.x)
+vi.mock('@earendil-works/pi-ai/providers/all', () => ({
+  getBuiltinModel: vi.fn(() => ({
     id: 'claude-haiku-4-5-20251001',
     provider: 'anthropic',
     api: 'anthropic-messages',
     baseUrl: 'https://api.anthropic.com',
     compat: {},
   })),
-  getModels: vi.fn(() => []),
+  getBuiltinModels: vi.fn(() => []),
+}))
+
+// Mock pi-ai so resolveModel and the dynamic Type import succeed
+vi.mock('@earendil-works/pi-ai', () => ({
   clampThinkingLevel: vi.fn((_model: unknown, level: string) => level),
   Type: {
     Object: (props: Record<string, unknown>) => ({ type: 'object', properties: props }),
@@ -146,18 +150,25 @@ describe('AgentRunner', () => {
 
   // Installs a MockAgent that captures the beforeToolCall hook, the subscribe
   // listener, and an abort spy, and lets the test control when prompt resolves.
+  type PrepareNextTurn = () => unknown
   function installAgent(): {
     abortSpy: ReturnType<typeof vi.fn>
     getBeforeToolCall: () => BeforeToolCall
+    getPrepareNextTurn: () => PrepareNextTurn
     emitEvent: (e: unknown) => void
     resolvePrompt: () => void
   } {
     const abortSpy = vi.fn()
     let beforeToolCall: BeforeToolCall = async () => undefined
+    let prepareNextTurn: PrepareNextTurn = () => undefined
     let listener: Listener = () => undefined
     let resolvePrompt: () => void = () => undefined
-    MockAgent.mockImplementation(function (this: Record<string, unknown>, opts: { beforeToolCall: BeforeToolCall }) {
+    MockAgent.mockImplementation(function (
+      this: Record<string, unknown>,
+      opts: { beforeToolCall: BeforeToolCall; prepareNextTurn: PrepareNextTurn }
+    ) {
       beforeToolCall = opts.beforeToolCall
+      prepareNextTurn = opts.prepareNextTurn
       this.subscribe = (l: Listener) => {
         listener = l
         return () => undefined
@@ -172,6 +183,7 @@ describe('AgentRunner', () => {
     return {
       abortSpy,
       getBeforeToolCall: () => beforeToolCall,
+      getPrepareNextTurn: () => prepareNextTurn,
       emitEvent: (e) => listener(e),
       resolvePrompt: () => resolvePrompt(),
     }
@@ -217,6 +229,39 @@ describe('AgentRunner', () => {
 
     h.resolvePrompt()
     await p
+  })
+
+  it('aborts and fails with max_iterations once the turn count hits maxIterations', async () => {
+    const h = installAgent()
+    const emitted: Array<{ event: string; data: unknown }> = []
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-iter')),
+      agentDefinition: {
+        id: 'default',
+        name: 'd',
+        description: 'd',
+        systemPrompt: '',
+        toolScope: 'all' as const,
+        maxIterations: 3,
+      },
+      emit: (event, data) => emitted.push({ event, data }),
+    })
+    const p = runner.run()
+    const prepare = h.getPrepareNextTurn()
+
+    prepare() // turn 1
+    prepare() // turn 2
+    expect(h.abortSpy).not.toHaveBeenCalled()
+    prepare() // turn 3 — reaches maxIterations
+    expect(h.abortSpy).toHaveBeenCalled()
+
+    h.resolvePrompt()
+    const out = await p
+    expect(out.status).toBe('failed')
+    const errEvent = emitted.find(
+      (e) => e.event === 'task.error' && (e.data as { error?: { code?: string } }).error?.code === 'max_iterations'
+    )
+    expect(errEvent).toBeDefined()
   })
 
   const usageWithSnapshot = (snapshotTokens: number) => ({

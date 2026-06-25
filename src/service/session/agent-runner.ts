@@ -1,7 +1,8 @@
 import type { AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core'
 import { Agent, DEFAULT_COMPACTION_SETTINGS, shouldCompact } from '@earendil-works/pi-agent-core'
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
-import { clampThinkingLevel, getModel, getModels } from '@earendil-works/pi-ai'
+import { clampThinkingLevel } from '@earendil-works/pi-ai'
+import { getBuiltinModel as getModel, getBuiltinModels as getModels } from '@earendil-works/pi-ai/providers/all'
 import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
@@ -459,8 +460,14 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   // Why a run is ending early. All causes call agent.abort(); we record
   // which one so the terminal handler reports the right outcome. Reset at the
   // start of each `promptOnce` so a later turn starts clean.
-  let stopCause: 'cancelled' | 'budget' | 'context' | null = null
+  let stopCause: 'cancelled' | 'budget' | 'context' | 'iterations' | null = null
   let budgetDim = ''
+  // Per-prompt turn counter for the maxIterations safety valve. The budget/
+  // context/cancel guards all live in beforeToolCall, which only fires on tool
+  // calls — a model stuck emitting reasoning-only turns never trips them. This
+  // counter, checked in prepareNextTurn (fires every turn), is the backstop.
+  let turns = 0
+  const maxTurns = agentDefinition.maxIterations ?? 25
 
   const snapshotUsed = (): ConsumedResources => ({
     tokens: used.tokens,
@@ -555,6 +562,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   const stopReason = (): string | null => {
     if (stopCause === 'cancelled') return 'Stopped by user.'
     if (stopCause === 'budget') return `Budget exhausted (${budgetDim}).`
+    if (stopCause === 'iterations') return `Stopped after ${maxTurns} turns (max iterations reached).`
     if (stopCause === 'context') return `Context window full (${contextTokens} > ${model.contextWindow} tokens).`
     return null
   }
@@ -592,6 +600,19 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       // what this model supports (defaulting to 'high'); non-reasoning
       // models clamp to 'off'.
       thinkingLevel: clampThinkingLevel(model, provider.thinkingLevel ?? 'high'),
+    },
+    // Fires after every turn (unlike beforeToolCall, which only fires on tool
+    // calls). Caps the per-prompt turn count so a runaway loop — including one
+    // that only emits reasoning and never calls a tool — is aborted instead of
+    // spinning until the user hits stop.
+    prepareNextTurn: () => {
+      turns += 1
+      if (turns >= maxTurns) {
+        stopCause = 'iterations'
+        taskLog.warn({ msg: 'max iterations reached, aborting', turns, maxTurns })
+        agent.abort()
+      }
+      return undefined
     },
     beforeToolCall: async ({ toolCall, args }) => {
       if (deps.signal?.aborted) {
@@ -749,6 +770,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       // `used` and the wall-clock baseline keep accumulating across the
       // residency (one budget envelope per residency).
       stopCause = null
+      turns = 0
       translator.resetError()
       // Hold the TERMINAL task.error back until the last attempt: a retried
       // failure must not flip the task to 'failed' (that stops the run). The
@@ -790,6 +812,20 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
         emit('task.error', {
           taskId: task.id,
           error: { code: 'budget_exhausted', message: `Budget exhausted (${budgetDim}).`, tier: 'gave_up' },
+          ts: Date.now(),
+        })
+        return { status: 'failed', summary: translator.getFinalSummary() }
+      }
+
+      if (stopCause === 'iterations') {
+        taskLog.warn({ msg: 'task hit max iterations', turns, maxTurns, durationMs: Date.now() - t0 })
+        emit('task.error', {
+          taskId: task.id,
+          error: {
+            code: 'max_iterations',
+            message: `Stopped after ${maxTurns} turns (max iterations reached).`,
+            tier: 'gave_up',
+          },
           ts: Date.now(),
         })
         return { status: 'failed', summary: translator.getFinalSummary() }

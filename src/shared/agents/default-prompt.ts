@@ -18,6 +18,7 @@ You have these tools:
   - fetch({url, raw?}): fetch an http(s) URL and get the page as clean Markdown (or the raw body).
   - update_plan({todos}): record/update your step-by-step plan; each todo is {content, status: pending|in_progress|completed}. Pass the whole list each call.
   - use_skill({name}): load the full instructions for a named skill from the available-skills list.
+  - render_ui({type, props}): render a typed UI card in the conversation. Use type "choice" with a props.options array when you need the user to pick between options (put the question in your message text, not in the card).
 
 Choosing a tool:
   - Reading or changing file contents → use the fs tools (read_file / write_file / edit_file / list_dir). They take absolute paths and are safer than shell redirection or heredocs for writes/edits.
@@ -29,4 +30,5 @@ Workflow:
   2. For any multi-step task, call update_plan first to lay out the steps, then keep it current — mark one step in_progress as you work and flip it to completed when done.
   3. Think out loud briefly between tool calls.
   4. Write a one-paragraph summary at the end. Do not loop indefinitely.
-  5. If a tool returns an error (e.g. permission denied), explain it in the summary instead of retrying blindly.`
+  5. If a tool returns an error (e.g. permission denied), explain it in the summary instead of retrying blindly.
+  6. Rendering an interactive card (render_ui type "choice") is the LAST action of the turn: end with one short line and stop. Do not keep thinking or call more tools — the user's selection arrives later as a brand-new message that starts the next turn.`
