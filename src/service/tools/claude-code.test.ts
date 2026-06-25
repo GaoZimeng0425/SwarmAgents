@@ -1,0 +1,67 @@
+import { describe, expect, it, vi } from 'vitest'
+
+import type { CCObservation, ClaudeCodeManager } from '../claude-code/manager'
+import { claudeCodeSpecs } from './claude-code'
+import type { ToolRunContext } from './registry'
+
+function obs(over: Partial<CCObservation> = {}): CCObservation {
+  return { ccSessionId: 'cc1', status: 'idle', events: [], ...over }
+}
+
+function fakeManager(over: Partial<ClaudeCodeManager> = {}): ClaudeCodeManager {
+  return {
+    start: vi.fn(async () => obs({ events: [{ kind: 'text', text: 'echo:hi' }] })),
+    send: vi.fn(async () => obs()),
+    observe: vi.fn(() => obs()),
+    interrupt: vi.fn(async () => obs()),
+    stop: vi.fn(() => obs({ status: 'completed' })),
+    has: vi.fn(() => true),
+    dispose: vi.fn(),
+    ...over,
+  }
+}
+
+const ctx = { cwd: '/work' } as unknown as ToolRunContext
+
+function toolByName(manager: ClaudeCodeManager, name: string) {
+  const spec = claudeCodeSpecs(manager).find((s) => s.name === name)
+  if (!spec) throw new Error(`no spec ${name}`)
+  return spec.build(ctx)
+}
+
+describe('cc_* tools', () => {
+  it('registers the five Phase 1 tools under the claude-code group', () => {
+    const specs = claudeCodeSpecs(fakeManager())
+    expect(specs.map((s) => s.name).sort()).toEqual(['cc_interrupt', 'cc_observe', 'cc_send', 'cc_start', 'cc_stop'])
+    expect(specs.every((s) => s.group === 'claude-code')).toBe(true)
+    expect(specs.find((s) => s.name === 'cc_start')?.risk).toBe('high')
+    expect(specs.find((s) => s.name === 'cc_observe')?.risk).toBe('low')
+  })
+
+  it('cc_start defaults cwd to the task cwd and returns a handle', async () => {
+    const manager = fakeManager()
+    const tool = toolByName(manager, 'cc_start')
+    const res = await tool.execute('t1', { prompt: 'do it' })
+
+    expect(manager.start).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: 'do it', cwd: '/work', ccSessionId: expect.any(String) })
+    )
+    expect(res.details?.handle).toEqual(expect.any(String))
+    expect(res.content[0].text).toContain('echo:hi')
+  })
+
+  it('cc_send forwards the handle and message', async () => {
+    const manager = fakeManager()
+    const tool = toolByName(manager, 'cc_send')
+    await tool.execute('t1', { handle: 'cc1', message: 'go left' })
+    expect(manager.send).toHaveBeenCalledWith('cc1', 'go left')
+  })
+
+  it('cc_stop reports completed status', async () => {
+    const manager = fakeManager()
+    const tool = toolByName(manager, 'cc_stop')
+    const res = await tool.execute('t1', { handle: 'cc1' })
+    expect(manager.stop).toHaveBeenCalledWith('cc1')
+    expect(res.content[0].text).toContain('status: completed')
+  })
+})

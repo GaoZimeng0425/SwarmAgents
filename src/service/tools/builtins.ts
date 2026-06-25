@@ -1,9 +1,11 @@
 import type { WebSearchInjection } from '@shared/types/web-search'
 
+import type { ClaudeCodeManager } from '../claude-code/manager'
 import type { CronScheduler } from '../cron/scheduler'
 import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
+import { claudeCodeSpecs } from './claude-code'
 import { cronSpecs } from './cron'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
@@ -53,6 +55,7 @@ export function registerBuiltinTools(
     memoryStore?: MemoryStore
     skillStore?: SkillStore
     scheduler?: CronScheduler
+    claudeCode?: ClaudeCodeManager
     getWebSearchConfig?: () => WebSearchInjection
     /** Live predicate from the tool-toggles store; undefined → all skills enabled. */
     isSkillEnabled?: (name: string) => boolean
@@ -81,4 +84,6 @@ export function registerBuiltinTools(
   if (deps?.skillStore) registry.register(useSkillSpec(deps.skillStore, deps.isSkillEnabled))
   // Cron tools need the scheduler; registered only when one is injected.
   if (deps?.scheduler) for (const spec of cronSpecs(deps.scheduler)) registry.register(spec)
+  // cc_* tools need the Claude Code manager; registered only when one is injected.
+  if (deps?.claudeCode) for (const spec of claudeCodeSpecs(deps.claudeCode)) registry.register(spec)
 }
