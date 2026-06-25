@@ -36,7 +36,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   return (
     <div>
       <p className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">{label}</p>
-      {children}
+      <div className="flex flex-col gap-0.5">{children}</div>
     </div>
   )
 }
