@@ -62,34 +62,18 @@ describe('ComposerOverlay', () => {
     { id: 'q2', sessionId: 'sess-1', goal: '加个导航' },
   ]
 
-  it('renders a stop control while running and fires onStopRunning', () => {
-    const onStopRunning = vi.fn()
-    render(
-      <ComposerOverlay
-        onDecide={() => {}}
-        prompts={[]}
-        running
-        todos={[]}
-        queued={[]}
-        onStopRunning={onStopRunning}
-      />
-    )
-    fireEvent.click(screen.getByRole('button', { name: /停止|stop/i }))
-    expect(onStopRunning).toHaveBeenCalledTimes(1)
-  })
-
   it('renders one queued card per pending task with cancel + interrupt', () => {
     const onCancelQueued = vi.fn()
     const onInterrupt = vi.fn()
     render(
       <ComposerOverlay
+        onCancelQueued={onCancelQueued}
         onDecide={() => {}}
+        onInterrupt={onInterrupt}
         prompts={[]}
+        queued={queued}
         running
         todos={[]}
-        queued={queued}
-        onCancelQueued={onCancelQueued}
-        onInterrupt={onInterrupt}
       />
     )
     expect(screen.getByText('修复登录 bug')).toBeInTheDocument()

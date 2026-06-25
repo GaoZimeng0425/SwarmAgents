@@ -8,14 +8,7 @@ import { ChatInput } from './chat-input'
 
 // Helper so tests don't repeat the minimum required props.
 function renderChatInput(props: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
-  return render(
-    <ChatInput
-      executionMode="goal"
-      onSubmit={vi.fn()}
-      permissionMode="ask"
-      {...props}
-    />
-  )
+  return render(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" {...props} />)
 }
 
 // No configured providers → the model/thinking pickers stay hidden, keeping the
@@ -109,6 +102,15 @@ describe('ChatInput composer controls', () => {
     // The composer exposes a Submit affordance, never a Stop one.
     expect(screen.queryByLabelText('Stop')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Submit')).toBeInTheDocument()
+  })
+
+  it('flips the submit button to a stop control while running and fires onStop', () => {
+    const onStop = vi.fn()
+    renderChatInput({ running: true, onStop })
+    // While a turn is in flight the same button becomes Stop, not Submit.
+    expect(screen.queryByLabelText('Submit')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Stop'))
+    expect(onStop).toHaveBeenCalledTimes(1)
   })
 
   // The team selector's trigger reflects the chosen team head's label; it is

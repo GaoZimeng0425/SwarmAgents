@@ -32,7 +32,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // prompt but still cancellable, and no event resets it back to 'running'.
   // Only top-level turns (no parentTaskId) are the conversation's run/queue;
   // sub-agent children are also 'pending' while in flight but belong inside the
-  // transcript, not the composer's running bar or queue.
+  // transcript, not the composer's stop control or queue.
   const runningTask = sessionTasks.find(
     (t) => !t.parentTaskId && (t.status === 'running' || t.status === 'awaiting_user')
   )
@@ -85,44 +85,45 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           tasks={sessionTasks}
         />
         <ComposerOverlay
+          onCancelQueued={(taskId) => {
+            if (selectedSessionId) cancelTask.mutate({ sessionId: selectedSessionId, taskId })
+          }}
           onDecide={(actionId, decision) => {
             const p = sessionPrompts.find((x) => x.actionId === actionId)
             if (!p) return
             decide.mutate({ sessionId: p.sessionId, actionId, decision })
           }}
-          prompts={sessionPrompts}
-          running={!!runningTask}
-          todos={activePlan ?? []}
-          onStopRunning={() => {
-            if (runningTask) cancelTask.mutate({ sessionId: runningTask.sessionId, taskId: runningTask.id })
-          }}
-          queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}
-          onCancelQueued={(taskId) => {
-            if (selectedSessionId) cancelTask.mutate({ sessionId: selectedSessionId, taskId })
-          }}
           onInterrupt={(taskId) => {
             if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, taskId })
           }}
+          prompts={sessionPrompts}
+          queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}
+          running={!!runningTask}
+          todos={activePlan ?? []}
         />
         <ChatInput
+          agentType={agentType}
           cacheReadTokens={latestTask?.used?.cacheRead}
           contextTokens={latestTask?.contextTokens}
           contextWindow={latestTask?.contextWindow}
-          agentType={agentType}
           cwd={cwd}
           disabled={!ready}
-          teamOptions={teamOptions}
           executionMode={executionMode}
           onAgentTypeChange={setAgentType}
           onCwdChange={setCwd}
           onExecutionModeChange={setExecutionMode}
           onPermissionModeChange={setPermissionMode}
+          onStop={() => {
+            if (runningTask) cancelTask.mutate({ sessionId: runningTask.sessionId, taskId: runningTask.id })
+          }}
           onSubmit={async (g, attachments) => {
             if (!ready) return
             await submitGoal.mutateAsync({ goal: g, attachments, options: taskOptions })
           }}
           permissionMode={permissionMode}
+          running={!!runningTask}
           supportsImages={!!providerViewById(state, state.active)?.supportsImages}
+          teamOptions={teamOptions}
           usdCents={latestTask?.used?.usdCents}
         />
       </div>
