@@ -152,6 +152,50 @@ describe('applyEvent', () => {
     expect(next[0].status).toBe('awaiting_user')
   })
 
+  it('resets awaiting_user back to running on the next task.progress', () => {
+    const seed: TaskRecord[] = [
+      {
+        id: 't1',
+        sessionId: 'ses-1',
+        goal: 'g',
+        status: 'awaiting_user',
+        workerId: 'w1',
+        summary: null,
+        startedAt: 1,
+        attachments: [],
+        events: [],
+      },
+    ]
+    const next = applyEvent(seed, {
+      kind: 'task.progress',
+      ...baseEvent,
+      event: { kind: 'tool.result', ok: true, payload: {}, ts: 2 },
+    })
+    expect(next[0].status).toBe('running')
+  })
+
+  it('does not resurrect a finished task on a late task.progress', () => {
+    const seed: TaskRecord[] = [
+      {
+        id: 't1',
+        sessionId: 'ses-1',
+        goal: 'g',
+        status: 'completed',
+        workerId: 'w1',
+        summary: 'done',
+        startedAt: 1,
+        attachments: [],
+        events: [],
+      },
+    ]
+    const next = applyEvent(seed, {
+      kind: 'task.progress',
+      ...baseEvent,
+      event: { kind: 'tool.result', ok: true, payload: {}, ts: 2 },
+    })
+    expect(next[0].status).toBe('completed')
+  })
+
   it('keeps unknown taskId events as stubs', () => {
     const next = applyEvent([], { kind: 'task.dispatched', ...baseEvent, workerId: 'w1' })
     expect(next).toHaveLength(1)

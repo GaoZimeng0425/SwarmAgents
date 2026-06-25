@@ -101,6 +101,15 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
     case 'task.permission_request':
       updated = setStatus(updated, 'awaiting_user')
       break
+    case 'task.progress':
+      // A streamed progress event means the run resumed: a task parked on a
+      // permission prompt is executing again once the operator decides (the
+      // granted tool runs, or the model keeps going after a deny). Nothing else
+      // resets it, so without this the task stays 'awaiting_user' for the rest
+      // of the run and the composer's submit button never leaves its stop state
+      // until the terminal event. Only a parked task flips; a live run is untouched.
+      if (updated.status === 'awaiting_user') updated = setStatus(updated, 'running')
+      break
     default:
       break
   }
