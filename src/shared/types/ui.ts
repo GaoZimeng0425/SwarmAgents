@@ -8,7 +8,7 @@
  * linear timeline without needing its own clock.
  */
 
-import type { AgentDefinition } from './agent'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
 import type { BudgetConfig } from './budgets'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
@@ -261,7 +261,9 @@ export type MemoryBridge = {
 }
 
 export type AgentBridge = {
-  list(): Promise<AgentDefinition[]>
+  list(): Promise<AgentListItem[]>
+  save(def: AgentDefinition): Promise<AgentMutationResult>
+  remove(id: string): Promise<AgentMutationResult>
 }
 
 /** Global enable/disable for built-in tool groups + skills (MCP toggled via `mcp`). */

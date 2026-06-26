@@ -4,7 +4,7 @@ import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { ToolGroupInfo, ToolToggles } from '@shared/types/tool-toggles'
 import type { PermissionDecision } from '@shared/types/ui'
@@ -50,7 +50,9 @@ export type ServiceClient = {
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
   setBudgetConfig(config: BudgetConfig): Promise<void>
   listSkills(): Promise<Skill[]>
-  listAgents(): Promise<AgentDefinition[]>
+  listAgents(): Promise<AgentListItem[]>
+  saveAgent(def: AgentDefinition): Promise<AgentMutationResult>
+  deleteAgent(id: string): Promise<AgentMutationResult>
   saveSkill(skill: Skill): Promise<SkillMutationResult>
   deleteSkill(name: string): Promise<SkillMutationResult>
   importSkill(sourceDir: string, overwrite?: boolean): Promise<SkillMutationResult>
@@ -159,6 +161,12 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     listAgents() {
       return call('listAgents', [])
+    },
+    saveAgent(def) {
+      return call('saveAgent', [def])
+    },
+    deleteAgent(id) {
+      return call('deleteAgent', [id])
     },
     saveSkill(skill) {
       return call('saveSkill', [skill])

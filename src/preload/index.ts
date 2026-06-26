@@ -1,7 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
-import type { AgentDefinition } from '../shared/types/agent'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '../shared/types/agent'
 import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
@@ -165,7 +165,9 @@ const memory: MemoryBridge = {
 }
 
 const agents: AgentBridge = {
-  list: () => ipcRenderer.invoke('agents:list') as Promise<AgentDefinition[]>,
+  list: () => ipcRenderer.invoke('agents:list') as Promise<AgentListItem[]>,
+  save: (def: AgentDefinition) => ipcRenderer.invoke('agents:save', def) as Promise<AgentMutationResult>,
+  remove: (id: string) => ipcRenderer.invoke('agents:delete', id) as Promise<AgentMutationResult>,
 }
 
 const swarm: SwarmBridge = {

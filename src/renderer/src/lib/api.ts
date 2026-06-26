@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
 import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task, TaskOptions } from '@shared/types/task'
 import type {
@@ -39,7 +39,9 @@ export const swarmApi = {
     window.swarm.sessions.updateSettings(sessionId, settings),
   reorderSessions: (orderedIds: string[]): Promise<void> => window.swarm.sessions.reorder(orderedIds),
   listMemory: (namespace?: string): Promise<MemoryView[]> => window.swarm.memory.list(namespace),
-  listAgents: (): Promise<AgentDefinition[]> => window.swarm.agents.list(),
+  listAgents: (): Promise<AgentListItem[]> => window.swarm.agents.list(),
+  saveAgent: (def: AgentDefinition): Promise<AgentMutationResult> => window.swarm.agents.save(def),
+  removeAgent: (id: string): Promise<AgentMutationResult> => window.swarm.agents.remove(id),
   getUsageStats: (rangeDays: number): Promise<UsageStats> => window.swarm.usage.get(rangeDays),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),

@@ -3,9 +3,16 @@
 import '@testing-library/jest-dom/vitest'
 import type { AgentDefinition } from '@shared/types/agent'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { OrgTree, OrgTreeView } from './org-tree-view'
+
+vi.mock('@/hooks/use-agent-mutations', () => ({
+  useAgentMutations: () => ({
+    save: vi.fn(),
+    remove: vi.fn(),
+  }),
+}))
 
 const a = (over: Partial<AgentDefinition> & { id: string }): AgentDefinition => ({
   name: over.id,
@@ -86,11 +93,39 @@ describe('OrgTree', () => {
 describe('OrgTreeView', () => {
   it('shows the selected agent detail on click and hides it on a second click', () => {
     render(<OrgTreeView agents={[a({ id: 'pm', name: 'PM' })]} />)
-    const card = (): HTMLElement => screen.getByRole('button', { name: /PM/ })
+    // Use start-anchor regex to avoid matching "Edit PM" / "Delete PM" action buttons.
+    const card = (): HTMLElement => screen.getByRole('button', { name: /^PM/ })
     expect(screen.queryByText('prompt-pm')).not.toBeInTheDocument()
     fireEvent.click(card())
     expect(screen.getByText('prompt-pm')).toBeInTheDocument()
     fireEvent.click(card())
     expect(screen.queryByText('prompt-pm')).not.toBeInTheDocument()
+  })
+})
+
+describe('OrgTreeView CRUD affordances', () => {
+  const li = (over: Partial<AgentDefinition> & { id: string; builtin: boolean }) => ({
+    name: over.id,
+    description: 'd',
+    systemPrompt: 'p',
+    toolScope: 'all' as const,
+    maxIterations: 25,
+    ...over,
+  })
+
+  it('shows Edit + Delete on a user agent and only Duplicate on a builtin', () => {
+    render(<OrgTreeView agents={[li({ id: 'user', name: 'User', builtin: false }), li({ id: 'bi', name: 'BI', builtin: true })]} />)
+    const userCard = screen.getByText('User').closest('li') as HTMLElement
+    const biCard = screen.getByText('BI').closest('li') as HTMLElement
+    expect(within(userCard).getByLabelText(/edit/i)).toBeInTheDocument()
+    expect(within(userCard).getByLabelText(/delete/i)).toBeInTheDocument()
+    expect(within(biCard).queryByLabelText(/delete/i)).not.toBeInTheDocument()
+    expect(within(biCard).getByLabelText(/duplicate/i)).toBeInTheDocument()
+  })
+
+  it('clicking New opens the form sheet', () => {
+    render(<OrgTreeView agents={[li({ id: 'user', name: 'User', builtin: false })]} />)
+    fireEvent.click(screen.getByRole('button', { name: /new agent/i }))
+    expect(screen.getByText('New agent')).toBeInTheDocument()
   })
 })
