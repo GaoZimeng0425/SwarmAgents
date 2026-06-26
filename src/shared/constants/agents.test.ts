@@ -29,7 +29,7 @@ describe('builtin roster', () => {
       .filter((a) => a.teamRole === 'head')
       .map((a) => a.team)
       .sort()
-    expect(heads).toEqual(['design', 'dev', 'docs', 'ops', 'product', 'qa', 'training'])
+    expect(heads).toEqual(['data', 'design', 'dev', 'docs', 'ops', 'product', 'qa', 'security', 'training'])
     // No team has two heads.
     expect(new Set(heads).size).toBe(heads.length)
   })

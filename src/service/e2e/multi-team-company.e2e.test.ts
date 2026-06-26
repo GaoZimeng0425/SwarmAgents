@@ -88,12 +88,14 @@ describe('multi-team company — routing', () => {
 
     // The CEO's discovery of team heads returned one entry point per company team.
     expect(discovered.heads).toEqual([
+      'data-lead',
       'design-lead',
       'docs-lead',
       'engineering-lead',
       'ops-lead',
       'product-lead',
       'qa-lead',
+      'security-lead',
       'training-head',
     ])
 
@@ -130,7 +132,17 @@ describe('multi-team company — routing', () => {
         .find(sessionId, { teamRole: 'head' })
         .map((p) => p.role)
         .sort()
-    ).toEqual(['design-lead', 'docs-lead', 'engineering-lead', 'ops-lead', 'product-lead', 'qa-lead', 'training-head'])
+    ).toEqual([
+      'data-lead',
+      'design-lead',
+      'docs-lead',
+      'engineering-lead',
+      'ops-lead',
+      'product-lead',
+      'qa-lead',
+      'security-lead',
+      'training-head',
+    ])
     expect(
       dir
         .find(sessionId, { team: 'dev' })
