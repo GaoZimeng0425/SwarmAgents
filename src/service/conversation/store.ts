@@ -12,6 +12,8 @@ import { currentStreak, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './
 
 const log = createLogger({ process: 'service' }).child({ component: 'conversation-store' })
 
+const TERMINAL_TASK_STATUSES = new Set(['completed', 'failed', 'interrupted', 'cancelled'])
+
 export type StoredSession = {
   id: string
   createdAt: number
@@ -685,10 +687,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
       )
     },
     updateTaskStatus(taskId, status, result) {
-      const terminalStatuses = new Set(['completed', 'failed', 'interrupted', 'cancelled'])
-      const endedAt = terminalStatuses.has(status) ? Date.now() : null
+      const endedAt = TERMINAL_TASK_STATUSES.has(status) ? Date.now() : null
       stmtUpdateTask.run(status, result ? JSON.stringify(result) : null, endedAt, taskId)
-      if (terminalStatuses.has(status)) taskTerminalListener?.(taskId, status)
+      if (TERMINAL_TASK_STATUSES.has(status)) taskTerminalListener?.(taskId, status)
     },
     saveTaskUsage(taskId, used, contextWindow) {
       stmtUpdateTaskUsage.run(JSON.stringify(used), contextWindow ?? null, taskId)
