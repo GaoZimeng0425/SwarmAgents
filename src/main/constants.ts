@@ -33,6 +33,9 @@ export const paths = {
   db: () => join(app.getPath('userData'), 'agent-service.db'),
   memory: () => join(app.getPath('userData'), 'agent-memory.json'),
   providers: () => join(app.getPath('userData'), 'providers.enc'),
+  // Locally-cached OpenRouter model catalog (public pricing/context data — plain
+  // JSON, not a credential). Lets pricing auto-match offline and survive restart.
+  openrouterCatalog: () => join(app.getPath('userData'), 'openrouter-catalog.json'),
   webSearch: () => join(app.getPath('userData'), 'web-search.enc'),
   budgets: () => join(app.getPath('userData'), 'budgets.json'),
 } as const

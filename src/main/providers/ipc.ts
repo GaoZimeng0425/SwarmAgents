@@ -9,6 +9,7 @@ import { createLogger } from '@shared/logger'
 import { type ApiStyle, type ModelMeta, ModelThinkingLevel } from '@shared/types/provider'
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 
+import { paths } from '../constants'
 import { fetchCatalog, lookupModel } from './openrouter'
 import type { AddCustomInput, Service } from './service'
 import { testConnection } from './test-connection'
@@ -38,6 +39,43 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
   const unsubscribe = service.onStateChanged((view) => {
     broadcast(STATE_CHANGED_CHANNEL, view)
   })
+
+  const catalogPath = paths.openrouterCatalog()
+
+  // Best-effort: pull pricing/context for the given custom-provider models from
+  // the locally-cached OpenRouter catalog and merge into modelMeta — so adding a
+  // model auto-fills its price without a manual "fetch" click. Uses the cached/
+  // disk copy (no forced network), and never throws: an add must still succeed
+  // when offline or unmatched. The merge persists, which broadcasts the updated
+  // state to renderers, so pricing pops in shortly after the add.
+  const autoMatchPricing = async (id: string, requested: string[]): Promise<void> => {
+    try {
+      const provider = service.getState().providers.find((x) => x.id === id)
+      if (!provider || provider.registry) return // custom providers only
+      // Resolve each request to the provider's canonical stored id (case-/space-
+      // insensitive), since mergeModelMeta only accepts ids already in the list.
+      // Skip models that already carry pricing so re-selecting one (setModel
+      // fires on every selection) doesn't churn a needless persist+broadcast.
+      const targets = requested
+        .map((m) => provider.models.find((pm) => pm.toLowerCase() === m.trim().toLowerCase()))
+        .filter((m): m is string => !!m && !provider.modelMeta?.[m]?.pricing)
+      if (targets.length === 0) return
+      const catalog = await fetchCatalog({ catalogPath })
+      const map: Record<string, ModelMeta> = {}
+      for (const m of targets) {
+        const meta = lookupModel(catalog, m)
+        if (meta) map[m] = meta
+      }
+      if (Object.keys(map).length === 0) {
+        log.warn({ msg: 'auto-match pricing: no models matched', id, targets })
+        return
+      }
+      await service.mergeModelMeta(id, map)
+      log.info({ msg: 'auto-match pricing applied', id, matched: Object.keys(map).length, total: targets.length })
+    } catch (e) {
+      log.warn({ msg: 'auto-match pricing failed', id, err: e instanceof Error ? e.message : String(e) })
+    }
+  }
 
   // One-shot at boot if applicable. Fired on any new window via did-finish-load.
   const fireDecryptIfNeeded = (w: BrowserWindow): void => {
@@ -75,18 +113,23 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     return id ? service.setActive(id) : badId
   })
 
-  ipcMain.handle('providers:setModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+  ipcMain.handle('providers:setModel', async (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
-    return service.setModel(id, model)
+    const r = await service.setModel(id, model)
+    // setModel adds the model to the list when new — auto-fill its pricing too.
+    if (r.ok) void autoMatchPricing(id, [model])
+    return r
   })
 
-  ipcMain.handle('providers:addCustomModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+  ipcMain.handle('providers:addCustomModel', async (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
-    return service.addCustomModel(id, model)
+    const r = await service.addCustomModel(id, model)
+    if (r.ok) void autoMatchPricing(id, [model])
+    return r
   })
 
   ipcMain.handle('providers:removeCustomModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
@@ -139,7 +182,9 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     log.info({ msg: 'fetch model info', id, total })
     let catalog: Awaited<ReturnType<typeof fetchCatalog>>
     try {
-      catalog = await fetchCatalog()
+      // Manual button = explicit refresh: force a network re-download (and
+      // re-persist to disk), rather than serving the cached copy.
+      catalog = await fetchCatalog({ force: true, catalogPath })
     } catch (e) {
       log.error({ msg: 'fetch model info network failure', id, err: e instanceof Error ? e.message : String(e) })
       return { ok: false as const, code: 'network' as const, message: e instanceof Error ? e.message : String(e) }
@@ -167,7 +212,7 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     return service.setBaseUrl(id, baseUrl)
   })
 
-  ipcMain.handle('providers:addCustomProvider', (_e: Electron.IpcMainInvokeEvent, input: unknown) => {
+  ipcMain.handle('providers:addCustomProvider', async (_e: Electron.IpcMainInvokeEvent, input: unknown) => {
     if (!input || typeof input !== 'object') return { ok: false, code: 'invalid', message: 'input must be an object' }
     const i = input as Partial<AddCustomInput>
     if (typeof i.name !== 'string' || typeof i.apiKey !== 'string')
@@ -176,7 +221,7 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
       return { ok: false, code: 'invalid', message: 'apiStyle must be "anthropic" or "openai"' }
     if (!Array.isArray(i.models) || i.models.some((m) => typeof m !== 'string'))
       return { ok: false, code: 'invalid', message: 'models must be an array of strings' }
-    return service.addCustomProvider({
+    const r = await service.addCustomProvider({
       name: i.name,
       apiKey: i.apiKey,
       apiStyle: i.apiStyle as ApiStyle,
@@ -184,6 +229,8 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
       models: i.models as string[],
       ...(i.thinkingLevel ? { thinkingLevel: i.thinkingLevel } : {}),
     })
+    if (r.ok) void autoMatchPricing(r.id, i.models as string[])
+    return r
   })
 
   ipcMain.handle('providers:removeCustomProvider', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
