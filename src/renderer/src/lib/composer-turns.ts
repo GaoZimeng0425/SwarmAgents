@@ -1,0 +1,36 @@
+import type { TaskRecord } from './apply-event'
+
+export type ComposerTurns = {
+  /**
+   * The in-flight turn driving the composer's stop control: the running /
+   * awaiting_user turn, or — when nothing is running yet — the earliest pending
+   * turn that is about to be dispatched.
+   */
+  activeTask: TaskRecord | undefined
+  /** Turns genuinely waiting behind the active turn, FIFO (oldest first). */
+  queuedTasks: TaskRecord[]
+}
+
+/**
+ * Split a session's turns into the active (in-flight) turn and the queued turns
+ * rendered as staging cards above the composer.
+ *
+ * A submitted turn is 'pending' from task.created until the separate
+ * task.dispatched event flips it to 'running'; the DB also keeps a running turn
+ * at 'pending' until it ends, so hydrateSession re-injects a pending record on
+ * every navigation. The active turn is therefore briefly 'pending' too, and
+ * classifying every pending turn as queued flashes the just-submitted message as
+ * a staging card. So when nothing is running, the earliest pending turn is the
+ * active (about-to-start) turn — not a queued one. Only top-level turns count;
+ * sub-agent children belong in the transcript, not the composer queue.
+ */
+export function classifyComposerTurns(sessionTasks: TaskRecord[]): ComposerTurns {
+  const topLevel = sessionTasks.filter((t) => !t.parentTaskId)
+  const running = topLevel.find((t) => t.status === 'running' || t.status === 'awaiting_user')
+  const pending = topLevel.filter((t) => t.status === 'pending').sort((a, b) => a.startedAt - b.startedAt)
+  const startingTask = running ? undefined : pending[0]
+  return {
+    activeTask: running ?? startingTask,
+    queuedTasks: startingTask ? pending.slice(1) : pending,
+  }
+}

@@ -10,6 +10,7 @@ import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
 import { useCancelTask, useDecidePermission, useInterruptWith, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
+import { classifyComposerTurns } from '@/lib/composer-turns'
 import { latestTopLevelTask, sessionDisplayUsage } from '@/lib/session-usage'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
@@ -27,21 +28,13 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const { ready, state } = useProviders()
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
-  // Runs are sequential per session, so at most one task is in flight; the
-  // event reducer prepends newest-first, so find() yields the active run.
-  // 'awaiting_user' counts as in-flight: the run is blocked on a permission
-  // prompt but still cancellable. It is transient — the next task.progress
-  // resets it to 'running' once the operator decides (see apply-event).
-  // Only top-level turns (no parentTaskId) are the conversation's run/queue;
-  // sub-agent children are also 'pending' while in flight but belong inside the
-  // transcript, not the composer's stop control or queue.
-  const runningTask = sessionTasks.find(
-    (t) => !t.parentTaskId && (t.status === 'running' || t.status === 'awaiting_user')
-  )
-  // Sort pending top-level turns ascending by startedAt (creation order) so the overlay renders FIFO.
-  const queuedTasks = sessionTasks
-    .filter((t) => !t.parentTaskId && t.status === 'pending')
-    .sort((a, b) => a.startedAt - b.startedAt)
+  // Runs are sequential per session, so at most one turn is in flight. A turn is
+  // 'pending' from task.created until task.dispatched flips it to 'running', and
+  // the DB keeps a running turn 'pending' until it ends — so the active turn is
+  // briefly 'pending' too. classifyComposerTurns promotes the earliest pending
+  // turn to active when nothing is running (instead of flashing it as a staging
+  // card) and queues the rest FIFO; sub-agent children are excluded.
+  const { activeTask: runningTask, queuedTasks } = classifyComposerTurns(sessionTasks)
   const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
   // Session execution history: each top-level turn that produced a plan becomes
   // a group, ordered oldest-first so the panel reads top-to-bottom as the run
