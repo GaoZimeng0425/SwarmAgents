@@ -35,6 +35,7 @@ describe('TaskWaiterService', () => {
     const deliver = vi.fn()
     const svc = createTaskWaiterService({ store, deliver })
     const res = svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'task-X', goal: null })
+    expect(res.id).toBeNull()
     expect(res.firedImmediately).toBe(true)
     expect(deliver).toHaveBeenCalledWith('s', 'a', expect.stringContaining('completed'))
     expect((store as unknown as { _waiters: unknown[] })._waiters).toHaveLength(0)
@@ -44,7 +45,8 @@ describe('TaskWaiterService', () => {
     const store = fakeStore({})
     const deliver = vi.fn()
     const svc = createTaskWaiterService({ store, deliver })
-    svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'gone', goal: null })
+    const res = svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'gone', goal: null })
+    expect(res.id).toBeNull()
     expect(deliver).toHaveBeenCalledWith('s', 'a', expect.stringContaining('could not be found'))
   })
 

@@ -37,7 +37,7 @@ export function createTaskWaiterService(deps: TaskWaiterDeps): TaskWaiterService
     try {
       deliver(sessionId, address, goal)
     } catch (err) {
-      log.error({ msg: 'waiter deliver failed', address, err: err instanceof Error ? err.message : String(err) })
+      log.error({ msg: 'waiter deliver failed', sessionId, address, err: err instanceof Error ? err.message : String(err) })
     }
   }
 
