@@ -1,4 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { applyAgentModel } from '@shared/agents/model-override'
 import { DEFAULT_AGENT_DEF, defaultAgents } from '@shared/constants/agents'
 import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
@@ -377,7 +378,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     const deps: AgentRunnerDeps = {
       task,
-      provider: def.model ? { ...session.provider, model: def.model } : session.provider,
+      provider: applyAgentModel(session.provider, def),
       agentDefinition: withPrompt(def),
       sessionId,
       getPermissionMode: () => resolvePermissionMode(sessionId),
@@ -501,9 +502,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     if (providerKey && !lookedUp) {
       log.warn({ msg: 'providerKey not found, falling back to session provider', providerKey })
     }
-    // The agent type may pin a specific model; otherwise inherit the provider's.
+    // The agent type may pin a model tier (model + thinking depth); otherwise
+    // inherit the provider's. Preserves the provider's fallback chain.
     const baseProvider = lookedUp ?? session.provider
-    const resolvedProvider = def.model ? { ...baseProvider, model: def.model } : baseProvider
+    const resolvedProvider = applyAgentModel(baseProvider, def)
 
     const childTaskId = ulid()
     const now = Date.now()
@@ -840,7 +842,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         if (!def) continue
         const r = cfg.agentStore?.save(def)
         if (r?.ok) log.warn({ msg: 'company role re-seeded (was missing)', sessionId, roleId })
-        else log.error({ msg: 'company role re-seed failed', sessionId, roleId, err: r && !r.ok ? r.message : 'no agent store' })
+        else
+          log.error({
+            msg: 'company role re-seed failed',
+            sessionId,
+            roleId,
+            err: r && !r.ok ? r.message : 'no agent store',
+          })
       }
       for (const roleId of COMPANY_ROLES) {
         ensureActor(sessionId, roleId, roleId)

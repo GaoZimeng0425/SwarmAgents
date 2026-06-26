@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { ModelThinkingLevel } from './provider'
+
 export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'authoring', 'all'])
 export type ToolScope = z.infer<typeof ToolScopeSchema>
 
@@ -46,13 +48,17 @@ export const AgentDefinitionSchema = z.object({
   maxIterations: z.number().int().positive().default(25),
   /** Override the provider's default model for this agent type. */
   model: z.string().optional(),
+  /**
+   * Override the reasoning depth for this agent type — the model-tier control. A
+   * planner sets 'xhigh' for deep decomposition; a fast worker sets 'off' to skip
+   * thinking on cheap, mechanical sub-tasks. Clamped to what the model supports.
+   */
+  thinkingLevel: ModelThinkingLevel.optional(),
 })
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
 
 /** Result of a create/update/delete on the agent store. */
-export type AgentMutationResult =
-  | { ok: true; agents: AgentDefinition[] }
-  | { ok: false; code: string; message: string }
+export type AgentMutationResult = { ok: true; agents: AgentDefinition[] } | { ok: false; code: string; message: string }
 
 /** An agent as listed for the UI. (All agents are real on-disk files.) */
 export type AgentListItem = AgentDefinition

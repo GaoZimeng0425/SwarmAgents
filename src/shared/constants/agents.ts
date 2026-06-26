@@ -108,6 +108,12 @@ Workflow:
 
 // Descriptions are trigger-first ("Use when …") so the parent agent matches on
 // WHEN to delegate, mirroring how skill descriptions drive use_skill.
+const WORKER_FAST_SYSTEM_PROMPT =
+  'You are a fast worker. The sub-task was delegated to you because it is mechanical or single-step, so optimize for speed and cost: do the work directly and report the result concisely. Do not over-deliberate or expand the scope. If the task turns out to need real multi-step reasoning, say so plainly rather than guessing.'
+
+const WORKER_STRONG_SYSTEM_PROMPT =
+  'You are a senior worker for reasoning-heavy sub-tasks. The work was delegated to you because it needs careful thought: weigh alternatives, consider edge cases, verify your output, then report the result along with the reasoning that matters. Prefer correctness over speed.'
+
 export const defaultAgents: AgentDefinition[] = [
   {
     id: 'default',
@@ -214,6 +220,34 @@ export const defaultAgents: AgentDefinition[] = [
     role: 'training-author',
     capabilities: ['agent-authoring', 'skill-authoring'],
     team: 'training',
+  },
+  {
+    id: 'worker-fast',
+    name: 'Fast Worker',
+    description:
+      'Use for mechanical, single-step sub-tasks where speed and cost matter more than deep reasoning (simple edits, lookups, running a known command). Runs a cheap, no-thinking profile.',
+    systemPrompt: WORKER_FAST_SYSTEM_PROMPT,
+    toolScope: 'all',
+    maxIterations: 15,
+    role: 'worker-fast',
+    capabilities: ['execute', 'fast'],
+    // Tier control: skip reasoning for cheap, quick turns. Pin a cheaper `model`
+    // (via the Agents view) to also drop to a cheaper model; unset ⇒ session model.
+    thinkingLevel: 'off',
+  },
+  {
+    id: 'worker-strong',
+    name: 'Strong Worker',
+    description:
+      'Use for reasoning-heavy sub-tasks needing careful multi-step thinking (design decisions, tricky debugging, ambiguous requirements). Runs a deep-thinking profile.',
+    systemPrompt: WORKER_STRONG_SYSTEM_PROMPT,
+    toolScope: 'all',
+    maxIterations: 25,
+    role: 'worker-strong',
+    capabilities: ['execute', 'reasoning'],
+    // Tier control: deep reasoning. Pin a top `model` (via the Agents view) for
+    // the strongest profile; unset ⇒ session model.
+    thinkingLevel: 'high',
   },
 ]
 
