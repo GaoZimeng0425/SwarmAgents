@@ -138,6 +138,20 @@ describe('promptOnce — model fallback chain', () => {
     expect((switches[0][1] as { event: { error: { message: string } } }).event.error.message).toContain('backup')
   })
 
+  it('uses the chain carried on provider.fallbackProviders when deps.fallbackProviders is unset', async () => {
+    failingModels.set('primary', 'transient 503')
+    const emit = vi.fn()
+    // No deps.fallbackProviders — the chain rides on the injection (as Main resolves it).
+    const session = buildAgentSession(
+      deps(emit, { provider: { ...injection('primary'), fallbackProviders: [injection('backup')] } as never })
+    )
+
+    const r = await session.promptOnce('hi')
+
+    expect(r.status).toBe('completed')
+    expect(promptModels).toEqual(['primary', 'primary', 'primary', 'backup'])
+  })
+
   it('gives up with a single terminal task.error once every model in the chain fails', async () => {
     failingModels.set('primary', 'transient 503')
     failingModels.set('backup', 'transient 503')

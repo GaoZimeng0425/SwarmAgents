@@ -179,6 +179,23 @@ export async function createService(opts: { store: Store }): Promise<Service> {
     return { ...p, modelMeta: meta }
   }
 
+  // A single provider → its base injection (no fallback chain). Used for both
+  // the active provider and each resolved fallback.
+  const toInjection = (p: Provider): ProviderInjection => {
+    const meta = p.modelMeta?.[p.model]
+    return {
+      id: p.id,
+      ...(p.registry ? { registry: p.registry } : {}),
+      apiStyle: p.apiStyle,
+      model: p.model,
+      apiKey: p.apiKey,
+      ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
+      ...(p.thinkingLevel ? { thinkingLevel: p.thinkingLevel } : {}),
+      ...(meta?.contextWindow != null ? { contextWindow: meta.contextWindow } : {}),
+      ...(meta?.pricing ? { pricing: meta.pricing } : {}),
+    }
+  }
+
   return {
     getState: () => state,
     getView: () => toView(state),
@@ -186,18 +203,17 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       if (!state.active) return null
       const p = find(state.active)
       if (!p) return null
-      const meta = p.modelMeta?.[p.model]
-      return {
-        id: p.id,
-        ...(p.registry ? { registry: p.registry } : {}),
-        apiStyle: p.apiStyle,
-        model: p.model,
-        apiKey: p.apiKey,
-        ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
-        ...(p.thinkingLevel ? { thinkingLevel: p.thinkingLevel } : {}),
-        ...(meta?.contextWindow != null ? { contextWindow: meta.contextWindow } : {}),
-        ...(meta?.pricing ? { pricing: meta.pricing } : {}),
-      }
+      const base = toInjection(p)
+      // Resolve the fallback chain here in Main, where every provider's config
+      // (incl. apiKey) lives — the worker's provider registry only holds
+      // session-created providers. Drop self-references and unknown ids; fallbacks
+      // are flattened one level (their own fallbackProviderIds are ignored).
+      const fallbackProviders = (p.fallbackProviderIds ?? [])
+        .filter((id) => id !== p.id)
+        .map((id) => find(id))
+        .filter((fp): fp is Provider => !!fp)
+        .map(toInjection)
+      return fallbackProviders.length ? { ...base, fallbackProviders } : base
     },
 
     async setActive(id) {

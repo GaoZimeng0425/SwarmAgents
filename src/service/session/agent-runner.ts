@@ -210,7 +210,8 @@ export type AgentRunnerDeps = {
    * effective model chain is `[provider, ...fallbackProviders]`. A model advances
    * to the next on exhausting its transient retries, or immediately on a
    * permanent failure (bad key / missing model / quota). Empty ⇒ unchanged
-   * single-model behavior. Populated by the manager from the role policy.
+   * single-model behavior. Defaults to `provider.fallbackProviders` (resolved in
+   * Main from the provider's fallbackProviderIds); set explicitly to override.
    */
   fallbackProviders?: ProviderInjection[]
 }
@@ -572,10 +573,11 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       taskLog.warn({ msg: 'no tools resolved for task', toolAllowlist: task.toolAllowlist })
     }
     model = resolveModel(provider)
-    // Resolve fallbacks defensively: a single unresolvable fallback (e.g. a
-    // misconfigured backup provider) must not abort the whole session — it is
-    // simply dropped from the chain.
-    for (const fp of deps.fallbackProviders ?? []) {
+    // The fallback chain rides on the injection (resolved in Main from the
+    // provider's fallbackProviderIds); an explicit deps.fallbackProviders wins
+    // (tests / programmatic override). Resolve defensively: a single
+    // unresolvable fallback must not abort the session — it is dropped.
+    for (const fp of deps.fallbackProviders ?? provider.fallbackProviders ?? []) {
       try {
         fallbackModels.push(resolveModel(fp))
       } catch (e) {
