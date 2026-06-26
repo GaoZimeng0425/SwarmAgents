@@ -5,9 +5,10 @@ import { type AgentDefinition, AgentDefinitionSchema } from '@shared/types/agent
 import { watch as chokidarWatch } from 'chokidar'
 import { parse as parseYaml } from 'yaml'
 
-const log = createLogger({ process: 'service' }).child({ component: 'agents' })
+export type { AgentMutationResult } from '@shared/types/agent'
+import type { AgentMutationResult } from '@shared/types/agent'
 
-export type AgentMutationResult = { ok: true; agents: AgentDefinition[] } | { ok: false; code: string; message: string }
+const log = createLogger({ process: 'service' }).child({ component: 'agents' })
 
 export type AgentStore = {
   list(): AgentDefinition[]
@@ -15,6 +16,8 @@ export type AgentStore = {
   reload(): void
   save(def: AgentDefinition): AgentMutationResult
   remove(id: string): AgentMutationResult
+  /** True when `id` is a shipped built-in not overridden by a user agent. */
+  isBuiltin(id: string): boolean
   /**
    * Watch the agents dir for external edits (a folder dropped in by hand or by
    * the agent's fs tools). On a debounced change it reloads from disk, then
@@ -149,6 +152,9 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
     return { ok: true, agents: merged() }
   }
 
+  const isBuiltin = (id: string): boolean =>
+    builtins.some((b) => b.id === id) && !agents.some((a) => a.id === id)
+
   const watch: AgentStore['watch'] = (onChange) => {
     let timer: ReturnType<typeof setTimeout> | null = null
     // Coalesce the burst of events a folder copy produces into one reload.
@@ -188,6 +194,7 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
     reload,
     save,
     remove,
+    isBuiltin,
     watch,
   }
 }

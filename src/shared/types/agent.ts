@@ -49,6 +49,15 @@ export const AgentDefinitionSchema = z.object({
 })
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
 
+/** Result of a create/update/delete on the agent store. */
+export type AgentMutationResult =
+  | { ok: true; agents: AgentDefinition[] }
+  | { ok: false; code: string; message: string }
+
+/** An agent as listed for the UI: the definition plus whether it is a
+ *  read-only built-in (derived at list time, never persisted). */
+export type AgentListItem = AgentDefinition & { builtin: boolean }
+
 /** A discovery query against the session's live agents. All fields optional; empty → match all. */
 export type PeerQuery = { role?: string; capability?: string; query?: string; team?: string; teamRole?: 'head' }
 

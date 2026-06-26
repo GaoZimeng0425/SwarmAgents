@@ -141,6 +141,20 @@ describe('createAgentStore', () => {
       teamRole: 'head',
     })
   })
+
+  it('isBuiltin: true for a shipped builtin, false once a user agent overrides it', () => {
+    const store = createAgentStore({ dir, builtins: [builtin] })
+    expect(store.isBuiltin('researcher')).toBe(true)
+    store.save(def({ id: 'researcher', systemPrompt: 'user override' }))
+    expect(store.isBuiltin('researcher')).toBe(false)
+  })
+
+  it('isBuiltin: false for a pure user agent and an unknown id', () => {
+    const store = createAgentStore({ dir, builtins: [builtin] })
+    store.save(def({ id: 'custom' }))
+    expect(store.isBuiltin('custom')).toBe(false)
+    expect(store.isBuiltin('nope')).toBe(false)
+  })
 })
 
 describe('save parentId validation', () => {
