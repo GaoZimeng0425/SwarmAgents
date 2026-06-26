@@ -30,12 +30,16 @@ describe('company role agent definitions', () => {
     expect(ceo.systemPrompt).toContain("teamRole: 'head'")
   })
 
-  it('keeps the pre-existing builtin roles intact', () => {
-    for (const id of ['default', 'researcher', 'executor']) {
+  it('keeps the generic default fallback agent (not a company member)', () => {
+    const def = defaultAgents.find((a) => a.id === 'default')
+    expect(def, 'lost builtin default').toBeDefined()
+    expect(def?.team).toBeUndefined()
+    // The retired generic agents are no longer shipped as builtins.
+    for (const id of ['researcher', 'executor']) {
       expect(
         defaultAgents.find((a) => a.id === id),
-        `lost builtin ${id}`
-      ).toBeDefined()
+        `unexpected retired builtin ${id}`
+      ).toBeUndefined()
     }
   })
 })
