@@ -73,26 +73,21 @@ function AgentNodeCard({
         </div>
       </button>
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        {agent.builtin ? (
-          <Button aria-label={`Duplicate ${agent.name}`} onClick={() => onDuplicate(agent)} size="icon" variant="ghost">
-            <Copy className="size-4" />
-          </Button>
-        ) : (
-          <>
-            <Button aria-label={`Edit ${agent.name}`} onClick={() => onEdit(agent)} size="icon" variant="ghost">
-              <Pencil className="size-4" />
-            </Button>
-            <Button
-              aria-label={`Delete ${agent.name}`}
-              className="text-muted-foreground hover:text-destructive"
-              onClick={() => onDelete(agent)}
-              size="icon"
-              variant="ghost"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </>
-        )}
+        <Button aria-label={`Edit ${agent.name}`} onClick={() => onEdit(agent)} size="icon" variant="ghost">
+          <Pencil className="size-4" />
+        </Button>
+        <Button aria-label={`Duplicate ${agent.name}`} onClick={() => onDuplicate(agent)} size="icon" variant="ghost">
+          <Copy className="size-4" />
+        </Button>
+        <Button
+          aria-label={`Delete ${agent.name}`}
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => onDelete(agent)}
+          size="icon"
+          variant="ghost"
+        >
+          <Trash2 className="size-4" />
+        </Button>
       </div>
     </div>
   )

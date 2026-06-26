@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { AgentDefinition } from '@shared/types/agent'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { createAgentStore, parseAgent, serializeAgent } from './store'
+import { createAgentStore, parseAgent, seedDefaultAgents, serializeAgent } from './store'
 
 const def = (over: Partial<AgentDefinition> = {}): AgentDefinition => ({
   id: 'researcher',
@@ -95,27 +95,6 @@ describe('createAgentStore', () => {
     expect(fresh.list().map((a) => a.id)).toEqual(['persisted'])
   })
 
-  const builtin = def({ id: 'researcher', systemPrompt: 'built-in body' })
-
-  it('always lists and resolves built-in agents', () => {
-    const store = createAgentStore({ dir, builtins: [builtin] })
-    expect(store.list().map((a) => a.id)).toEqual(['researcher'])
-    expect(store.get('researcher')?.systemPrompt).toBe('built-in body')
-  })
-
-  it('cannot remove a built-in (no on-disk folder)', () => {
-    const store = createAgentStore({ dir, builtins: [builtin] })
-    expect(store.remove('researcher').ok).toBe(false)
-    expect(store.get('researcher')).toBeDefined()
-  })
-
-  it('a user agent of the same id overrides its built-in', () => {
-    const store = createAgentStore({ dir, builtins: [builtin] })
-    store.save(def({ id: 'researcher', systemPrompt: 'user body' }))
-    expect(store.list().filter((a) => a.id === 'researcher')).toHaveLength(1)
-    expect(store.get('researcher')?.systemPrompt).toBe('user body')
-  })
-
   it('round-trips role, capabilities, team and teamRole through save + reload', () => {
     const store = createAgentStore({ dir })
     const d = {
@@ -142,18 +121,28 @@ describe('createAgentStore', () => {
     })
   })
 
-  it('isBuiltin: true for a shipped builtin, false once a user agent overrides it', () => {
-    const store = createAgentStore({ dir, builtins: [builtin] })
-    expect(store.isBuiltin('researcher')).toBe(true)
-    store.save(def({ id: 'researcher', systemPrompt: 'user override' }))
-    expect(store.isBuiltin('researcher')).toBe(false)
+})
+
+describe('seedDefaultAgents', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'swarm-agents-seed-'))
+  })
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
   })
 
-  it('isBuiltin: false for a pure user agent and an unknown id', () => {
-    const store = createAgentStore({ dir, builtins: [builtin] })
-    store.save(def({ id: 'custom' }))
-    expect(store.isBuiltin('custom')).toBe(false)
-    expect(store.isBuiltin('nope')).toBe(false)
+  it('writes one AGENT.md per def into an empty dir and returns true', () => {
+    const seeded = seedDefaultAgents(dir, [def({ id: 'a' }), def({ id: 'b' })])
+    expect(seeded).toBe(true)
+    expect(createAgentStore({ dir }).list().map((x) => x.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('is a no-op when the dir already has an agent (deletions persist)', () => {
+    createAgentStore({ dir }).save(def({ id: 'kept' }))
+    const seeded = seedDefaultAgents(dir, [def({ id: 'a' })])
+    expect(seeded).toBe(false)
+    expect(createAgentStore({ dir }).list().map((x) => x.id)).toEqual(['kept'])
   })
 })
 

@@ -7,7 +7,7 @@ import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceRequest } from '@shared/types/service-ipc'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
-import { createAgentStore } from './agents/store'
+import { createAgentStore, seedDefaultAgents } from './agents/store'
 import { createClaudeCodeManager } from './claude-code/manager'
 import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
@@ -53,7 +53,10 @@ const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // settings list updates live instead of only after a restart.
 const offSkillWatch = skillStore.watch(() => broadcaster.broadcast('skills.changed', { ts: Date.now() }))
-const agentStore = createAgentStore({ dir: agentsPath, builtins: defaultAgents })
+// Seed the shipped defaults to disk on first init so they are real, editable
+// AGENT.md files the user owns; a no-op once the dir has agents.
+seedDefaultAgents(agentsPath, defaultAgents)
+const agentStore = createAgentStore({ dir: agentsPath })
 // Reload + notify the renderer when the agents dir is edited outside the app
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // Agents view updates live instead of only after a restart.
@@ -129,7 +132,7 @@ const dispatch = createDispatcher({
   // Annotate the UI list with each skill's live enabled state (the agent-facing
   // catalog filters separately, in the session manager / use_skill).
   listSkills: () => skillStore.list().map((s) => ({ ...s, enabled: toolToggles.isSkillEnabled(s.name) })),
-  listAgents: () => agentStore.list().map((a) => ({ ...a, builtin: agentStore.isBuiltin(a.id) })),
+  listAgents: () => agentStore.list(),
   saveAgent: (def) => agentStore.save(def),
   deleteAgent: (id) => agentStore.remove(id),
   saveSkill: (skill) => skillStore.save(skill),

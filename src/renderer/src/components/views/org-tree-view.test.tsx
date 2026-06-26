@@ -110,7 +110,6 @@ describe('OrgTreeView delegation highlight', () => {
     systemPrompt: '',
     toolScope: 'all' as const,
     maxIterations: 25,
-    builtin: false,
     ...over,
   })
 
@@ -138,7 +137,7 @@ describe('OrgTreeView delegation highlight', () => {
 })
 
 describe('OrgTreeView CRUD affordances', () => {
-  const li = (over: Partial<AgentDefinition> & { id: string; builtin: boolean }) => ({
+  const li = (over: Partial<AgentDefinition> & { id: string }) => ({
     name: over.id,
     description: 'd',
     systemPrompt: 'p',
@@ -147,18 +146,18 @@ describe('OrgTreeView CRUD affordances', () => {
     ...over,
   })
 
-  it('shows Edit + Delete on a user agent and only Duplicate on a builtin', () => {
-    render(<OrgTreeView agents={[li({ id: 'user', name: 'User', builtin: false }), li({ id: 'bi', name: 'BI', builtin: true })]} />)
-    const userCard = screen.getByText('User').closest('li') as HTMLElement
-    const biCard = screen.getByText('BI').closest('li') as HTMLElement
-    expect(within(userCard).getByLabelText(/edit/i)).toBeInTheDocument()
-    expect(within(userCard).getByLabelText(/delete/i)).toBeInTheDocument()
-    expect(within(biCard).queryByLabelText(/delete/i)).not.toBeInTheDocument()
-    expect(within(biCard).getByLabelText(/duplicate/i)).toBeInTheDocument()
+  it('shows Edit + Duplicate + Delete on every agent', () => {
+    render(<OrgTreeView agents={[li({ id: 'user', name: 'User' }), li({ id: 'bi', name: 'BI' })]} />)
+    for (const name of ['User', 'BI']) {
+      const card = screen.getByText(name).closest('li') as HTMLElement
+      expect(within(card).getByLabelText(/edit/i)).toBeInTheDocument()
+      expect(within(card).getByLabelText(/duplicate/i)).toBeInTheDocument()
+      expect(within(card).getByLabelText(/delete/i)).toBeInTheDocument()
+    }
   })
 
   it('clicking New opens the form sheet', () => {
-    render(<OrgTreeView agents={[li({ id: 'user', name: 'User', builtin: false })]} />)
+    render(<OrgTreeView agents={[li({ id: 'user', name: 'User' })]} />)
     fireEvent.click(screen.getByRole('button', { name: /new agent/i }))
     expect(screen.getByText('New agent')).toBeInTheDocument()
   })
