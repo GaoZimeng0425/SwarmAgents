@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
+import type { Task } from '@shared/types/task'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createConversationStore } from './store'
@@ -857,6 +858,65 @@ describe('ConversationStore', () => {
       expect(store.listActorsForSession('S1').map((a) => a.address)).toEqual(['a1', 'a2'])
       expect(store.listActorsForSession('S2').map((a) => a.address)).toEqual(['b1'])
       store.close()
+    })
+  })
+
+  const mkTask = (id: string, status: Task['status']): Task => ({
+    id,
+    parentId: null,
+    agentDefId: 'default',
+    goal: 'g',
+    status,
+    assignedWorkerId: null,
+    toolAllowlist: [],
+    budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    history: [],
+    result: null,
+    createdAt: Date.now(),
+  })
+
+  describe('task waiters', () => {
+    it('saves, lists by task, and deletes a waiter', () => {
+      const store = createConversationStore(tmpDb())
+      store.saveTaskWaiter({
+        id: 'w1',
+        sessionId: 'ses-1',
+        waiterAddress: 'addr-A',
+        taskId: 'task-X',
+        goal: 'continue',
+        createdAt: 1,
+      })
+      expect(store.listTaskWaitersForTask('task-X').map((w) => w.id)).toEqual(['w1'])
+      expect(store.listAllTaskWaiters()).toHaveLength(1)
+      store.deleteTaskWaiter('w1')
+      expect(store.listTaskWaitersForTask('task-X')).toEqual([])
+      store.close()
+    })
+
+    it('fires the terminal listener only on terminal status', () => {
+      const store = createConversationStore(tmpDb())
+      store.createSession('ses-1', { id: 'anthropic' as const, model: 'm', apiKey: 'k' })
+      store.saveTask(mkTask('task-X', 'running'), 'ses-1')
+      const fired: Array<[string, string]> = []
+      store.setTaskTerminalListener((taskId, status) => fired.push([taskId, status]))
+
+      store.updateTaskStatus('task-X', 'running')
+      expect(fired).toEqual([])
+
+      store.updateTaskStatus('task-X', 'completed')
+      expect(fired).toEqual([['task-X', 'completed']])
+      store.close()
+    })
+
+    it('persists waiters across reopen', () => {
+      const path = tmpDb()
+      const s1 = createConversationStore(path)
+      s1.saveTaskWaiter({ id: 'w1', sessionId: 's', waiterAddress: 'a', taskId: 'task-X', goal: null, createdAt: 1 })
+      s1.close()
+      const s2 = createConversationStore(path)
+      expect(s2.listAllTaskWaiters().map((w) => w.id)).toEqual(['w1'])
+      s2.close()
     })
   })
 })
