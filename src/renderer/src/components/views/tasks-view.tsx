@@ -10,6 +10,7 @@ import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
 import { useCancelTask, useDecidePermission, useInterruptWith, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
+import { latestTopLevelTask } from '@/lib/session-usage'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -42,7 +43,6 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
     .filter((t) => !t.parentTaskId && t.status === 'pending')
     .sort((a, b) => a.startedAt - b.startedAt)
   const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
-  const byRecent = [...sessionTasks].sort((a, b) => b.startedAt - a.startedAt)
   // Session execution history: each top-level turn that produced a plan becomes
   // a group, ordered oldest-first so the panel reads top-to-bottom as the run
   // order. The agent replaces its plan per turn, but every turn persists its own
@@ -54,8 +54,10 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // The composer's inline todo strip shows only the in-flight turn's plan
   // (the latest group) — a live "what's happening now" strip, not history.
   const activePlan = planGroups[planGroups.length - 1]?.plan
-  // Context-window fill for the composer ring follows the most recent task.
-  const latestTask = byRecent[0]
+  // Context-window fill / cost for the composer ring follows the most recent
+  // top-level turn. Sub-agent children sort newer but carry no usage once
+  // rehydrated from disk, so they must be excluded or the ring blanks on restart.
+  const latestTask = latestTopLevelTask(sessionTasks)
 
   // Each session remembers its own composer controls (working directory,
   // permission gate, execution mode). They're persisted on the session row, so

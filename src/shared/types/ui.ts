@@ -7,12 +7,13 @@
  * etc. Each event carries a server-side timestamp so the UI can render a
  * linear timeline without needing its own clock.
  */
+
+import type { AgentDefinition } from './agent'
 import type { BudgetConfig } from './budgets'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
-import type { AgentDefinition } from './agent'
 import type { Skill, SkillMutationResult } from './skill'
 import type {
   Attachment,
@@ -96,6 +97,11 @@ export type SessionSummary = {
   status: 'active' | 'interrupted' | 'ended'
   lastActiveAt: number
   taskCount: number
+  /** Cumulative usage across the session's tasks, summed from persisted `used`
+   * snapshots so the list can show cost without hydrating tasks. Populated by
+   * listSessions; absent on optimistically-created session rows (treat as 0). */
+  tokensUsed?: number
+  usdCents?: number
   pinned: boolean
   sortOrder: number
   /** True only for the dedicated system session that owns all global cron jobs. */

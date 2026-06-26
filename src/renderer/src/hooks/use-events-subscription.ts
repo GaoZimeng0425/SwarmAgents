@@ -116,6 +116,10 @@ export function useEventsSubscription(): void {
           cwd: existing?.cwd,
           permissionMode: existing?.permissionMode,
           executionMode: existing?.executionMode,
+          // Likewise the usage totals — these events don't carry them, so keep
+          // the last listSessions value rather than blanking the list figure.
+          tokensUsed: existing?.tokensUsed,
+          usdCents: existing?.usdCents,
         })
       }
       if (e.kind === 'memory.changed') {

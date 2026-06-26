@@ -157,6 +157,38 @@ describe('ConversationStore', () => {
     store.close()
   })
 
+  it('aggregates per-session token + cost usage in listSessions', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-u', provider)
+    const mk = (id: string, parentId: string | null, tokens: number, usdCents: number) => ({
+      id,
+      parentId,
+      agentDefId: 'default',
+      goal: 'g',
+      status: 'completed' as const,
+      assignedWorkerId: null,
+      toolAllowlist: [] as string[],
+      budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      used: { tokens, calls: 1, wallMs: 0, usdCents, cacheRead: 0, cacheWrite: 0 },
+      history: [],
+      plan: [],
+      result: null,
+      createdAt: 1,
+      startedAt: null,
+      endedAt: null,
+    })
+    store.saveTask(mk('01HRX0000000000000000000U1', null, 5000, 6), 'ses-u')
+    store.saveTask(mk('01HRX0000000000000000000U2', null, 3000, 4), 'ses-u')
+    // A sub-agent child persists zeroed usage — it must not change the totals.
+    store.saveTask(mk('01HRX0000000000000000000U3', '01HRX0000000000000000000U1', 0, 0), 'ses-u')
+
+    const s = store.listSessions().find((x) => x.id === 'ses-u')
+    expect(s?.tokensUsed).toBe(8000)
+    expect(s?.usdCents).toBe(10)
+    store.close()
+  })
+
   const taskLiteral = (id: string, history: import('@shared/types/task').TaskEvent[] = []) => ({
     id,
     parentId: null,

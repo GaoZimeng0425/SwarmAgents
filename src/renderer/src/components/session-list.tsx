@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
+import { formatTokens } from '@/lib/format-usage'
 import { pickNextSession } from '@/lib/session-nav'
 import { cn } from '@/lib/utils'
 import { useSearchDialog } from '@/stores/search-dialog'
@@ -145,6 +146,12 @@ export function SessionList(): React.JSX.Element {
   const renderRow = (s: SessionSummary): React.JSX.Element => {
     const status = statusBySession.get(s.id) ?? 'idle'
     const title = s.title ?? 'Untitled chat'
+    // Cumulative session usage (persisted, so it shows without opening the
+    // session). Prefer cost; fall back to tokens for free-model sessions.
+    const cents = s.usdCents ?? 0
+    const tokens = s.tokensUsed ?? 0
+    const usageLabel = cents > 0 ? `$${(cents / 100).toFixed(2)}` : tokens > 0 ? formatTokens(tokens) : null
+    const usageTitle = `${formatTokens(tokens)} tokens · $${(cents / 100).toFixed(2)}`
 
     if (renamingId === s.id) {
       return (
@@ -187,6 +194,11 @@ export function SessionList(): React.JSX.Element {
               )}
               {s.pinned && <Pin className="size-3 shrink-0 rotate-45 text-primary/70" />}
               <span className="flex-1 truncate leading-tight">{title}</span>
+              {usageLabel && status === 'idle' && (
+                <span className="shrink-0 text-[11px] text-muted-foreground/50 tabular-nums" title={usageTitle}>
+                  {usageLabel}
+                </span>
+              )}
               {status === 'running' && (
                 <Loader2 aria-label="Running" className="size-3 shrink-0 animate-spin text-primary" />
               )}

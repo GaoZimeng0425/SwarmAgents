@@ -36,6 +36,7 @@ import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
 import { groupSegments } from '@/lib/group-segments'
+import { latestTopLevelTask } from '@/lib/session-usage'
 import { type Segment, taskSegments } from '@/lib/task-segments'
 import { dayKey, formatDayLabel, formatMessageTime } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
@@ -259,7 +260,10 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
 
   const last = ordered[ordered.length - 1]
   const busy = last.status === 'running' || last.status === 'pending'
-  const usage = last.used
+  // Usage footer reflects the conversation's own turns: the latest top-level
+  // task. Sub-agent children sort newer but carry no usage once rehydrated, so
+  // reading `last.used` blanks the footer after a restart (see session-usage).
+  const usage = latestTopLevelTask(tasks)?.used
 
   const messageTime = (ts: number): React.JSX.Element => (
     <time

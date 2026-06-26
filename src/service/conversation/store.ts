@@ -461,10 +461,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtListSessions = db.prepare(
+    // tokensUsed / usdCents sum the per-task `used` snapshots (same method as
+    // getUsageStats), so the list shows each session's cumulative cost without
+    // hydrating its tasks into the renderer. Sub-agent children persist zeroed
+    // usage, so summing all tasks equals summing the top-level turns.
     `SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
             s.cwd, s.permission_mode AS permissionMode, s.execution_mode AS executionMode,
             s.agent_type AS agentType,
-            (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount
+            (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount,
+            (SELECT COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) FROM tasks t WHERE t.session_id = s.id) AS tokensUsed,
+            (SELECT COALESCE(SUM(json_extract(t.used, '$.usdCents')), 0) FROM tasks t WHERE t.session_id = s.id) AS usdCents
      FROM sessions s
      WHERE s.status != 'ended'
      ORDER BY s.pinned DESC, s.sort_order ASC`
@@ -558,6 +564,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
         permissionMode: (r.permissionMode as 'ask' | 'full' | null) ?? undefined,
         executionMode: (r.executionMode as 'goal' | 'plan' | null) ?? undefined,
         agentType: (r.agentType as string | null) ?? undefined,
+        tokensUsed: r.tokensUsed as number,
+        usdCents: r.usdCents as number,
       }))
     },
     setSessionSettings(id, settings) {
