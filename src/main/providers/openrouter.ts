@@ -1,8 +1,11 @@
 // src/main/providers/openrouter.ts
 //
 // Fetches the OpenRouter model catalog and exposes per-model context window +
-// pricing for the providers UI's "fetch" action. Network lives here; the
-// service stays a pure state machine.
+// pricing for the providers UI's "fetch" action and for auto-matching pricing
+// when a model is added. The catalog is cached in memory (1h TTL) and persisted
+// to a local JSON file so matching survives restarts and works offline. Network
+// lives here; the service stays a pure state machine.
+import { promises as fs } from 'node:fs'
 import { createLogger } from '@shared/logger'
 import type { ModelMeta, ModelPricing } from '@shared/types/provider'
 
@@ -15,6 +18,34 @@ const TIMEOUT_MS = 15_000
 export type Catalog = Map<string, ModelMeta>
 
 let cache: { at: number; catalog: Catalog } | null = null
+
+// On-disk shape: a flat record keyed by OpenRouter id plus the fetch timestamp,
+// so a reload can re-apply the same TTL the in-memory cache uses.
+type DiskCatalog = { at: number; models: Record<string, ModelMeta> }
+
+/** Read the persisted catalog, or null if absent/unreadable/malformed. */
+export async function readDiskCatalog(catalogPath: string): Promise<{ at: number; catalog: Catalog } | null> {
+  try {
+    const parsed = JSON.parse(await fs.readFile(catalogPath, 'utf8')) as DiskCatalog
+    if (!parsed || typeof parsed.at !== 'number' || !parsed.models || typeof parsed.models !== 'object') return null
+    return { at: parsed.at, catalog: new Map(Object.entries(parsed.models)) }
+  } catch {
+    return null
+  }
+}
+
+/** Persist the catalog as plain JSON (atomic write via tmp + rename). */
+export async function writeDiskCatalog(catalogPath: string, at: number, catalog: Catalog): Promise<void> {
+  const payload: DiskCatalog = { at, models: Object.fromEntries(catalog) }
+  const tmp = `${catalogPath}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(payload))
+  await fs.rename(tmp, catalogPath)
+}
+
+/** Test-only: clear the in-memory cache so each test starts cold. */
+export function __resetCatalogCacheForTest(): void {
+  cache = null
+}
 
 // OpenRouter prices are "USD per token" strings; pi-ai cost is "USD per 1M".
 function toPerM(perToken: unknown): number | null {
@@ -73,8 +104,24 @@ export function lookupModel(catalog: Catalog, modelId: string): ModelMeta | null
   return null
 }
 
-export async function fetchCatalog(force = false): Promise<Catalog> {
+// Return the best available catalog. Order: fresh in-memory cache → (unless
+// forced) fresh on-disk copy (seeds memory, no network) → network fetch (writes
+// disk + memory). On network failure, fall back to any on-disk copy even if
+// stale, so adding a model still auto-matches offline. `catalogPath` enables the
+// disk layer; omit it (tests) to use memory/network only.
+export async function fetchCatalog(opts: { force?: boolean; catalogPath?: string } = {}): Promise<Catalog> {
+  const { force = false, catalogPath } = opts
   if (!force && cache && Date.now() - cache.at < TTL_MS) return cache.catalog
+
+  if (!force && !cache && catalogPath) {
+    const disk = await readDiskCatalog(catalogPath)
+    if (disk && Date.now() - disk.at < TTL_MS) {
+      cache = disk
+      log.info({ msg: 'openrouter catalog loaded from disk', count: disk.catalog.size })
+      return disk.catalog
+    }
+  }
+
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS)
   log.info({ msg: 'fetching openrouter catalog' })
@@ -82,10 +129,28 @@ export async function fetchCatalog(force = false): Promise<Catalog> {
     const res = await fetch(CATALOG_URL, { signal: ac.signal, headers: { accept: 'application/json' } })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const catalog = parseCatalog(await res.json())
-    cache = { at: Date.now(), catalog }
+    const at = Date.now()
+    cache = { at, catalog }
+    if (catalogPath) {
+      await writeDiskCatalog(catalogPath, at, catalog).catch((e) =>
+        log.warn({ msg: 'openrouter catalog persist failed', err: e instanceof Error ? e.message : String(e) })
+      )
+    }
     log.info({ msg: 'openrouter catalog fetched', count: catalog.size })
     return catalog
   } catch (e) {
+    if (catalogPath) {
+      const disk = await readDiskCatalog(catalogPath)
+      if (disk) {
+        cache = disk
+        log.warn({
+          msg: 'openrouter catalog network failed; using stale disk copy',
+          err: e instanceof Error ? e.message : String(e),
+          count: disk.catalog.size,
+        })
+        return disk.catalog
+      }
+    }
     log.error({ msg: 'openrouter catalog fetch failed', err: e instanceof Error ? e.message : String(e) })
     throw e
   } finally {
