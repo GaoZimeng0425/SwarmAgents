@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { type OrgNode, buildOrgForest } from '@shared/agents/org-tree'
+import { buildDelegationEdges } from '@shared/agents/delegation'
 import type { AgentDefinition, AgentListItem } from '@shared/types/agent'
 import {
   AlertDialog,
@@ -19,6 +20,7 @@ import { toast } from 'sonner'
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { AgentDetail } from './agent-detail'
 import { AgentFormSheet } from './agent-form-sheet'
+import { DelegationLinks } from './delegation-links'
 
 const MAX_CAPS = 3
 
@@ -26,6 +28,7 @@ const MAX_CAPS = 3
 function AgentNodeCard({
   agent,
   isActive,
+  highlighted,
   onClick,
   onEdit,
   onDuplicate,
@@ -33,6 +36,7 @@ function AgentNodeCard({
 }: {
   agent: AgentListItem
   isActive: boolean
+  highlighted: boolean
   onClick: () => void
   onEdit: (a: AgentListItem) => void
   onDuplicate: (a: AgentListItem) => void
@@ -43,9 +47,11 @@ function AgentNodeCard({
   const extra = caps.length - shown.length
   return (
     <div
+      data-delegation-target={highlighted ? 'true' : undefined}
       className={cn(
         'group flex items-start gap-2 rounded-lg border bg-card p-2.5 transition-colors hover:bg-accent',
-        isActive && 'border-primary ring-1 ring-primary'
+        isActive && 'border-primary ring-1 ring-primary',
+        highlighted && !isActive && 'ring-1 ring-amber-400/70'
       )}
     >
       <button className="min-w-0 flex-1 text-left" onClick={onClick} type="button">
@@ -98,6 +104,7 @@ const noop = (): void => {}
 function OrgTreeNode({
   node,
   expanded,
+  highlightedIds,
   onToggle,
   onEdit = noop,
   onDuplicate = noop,
@@ -105,6 +112,7 @@ function OrgTreeNode({
 }: {
   node: OrgNode
   expanded: string | null
+  highlightedIds: Set<string>
   onToggle: (id: string) => void
   onEdit?: (a: AgentListItem) => void
   onDuplicate?: (a: AgentListItem) => void
@@ -115,6 +123,7 @@ function OrgTreeNode({
       <AgentNodeCard
         agent={node.agent as AgentListItem}
         isActive={expanded === node.agent.id}
+        highlighted={highlightedIds.has(node.agent.id)}
         onClick={() => onToggle(node.agent.id)}
         onEdit={onEdit}
         onDuplicate={onDuplicate}
@@ -127,6 +136,7 @@ function OrgTreeNode({
               key={child.agent.id}
               node={child}
               expanded={expanded}
+              highlightedIds={highlightedIds}
               onToggle={onToggle}
               onEdit={onEdit}
               onDuplicate={onDuplicate}
@@ -144,6 +154,7 @@ function OrgTreeNode({
 export function OrgTree({
   agents,
   expanded,
+  highlightedIds = new Set<string>(),
   onToggle,
   onEdit = noop,
   onDuplicate = noop,
@@ -151,6 +162,7 @@ export function OrgTree({
 }: {
   agents: AgentDefinition[]
   expanded: string | null
+  highlightedIds?: Set<string>
   onToggle: (id: string) => void
   onEdit?: (a: AgentListItem) => void
   onDuplicate?: (a: AgentListItem) => void
@@ -169,6 +181,7 @@ export function OrgTree({
             key={node.agent.id}
             node={node}
             expanded={expanded}
+            highlightedIds={highlightedIds}
             onToggle={onToggle}
             onEdit={onEdit}
             onDuplicate={onDuplicate}
@@ -187,6 +200,7 @@ export function OrgTree({
                 key={node.agent.id}
                 node={node}
                 expanded={expanded}
+                highlightedIds={highlightedIds}
                 onToggle={onToggle}
                 onEdit={onEdit}
                 onDuplicate={onDuplicate}
@@ -211,6 +225,8 @@ export function OrgTreeView({ agents }: { agents: AgentDefinition[] }): React.JS
   const [pendingDelete, setPendingDelete] = useState<AgentListItem | null>(null)
   const [error, setError] = useState<string | undefined>(undefined)
   const { save, remove } = useAgentMutations()
+  const edges = buildDelegationEdges(agents)
+  const highlightedIds = new Set(edges.filter((e) => e.from === expanded).map((e) => e.to))
 
   const toggle = (id: string): void => setExpanded((prev) => (prev === id ? null : id))
   const selected = expanded ? agents.find((a) => a.id === expanded) : undefined
@@ -245,12 +261,16 @@ export function OrgTreeView({ agents }: { agents: AgentDefinition[] }): React.JS
       <OrgTree
         agents={agents}
         expanded={expanded}
+        highlightedIds={highlightedIds}
         onToggle={toggle}
         onEdit={(a) => setSheet({ open: true, mode: 'edit', agent: a })}
         onDuplicate={(a) => setSheet({ open: true, mode: 'duplicate', agent: a })}
         onDelete={(a) => setPendingDelete(a)}
       />
       {selected && <AgentDetail agent={selected} />}
+      {selected && (
+        <DelegationLinks agentId={selected.id} agents={agents} edges={edges} onSelect={(id) => setExpanded(id)} />
+      )}
 
       <AgentFormSheet
         agent={sheet.open ? sheet.agent : undefined}
