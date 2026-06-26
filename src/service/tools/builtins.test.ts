@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { CronScheduler } from '../cron/scheduler'
 import type { MemoryStore } from '../memory/store'
+import type { TaskWaiterService } from '../loop/task-waiters'
 import { registerBuiltinTools } from './builtins'
 import { createToolRegistry, type ToolRunContext } from './registry'
 
@@ -149,5 +150,21 @@ describe('registerBuiltinTools with a scheduler', () => {
     const r = createToolRegistry()
     registerBuiltinTools(r)
     expect(r.list().some((s) => s.group === 'cron')).toBe(false)
+  })
+})
+
+describe('registerBuiltinTools with a task waiter service', () => {
+  it('registers wait_for_task when a taskWaiters service is provided', () => {
+    const registry = createToolRegistry()
+    registerBuiltinTools(registry, {
+      taskWaiters: { register: () => ({ id: null, firedImmediately: false }), onTaskTerminal: () => {}, start: () => {} },
+    })
+    expect(registry.list().some((s) => s.name === 'wait_for_task')).toBe(true)
+  })
+
+  it('omits wait_for_task when no taskWaiters service is provided', () => {
+    const registry = createToolRegistry()
+    registerBuiltinTools(registry)
+    expect(registry.list().some((s) => s.name === 'wait_for_task')).toBe(false)
   })
 })
