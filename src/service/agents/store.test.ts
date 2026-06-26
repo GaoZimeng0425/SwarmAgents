@@ -27,6 +27,15 @@ describe('parseAgent', () => {
     expect(parseAgent(serializeAgent(d), d.id)).toEqual(d)
   })
 
+  it('round-trips parentId through serialize + parse', () => {
+    const d = def({ id: 'engineer', parentId: 'pm' })
+    expect(parseAgent(serializeAgent(d), d.id)).toEqual(d)
+  })
+
+  it('omits parentId from frontmatter when absent', () => {
+    expect(serializeAgent(def())).not.toContain('parentId')
+  })
+
   it('defaults maxIterations to 25 when omitted', () => {
     const raw = '---\nname: X\ndescription: d\ntoolScope: all\n---\n\nbody'
     expect(parseAgent(raw, 'x')?.maxIterations).toBe(25)

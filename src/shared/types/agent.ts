@@ -31,6 +31,18 @@ export const AgentDefinitionSchema = z.object({
   team: z.string().optional(),
   /** Marks the team's entry-point agent (the "head"); absent = an individual contributor. */
   teamRole: z.enum(['head']).optional(),
+  /**
+   * Optional structural edge to a parent agent's id, used to render the org
+   * hierarchy. The org-tree builder prefers this edge and falls back to
+   * team/teamRole inference when it is absent. Structural only: NOT a
+   * permission boundary and NOT used by deriveAllowlist or the directory.
+   */
+  parentId: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'parentId must be a valid agent id')
+    .optional(),
   maxIterations: z.number().int().positive().default(25),
   /** Override the provider's default model for this agent type. */
   model: z.string().optional(),
