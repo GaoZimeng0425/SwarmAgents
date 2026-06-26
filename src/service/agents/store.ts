@@ -16,8 +16,6 @@ export type AgentStore = {
   reload(): void
   save(def: AgentDefinition): AgentMutationResult
   remove(id: string): AgentMutationResult
-  /** True when `id` is a shipped built-in not overridden by a user agent. */
-  isBuiltin(id: string): boolean
   /**
    * Watch the agents dir for external edits (a folder dropped in by hand or by
    * the agent's fs tools). On a debounced change it reloads from disk, then
@@ -81,17 +79,30 @@ export function serializeAgent(def: AgentDefinition): string {
   return `---\n${lines.join('\n')}\n---\n\n${def.systemPrompt.trim()}\n`
 }
 
-export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition[] }): AgentStore {
-  const { dir } = opts
-  const builtins = opts.builtins ?? []
-  let agents: AgentDefinition[] = []
-
-  // Built-ins ship with the app and are always available; a user agent of the
-  // same id overrides its built-in.
-  const merged = (): AgentDefinition[] => {
-    const userIds = new Set(agents.map((a) => a.id))
-    return [...builtins.filter((b) => !userIds.has(b.id)), ...agents]
+/**
+ * Seed the default agents to disk, but only when `dir` has no agents yet (fresh
+ * init). Returns true if it seeded, false if the dir was already initialized —
+ * so a user's later deletion of a default is not resurrected on restart.
+ */
+export function seedDefaultAgents(dir: string, defs: AgentDefinition[]): boolean {
+  const alreadyInitialized =
+    existsSync(dir) &&
+    readdirSync(dir, { withFileTypes: true }).some(
+      (e) => e.isDirectory() && existsSync(join(dir, e.name, 'AGENT.md'))
+    )
+  if (alreadyInitialized) return false
+  for (const def of defs) {
+    const folder = join(dir, def.id)
+    mkdirSync(folder, { recursive: true })
+    writeFileSync(join(folder, 'AGENT.md'), serializeAgent(def))
   }
+  log.info({ msg: 'seeded default agents to disk', dir, count: defs.length })
+  return true
+}
+
+export function createAgentStore(opts: { dir: string }): AgentStore {
+  const { dir } = opts
+  let agents: AgentDefinition[] = []
 
   const reload = (): void => {
     agents = []
@@ -118,7 +129,7 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
     const { parentId, id } = parsed.data
     if (parentId) {
       if (parentId === id) return { ok: false, code: 'self_parent', message: 'an agent cannot be its own parent' }
-      const byId = new Map(merged().map((a) => [a.id, a]))
+      const byId = new Map(agents.map((a) => [a.id, a]))
       byId.set(id, parsed.data)
       if (!byId.has(parentId)) return { ok: false, code: 'unknown_parent', message: `parent "${parentId}" does not exist` }
       const visited = new Set<string>([id])
@@ -137,7 +148,7 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
       return { ok: false, code: 'write_failed', message: String(err) }
     }
     reload()
-    return { ok: true, agents: merged() }
+    return { ok: true, agents }
   }
 
   const remove: AgentStore['remove'] = (id) => {
@@ -149,11 +160,8 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
       return { ok: false, code: 'delete_failed', message: String(err) }
     }
     reload()
-    return { ok: true, agents: merged() }
+    return { ok: true, agents }
   }
-
-  const isBuiltin = (id: string): boolean =>
-    builtins.some((b) => b.id === id) && !agents.some((a) => a.id === id)
 
   const watch: AgentStore['watch'] = (onChange) => {
     let timer: ReturnType<typeof setTimeout> | null = null
@@ -189,12 +197,11 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
   }
 
   return {
-    list: () => merged(),
-    get: (id) => agents.find((a) => a.id === id) ?? builtins.find((b) => b.id === id),
+    list: () => agents,
+    get: (id) => agents.find((a) => a.id === id),
     reload,
     save,
     remove,
-    isBuiltin,
     watch,
   }
 }

@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { DEFAULT_AGENT_DEF } from '@shared/agents/builtins'
+import { DEFAULT_AGENT_DEF, defaultAgents } from '@shared/constants/agents'
 import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import type { ActorMessage } from '@shared/types/actor'
@@ -292,7 +292,16 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   ): { abort(): void; deliver(msg: ActorMessage): void } => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
-    const def = cfg.agentStore?.get(actor.agentDefId) ?? DEFAULT_AGENT_DEF
+    const resolved = cfg.agentStore?.get(actor.agentDefId)
+    if (!resolved) {
+      log.warn({
+        msg: 'agent def not found; falling back to default agent',
+        sessionId,
+        address: actor.address,
+        agentDefId: actor.agentDefId,
+      })
+    }
+    const def = resolved ?? DEFAULT_AGENT_DEF
     // One Task per residency (not per message).
     const taskId = ulid()
     const now = Date.now()
@@ -823,6 +832,16 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       // Seed the fixed roster as named, addressable actors, then rpc-kick the
       // CEO; its reply is the result of the whole run.
       log.info({ msg: 'company started', sessionId, goalLen: goal.length })
+      // Self-heal: re-seed any company-critical role the user deleted so
+      // find_agents discovery and the 'ceo' kickoff resolve to the real defs.
+      for (const roleId of COMPANY_ROLES) {
+        if (cfg.agentStore?.get(roleId)) continue
+        const def = defaultAgents.find((d) => d.id === roleId)
+        if (!def) continue
+        const r = cfg.agentStore?.save(def)
+        if (r?.ok) log.warn({ msg: 'company role re-seeded (was missing)', sessionId, roleId })
+        else log.error({ msg: 'company role re-seed failed', sessionId, roleId, err: r && !r.ok ? r.message : 'no agent store' })
+      }
       for (const roleId of COMPANY_ROLES) {
         ensureActor(sessionId, roleId, roleId)
       }
