@@ -52,4 +52,33 @@ describe('startCompany', () => {
       expect(store.getActorByName(sessionId, id), `missing actor ${id}`).toBeTruthy()
     }
   })
+
+  it('re-seeds a deleted company-critical role before kicking off the CEO', async () => {
+    const present = new Map(defaultAgents.map((a) => [a.id, a]))
+    present.delete('ceo') // simulate the user having deleted the CEO
+    const saved: string[] = []
+    const healingStore = {
+      get: (id: string) => present.get(id),
+      list: () => [...present.values()],
+      save: (def: any) => {
+        present.set(def.id, def)
+        saved.push(def.id)
+        return { ok: true, agents: [...present.values()] }
+      },
+    }
+    const store = createConversationStore(':memory:')
+    const mgr = createSessionManager({
+      store,
+      broadcaster: { broadcast: () => {} },
+      maxConcurrent: 4,
+      getProvider: () => fakeProvider,
+      agentStore: healingStore as any,
+    })
+    const { sessionId } = mgr.createSession(fakeProvider)
+
+    const result = await mgr.startCompany(sessionId, 'build a thing')
+
+    expect(saved).toContain('ceo')        // the deleted role was re-seeded
+    expect(result).toEqual({ reply: 'FINAL: shipped' }) // CEO ran as the real CEO
+  })
 })
