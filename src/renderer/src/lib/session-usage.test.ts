@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { TaskRecord } from './apply-event'
-import { latestTopLevelTask } from './session-usage'
+import { latestTopLevelTask, sessionDisplayUsage } from './session-usage'
 
 const used = (tokens: number, usdCents: number): TaskRecord['used'] => ({
   tokens,
@@ -46,5 +46,32 @@ describe('latestTopLevelTask', () => {
 
   it('returns undefined when only sub-agent children exist', () => {
     expect(latestTopLevelTask([rec({ id: 'k', parentTaskId: 'p' })])).toBeUndefined()
+  })
+})
+
+const usedFull = (tokens: number, calls: number, usdCents: number): TaskRecord['used'] => ({
+  tokens,
+  calls,
+  wallMs: 0,
+  usdCents,
+  cacheRead: 0,
+  cacheWrite: 0,
+})
+
+describe('sessionDisplayUsage', () => {
+  it('sums cost + calls across turns but takes tokens from the latest turn', () => {
+    const turn1 = rec({ id: 't1', startedAt: 100, used: usedFull(5000, 1, 6), contextWindow: 1_048_576 })
+    const turn2 = rec({ id: 't2', startedAt: 300, used: usedFull(8000, 2, 4), contextWindow: 1_048_576 })
+    const child = rec({ id: 'c1', startedAt: 350, parentTaskId: 't2', used: usedFull(0, 0, 0) })
+    const u = sessionDisplayUsage([turn1, turn2, child])
+    // Cost + calls are the whole-session total (matches the session list)…
+    expect(u?.usdCents).toBe(10)
+    expect(u?.calls).toBe(3)
+    // …while tokens reflect the latest turn's context size (a gauge, not a sum).
+    expect(u?.tokens).toBe(8000)
+  })
+
+  it('returns undefined when the session has no top-level turn', () => {
+    expect(sessionDisplayUsage([rec({ id: 'k', parentTaskId: 'p', used: usedFull(0, 0, 0) })])).toBeUndefined()
   })
 })
