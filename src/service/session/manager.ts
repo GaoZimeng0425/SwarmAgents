@@ -990,7 +990,19 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     },
 
     deliverToActor(sessionId, address, goal) {
-      void sendMessage(sessionId, 'system', address, goal, 'send')
+      const session = getOrRehydrate(sessionId)
+      if (!session) {
+        log.warn({ msg: 'deliverToActor: session not found, dropping wake', sessionId, address })
+        return
+      }
+      void sendMessage(sessionId, 'system', address, goal, 'send').catch((err) => {
+        log.error({
+          msg: 'deliverToActor delivery failed',
+          sessionId,
+          address,
+          err: err instanceof Error ? err.message : String(err),
+        })
+      })
     },
 
     // Test-only: drive sendMessage directly.

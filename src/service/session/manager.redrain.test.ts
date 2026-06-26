@@ -72,6 +72,42 @@ it('re-drains unconsumed messages for a known actor on startup', async () => {
   expect(delivered).toContain('orphan')
 })
 
+it('deliverToActor wakes an actor whose session is persisted-but-not-live (boot re-arm scenario)', async () => {
+  const store = createConversationStore(':memory:')
+  // First manager: create session and actor, then discard — the second manager
+  // has no live session for that sessionId (simulates app restart).
+  const mgr0 = createSessionManager({
+    store,
+    broadcaster: { broadcast: () => {} },
+    maxConcurrent: 4,
+    getProvider: () => fakeProvider,
+  })
+  const { sessionId } = mgr0.createSession(fakeProvider)
+  const a = (
+    mgr0 as unknown as { __ensureActorForTest(s: string, d: string, n: string): { address: string } }
+  ).__ensureActorForTest(sessionId, 'default', 'w2')
+  delivered.length = 0
+
+  // Second manager over the same store — session is persisted but NOT live.
+  const mgr1 = createSessionManager({
+    store,
+    broadcaster: { broadcast: () => {} },
+    maxConcurrent: 4,
+    getProvider: () => fakeProvider,
+  })
+  // deliverToActor must rehydrate the session and enqueue + deliver the goal.
+  mgr1.deliverToActor(sessionId, a.address, 'boot-wake-goal')
+
+  // Wait for the resident to drain and consume the message.
+  await vi.waitFor(
+    () => {
+      expect(store.allUnconsumedFor(a.address)).toHaveLength(0)
+    },
+    { timeout: 1000, interval: 10 }
+  )
+  expect(delivered.length).toBeGreaterThanOrEqual(1)
+})
+
 it('re-drains a message lost to the idle/deliver race after the resident exits', async () => {
   const store = createConversationStore(':memory:')
   const mgr = createSessionManager({
