@@ -27,6 +27,15 @@ describe('parseAgent', () => {
     expect(parseAgent(serializeAgent(d), d.id)).toEqual(d)
   })
 
+  it('round-trips parentId through serialize + parse', () => {
+    const d = def({ id: 'engineer', parentId: 'pm' })
+    expect(parseAgent(serializeAgent(d), d.id)).toEqual(d)
+  })
+
+  it('omits parentId from frontmatter when absent', () => {
+    expect(serializeAgent(def())).not.toContain('parentId')
+  })
+
   it('defaults maxIterations to 25 when omitted', () => {
     const raw = '---\nname: X\ndescription: d\ntoolScope: all\n---\n\nbody'
     expect(parseAgent(raw, 'x')?.maxIterations).toBe(25)
@@ -131,5 +140,42 @@ describe('createAgentStore', () => {
       team: 'training',
       teamRole: 'head',
     })
+  })
+})
+
+describe('save parentId validation', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'agents-parent-'))
+  })
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('rejects an agent that is its own parent', () => {
+    const store = createAgentStore({ dir })
+    const res = store.save(def({ id: 'a', parentId: 'a' }))
+    expect(res).toMatchObject({ ok: false, code: 'self_parent' })
+  })
+
+  it('rejects an unknown parent', () => {
+    const store = createAgentStore({ dir })
+    const res = store.save(def({ id: 'a', parentId: 'ghost' }))
+    expect(res).toMatchObject({ ok: false, code: 'unknown_parent' })
+  })
+
+  it('rejects a parent cycle', () => {
+    const store = createAgentStore({ dir })
+    // a -> b exists on disk; saving b -> a closes the loop.
+    expect(store.save(def({ id: 'b' })).ok).toBe(true)
+    expect(store.save(def({ id: 'a', parentId: 'b' })).ok).toBe(true)
+    const res = store.save(def({ id: 'b', parentId: 'a' }))
+    expect(res).toMatchObject({ ok: false, code: 'cycle' })
+  })
+
+  it('accepts a valid parent', () => {
+    const store = createAgentStore({ dir })
+    expect(store.save(def({ id: 'pm' })).ok).toBe(true)
+    expect(store.save(def({ id: 'engineer', parentId: 'pm' })).ok).toBe(true)
   })
 })

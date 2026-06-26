@@ -45,6 +45,7 @@ export function parseAgent(raw: string, id: string): AgentDefinition | undefined
     capabilities: meta.capabilities,
     team: meta.team,
     teamRole: meta.teamRole,
+    parentId: meta.parentId,
     maxIterations: meta.maxIterations,
     model: meta.model,
   })
@@ -63,6 +64,7 @@ export function serializeAgent(def: AgentDefinition): string {
   if (def.capabilities?.length) lines.push(`capabilities: ${JSON.stringify(def.capabilities)}`)
   if (def.team) lines.push(`team: ${JSON.stringify(def.team)}`)
   if (def.teamRole) lines.push(`teamRole: ${JSON.stringify(def.teamRole)}`)
+  if (def.parentId) lines.push(`parentId: ${JSON.stringify(def.parentId)}`)
   if (def.model) lines.push(`model: ${JSON.stringify(def.model)}`)
   return `---\n${lines.join('\n')}\n---\n\n${def.systemPrompt.trim()}\n`
 }
@@ -98,6 +100,23 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
     const parsed = AgentDefinitionSchema.safeParse(def)
     if (!parsed.success)
       return { ok: false, code: 'invalid', message: parsed.error.issues[0]?.message ?? 'invalid agent' }
+    // parentId is a structural edge; reject self-reference, dangling targets,
+    // and cycles so the org tree is always a forest. Resolve against the
+    // current agents with the incoming def overlaid (it is not yet on disk).
+    const { parentId, id } = parsed.data
+    if (parentId) {
+      if (parentId === id) return { ok: false, code: 'self_parent', message: 'an agent cannot be its own parent' }
+      const byId = new Map(merged().map((a) => [a.id, a]))
+      byId.set(id, parsed.data)
+      if (!byId.has(parentId)) return { ok: false, code: 'unknown_parent', message: `parent "${parentId}" does not exist` }
+      const visited = new Set<string>([id])
+      let cursor = parentId
+      while (cursor) {
+        if (visited.has(cursor)) return { ok: false, code: 'cycle', message: 'parent chain forms a cycle' }
+        visited.add(cursor)
+        cursor = byId.get(cursor)?.parentId ?? ''
+      }
+    }
     try {
       const folder = join(dir, parsed.data.id)
       mkdirSync(folder, { recursive: true })
