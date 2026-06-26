@@ -9,6 +9,7 @@ import type { Skill, SkillMutationResult } from '../shared/types/skill'
 import type { ToolGroupInfo, ToolToggles } from '../shared/types/tool-toggles'
 import type {
   AddCustomProviderInput,
+  AgentBridge,
   BudgetsBridge,
   BudgetsSetResult,
   MacPermissions,
@@ -20,7 +21,6 @@ import type {
   ProvidersFetchModelInfoResult,
   ProvidersSetResult,
   ProvidersTestResult,
-  AgentBridge,
   SkillBridge,
   SubmitGoalResult,
   SwarmBridge,
@@ -168,6 +168,7 @@ const agents: AgentBridge = {
   list: () => ipcRenderer.invoke('agents:list') as Promise<AgentListItem[]>,
   save: (def: AgentDefinition) => ipcRenderer.invoke('agents:save', def) as Promise<AgentMutationResult>,
   remove: (id: string) => ipcRenderer.invoke('agents:delete', id) as Promise<AgentMutationResult>,
+  restoreDefaults: () => ipcRenderer.invoke('agents:restore-defaults') as Promise<AgentMutationResult>,
 }
 
 const swarm: SwarmBridge = {

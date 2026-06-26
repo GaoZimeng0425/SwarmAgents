@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { AgentDefinition } from '@shared/types/agent'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { createAgentStore, parseAgent, seedDefaultAgents, serializeAgent } from './store'
+import { createAgentStore, parseAgent, serializeAgent, syncBuiltinAgents } from './store'
 
 const def = (over: Partial<AgentDefinition> = {}): AgentDefinition => ({
   id: 'researcher',
@@ -120,10 +120,9 @@ describe('createAgentStore', () => {
       teamRole: 'head',
     })
   })
-
 })
 
-describe('seedDefaultAgents', () => {
+describe('syncBuiltinAgents', () => {
   let dir: string
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'swarm-agents-seed-'))
@@ -132,17 +131,49 @@ describe('seedDefaultAgents', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('writes one AGENT.md per def into an empty dir and returns true', () => {
-    const seeded = seedDefaultAgents(dir, [def({ id: 'a' }), def({ id: 'b' })])
-    expect(seeded).toBe(true)
-    expect(createAgentStore({ dir }).list().map((x) => x.id).sort()).toEqual(['a', 'b'])
+  it('writes one AGENT.md per def into an empty dir', () => {
+    const { written } = syncBuiltinAgents(dir, [def({ id: 'a' }), def({ id: 'b' })])
+    expect(written).toBe(2)
+    expect(
+      createAgentStore({ dir })
+        .list()
+        .map((x) => x.id)
+        .sort()
+    ).toEqual(['a', 'b'])
   })
 
-  it('is a no-op when the dir already has an agent (deletions persist)', () => {
-    createAgentStore({ dir }).save(def({ id: 'kept' }))
-    const seeded = seedDefaultAgents(dir, [def({ id: 'a' })])
-    expect(seeded).toBe(false)
-    expect(createAgentStore({ dir }).list().map((x) => x.id)).toEqual(['kept'])
+  it('is idempotent — re-running with unchanged defs writes nothing', () => {
+    syncBuiltinAgents(dir, [def({ id: 'a' })])
+    const { written } = syncBuiltinAgents(dir, [def({ id: 'a' })])
+    expect(written).toBe(0)
+  })
+
+  it('upserts a changed builtin and adds a new one, preserving user agents', () => {
+    syncBuiltinAgents(dir, [def({ id: 'a', name: 'Old' })])
+    createAgentStore({ dir }).save(def({ id: 'mine' })) // user-authored
+    const { written } = syncBuiltinAgents(dir, [def({ id: 'a', name: 'New' }), def({ id: 'b' })])
+    expect(written).toBe(2) // 'a' updated + 'b' added; 'mine' untouched
+    const store = createAgentStore({ dir })
+    expect(store.get('a')?.name).toBe('New')
+    expect(
+      store
+        .list()
+        .map((x) => x.id)
+        .sort()
+    ).toEqual(['a', 'b', 'mine'])
+  })
+
+  it('prunes a retired builtin folder but leaves user agents alone', () => {
+    syncBuiltinAgents(dir, [def({ id: 'pm' }), def({ id: 'a' })])
+    createAgentStore({ dir }).save(def({ id: 'pm-clone' }))
+    const { removed } = syncBuiltinAgents(dir, [def({ id: 'a' })], ['pm'])
+    expect(removed).toBe(1)
+    expect(
+      createAgentStore({ dir })
+        .list()
+        .map((x) => x.id)
+        .sort()
+    ).toEqual(['a', 'pm-clone'])
   })
 })
 

@@ -1,6 +1,6 @@
+import { AgentDefinitionSchema } from '@shared/types/agent'
 import { describe, expect, it } from 'vitest'
 
-import { AgentDefinitionSchema } from '@shared/types/agent'
 import { defaultAgents } from './agents'
 
 describe('builtin roster', () => {
@@ -13,7 +13,7 @@ describe('builtin roster', () => {
   })
 
   it('dev team is tagged with pm as head', () => {
-    expect(byId.pm).toMatchObject({ team: 'dev', teamRole: 'head' })
+    expect(byId['engineering-lead']).toMatchObject({ team: 'dev', teamRole: 'head' })
     expect(byId.engineer).toMatchObject({ team: 'dev' })
     expect(byId.reviewer).toMatchObject({ team: 'dev' })
     expect(byId.ceo.team).toBeUndefined()
@@ -24,13 +24,24 @@ describe('builtin roster', () => {
     expect(byId['training-author']).toMatchObject({ team: 'training', toolScope: 'authoring' })
   })
 
-  it('exactly two teams have a head (dev, training)', () => {
-    const heads = defaultAgents.filter((a) => a.teamRole === 'head').map((a) => a.team).sort()
-    expect(heads).toEqual(['dev', 'training'])
+  it('each company team has exactly one head', () => {
+    const heads = defaultAgents
+      .filter((a) => a.teamRole === 'head')
+      .map((a) => a.team)
+      .sort()
+    expect(heads).toEqual(['data', 'design', 'dev', 'docs', 'ops', 'product', 'qa', 'security', 'training'])
+    // No team has two heads.
+    expect(new Set(heads).size).toBe(heads.length)
   })
 
-  it('CEO discovers heads and PM discovers the dev team by tag', () => {
+  it('every team member (head or IC) carries a team tag', () => {
+    for (const a of defaultAgents) {
+      if (a.teamRole === 'head') expect(a.team, `head ${a.id} missing team`).toBeTruthy()
+    }
+  })
+
+  it('CEO discovers heads and the engineering lead discovers the dev team by tag', () => {
     expect(byId.ceo.systemPrompt).toContain("teamRole: 'head'")
-    expect(byId.pm.systemPrompt).toContain("team: 'dev'")
+    expect(byId['engineering-lead'].systemPrompt).toContain("team: 'dev'")
   })
 })

@@ -264,6 +264,8 @@ export type AgentBridge = {
   list(): Promise<AgentListItem[]>
   save(def: AgentDefinition): Promise<AgentMutationResult>
   remove(id: string): Promise<AgentMutationResult>
+  /** Re-seed the shipped builtins (add new, update changed, prune retired); keeps user-authored agents. */
+  restoreDefaults(): Promise<AgentMutationResult>
 }
 
 /** Global enable/disable for built-in tool groups + skills (MCP toggled via `mcp`). */
