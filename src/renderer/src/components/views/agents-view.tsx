@@ -1,17 +1,30 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { SettingsHeader } from './settings-primitives'
 
 export function AgentsView(): React.JSX.Element {
+  const queryClient = useQueryClient()
   const { data: agents, isLoading } = useQuery({
     queryKey: ['agents', 'settings'],
     queryFn: () => swarmApi.listAgents(),
     staleTime: 60_000,
   })
   const [expanded, setExpanded] = useState<string | null>(null)
+
+  // Hot-reload: invalidate the query when agent files change on disk
+  // (the agents store watches its directory and broadcasts `agents.changed`).
+  useEffect(
+    () =>
+      swarmApi.subscribeEvents((e) => {
+        if (e.kind === 'agents.changed') {
+          void queryClient.invalidateQueries({ queryKey: ['agents', 'settings'] })
+        }
+      }),
+    [queryClient]
+  )
 
   return (
     <div className="space-y-4">

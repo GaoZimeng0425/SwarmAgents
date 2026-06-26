@@ -54,6 +54,10 @@ const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({
 // settings list updates live instead of only after a restart.
 const offSkillWatch = skillStore.watch(() => broadcaster.broadcast('skills.changed', { ts: Date.now() }))
 const agentStore = createAgentStore({ dir: agentsPath, builtins: builtinAgents })
+// Reload + notify the renderer when the agents dir is edited outside the app
+// (a folder dropped in by hand or written by the agent's fs tools), so the
+// Agents view updates live instead of only after a restart.
+const offAgentWatch = agentStore.watch(() => broadcaster.broadcast('agents.changed', { ts: Date.now() }))
 // App-wide enable/disable for built-in tool groups + skills, alongside the MCP
 // config. MCP servers keep their own enable flag (see mcpManager).
 const toolToggles = createToolTogglesStore({ filePath: join(dirname(skillsPath), 'tool-toggles.json') })
@@ -186,6 +190,7 @@ log.info({ msg: 'service started', dbPath })
 
 process.on('exit', () => {
   offSkillWatch()
+  offAgentWatch()
   scheduler.dispose()
   void mcpManager.dispose()
   claudeCode.dispose()

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { type AgentDefinition, AgentDefinitionSchema } from '@shared/types/agent'
+import { watch as chokidarWatch } from 'chokidar'
 import { parse as parseYaml } from 'yaml'
 
 const log = createLogger({ process: 'service' }).child({ component: 'agents' })
@@ -14,6 +15,14 @@ export type AgentStore = {
   reload(): void
   save(def: AgentDefinition): AgentMutationResult
   remove(id: string): AgentMutationResult
+  /**
+   * Watch the agents dir for external edits (a folder dropped in by hand or by
+   * the agent's fs tools). On a debounced change it reloads from disk, then
+   * fires `onChange`. Returns a disposer. `fs.watch` is avoided deliberately —
+   * no reliable recursive support and it floods on atomic saves; chokidar's
+   * `awaitWriteFinish` only fires once a written AGENT.md has settled.
+   */
+  watch(onChange: () => void): () => void
 }
 
 /**
@@ -140,11 +149,45 @@ export function createAgentStore(opts: { dir: string; builtins?: AgentDefinition
     return { ok: true, agents: merged() }
   }
 
+  const watch: AgentStore['watch'] = (onChange) => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    // Coalesce the burst of events a folder copy produces into one reload.
+    const onFsEvent = (): void => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        reload()
+        log.info({ msg: 'agents dir changed; reloaded', count: agents.length })
+        onChange()
+      }, 250)
+    }
+    // depth 4 covers <name>/<bundled subdirs>/file without descending into a
+    // pathological tree an agent might carry. ignoreInitial: the constructor
+    // already did the first reload(), so skip the synthetic add events on start.
+    const watcher = chokidarWatch(dir, {
+      ignoreInitial: true,
+      depth: 4,
+      awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+    })
+    watcher
+      .on('add', onFsEvent)
+      .on('change', onFsEvent)
+      .on('unlink', onFsEvent)
+      .on('addDir', onFsEvent)
+      .on('unlinkDir', onFsEvent)
+      .on('error', (err) => log.error({ msg: 'agents watcher error', err: err instanceof Error ? err.message : String(err) }))
+    log.info({ msg: 'watching agents dir', dir })
+    return () => {
+      if (timer) clearTimeout(timer)
+      void watcher.close()
+    }
+  }
+
   return {
     list: () => merged(),
     get: (id) => agents.find((a) => a.id === id) ?? builtins.find((b) => b.id === id),
     reload,
     save,
     remove,
+    watch,
   }
 }

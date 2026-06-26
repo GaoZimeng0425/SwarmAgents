@@ -88,6 +88,7 @@ export type UIEvent =
   | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number }
   | { kind: 'memory.changed'; ts: number }
   | { kind: 'skills.changed'; ts: number }
+  | { kind: 'agents.changed'; ts: number }
 
 export type SessionSummary = {
   id: string
