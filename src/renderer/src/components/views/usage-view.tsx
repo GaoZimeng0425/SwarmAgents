@@ -137,7 +137,7 @@ function ModelUsageDonut({
   byModel,
   total,
 }: {
-  byModel: { model: string; tokens: number; pct: number }[]
+  byModel: { model: string; tokens: number; usdCents: number; pct: number }[]
   total: number
 }): React.JSX.Element {
   const chartConfig = Object.fromEntries(
@@ -166,6 +166,7 @@ function ModelUsageDonut({
               />
               <span className="flex-1">{m.model}</span>
               <span className="text-muted-foreground">{formatCount(m.tokens)} tokens</span>
+              <span className="w-16 text-right tabular-nums">{formatCost(m.usdCents)}</span>
               <span className="w-12 text-right">{total > 0 ? m.pct : 0}%</span>
             </li>
           ))}

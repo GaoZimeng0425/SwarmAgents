@@ -9,6 +9,9 @@ export const HEATMAP_DAYS = 364
 export const ModelUsageSchema = z.object({
   model: z.string(),
   tokens: z.number().int().nonnegative(),
+  // Cumulative cost attributed to this model across the range (cents). Summed
+  // from the same per-task `used.usdCents` snapshots as the grand total.
+  usdCents: z.number().int().nonnegative(),
   pct: z.number().nonnegative(),
 })
 export type ModelUsage = z.infer<typeof ModelUsageSchema>

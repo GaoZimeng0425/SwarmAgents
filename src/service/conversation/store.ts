@@ -683,14 +683,15 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const modelRows = db
           .prepare(
             `SELECT json_extract(s.provider_snapshot, '$.model') AS model,
-                    COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) AS tokens
+                    COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) AS tokens,
+                    COALESCE(SUM(json_extract(t.used, '$.usdCents')), 0) AS usdCents
              FROM tasks t JOIN sessions s ON s.id = t.session_id
              WHERE t.created_at >= ?
              GROUP BY model
              HAVING tokens > 0
              ORDER BY tokens DESC`
           )
-          .all(cutoff) as { model: string; tokens: number }[]
+          .all(cutoff) as { model: string; tokens: number; usdCents: number }[]
 
         const dailyRows = db
           .prepare(
@@ -718,6 +719,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const byModel = modelRows.map((r) => ({
           model: r.model ?? 'unknown',
           tokens: r.tokens,
+          usdCents: r.usdCents,
           pct: totalTokens > 0 ? Math.round((r.tokens / totalTokens) * 1000) / 10 : 0,
         }))
 
