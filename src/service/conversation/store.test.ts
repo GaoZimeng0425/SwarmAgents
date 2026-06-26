@@ -597,7 +597,11 @@ describe('ConversationStore', () => {
     expect(stats.totals.activeDays).toBe(2)
     expect(stats.byModel.map((m) => m.model).sort()).toEqual(['GLM-5.2', 'claude-sonnet-4-5'])
     expect(stats.byModel.find((m) => m.model === 'claude-sonnet-4-5')?.tokens).toBe(1000)
+    // Per-model cost: claude's task spent 12 cents, GLM's spent 0.
+    expect(stats.byModel.find((m) => m.model === 'claude-sonnet-4-5')?.usdCents).toBe(12)
+    expect(stats.byModel.find((m) => m.model === 'GLM-5.2')?.usdCents).toBe(0)
     expect(stats.totals.topModel?.model).toBe('claude-sonnet-4-5')
+    expect(stats.totals.topModel?.usdCents).toBe(12)
     expect(stats.totals.currentStreak).toBe(2) // today + yesterday both have tasks
     expect(stats.daily.length).toBe(30)
     expect(stats.heatmap.length).toBe(364)
