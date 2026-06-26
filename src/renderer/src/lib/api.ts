@@ -42,6 +42,7 @@ export const swarmApi = {
   listAgents: (): Promise<AgentListItem[]> => window.swarm.agents.list(),
   saveAgent: (def: AgentDefinition): Promise<AgentMutationResult> => window.swarm.agents.save(def),
   removeAgent: (id: string): Promise<AgentMutationResult> => window.swarm.agents.remove(id),
+  restoreDefaultAgents: (): Promise<AgentMutationResult> => window.swarm.agents.restoreDefaults(),
   getUsageStats: (rangeDays: number): Promise<UsageStats> => window.swarm.usage.get(rangeDays),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),

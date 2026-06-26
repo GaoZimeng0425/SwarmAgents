@@ -1,13 +1,13 @@
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { defaultAgents } from '@shared/constants/agents'
+import { defaultAgents, retiredBuiltinIds } from '@shared/constants/agents'
 import { createLogger } from '@shared/logger'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceRequest } from '@shared/types/service-ipc'
 import type { WebSearchInjection } from '@shared/types/web-search'
 
-import { createAgentStore, seedDefaultAgents } from './agents/store'
+import { createAgentStore, syncBuiltinAgents } from './agents/store'
 import { createClaudeCodeManager } from './claude-code/manager'
 import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
@@ -53,9 +53,10 @@ const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // settings list updates live instead of only after a restart.
 const offSkillWatch = skillStore.watch(() => broadcaster.broadcast('skills.changed', { ts: Date.now() }))
-// Seed the shipped defaults to disk on first init so they are real, editable
-// AGENT.md files the user owns; a no-op once the dir has agents.
-seedDefaultAgents(agentsPath, defaultAgents)
+// Reconcile the shipped builtins to disk on every boot: add new ones, update
+// changed ones, and prune retired ids — so an upgrade's agent changes land
+// without a manual reset. User-authored agents are untouched.
+syncBuiltinAgents(agentsPath, defaultAgents, retiredBuiltinIds)
 const agentStore = createAgentStore({ dir: agentsPath })
 // Reload + notify the renderer when the agents dir is edited outside the app
 // (a folder dropped in by hand or written by the agent's fs tools), so the
@@ -135,6 +136,12 @@ const dispatch = createDispatcher({
   listAgents: () => agentStore.list(),
   saveAgent: (def) => agentStore.save(def),
   deleteAgent: (id) => agentStore.remove(id),
+  restoreDefaultAgents: () => {
+    const { written, removed } = syncBuiltinAgents(agentsPath, defaultAgents, retiredBuiltinIds)
+    agentStore.reload()
+    log.info({ msg: 'restore default agents', written, removed })
+    return { ok: true as const, agents: agentStore.list() }
+  },
   saveSkill: (skill) => skillStore.save(skill),
   deleteSkill: (name) => skillStore.remove(name),
   importSkill: (sourceDir, overwrite) => skillStore.importFolder(sourceDir, overwrite),

@@ -6,6 +6,7 @@ import { watch as chokidarWatch } from 'chokidar'
 import { parse as parseYaml } from 'yaml'
 
 export type { AgentMutationResult } from '@shared/types/agent'
+
 import type { AgentMutationResult } from '@shared/types/agent'
 
 const log = createLogger({ process: 'service' }).child({ component: 'agents' })
@@ -80,24 +81,40 @@ export function serializeAgent(def: AgentDefinition): string {
 }
 
 /**
- * Seed the default agents to disk, but only when `dir` has no agents yet (fresh
- * init). Returns true if it seeded, false if the dir was already initialized —
- * so a user's later deletion of a default is not resurrected on restart.
+ * Reconcile the on-disk builtin agents with the shipped defaults: upsert every
+ * default (write when its file is missing or its content changed) and prune any
+ * retired builtin's stale folder. User-authored agents — ids in neither `defs`
+ * nor `retiredIds` — are left untouched. Idempotent: it writes only when content
+ * differs, so it is a quiet no-op once disk matches code. Because it always
+ * realigns builtins to code, a user's hand-edit or deletion of a builtin is
+ * reverted on the next sync; to customize one, copy it under a new id.
+ * Returns how many folders it wrote and removed.
  */
-export function seedDefaultAgents(dir: string, defs: AgentDefinition[]): boolean {
-  const alreadyInitialized =
-    existsSync(dir) &&
-    readdirSync(dir, { withFileTypes: true }).some(
-      (e) => e.isDirectory() && existsSync(join(dir, e.name, 'AGENT.md'))
-    )
-  if (alreadyInitialized) return false
+export function syncBuiltinAgents(
+  dir: string,
+  defs: AgentDefinition[],
+  retiredIds: string[] = []
+): { written: number; removed: number } {
+  mkdirSync(dir, { recursive: true })
+  let written = 0
   for (const def of defs) {
-    const folder = join(dir, def.id)
-    mkdirSync(folder, { recursive: true })
-    writeFileSync(join(folder, 'AGENT.md'), serializeAgent(def))
+    const next = serializeAgent(def)
+    const file = join(dir, def.id, 'AGENT.md')
+    const current = existsSync(file) ? readFileSync(file, 'utf8') : null
+    if (current === next) continue
+    mkdirSync(join(dir, def.id), { recursive: true })
+    writeFileSync(file, next)
+    written++
   }
-  log.info({ msg: 'seeded default agents to disk', dir, count: defs.length })
-  return true
+  let removed = 0
+  for (const id of retiredIds) {
+    const folder = join(dir, id)
+    if (!existsSync(folder)) continue
+    rmSync(folder, { recursive: true, force: true })
+    removed++
+  }
+  if (written || removed) log.info({ msg: 'synced builtin agents', dir, written, removed })
+  return { written, removed }
 }
 
 export function createAgentStore(opts: { dir: string }): AgentStore {
@@ -131,7 +148,8 @@ export function createAgentStore(opts: { dir: string }): AgentStore {
       if (parentId === id) return { ok: false, code: 'self_parent', message: 'an agent cannot be its own parent' }
       const byId = new Map(agents.map((a) => [a.id, a]))
       byId.set(id, parsed.data)
-      if (!byId.has(parentId)) return { ok: false, code: 'unknown_parent', message: `parent "${parentId}" does not exist` }
+      if (!byId.has(parentId))
+        return { ok: false, code: 'unknown_parent', message: `parent "${parentId}" does not exist` }
       const visited = new Set<string>([id])
       let cursor = parentId
       while (cursor) {
@@ -188,7 +206,9 @@ export function createAgentStore(opts: { dir: string }): AgentStore {
       .on('unlink', onFsEvent)
       .on('addDir', onFsEvent)
       .on('unlinkDir', onFsEvent)
-      .on('error', (err) => log.error({ msg: 'agents watcher error', err: err instanceof Error ? err.message : String(err) }))
+      .on('error', (err) =>
+        log.error({ msg: 'agents watcher error', err: err instanceof Error ? err.message : String(err) })
+      )
     log.info({ msg: 'watching agents dir', dir })
     return () => {
       if (timer) clearTimeout(timer)

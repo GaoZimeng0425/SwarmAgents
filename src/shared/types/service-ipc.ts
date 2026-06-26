@@ -25,6 +25,7 @@ export type ServiceMethod =
   | 'deleteSkill'
   | 'saveAgent'
   | 'deleteAgent'
+  | 'restoreDefaultAgents'
   | 'importSkill'
   | 'getToolToggles'
   | 'setSkillEnabled'

@@ -452,3 +452,11 @@ export const defaultAgents: AgentDefinition[] = [
 
 /** The default agent type — single source of truth for the fallback definition. */
 export const DEFAULT_AGENT_DEF: AgentDefinition = defaultAgents[0]
+
+/**
+ * Builtin agent ids shipped in earlier versions and since removed or renamed
+ * (e.g. 'pm' → 'engineering-lead'). A builtin sync prunes their stale on-disk
+ * folders so a retired default does not linger after an upgrade. Append the old
+ * id here whenever you rename or drop a builtin in `defaultAgents`.
+ */
+export const retiredBuiltinIds: string[] = ['pm']

@@ -88,6 +88,7 @@ export function wireSwarmIpc(args: {
     serviceClient.saveAgent(def)
   )
   ipcMain.handle('agents:delete', (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.deleteAgent(id))
+  ipcMain.handle('agents:restore-defaults', () => serviceClient.restoreDefaultAgents())
   ipcMain.handle(
     'skills:import',
     async (e: Electron.IpcMainInvokeEvent, arg?: { sourceDir?: string; overwrite?: boolean }) => {
@@ -311,6 +312,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('skills:delete')
       ipcMain.removeHandler('agents:save')
       ipcMain.removeHandler('agents:delete')
+      ipcMain.removeHandler('agents:restore-defaults')
       ipcMain.removeHandler('skills:import')
       ipcMain.removeHandler('toolToggles:get')
       ipcMain.removeHandler('toolToggles:setSkill')

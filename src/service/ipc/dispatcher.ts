@@ -3,10 +3,10 @@
 // matching that lived in the HTTP server. No transport, no I/O — trivially
 // unit-testable.
 
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
 import type { BudgetConfig } from '@shared/types/budgets'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
@@ -27,6 +27,7 @@ type DispatcherConfig = {
   listAgents(): AgentListItem[]
   saveAgent(def: AgentDefinition): AgentMutationResult
   deleteAgent(id: string): AgentMutationResult
+  restoreDefaultAgents(): AgentMutationResult
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
   importSkill(sourceDir: string, overwrite?: boolean): SkillMutationResult
@@ -143,6 +144,8 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         const [id] = args as [string]
         return cfg.deleteAgent(id)
       }
+      case 'restoreDefaultAgents':
+        return cfg.restoreDefaultAgents()
       case 'importSkill': {
         const [sourceDir, overwrite] = args as [string, boolean | undefined]
         return cfg.importSkill(sourceDir, overwrite)
