@@ -104,6 +104,8 @@ export type SessionManager = {
     options?: TaskOptions
   ): { taskId: string }
   startCompany(sessionId: string, goal: string): Promise<{ reply: string } | { delivered: true }>
+  /** Wake an addressable actor by delivering a goal to it (fire-and-forget, system sender). */
+  deliverToActor(sessionId: string, address: string, goal: string): void
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
   /**
@@ -985,6 +987,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const { taskId } = this.submitGoal(sessionId, goal)
       session.running = prevRunning
       return taskId
+    },
+
+    deliverToActor(sessionId, address, goal) {
+      void sendMessage(sessionId, 'system', address, goal, 'send')
     },
 
     // Test-only: drive sendMessage directly.
