@@ -33,9 +33,9 @@ vi.mock('../session/agent-runner', () => ({
       try {
         chain.push(`${role}:recv`)
         if (role === 'ceo') {
-          const r = await deps.sendMessage(deps.selfAddress, 'pm', msg.payload, 'rpc')
+          const r = await deps.sendMessage(deps.selfAddress, 'engineering-lead', msg.payload, 'rpc')
           summary = `FINAL(${r.reply})`
-        } else if (role === 'pm') {
+        } else if (role === 'engineering-lead') {
           const built = await deps.sendMessage(deps.selfAddress, 'engineer', 'implement', 'rpc')
           let verdict = (await deps.sendMessage(deps.selfAddress, 'reviewer', `review ${built.reply}`, 'rpc')).reply
           let rounds = 0
@@ -86,7 +86,7 @@ describe('emergent company — collaboration chain', () => {
     expect(result.reply).toBe('FINAL(DELIVERED(APPROVED, rounds=0))')
     // Every role participated, in order.
     expect(chain).toContain('ceo:recv')
-    expect(chain).toContain('pm:recv')
+    expect(chain).toContain('engineering-lead:recv')
     expect(chain).toContain('engineer:recv')
     expect(chain).toContain('reviewer:recv')
     // PM must dispatch the engineer before the reviewer — order, not just presence.

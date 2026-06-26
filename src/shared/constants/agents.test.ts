@@ -13,7 +13,7 @@ describe('builtin roster', () => {
   })
 
   it('dev team is tagged with pm as head', () => {
-    expect(byId.pm).toMatchObject({ team: 'dev', teamRole: 'head' })
+    expect(byId['engineering-lead']).toMatchObject({ team: 'dev', teamRole: 'head' })
     expect(byId.engineer).toMatchObject({ team: 'dev' })
     expect(byId.reviewer).toMatchObject({ team: 'dev' })
     expect(byId.ceo.team).toBeUndefined()
@@ -40,8 +40,8 @@ describe('builtin roster', () => {
     }
   })
 
-  it('CEO discovers heads and PM discovers the dev team by tag', () => {
+  it('CEO discovers heads and the engineering lead discovers the dev team by tag', () => {
     expect(byId.ceo.systemPrompt).toContain("teamRole: 'head'")
-    expect(byId.pm.systemPrompt).toContain("team: 'dev'")
+    expect(byId['engineering-lead'].systemPrompt).toContain("team: 'dev'")
   })
 })

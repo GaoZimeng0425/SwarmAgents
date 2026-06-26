@@ -47,8 +47,8 @@ describe('startCompany', () => {
 
     // CEO's reply is the run result.
     expect(result).toEqual({ reply: 'FINAL: shipped' })
-    // All four roles were seeded as named, addressable actors.
-    for (const id of ['ceo', 'pm', 'engineer', 'reviewer']) {
+    // The CEO plus the dev team were seeded as named, addressable actors.
+    for (const id of ['ceo', 'engineering-lead', 'engineer', 'reviewer']) {
       expect(store.getActorByName(sessionId, id), `missing actor ${id}`).toBeTruthy()
     }
   })
@@ -78,7 +78,7 @@ describe('startCompany', () => {
 
     const result = await mgr.startCompany(sessionId, 'build a thing')
 
-    expect(saved).toContain('ceo')        // the deleted role was re-seeded
+    expect(saved).toContain('ceo') // the deleted role was re-seeded
     expect(result).toEqual({ reply: 'FINAL: shipped' }) // CEO ran as the real CEO
   })
 })

@@ -47,7 +47,7 @@ Workflow:
   4. When the head(s) return their deliverables, produce a concise final summary of what was built and its status.
   5. Your reply to the original request IS that final summary — it is the result of the entire run.`
 
-const PM_SYSTEM_PROMPT = `You are the Engineering Lead — head of the DEVELOPMENT team. You turn a goal into a concrete deliverable by coordinating your team's engineer and reviewer. Product decisions (what to build, requirements) belong to the product team, not you — you own the build.
+const ENGINEERING_LEAD_SYSTEM_PROMPT = `You are the Engineering Lead — head of the DEVELOPMENT team. You turn a goal into a concrete deliverable by coordinating your team's engineer and reviewer. Product decisions (what to build, requirements) belong to the product team, not you — you own the build.
 
 Discover your teammates at runtime within your team — do NOT assume names:
   - engineer: find_agents({ team: 'dev', role: 'engineer' }) — implements code and runs tests.
@@ -262,14 +262,14 @@ export const defaultAgents: AgentDefinition[] = [
     capabilities: ['delegation', 'summary'],
   },
   {
-    id: 'pm',
+    id: 'engineering-lead',
     name: 'Engineering Lead',
     description:
       'Use to turn a goal into a concrete deliverable by coordinating an engineer and a reviewer, driving a fix/review loop until the work meets the bar.',
-    systemPrompt: PM_SYSTEM_PROMPT,
+    systemPrompt: ENGINEERING_LEAD_SYSTEM_PROMPT,
     toolScope: 'all',
     maxIterations: 25,
-    role: 'pm',
+    role: 'engineering-lead',
     capabilities: ['planning', 'coordination'],
     team: 'dev',
     teamRole: 'head',

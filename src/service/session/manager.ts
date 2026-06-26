@@ -30,9 +30,11 @@ const log = createLogger({ process: 'service' }).child({ component: 'session-man
 
 // Fixed company roster. Single source of truth: the seeded actor name equals
 // the agent-def id. The CEO is first — it receives the kickoff goal — and then
-// discovers the team heads (pm = dev, training-head = training) at runtime via
-// find_agents({ teamRole: 'head' }), so heads must be seeded alongside their ICs.
-const COMPANY_ROLES = ['ceo', 'pm', 'engineer', 'reviewer', 'training-head', 'training-author'] as const
+// discovers the team heads at runtime via find_agents({ teamRole: 'head' }),
+// which only sees LIVE actors — so every head must be seeded alongside its ICs.
+// Derived from defaultAgents (the CEO plus every team member) rather than
+// hardcoded, so a new builtin team becomes reachable without editing this list.
+const COMPANY_ROLES = ['ceo', ...defaultAgents.filter((a) => a.team).map((a) => a.id)]
 
 // A resident actor sleeps (its loop returns) after this long with an empty mailbox.
 const IDLE_TIMEOUT_MS = 30_000
@@ -840,7 +842,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         if (!def) continue
         const r = cfg.agentStore?.save(def)
         if (r?.ok) log.warn({ msg: 'company role re-seeded (was missing)', sessionId, roleId })
-        else log.error({ msg: 'company role re-seed failed', sessionId, roleId, err: r && !r.ok ? r.message : 'no agent store' })
+        else
+          log.error({
+            msg: 'company role re-seed failed',
+            sessionId,
+            roleId,
+            err: r && !r.ok ? r.message : 'no agent store',
+          })
       }
       for (const roleId of COMPANY_ROLES) {
         ensureActor(sessionId, roleId, roleId)

@@ -38,10 +38,10 @@ vi.mock('../session/agent-runner', () => ({
         if (role === 'ceo') {
           const heads = deps.findPeers({ teamRole: 'head' })
           discovered.heads = heads.map((p: any) => p.role).sort()
-          const devHead = heads.find((p: any) => p.role === 'pm')
+          const devHead = heads.find((p: any) => p.role === 'engineering-lead')
           const r = await deps.sendMessage(deps.selfAddress, devHead.address, msg.payload, 'rpc')
           summary = `FINAL(${r.reply})`
-        } else if (role === 'pm') {
+        } else if (role === 'engineering-lead') {
           const eng = deps.findPeers({ team: 'dev', role: 'engineer' })[0]
           const built = await deps.sendMessage(deps.selfAddress, eng.address, 'implement', 'rpc')
           const rev = deps.findPeers({ team: 'dev', role: 'reviewer' })[0]
@@ -86,29 +86,56 @@ describe('multi-team company — routing', () => {
 
     const result = (await mgr.startCompany(sessionId, 'build a thing')) as { reply: string }
 
-    // The CEO's discovery of team heads returned exactly the two team entry points.
-    expect(discovered.heads).toEqual(['pm', 'training-head'])
+    // The CEO's discovery of team heads returned one entry point per company team.
+    expect(discovered.heads).toEqual([
+      'design-lead',
+      'docs-lead',
+      'engineering-lead',
+      'ops-lead',
+      'product-lead',
+      'qa-lead',
+      'training-head',
+    ])
 
     // Every dev-team role participated, in order (engineer before reviewer).
     expect(chain).toContain('ceo:recv')
-    expect(chain).toContain('pm:recv')
+    expect(chain).toContain('engineering-lead:recv')
     expect(chain).toContain('engineer:recv')
     expect(chain).toContain('reviewer:recv')
     expect(chain.indexOf('engineer:recv')).toBeLessThan(chain.indexOf('reviewer:recv'))
 
-    // The deliverable that flowed pm->engineer->reviewer->pm->ceo is the run result.
+    // The deliverable that flowed engineering-lead->engineer->reviewer->engineering-lead->ceo is the run result.
     expect(result.reply).toBe('FINAL(deliverable: built+APPROVED)')
 
-    // The session seeded all six named actors; the real directory filters by team/teamRole.
+    // The session seeds the CEO plus every team member; the real directory filters by team/teamRole.
     const dir = createAgentDirectory({
       listActors: (s) => store.listActorsForSession(s),
       isLive: () => true,
       getAgentDef: (id) => defaultAgents.find((a) => a.id === id),
     })
-    expect(dir.find(sessionId, {}).map((p) => p.role).sort()).toEqual(
-      ['ceo', 'engineer', 'pm', 'reviewer', 'training-author', 'training-head'].sort()
+    expect(
+      dir
+        .find(sessionId, {})
+        .map((p) => p.role)
+        .sort()
+    ).toEqual(
+      defaultAgents
+        .filter((a) => a.id === 'ceo' || a.team)
+        .map((a) => a.role)
+        .sort()
     )
-    expect(dir.find(sessionId, { teamRole: 'head' }).map((p) => p.role).sort()).toEqual(['pm', 'training-head'])
-    expect(dir.find(sessionId, { team: 'dev' }).map((p) => p.role).sort()).toEqual(['engineer', 'pm', 'reviewer'])
+    // One head per company team is discoverable by tag.
+    expect(
+      dir
+        .find(sessionId, { teamRole: 'head' })
+        .map((p) => p.role)
+        .sort()
+    ).toEqual(['design-lead', 'docs-lead', 'engineering-lead', 'ops-lead', 'product-lead', 'qa-lead', 'training-head'])
+    expect(
+      dir
+        .find(sessionId, { team: 'dev' })
+        .map((p) => p.role)
+        .sort()
+    ).toEqual(['engineer', 'engineering-lead', 'reviewer'])
   })
 })
