@@ -91,6 +91,22 @@ export function isPermanentModelFailure(message: string): boolean {
   )
 }
 
+// Whether an injection's resolved model accepts image input — used to pick a
+// vision model from the provider chain for the analyze_image tool. Unresolvable
+// models are treated as not image-capable.
+export function injectionSupportsImages(p: ProviderInjection): boolean {
+  try {
+    return resolveModel(p).input?.includes('image') ?? false
+  } catch {
+    return false
+  }
+}
+
+// System prompt for the one-shot vision/OCR sub-call. Kept terse: the sub-call
+// has no tools and runs a single answering turn.
+const VISION_SYSTEM_PROMPT =
+  'You are a vision and OCR assistant. Look at the provided image and answer the request precisely. For OCR, return only the extracted text, preserving line breaks. Do not add commentary.'
+
 // Maps OpenRouter-derived pricing (USD/1M tokens) to pi-ai's Model.cost shape
 // (also USD/1M). Absent cache prices default to 0. Exported for unit testing.
 export function pricingToCost(pricing: ModelPricing): Model<Api>['cost'] {
@@ -272,8 +288,60 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
       return res && 'reply' in res ? res.reply : ''
     },
     findPeers: (q) => deps.findPeers?.(q) ?? [],
+    analyzeImage: buildAnalyzeImage(deps),
     writeAgent: deps.writeAgent,
     writeSkill: deps.writeSkill,
+  }
+}
+
+/**
+ * Resolve the vision capability for a task's tool context: pick the first
+ * image-capable model in the chain (provider, then fallbacks) and return a
+ * one-shot completion fn bound to it. Returns undefined when no image-capable
+ * model is configured, so the analyze_image tool reports a clear setup error
+ * instead of silently failing.
+ */
+function buildAnalyzeImage(
+  deps: AgentRunnerDeps
+): ((prompt: string, image: { data: string; mimeType: string }) => Promise<string>) | undefined {
+  const chain = [deps.provider, ...(deps.fallbackProviders ?? deps.provider?.fallbackProviders ?? [])].filter(
+    (p): p is ProviderInjection => !!p
+  )
+  const vision = chain.find(injectionSupportsImages)
+  if (!vision) return undefined
+  return async (prompt, image) => {
+    const visionTask: Task = {
+      ...deps.task,
+      id: `${deps.task.id}:vision`,
+      goal: prompt,
+      attachments: [{ data: image.data, mimeType: image.mimeType }],
+      toolAllowlist: [],
+      executionMode: 'goal',
+    }
+    // A silent, tool-less one-shot on the vision model. emit is a no-op so the
+    // sub-call's tokens/events don't pollute the parent task's transcript; the
+    // visible analyze_image tool.call/result already represents it.
+    const runner = createAgentRunner({
+      task: visionTask,
+      provider: vision,
+      agentDefinition: {
+        id: 'vision',
+        name: 'Vision',
+        description: 'One-shot vision/OCR sub-call.',
+        systemPrompt: VISION_SYSTEM_PROMPT,
+        toolScope: 'all',
+        maxIterations: 2,
+      },
+      sessionId: deps.sessionId,
+      emit: () => undefined,
+      permissionRegistry: deps.permissionRegistry,
+      toolRegistry: deps.toolRegistry,
+      initialMessages: [],
+      spawnChild: deps.spawnChild,
+      signal: deps.signal,
+    })
+    const r = await runner.run()
+    return r.summary
   }
 }
 

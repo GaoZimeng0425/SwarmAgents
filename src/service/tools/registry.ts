@@ -44,6 +44,13 @@ export interface ToolRunContext {
   sendAndWait(to: string, payload: string): Promise<string>
   /** Discover peer agents in this session by role/capability/free-text. Empty query → all live peers. */
   findPeers(q: PeerQuery): Peer[]
+  /**
+   * Run a one-shot vision/OCR completion on an image, returning the model's text.
+   * Resolves an image-capable model from the task's provider chain so a cheap,
+   * text-only main model can still handle images. Absent when no image-capable
+   * model is configured (or in standalone tool tests).
+   */
+  analyzeImage?(prompt: string, image: { data: string; mimeType: string }): Promise<string>
   /** Author/overwrite an agent definition on disk (training team only; absent for other agents). */
   writeAgent?(def: AgentDefinition): AgentMutationResult
   /** Author/overwrite a skill on disk (training team only; absent for other agents). */
