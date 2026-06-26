@@ -103,6 +103,40 @@ describe('OrgTreeView', () => {
   })
 })
 
+describe('OrgTreeView delegation highlight', () => {
+  const li = (over: Partial<AgentDefinition> & { id: string }) => ({
+    name: over.id,
+    description: 'd',
+    systemPrompt: '',
+    toolScope: 'all' as const,
+    maxIterations: 25,
+    builtin: false,
+    ...over,
+  })
+
+  it('highlights the selected agent\'s delegation targets and shows its chips', () => {
+    render(
+      <OrgTreeView
+        agents={[
+          li({ id: 'pm', name: 'PM', team: 'dev', teamRole: 'head', systemPrompt: "find_agents({ role: 'engineer' })" }),
+          li({ id: 'engineer', name: 'Engineer', role: 'engineer', team: 'dev' }),
+        ]}
+      />
+    )
+    // Select PM (its node card button; /^PM/ avoids matching the "Edit PM"/"Delete PM" action buttons).
+    fireEvent.click(screen.getByRole('button', { name: /^PM/ }))
+    // Engineer node is marked as a delegation target.
+    // Use getAllByText because DelegationLinks also renders an "Engineer" chip.
+    const engCard = screen
+      .getAllByText('Engineer')
+      .map((el) => el.closest('[data-delegation-target]'))
+      .find(Boolean) as HTMLElement
+    expect(engCard).toHaveAttribute('data-delegation-target', 'true')
+    // The chips row appears.
+    expect(screen.getByText('Delegates to')).toBeInTheDocument()
+  })
+})
+
 describe('OrgTreeView CRUD affordances', () => {
   const li = (over: Partial<AgentDefinition> & { id: string; builtin: boolean }) => ({
     name: over.id,
