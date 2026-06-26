@@ -16,6 +16,7 @@
 - Code comments and commit messages in English.
 - Tests run with: `npm test -- <path-filter>` (never bare `npx vitest`; the script wraps vitest in Electron-as-node). Renderer tests run under jsdom automatically via `environmentMatchGlobs`.
 - Import aliases: `@shared/...` for shared types/logic, `@/...` for renderer-local modules.
+- Typecheck with `npm run typecheck` (it passes `--composite false`). Do NOT run raw `tsc --noEmit -p tsconfig.web.json` — without `--composite false` it emits pre-existing, unrelated TS6307 "file not listed" errors.
 - Single-select: clicking the selected node again clears the selection.
 
 ---
@@ -136,7 +137,7 @@ export function AgentsView(): React.JSX.Element {
 
 - [ ] **Step 2: Typecheck and run the full suite**
 
-Run: `npx tsc --noEmit -p tsconfig.node.json && npm test 2>&1 | tail -4`
+Run: `npm run typecheck && npm test 2>&1 | tail -4`
 Expected: typecheck exits 0; suite passes (720+ tests, 0 failures). No new tests here — the live-reload watcher is existing WIP; a chokidar timing test would be flaky and is out of scope.
 
 - [ ] **Step 3: Commit live-reload only**
@@ -571,8 +572,8 @@ export function AgentsView(): React.JSX.Element {
 
 - [ ] **Step 2: Typecheck, run renderer view tests + full suite**
 
-Run: `npx tsc --noEmit -p tsconfig.web.json && npm test -- src/renderer/src/components/views 2>&1 | tail -6`
-Expected: typecheck exits 0; the agent-detail and org-tree-view tests pass; no other view test regresses. (If `tsconfig.web.json` does not exist, use the renderer tsconfig the project provides — check `tsconfig.*.json`; the renderer config is the one whose `include` covers `src/renderer`.)
+Run: `npm run typecheck && npm test -- src/renderer/src/components/views 2>&1 | tail -6`
+Expected: typecheck exits 0; the agent-detail and org-tree-view tests pass; no other view test regresses.
 
 - [ ] **Step 3: Verify the running app (manual)**
 
