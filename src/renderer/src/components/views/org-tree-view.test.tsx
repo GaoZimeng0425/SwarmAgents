@@ -91,13 +91,15 @@ describe('OrgTree', () => {
 })
 
 describe('OrgTreeView', () => {
-  it('shows the selected agent detail on click and hides it on a second click', () => {
+  it('opens the detail drawer on click and closes it on a second click', () => {
     render(<OrgTreeView agents={[a({ id: 'pm', name: 'PM' })]} />)
-    // Use start-anchor regex to avoid matching "Edit PM" / "Delete PM" action buttons.
-    const card = (): HTMLElement => screen.getByRole('button', { name: /^PM/ })
+    // First click: card is accessible before the sheet opens.
+    const card = (): HTMLElement => screen.getByRole('button', { name: /^PM/, hidden: true })
     expect(screen.queryByText('prompt-pm')).not.toBeInTheDocument()
-    fireEvent.click(card())
+    fireEvent.click(screen.getByRole('button', { name: /^PM/ }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('prompt-pm')).toBeInTheDocument()
+    // When the sheet is open, the tree is aria-hidden; use hidden:true to reach the card button.
     fireEvent.click(card())
     expect(screen.queryByText('prompt-pm')).not.toBeInTheDocument()
   })

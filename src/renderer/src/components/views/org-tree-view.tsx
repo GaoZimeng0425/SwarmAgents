@@ -1,8 +1,10 @@
 import { useState } from 'react'
-
-import { type OrgNode, buildOrgForest } from '@shared/agents/org-tree'
 import { buildDelegationEdges } from '@shared/agents/delegation'
+import { buildOrgForest, type OrgNode } from '@shared/agents/org-tree'
 import type { AgentDefinition, AgentListItem } from '@shared/types/agent'
+import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,10 +16,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useAgentMutations } from '@/hooks/use-agent-mutations'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { AgentDetail } from './agent-detail'
 import { AgentFormSheet } from './agent-form-sheet'
 import { DelegationLinks } from './delegation-links'
@@ -47,12 +48,12 @@ function AgentNodeCard({
   const extra = caps.length - shown.length
   return (
     <div
-      data-delegation-target={highlighted ? 'true' : undefined}
       className={cn(
         'group flex items-start gap-2 rounded-lg border bg-card p-2.5 transition-colors hover:bg-accent',
         isActive && 'border-primary ring-1 ring-primary',
         highlighted && !isActive && 'ring-1 ring-amber-400/70'
       )}
+      data-delegation-target={highlighted ? 'true' : undefined}
     >
       <button className="min-w-0 flex-1 text-left" onClick={onClick} type="button">
         <div className="flex items-center gap-2">
@@ -65,11 +66,11 @@ function AgentNodeCard({
           )}
           <span className="text-muted-foreground text-xs">scope: {agent.toolScope}</span>
           {shown.map((c) => (
-            <span key={c} className="rounded bg-secondary px-1 py-0.5 text-secondary-foreground text-[10px]">
+            <span className="rounded bg-secondary px-1 py-0.5 text-[10px] text-secondary-foreground" key={c}>
               {c}
             </span>
           ))}
-          {extra > 0 && <span className="text-muted-foreground text-[10px]">+{extra} more</span>}
+          {extra > 0 && <span className="text-[10px] text-muted-foreground">+{extra} more</span>}
         </div>
       </button>
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
@@ -117,25 +118,25 @@ function OrgTreeNode({
     <li>
       <AgentNodeCard
         agent={node.agent as AgentListItem}
-        isActive={expanded === node.agent.id}
         highlighted={highlightedIds.has(node.agent.id)}
+        isActive={expanded === node.agent.id}
         onClick={() => onToggle(node.agent.id)}
-        onEdit={onEdit}
-        onDuplicate={onDuplicate}
         onDelete={onDelete}
+        onDuplicate={onDuplicate}
+        onEdit={onEdit}
       />
       {node.children.length > 0 && (
         <ul className="mt-1 ml-4 flex flex-col gap-1 border-l pl-3">
           {node.children.map((child) => (
             <OrgTreeNode
-              key={child.agent.id}
-              node={child}
               expanded={expanded}
               highlightedIds={highlightedIds}
-              onToggle={onToggle}
-              onEdit={onEdit}
-              onDuplicate={onDuplicate}
+              key={child.agent.id}
+              node={child}
               onDelete={onDelete}
+              onDuplicate={onDuplicate}
+              onEdit={onEdit}
+              onToggle={onToggle}
             />
           ))}
         </ul>
@@ -164,8 +165,7 @@ export function OrgTree({
   onDelete?: (a: AgentListItem) => void
 }): React.JSX.Element {
   const forest = buildOrgForest(agents)
-  const isIndependent = (n: OrgNode): boolean =>
-    n.children.length === 0 && n.agent.role !== 'ceo' && !n.agent.team
+  const isIndependent = (n: OrgNode): boolean => n.children.length === 0 && n.agent.role !== 'ceo' && !n.agent.team
   const hierarchy = forest.filter((n) => !isIndependent(n))
   const independents = forest.filter(isIndependent)
   return (
@@ -173,33 +173,31 @@ export function OrgTree({
       <ul className="flex flex-col gap-1">
         {hierarchy.map((node) => (
           <OrgTreeNode
-            key={node.agent.id}
-            node={node}
             expanded={expanded}
             highlightedIds={highlightedIds}
-            onToggle={onToggle}
-            onEdit={onEdit}
-            onDuplicate={onDuplicate}
+            key={node.agent.id}
+            node={node}
             onDelete={onDelete}
+            onDuplicate={onDuplicate}
+            onEdit={onEdit}
+            onToggle={onToggle}
           />
         ))}
       </ul>
       {independents.length > 0 && (
         <div className="flex flex-col gap-1">
-          <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-            Independent Agents
-          </span>
+          <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">Independent Agents</span>
           <ul className="flex flex-col gap-1">
             {independents.map((node) => (
               <OrgTreeNode
-                key={node.agent.id}
-                node={node}
                 expanded={expanded}
                 highlightedIds={highlightedIds}
-                onToggle={onToggle}
-                onEdit={onEdit}
-                onDuplicate={onDuplicate}
+                key={node.agent.id}
+                node={node}
                 onDelete={onDelete}
+                onDuplicate={onDuplicate}
+                onEdit={onEdit}
+                onToggle={onToggle}
               />
             ))}
           </ul>
@@ -209,9 +207,7 @@ export function OrgTree({
   )
 }
 
-type SheetState =
-  | { open: false }
-  | { open: true; mode: 'create' | 'edit' | 'duplicate'; agent?: AgentListItem }
+type SheetState = { open: false } | { open: true; mode: 'create' | 'edit' | 'duplicate'; agent?: AgentListItem }
 
 /** Stateful wrapper: single-select org tree with CRUD affordances and a detail panel. */
 export function OrgTreeView({ agents }: { agents: AgentDefinition[] }): React.JSX.Element {
@@ -257,15 +253,31 @@ export function OrgTreeView({ agents }: { agents: AgentDefinition[] }): React.JS
         agents={agents}
         expanded={expanded}
         highlightedIds={highlightedIds}
-        onToggle={toggle}
-        onEdit={(a) => setSheet({ open: true, mode: 'edit', agent: a })}
-        onDuplicate={(a) => setSheet({ open: true, mode: 'duplicate', agent: a })}
         onDelete={(a) => setPendingDelete(a)}
+        onDuplicate={(a) => setSheet({ open: true, mode: 'duplicate', agent: a })}
+        onEdit={(a) => setSheet({ open: true, mode: 'edit', agent: a })}
+        onToggle={toggle}
       />
-      {selected && <AgentDetail agent={selected} />}
-      {selected && (
-        <DelegationLinks agentId={selected.id} agents={agents} edges={edges} onSelect={(id) => setExpanded(id)} />
-      )}
+      <Sheet onOpenChange={(o) => !o && setExpanded(null)} open={selected !== undefined}>
+        <SheetContent className="overflow-y-auto sm:max-w-md" side="right">
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle>{selected.name}</SheetTitle>
+              </SheetHeader>
+              <div className="px-4 pb-4">
+                <AgentDetail agent={selected} />
+                <DelegationLinks
+                  agentId={selected.id}
+                  agents={agents}
+                  edges={edges}
+                  onSelect={(id) => setExpanded(id)}
+                />
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <AgentFormSheet
         agent={sheet.open ? sheet.agent : undefined}
