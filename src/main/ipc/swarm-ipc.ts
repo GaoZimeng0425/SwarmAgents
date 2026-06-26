@@ -84,6 +84,10 @@ export function wireSwarmIpc(args: {
     serviceClient.saveSkill(skill)
   )
   ipcMain.handle('skills:delete', (_e: Electron.IpcMainInvokeEvent, name: string) => serviceClient.deleteSkill(name))
+  ipcMain.handle('agents:save', (_e: Electron.IpcMainInvokeEvent, def: import('@shared/types/agent').AgentDefinition) =>
+    serviceClient.saveAgent(def)
+  )
+  ipcMain.handle('agents:delete', (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.deleteAgent(id))
   ipcMain.handle(
     'skills:import',
     async (e: Electron.IpcMainInvokeEvent, arg?: { sourceDir?: string; overwrite?: boolean }) => {
@@ -305,6 +309,8 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('agents:list')
       ipcMain.removeHandler('skills:save')
       ipcMain.removeHandler('skills:delete')
+      ipcMain.removeHandler('agents:save')
+      ipcMain.removeHandler('agents:delete')
       ipcMain.removeHandler('skills:import')
       ipcMain.removeHandler('toolToggles:get')
       ipcMain.removeHandler('toolToggles:setSkill')

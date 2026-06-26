@@ -6,7 +6,7 @@
 import type { BudgetConfig } from '@shared/types/budgets'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
 import type { ProviderInjection } from '@shared/types/provider'
 import type { ServiceMethod } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
@@ -24,7 +24,9 @@ type DispatcherConfig = {
   setWebSearchConfig(config: WebSearchInjection): void
   setBudgetConfig(config: BudgetConfig): void
   listSkills(): Skill[]
-  listAgents(): AgentDefinition[]
+  listAgents(): AgentListItem[]
+  saveAgent(def: AgentDefinition): AgentMutationResult
+  deleteAgent(id: string): AgentMutationResult
   saveSkill(skill: Skill): SkillMutationResult
   deleteSkill(name: string): SkillMutationResult
   importSkill(sourceDir: string, overwrite?: boolean): SkillMutationResult
@@ -132,6 +134,14 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'deleteSkill': {
         const [name] = args as [string]
         return cfg.deleteSkill(name)
+      }
+      case 'saveAgent': {
+        const [def] = args as [AgentDefinition]
+        return cfg.saveAgent(def)
+      }
+      case 'deleteAgent': {
+        const [id] = args as [string]
+        return cfg.deleteAgent(id)
       }
       case 'importSkill': {
         const [sourceDir, overwrite] = args as [string, boolean | undefined]

@@ -12,7 +12,7 @@ import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
-import type { AgentDefinition } from './agent'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
 import type { Skill, SkillMutationResult } from './skill'
 import type {
   Attachment,
@@ -255,7 +255,9 @@ export type MemoryBridge = {
 }
 
 export type AgentBridge = {
-  list(): Promise<AgentDefinition[]>
+  list(): Promise<AgentListItem[]>
+  save(def: AgentDefinition): Promise<AgentMutationResult>
+  remove(id: string): Promise<AgentMutationResult>
 }
 
 /** Global enable/disable for built-in tool groups + skills (MCP toggled via `mcp`). */
