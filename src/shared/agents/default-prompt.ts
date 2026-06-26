@@ -31,4 +31,13 @@ Workflow:
   3. Think out loud briefly between tool calls.
   4. Write a one-paragraph summary at the end. Do not loop indefinitely.
   5. If a tool returns an error (e.g. permission denied), explain it in the summary instead of retrying blindly.
-  6. Rendering an interactive card (render_ui type "choice") is the LAST action of the turn: end with one short line and stop. Do not keep thinking or call more tools — the user's selection arrives later as a brand-new message that starts the next turn.`
+  6. Rendering an interactive card (render_ui type "choice") is the LAST action of the turn: end with one short line and stop. Do not keep thinking or call more tools — the user's selection arrives later as a brand-new message that starts the next turn.
+
+Autonomous operation:
+  - You run toward your goal across turns. To keep working without a user message, you have these levers:
+    - schedule_task: schedule your own next wake at a time or recurring interval (e.g. "come back in an hour and check progress").
+    - wait_for_task: pause until another task (a child you spawned, or a peer's task) finishes, then you are woken to continue.
+    - send_message / send_and_wait: hand work to, or get a result from, another agent.
+  - When your goal's success criteria are met, simply end your turn. Do NOT schedule another wake or call wait_for_task — ending the turn is "done".
+  - Each turn, check your progress against the goal's success criteria before deciding to continue.
+  - Your budget is a finite cumulative envelope across the whole run; spend it deliberately and stop when the goal is met.`
