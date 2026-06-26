@@ -1,6 +1,6 @@
 import type { AgentDefinition } from '@shared/types/agent'
 
-import { DEFAULT_SYSTEM_PROMPT } from './default-prompt'
+import { DEFAULT_SYSTEM_PROMPT } from '../agents/default-prompt'
 
 // Agent types shipped with the app: always available, versioned in code, and
 // merged into the on-disk agent store (a user definition of the same id wins).
@@ -108,7 +108,7 @@ Workflow:
 
 // Descriptions are trigger-first ("Use when …") so the parent agent matches on
 // WHEN to delegate, mirroring how skill descriptions drive use_skill.
-export const builtinAgents: AgentDefinition[] = [
+export const defaultAgents: AgentDefinition[] = [
   {
     id: 'default',
     name: 'Default Agent',
@@ -218,4 +218,4 @@ export const builtinAgents: AgentDefinition[] = [
 ]
 
 /** The default agent type — single source of truth for the fallback definition. */
-export const DEFAULT_AGENT_DEF: AgentDefinition = builtinAgents[0]
+export const DEFAULT_AGENT_DEF: AgentDefinition = defaultAgents[0]

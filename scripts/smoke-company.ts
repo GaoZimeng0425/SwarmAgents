@@ -6,7 +6,7 @@
 
 import { createConversationStore } from '../src/service/conversation-store'
 import { createSessionManager } from '../src/service/session-manager'
-import { builtinAgents } from '../src/shared/agents/builtins'
+import { defaultAgents } from '../src/shared/agents/builtins'
 import type { ProviderInjection } from '../src/shared/types/provider'
 
 async function main(): Promise<void> {
@@ -33,8 +33,8 @@ async function main(): Promise<void> {
     maxConcurrent: 4,
     getProvider: () => provider,
     agentStore: {
-      get: (id: string) => builtinAgents.find((a) => a.id === id),
-      list: () => builtinAgents,
+      get: (id: string) => defaultAgents.find((a) => a.id === id),
+      list: () => defaultAgents,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
   })

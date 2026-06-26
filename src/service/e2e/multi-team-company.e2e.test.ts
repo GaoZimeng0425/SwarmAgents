@@ -1,6 +1,6 @@
 // src/service/e2e/multi-team-company.e2e.test.ts
 
-import { builtinAgents } from '@shared/agents/builtins'
+import { defaultAgents } from '@shared/constants/agents'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
@@ -63,7 +63,7 @@ vi.mock('../session/agent-runner', () => ({
 }))
 
 const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as any
-const roleStore = { get: (id: string) => builtinAgents.find((a) => a.id === id), list: () => builtinAgents }
+const roleStore = { get: (id: string) => defaultAgents.find((a) => a.id === id), list: () => defaultAgents }
 
 function makeMgr() {
   const store = createConversationStore(':memory:')
@@ -103,7 +103,7 @@ describe('multi-team company — routing', () => {
     const dir = createAgentDirectory({
       listActors: (s) => store.listActorsForSession(s),
       isLive: () => true,
-      getAgentDef: (id) => builtinAgents.find((a) => a.id === id),
+      getAgentDef: (id) => defaultAgents.find((a) => a.id === id),
     })
     expect(dir.find(sessionId, {}).map((p) => p.role).sort()).toEqual(
       ['ceo', 'engineer', 'pm', 'reviewer', 'training-author', 'training-head'].sort()

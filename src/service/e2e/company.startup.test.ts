@@ -1,4 +1,4 @@
-import { builtinAgents } from '@shared/agents/builtins'
+import { defaultAgents } from '@shared/constants/agents'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
@@ -27,8 +27,8 @@ vi.mock('../session/agent-runner', () => ({
 
 const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as any
 const roleStore = {
-  get: (id: string) => builtinAgents.find((a) => a.id === id),
-  list: () => builtinAgents,
+  get: (id: string) => defaultAgents.find((a) => a.id === id),
+  list: () => defaultAgents,
 }
 
 describe('startCompany', () => {

@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { builtinAgents } from '@shared/agents/builtins'
+import { defaultAgents } from '@shared/constants/agents'
 import { createLogger } from '@shared/logger'
 import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
 import type { ProviderInjection } from '@shared/types/provider'
@@ -53,7 +53,7 @@ const skillStore = createSkillStore({ dir: skillsPath, builtins: builtinSkills({
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // settings list updates live instead of only after a restart.
 const offSkillWatch = skillStore.watch(() => broadcaster.broadcast('skills.changed', { ts: Date.now() }))
-const agentStore = createAgentStore({ dir: agentsPath, builtins: builtinAgents })
+const agentStore = createAgentStore({ dir: agentsPath, builtins: defaultAgents })
 // Reload + notify the renderer when the agents dir is edited outside the app
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // Agents view updates live instead of only after a restart.

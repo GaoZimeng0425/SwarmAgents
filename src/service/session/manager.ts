@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { DEFAULT_AGENT_DEF } from '@shared/agents/builtins'
+import { DEFAULT_AGENT_DEF } from '@shared/constants/agents'
 import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import type { ActorMessage } from '@shared/types/actor'
