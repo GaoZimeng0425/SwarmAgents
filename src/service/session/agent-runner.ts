@@ -7,6 +7,7 @@ import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { ModelPricing, ProviderInjection } from '@shared/types/provider'
+import { reasoningOverridesFor } from '@shared/constants/models'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
@@ -90,6 +91,10 @@ function cloneTemplate(
   contextWindow?: number
 ): Model<Api> {
   const { compat: _drop, ...rest } = template
+  // Re-attach reasoning wire metadata for known custom families (GLM/DeepSeek/
+  // MiMo). Without this graft a custom endpoint inherits the fallback template's
+  // reasoning fields, so pi-ai can't emit the provider's own thinking params.
+  const reasoning = reasoningOverridesFor(p.model)
   return {
     ...rest,
     id: p.model,
@@ -99,6 +104,7 @@ function cloneTemplate(
     // Custom-model pricing (from OpenRouter) overrides the fallback template's
     // cost so pi-ai's calculateCost() produces real per-turn cost for usdCents.
     ...(p.pricing ? { cost: pricingToCost(p.pricing) } : {}),
+    ...(reasoning ?? {}),
   }
 }
 
