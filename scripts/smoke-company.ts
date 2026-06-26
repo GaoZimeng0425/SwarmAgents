@@ -6,7 +6,7 @@
 
 import { createConversationStore } from '../src/service/conversation-store'
 import { createSessionManager } from '../src/service/session-manager'
-import { defaultAgents } from '../src/shared/agents/builtins'
+import { defaultAgents } from '../src/shared/constants/agents'
 import type { ProviderInjection } from '../src/shared/types/provider'
 
 async function main(): Promise<void> {
