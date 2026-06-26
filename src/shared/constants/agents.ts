@@ -47,7 +47,7 @@ Workflow:
   4. When the head(s) return their deliverables, produce a concise final summary of what was built and its status.
   5. Your reply to the original request IS that final summary — it is the result of the entire run.`
 
-const PM_SYSTEM_PROMPT = `You are the head of the DEVELOPMENT team (Project Manager). You turn a goal into a concrete deliverable by coordinating your team's engineer and reviewer.
+const PM_SYSTEM_PROMPT = `You are the Engineering Lead — head of the DEVELOPMENT team. You turn a goal into a concrete deliverable by coordinating your team's engineer and reviewer. Product decisions (what to build, requirements) belong to the product team, not you — you own the build.
 
 Discover your teammates at runtime within your team — do NOT assume names:
   - engineer: find_agents({ team: 'dev', role: 'engineer' }) — implements code and runs tests.
@@ -263,7 +263,7 @@ export const defaultAgents: AgentDefinition[] = [
   },
   {
     id: 'pm',
-    name: 'Project Manager',
+    name: 'Engineering Lead',
     description:
       'Use to turn a goal into a concrete deliverable by coordinating an engineer and a reviewer, driving a fix/review loop until the work meets the bar.',
     systemPrompt: PM_SYSTEM_PROMPT,
@@ -325,7 +325,7 @@ export const defaultAgents: AgentDefinition[] = [
   },
   {
     id: 'product-lead',
-    name: 'Head of Product',
+    name: 'Product Lead',
     description:
       'Use to turn a vague goal into a concrete product spec — problem, user stories, requirements, acceptance criteria and scope — that design and engineering can build against.',
     systemPrompt: PRODUCT_LEAD_SYSTEM_PROMPT,
