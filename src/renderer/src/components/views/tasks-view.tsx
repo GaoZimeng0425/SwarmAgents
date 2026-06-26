@@ -43,8 +43,17 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
     .sort((a, b) => a.startedAt - b.startedAt)
   const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
   const byRecent = [...sessionTasks].sort((a, b) => b.startedAt - a.startedAt)
-  // Most recent plan in the session (the agent replaces it wholesale).
-  const activePlan = byRecent.find((t) => t.plan && t.plan.length > 0)?.plan
+  // Session execution history: each top-level turn that produced a plan becomes
+  // a group, ordered oldest-first so the panel reads top-to-bottom as the run
+  // order. The agent replaces its plan per turn, but every turn persists its own
+  // copy, so grouping by task preserves the whole history.
+  const planGroups = sessionTasks
+    .filter((t) => !t.parentTaskId && t.plan && t.plan.length > 0)
+    .sort((a, b) => a.startedAt - b.startedAt)
+    .map((t) => ({ taskId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
+  // The composer's inline todo strip shows only the in-flight turn's plan
+  // (the latest group) — a live "what's happening now" strip, not history.
+  const activePlan = planGroups[planGroups.length - 1]?.plan
   // Context-window fill for the composer ring follows the most recent task.
   const latestTask = byRecent[0]
 
@@ -128,7 +137,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           usdCents={latestTask?.used?.usdCents}
         />
       </div>
-      <RightPanel plan={activePlan ?? []} />
+      <RightPanel planGroups={planGroups} />
     </div>
   )
 }

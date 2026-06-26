@@ -1,20 +1,19 @@
 import { useState } from 'react'
-import type { PlanTodo } from '@shared/types/task'
 import { Brain, CalendarClock, ListChecks, PanelRightClose, PanelRightOpen } from 'lucide-react'
 
 import { CronPanel } from '@/components/cron-panel'
 import { MemoryPanel } from '@/components/memory-panel'
-import { PlanPanel } from '@/components/plan-panel'
+import { type PlanGroup, PlanPanel } from '@/components/plan-panel'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSessionCronJobs } from '@/hooks/use-cron'
 import { useMemory } from '@/hooks/use-memory'
 import { useSessionsStore } from '@/stores/sessions'
 
-type Props = { plan: PlanTodo[] }
+type Props = { planGroups: PlanGroup[] }
 
 /** Collapsible right-hand panel hosting the Working Plan and Memory tabs. */
-export function RightPanel({ plan }: Props): React.JSX.Element {
+export function RightPanel({ planGroups }: Props): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(true)
   const [tab, setTab] = useState<'plan' | 'memory' | 'scheduled'>('plan')
   const { entries, isError, refetch } = useMemory()
@@ -23,7 +22,9 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
     sessionId,
     !collapsed && tab === 'scheduled'
   )
-  const done = plan.filter((t) => t.status === 'completed').length
+  // Collapsed-rail badge tracks the latest turn's progress (current at a glance).
+  const latest = planGroups[planGroups.length - 1]?.plan ?? []
+  const done = latest.filter((t) => t.status === 'completed').length
 
   if (collapsed) {
     return (
@@ -47,9 +48,9 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
           type="button"
         >
           <ListChecks className="size-5 text-primary/60" />
-          {plan.length > 0 && (
+          {latest.length > 0 && (
             <span className="font-bold text-[10px] text-primary/80 tabular-nums">
-              {done}/{plan.length}
+              {done}/{latest.length}
             </span>
           )}
         </button>
@@ -103,7 +104,7 @@ export function RightPanel({ plan }: Props): React.JSX.Element {
           </Button>
         </div>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="plan">
-          <PlanPanel todos={plan} />
+          <PlanPanel groups={planGroups} />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="memory">
           <MemoryPanel entries={entries} isError={isError} onRetry={refetch} />
