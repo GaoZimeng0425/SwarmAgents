@@ -87,8 +87,10 @@ describe('collectSubtree', () => {
 
 describe('formatDuration', () => {
   it('formats ms / s / m+s', () => {
+    expect(formatDuration(0)).toBe('0ms')
     expect(formatDuration(120)).toBe('120ms')
     expect(formatDuration(3200)).toBe('3.2s')
+    expect(formatDuration(59_999)).toBe('1m 0s')
     expect(formatDuration(125_000)).toBe('2m 5s')
   })
 })
