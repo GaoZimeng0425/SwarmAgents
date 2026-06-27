@@ -155,6 +155,14 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     return service.setThinkingLevel(id, lvl.data)
   })
 
+  ipcMain.handle('providers:setFallbackProviderIds', (_e: Electron.IpcMainInvokeEvent, p: unknown, ids: unknown) => {
+    const id = asId(p)
+    if (!id) return badId
+    if (!Array.isArray(ids) || !ids.every((x) => typeof x === 'string'))
+      return { ok: false, code: 'invalid', message: 'fallbackProviderIds must be an array of strings' }
+    return service.setFallbackProviderIds(id, ids as string[])
+  })
+
   ipcMain.handle(
     'providers:setModelContextWindow',
     (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown, contextWindow: unknown) => {

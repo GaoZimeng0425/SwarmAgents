@@ -268,6 +268,24 @@ describe('service (v4)', () => {
     expect(svc.getInjection()).not.toHaveProperty('fallbackProviders')
   })
 
+  it('setFallbackProviderIds dedupes, drops self + unknown ids, and clears on empty', async () => {
+    const svc = await createService({
+      store: makeStore(state({ active: 'anthropic', providers: [anthropic, customRow] })),
+    })
+
+    expect((await svc.setFallbackProviderIds('anthropic', ['c1', 'c1', 'anthropic', 'ghost'])).ok).toBe(true)
+    expect(find(svc.getState(), 'anthropic')?.fallbackProviderIds).toEqual(['c1'])
+    // Surfaced to the renderer view too.
+    expect(svc.getView().providers.find((p) => p.id === 'anthropic')?.fallbackProviderIds).toEqual(['c1'])
+
+    // Empty (or fully-sanitized-away) clears the field.
+    expect((await svc.setFallbackProviderIds('anthropic', ['anthropic'])).ok).toBe(true)
+    expect(find(svc.getState(), 'anthropic')?.fallbackProviderIds).toBeUndefined()
+
+    // Unknown target provider is rejected.
+    expect((await svc.setFallbackProviderIds('nope', ['c1'])).ok).toBe(false)
+  })
+
   it('in-memory state does not advance when store.save throws', async () => {
     const store = makeStore(empty)
     store.save = vi.fn(async () => {

@@ -202,6 +202,8 @@ export type ProvidersBridge = {
   setApiStyle(id: string, style: ApiStyle): Promise<ProvidersSetResult>
   /** Set the reasoning depth for a provider's model. */
   setThinkingLevel(id: string, level: ModelThinkingLevel): Promise<ProvidersSetResult>
+  /** Set the ordered fallback provider ids tried when this provider's request fails. */
+  setFallbackProviderIds(id: string, ids: string[]): Promise<ProvidersSetResult>
   /** Custom providers only. Set/clear one model's context window. Pass null to clear. */
   setModelContextWindow(id: string, model: string, contextWindow: number | null): Promise<ProvidersSetResult>
   /** Custom providers only. Pull per-model context + pricing from OpenRouter for all models. */

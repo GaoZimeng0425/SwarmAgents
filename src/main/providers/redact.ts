@@ -21,6 +21,7 @@ function projectProvider(p: Provider): ProviderView {
     thinkingLevel: effectiveThinkingLevel(p.registry, p.apiStyle, p.model, p.thinkingLevel),
     ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
     ...(p.modelMeta ? { modelMeta: p.modelMeta } : {}),
+    ...(p.fallbackProviderIds ? { fallbackProviderIds: p.fallbackProviderIds } : {}),
   }
 }
 

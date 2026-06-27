@@ -272,6 +272,8 @@ export const ProviderView = z.object({
   thinkingLevels: z.array(ModelThinkingLevel),
   thinkingLevel: ModelThinkingLevel,
   modelMeta: z.record(ModelString, ModelMeta).optional(),
+  /** Ordered fallback provider ids (mirrors Provider.fallbackProviderIds) for the settings UI. */
+  fallbackProviderIds: z.array(IdString).optional(),
 })
 export type ProviderView = z.infer<typeof ProviderView>
 

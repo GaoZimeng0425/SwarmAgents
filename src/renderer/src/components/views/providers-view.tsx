@@ -11,7 +11,7 @@ import {
   providerViewById,
 } from '@shared/types/provider'
 import type { ProvidersTestResult } from '@shared/types/ui'
-import { Bot, Box, Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Bot, Box, Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -232,6 +232,8 @@ function ProviderDetail({
       {row && <ModelList id={id} isBuiltin={isBuiltin} row={row} />}
 
       {row && row.thinkingLevels.length > 1 && <ThinkingField id={id} row={row} />}
+
+      {row && <FallbackField id={id} row={row} state={state} />}
 
       {row && <TestRow id={id} />}
     </div>
@@ -580,6 +582,95 @@ function ThinkingField({ id, row }: { id: string; row: ProviderView }): React.JS
           ))}
         </SelectContent>
       </Select>
+    </Section>
+  )
+}
+
+// Ordered fallback-provider editor: the chain tried when this provider's request
+// fails (transport error / bad key / quota). Candidates are the other configured
+// providers; order matters (top tried first). Mirrors Provider.fallbackProviderIds.
+function FallbackField({
+  id,
+  state,
+  row,
+}: {
+  id: string
+  state: ProvidersStateView
+  row: ProviderView
+}): React.JSX.Element {
+  const ids = row.fallbackProviderIds ?? []
+  const candidates = state.providers.map((p) => p.id).filter((pid) => pid !== id && !ids.includes(pid))
+  const save = (next: string[]): void => void window.swarm.providers.setFallbackProviderIds(id, next)
+  const move = (i: number, dir: -1 | 1): void => {
+    const j = i + dir
+    if (j < 0 || j >= ids.length) return
+    const next = ids.slice()
+    ;[next[i], next[j]] = [next[j], next[i]]
+    save(next)
+  }
+
+  return (
+    <Section label="失败回退顺序">
+      {ids.length === 0 ? (
+        <p className="text-muted-foreground text-sm">无回退。此供应商的请求失败时不会切换到其他供应商。</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {ids.map((fid, i) => (
+            <li className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5" key={fid}>
+              <span className="w-4 shrink-0 text-muted-foreground text-xs tabular-nums">{i + 1}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">{displayName(state, fid)}</span>
+              <Button
+                className="size-7"
+                disabled={i === 0}
+                onClick={() => move(i, -1)}
+                size="icon"
+                title="上移"
+                variant="ghost"
+              >
+                <ArrowUp className="size-3.5" />
+              </Button>
+              <Button
+                className="size-7"
+                disabled={i === ids.length - 1}
+                onClick={() => move(i, 1)}
+                size="icon"
+                title="下移"
+                variant="ghost"
+              >
+                <ArrowDown className="size-3.5" />
+              </Button>
+              <Button
+                className="size-7"
+                onClick={() => save(ids.filter((_, k) => k !== i))}
+                size="icon"
+                title="移除"
+                variant="ghost"
+              >
+                <X className="size-3.5" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {candidates.length > 0 && (
+        <Select
+          onValueChange={(v) => {
+            if (v) save([...ids, v])
+          }}
+          value=""
+        >
+          <SelectTrigger className="mt-2 w-full">
+            <SelectValue placeholder="添加回退供应商…" />
+          </SelectTrigger>
+          <SelectContent>
+            {candidates.map((cid) => (
+              <SelectItem key={cid} value={cid}>
+                {displayName(state, cid)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </Section>
   )
 }

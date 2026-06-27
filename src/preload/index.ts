@@ -60,6 +60,8 @@ const providers: ProvidersBridge = {
     ipcRenderer.invoke('providers:setApiStyle', id, style) as Promise<ProvidersSetResult>,
   setThinkingLevel: (id: string, level: ModelThinkingLevel) =>
     ipcRenderer.invoke('providers:setThinkingLevel', id, level) as Promise<ProvidersSetResult>,
+  setFallbackProviderIds: (id: string, ids: string[]) =>
+    ipcRenderer.invoke('providers:setFallbackProviderIds', id, ids) as Promise<ProvidersSetResult>,
   setModelContextWindow: (id: string, model: string, contextWindow: number | null) =>
     ipcRenderer.invoke('providers:setModelContextWindow', id, model, contextWindow) as Promise<ProvidersSetResult>,
   fetchModelInfo: (id: string) =>

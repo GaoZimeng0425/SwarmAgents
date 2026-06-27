@@ -55,6 +55,12 @@ export type Service = {
   /** Custom providers only (a built-in's apiStyle is fixed to its wire format). */
   setApiStyle(id: string, style: ApiStyle): Promise<SetResult>
   setThinkingLevel(id: string, level: ModelThinkingLevel): Promise<SetResult>
+  /**
+   * Set the ordered fallback provider ids for a provider (tried when its request
+   * fails). Sanitized: de-duplicated, self-reference and unknown ids dropped; an
+   * empty result clears the field.
+   */
+  setFallbackProviderIds(id: string, ids: string[]): Promise<SetResult>
   /** Custom providers only. Set/clear one model's context window. Pass null to clear. */
   setModelContextWindow(id: string, model: string, contextWindow: number | null): Promise<SetResult>
   /** Custom providers only. Merge pulled per-model metadata (OpenRouter). Incoming fields override. */
@@ -287,6 +293,18 @@ export async function createService(opts: { store: Store }): Promise<Service> {
 
     async setThinkingLevel(id, level) {
       return patch(id, (p) => ({ ...p, thinkingLevel: level }))
+    },
+
+    async setFallbackProviderIds(id, ids) {
+      const known = new Set(state.providers.map((pr) => pr.id))
+      const cleaned = [...new Set(ids)].filter((fid) => fid !== id && known.has(fid))
+      return patch(id, (p) => {
+        if (cleaned.length === 0) {
+          const { fallbackProviderIds: _drop, ...rest } = p
+          return rest
+        }
+        return { ...p, fallbackProviderIds: cleaned }
+      })
     },
 
     async setModelContextWindow(id, model, contextWindow) {
