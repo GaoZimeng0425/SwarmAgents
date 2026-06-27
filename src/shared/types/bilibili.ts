@@ -52,3 +52,8 @@ export type BilibiliConfigOnDisk = z.infer<typeof BilibiliConfigOnDisk>
 export function defaultBilibiliConfigOnDisk(): BilibiliConfigOnDisk {
   return { credentials: null }
 }
+
+export type BiliListResult = {
+  folders: { folder: BiliFavFolder; videos: BiliVideo[] }[]
+  watchLater: BiliVideo[]
+}
