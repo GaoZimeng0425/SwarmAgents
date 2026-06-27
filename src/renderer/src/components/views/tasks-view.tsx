@@ -6,6 +6,7 @@ import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
 import { RightPanel } from '@/components/right-panel'
+import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
 import { useCancelTask, useDecidePermission, useInterruptWith, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
@@ -78,6 +79,19 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const setExecutionMode = (next: ExecutionMode): void => persistSettings({ executionMode: next })
   const setAgentType = (id: string): void => persistSettings({ agentType: id })
   const taskOptions = { cwd, permissionMode, executionMode, agentType }
+
+  // The system session ("定时任务") only surfaces scheduled-run RESULTS — it is
+  // read-only: no composer, no send/queue overlay, no right panel. Everything
+  // else (a normal chat) renders the full composer below.
+  if (session?.isSystem) {
+    return (
+      <div className="flex h-full min-w-0 overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <ScheduledResultsView focusTaskId={focusTaskId} tasks={sessionTasks} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full min-w-0 overflow-hidden">
