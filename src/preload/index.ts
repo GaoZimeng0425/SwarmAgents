@@ -10,6 +10,7 @@ import type { ToolGroupInfo, ToolToggles } from '../shared/types/tool-toggles'
 import type {
   AddCustomProviderInput,
   AgentBridge,
+  BilibiliBridge,
   BudgetsBridge,
   BudgetsSetResult,
   MacPermissions,
@@ -30,6 +31,7 @@ import type {
   WebSearchKeyId,
   WebSearchSetResult,
 } from '../shared/types/ui'
+import type { BiliListResult, BiliLoginStatus } from '../shared/types/bilibili'
 import type { WebSearchConfigView, WebSearchProviderId } from '../shared/types/web-search'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
@@ -173,6 +175,13 @@ const agents: AgentBridge = {
   restoreDefaults: () => ipcRenderer.invoke('agents:restore-defaults') as Promise<AgentMutationResult>,
 }
 
+const bilibili: BilibiliBridge = {
+  status: () => ipcRenderer.invoke('bilibili:status') as Promise<BiliLoginStatus>,
+  login: () => ipcRenderer.invoke('bilibili:login') as Promise<BiliLoginStatus>,
+  logout: () => ipcRenderer.invoke('bilibili:logout') as Promise<void>,
+  list: () => ipcRenderer.invoke('bilibili:list') as Promise<BiliListResult>,
+}
+
 const swarm: SwarmBridge = {
   submitGoal: (sessionId, goal, attachments, options) =>
     ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
@@ -260,6 +269,7 @@ const swarm: SwarmBridge = {
   toolToggles,
   memory,
   agents,
+  bilibili,
 }
 
 if (process.contextIsolated) {
