@@ -1,17 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  Bot,
-  Brain,
-  CheckCircleIcon,
-  ChevronRight,
-  Copy,
-  ExternalLink,
-  MessagesSquare,
-  Trash2,
-  Wrench,
-  XCircleIcon,
-} from 'lucide-react'
+import { MessagesSquare } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -20,26 +9,12 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation'
-import {
-  Message,
-  MessageAction,
-  MessageActions,
-  MessageContent,
-  MessageResponse,
-} from '@/components/ai-elements/message'
-import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { TaskTimeline } from '@/components/task-transcript'
 import { Spinner } from '@/components/ui/spinner'
-import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import type { TaskRecord } from '@/lib/apply-event'
-import { extractImagePaths } from '@/lib/file-paths'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
-import { groupSegments } from '@/lib/group-segments'
 import { sessionDisplayUsage } from '@/lib/session-usage'
-import { type Segment, taskSegments } from '@/lib/task-segments'
-import { dayKey, formatDayLabel, formatMessageTime } from '@/lib/timeline'
-import { cn } from '@/lib/utils'
 
 type Props = {
   tasks: TaskRecord[]
@@ -49,177 +24,13 @@ type Props = {
   focusTaskId?: string
 }
 
-// ToolHeader needs an AI-SDK-shaped tool type + state; derive both from our segment.
-function toolState(ok: boolean | null): 'input-available' | 'output-available' | 'output-error' {
-  if (ok === null) return 'input-available'
-  return ok ? 'output-available' : 'output-error'
-}
-
-// Collapsible "Thinking" block: open while reasoning streams, auto-collapses
-// once the answer begins (live → false). The user can still toggle it.
-function ReasoningBlock({ text, live }: { text: string; live: boolean }): React.JSX.Element {
-  const [open, setOpen] = useState(live)
-  const wasLive = useRef(live)
-  useEffect(() => {
-    if (wasLive.current && !live) setOpen(false)
-    wasLive.current = live
-  }, [live])
-
-  return (
-    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
-      <button
-        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
-        onClick={() => setOpen((v) => !v)}
-        type="button"
-      >
-        <Brain className={cn('size-3.5', live && 'animate-pulse text-primary')} />
-        <span className="font-semibold uppercase tracking-wider">Thinking</span>
-        <ChevronRight className={cn('ml-auto size-3.5 transition-transform', open && 'rotate-90')} />
-      </button>
-      {open && (
-        <div className="mt-3 whitespace-pre-wrap break-words text-[12px] text-muted-foreground/90 leading-relaxed">
-          {text}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Inline preview for a tool-produced image (e.g. a screenshot). The sandboxed
-// renderer can't read local files, so we pull bytes over IPC as a data URL and
-// offer an "Open" button that hands the path to the OS.
-function ToolImage({ path, showName = true }: { path: string; showName?: boolean }): React.JSX.Element {
-  const [src, setSrc] = useState<string | null>(null)
-  useEffect(() => {
-    let alive = true
-    void window.swarm.readImageFile(path).then((img) => {
-      if (alive && img) setSrc(`data:${img.mimeType};base64,${img.data}`)
-    })
-    return () => {
-      alive = false
-    }
-  }, [path])
-
-  const name = path.split('/').pop() ?? path
-  return (
-    <div className="space-y-2">
-      {src && (
-        <button className="block cursor-pointer" onClick={() => void window.swarm.openPath(path)} type="button">
-          <img alt={name} className="max-h-96 rounded-lg border border-border/40" src={src} />
-        </button>
-      )}
-      {showName && (
-        <button
-          className="flex cursor-pointer items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
-          onClick={() => void window.swarm.openPath(path)}
-          type="button"
-        >
-          <ExternalLink className="size-3.5" />
-          <span className="font-mono">{name}</span>
-        </button>
-      )}
-    </div>
-  )
-}
-
-// Collapsible block grouping one spawned sub-agent's segments. Open while the
-// sub-agent runs (so its progress is visible), shows a spinner on the right,
-// then auto-collapses once it finishes — matching the ReasoningBlock idiom.
-// The user can still toggle it via the chevron.
-function SubagentBlock({
-  task,
-  segs,
-  lastKey,
-  renderSegment,
-}: {
-  task: TaskRecord
-  segs: Segment[]
-  lastKey: string | undefined
-  renderSegment: (seg: Segment, isLiveTail: boolean) => React.JSX.Element
-}): React.JSX.Element {
-  const running = task.status === 'running' || task.status === 'pending'
-  const [open, setOpen] = useState(running)
-  const wasRunning = useRef(running)
-  useEffect(() => {
-    if (wasRunning.current && !running) setOpen(false)
-    wasRunning.current = running
-  }, [running])
-
-  return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border/60 border-l-2 border-l-primary/50 bg-muted/20 py-3 pr-3 pl-4">
-      <button
-        className="flex w-full items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
-        onClick={() => setOpen((v) => !v)}
-        type="button"
-      >
-        <Bot className="size-3.5" />
-        <span className="font-medium">Subagent</span>
-        {task.agentDefId && <span className="font-mono text-muted-foreground/70">· {task.agentDefId}</span>}
-        <span className="ml-auto flex items-center gap-1.5">
-          {running && <Spinner className="size-3.5 text-primary" />}
-          <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
-        </span>
-      </button>
-      {open && segs.map((seg) => renderSegment(seg, seg.key === lastKey))}
-    </div>
-  )
-}
-
-// Collapsible block grouping several tool calls from one turn into a single
-// row. Open while any tool is still running (progress visible), then
-// auto-collapses once every tool settles, matching the ReasoningBlock and
-// SubagentBlock idiom. The user can still toggle via the chevron.
-function ToolGroupBlock({
-  segs,
-  renderSegment,
-}: {
-  segs: Segment[]
-  renderSegment: (seg: Segment, isLiveTail: boolean) => React.JSX.Element
-}): React.JSX.Element {
-  const running = segs.some((s) => s.kind === 'tool' && s.ok === null)
-  const failed = segs.some((s) => s.kind === 'tool' && s.ok === false)
-  const [open, setOpen] = useState(running)
-  const wasRunning = useRef(running)
-  useEffect(() => {
-    if (wasRunning.current && !running) setOpen(false)
-    wasRunning.current = running
-  }, [running])
-
-  const names = Array.from(new Set(segs.map((s) => (s.kind === 'tool' ? s.tool : ''))))
-
-  return (
-    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
-      <button
-        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
-        onClick={() => setOpen((v) => !v)}
-        type="button"
-      >
-        <Wrench className={cn('size-3.5', running && 'animate-pulse text-primary')} />
-        <span className="font-semibold uppercase tracking-wider">Tools</span>
-        <span className="text-muted-foreground/60">{segs.length}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground/60">{names.join(', ')}</span>
-        {running ? (
-          <Spinner className="size-3.5 text-primary" />
-        ) : failed ? (
-          <XCircleIcon className="size-3.5 text-red-600" />
-        ) : (
-          <CheckCircleIcon className="size-3.5 text-green-600" />
-        )}
-        <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
-      </button>
-      {open && <div className="mt-3 space-y-3 [&>*]:mb-0">{segs.map((seg) => renderSegment(seg, false))}</div>}
-    </div>
-  )
-}
-
 export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React.JSX.Element {
   const qc = useQueryClient()
   const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
 
   // Deep-link: once the target task's turn is in the DOM, scroll it into view
   // and flash a highlight ring. Re-runs as tasks hydrate so it lands after the
-  // initial stick-to-bottom autoscroll. Depends on tasks.length so it fires
-  // when the session's transcript finishes loading.
+  // initial stick-to-bottom autoscroll.
   useEffect(() => {
     if (!focusTaskId) return
     const el = document.querySelector<HTMLElement>(`[data-task-id="${focusTaskId}"]`)
@@ -260,200 +71,15 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
 
   const last = ordered[ordered.length - 1]
   const busy = last.status === 'running' || last.status === 'pending'
-  // Usage footer: cost + calls are the cumulative session total (matching the
-  // session list), while the token figure is the latest turn's context size.
-  // See sessionDisplayUsage. (Reading `last.used` blanked it after a restart,
-  // since the newest task is often a zero-usage sub-agent child.)
+  // Usage footer: cost + calls are the cumulative session total; the token
+  // figure is the latest turn's context size. See sessionDisplayUsage.
   const usage = sessionDisplayUsage(tasks)
-
-  const messageTime = (ts: number): React.JSX.Element => (
-    <time
-      className="px-1 text-[10px] text-muted-foreground/50 tabular-nums group-[.is-user]:text-right"
-      dateTime={new Date(ts).toISOString()}
-    >
-      {formatMessageTime(ts)}
-    </time>
-  )
-
-  const messageActions = (text: string, taskId: string): React.JSX.Element => (
-    <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 group-[.is-user]:justify-end">
-      <MessageAction label="Copy" onClick={() => onCopy(text)} tooltip="Copy message">
-        <Copy className="size-3.5" />
-      </MessageAction>
-      <MessageAction label="Delete" onClick={() => onDelete(taskId)} tooltip="Delete message">
-        <Trash2 className="size-3.5" />
-      </MessageAction>
-    </MessageActions>
-  )
-
-  const renderSegment = (seg: Segment, isLiveTail: boolean): React.JSX.Element => {
-    if (seg.kind === 'reasoning') {
-      return <ReasoningBlock key={seg.key} live={isLiveTail && busy} text={seg.text} />
-    }
-    if (seg.kind === 'user') {
-      return (
-        <Message className="group" data-task-id={seg.taskId} from="user" key={seg.key}>
-          <MessageContent>
-            {seg.attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {seg.attachments.map((a, i) => (
-                  <img
-                    alt={a.name ?? 'attachment'}
-                    className="size-20 rounded-lg border border-border/40 object-cover"
-                    key={`${seg.key}-att-${i}`}
-                    src={`data:${a.mimeType};base64,${a.data}`}
-                  />
-                ))}
-              </div>
-            )}
-            <span className="whitespace-pre-wrap">{seg.text}</span>
-          </MessageContent>
-          {messageTime(seg.ts)}
-          {messageActions(seg.text, seg.taskId)}
-        </Message>
-      )
-    }
-    if (seg.kind === 'assistant') {
-      const images = extractImagePaths(seg.text)
-      return (
-        <Message className="group" data-task-id={seg.taskId} from="assistant" key={seg.key}>
-          <MessageContent>
-            <MessageResponse>{seg.text}</MessageResponse>
-            {images.map((p) => (
-              <ToolImage key={p} path={p} showName={false} />
-            ))}
-          </MessageContent>
-          {messageTime(seg.ts)}
-          {messageActions(seg.text, seg.taskId)}
-        </Message>
-      )
-    }
-    if (seg.kind === 'tool') {
-      if (seg.tool === 'render_ui') {
-        const spec = (seg.input ?? {}) as { type?: string; props?: unknown }
-        const Renderer = typeof spec.type === 'string' ? getUiRenderer(spec.type) : undefined
-        if (Renderer) {
-          return (
-            <Message className="group" from="assistant" key={seg.key}>
-              <Renderer disabled={busy} onSend={onSend} props={coerceProps(spec.props)} />
-            </Message>
-          )
-        }
-        // Unknown type → fall through to the generic Tool card below.
-      }
-      const preview = seg.output ? seg.output.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined
-      return (
-        <Tool key={seg.key}>
-          <ToolHeader
-            preview={preview}
-            state={toolState(seg.ok)}
-            title={seg.tool}
-            type={`tool-${seg.tool}` as `tool-${string}`}
-          />
-          <ToolContent>
-            <ToolInput input={seg.input} />
-            {seg.imagePath && <ToolImage path={seg.imagePath} />}
-            <ToolOutput
-              errorText={seg.ok === false ? (seg.output ?? '') : undefined}
-              output={seg.ok === false ? undefined : seg.output}
-            />
-          </ToolContent>
-        </Tool>
-      )
-    }
-    // 'event' and 'error' both render as a compact muted details row.
-    const label = seg.label
-    return (
-      <details
-        className="group rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs transition-all hover:border-border hover:bg-muted/40"
-        key={seg.key}
-      >
-        <summary className="flex cursor-pointer select-none items-center gap-2 font-mono text-[11px] text-muted-foreground/80 hover:text-muted-foreground">
-          <ChevronRight className="size-3.5 transition-transform duration-200 group-open:rotate-90" />
-          <span className="font-semibold uppercase tracking-wider">{label}</span>
-        </summary>
-        <ScrollArea className="mt-3 max-h-80 rounded-lg bg-background/50 ring-1 ring-border/30">
-          <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[11px] text-muted-foreground leading-relaxed">
-            {seg.detail}
-          </pre>
-        </ScrollArea>
-      </details>
-    )
-  }
 
   return (
     <Conversation className="flex-1">
       {/* user-content re-enables text selection (globals.css disables it on chrome by default). */}
       <ConversationContent className="user-content mx-auto max-w-3xl">
-        {(() => {
-          // Interleave segments across tasks in true causal order: a top-level
-          // task contributes its segments individually (sorted by their own ts),
-          // while a spawned sub-agent contributes ONE grouped block positioned at
-          // its spawn time (startedAt). This keeps a sub-agent's block at the
-          // point it was spawned and the parent's final reply after it — instead
-          // of dumping whole child tasks below the parent. isLiveTail is the
-          // chronologically last segment, so live streaming styling stays correct.
-          const taskSegs = ordered.map((t) => ({ t, segs: taskSegments(t) }))
-          let lastKey: string | undefined
-          let lastTs = Number.NEGATIVE_INFINITY
-          for (const { segs } of taskSegs) {
-            for (const s of segs) {
-              if (s.ts >= lastTs) {
-                lastTs = s.ts
-                lastKey = s.key
-              }
-            }
-          }
-          const items: Array<{ ts: number; order: number; node: React.JSX.Element }> = []
-          let order = 0
-          for (const { t, segs } of taskSegs) {
-            if (t.parentTaskId) {
-              items.push({
-                ts: t.startedAt,
-                order: order++,
-                node: <SubagentBlock key={t.id} lastKey={lastKey} renderSegment={renderSegment} segs={segs} task={t} />,
-              })
-            } else {
-              for (const item of groupSegments(segs)) {
-                if (item.kind === 'single') {
-                  const seg = item.seg
-                  items.push({ ts: seg.ts, order: order++, node: renderSegment(seg, seg.key === lastKey) })
-                } else {
-                  // A run of consecutive tools collapses into one row at the
-                  // first tool's timestamp; its members render inside the block.
-                  const first = item.segs[0]
-                  items.push({
-                    ts: first.ts,
-                    order: order++,
-                    node: <ToolGroupBlock key={first.key} renderSegment={renderSegment} segs={item.segs} />,
-                  })
-                }
-              }
-            }
-          }
-          items.sort((a, b) => a.ts - b.ts || a.order - b.order)
-          // Spine of the timeline: insert a date divider whenever the calendar
-          // day changes (and before the first item), so messages are anchored
-          // in time without each row needing a full datestamp.
-          const now = Date.now()
-          const out: React.JSX.Element[] = []
-          let prevDay: string | undefined
-          for (const it of items) {
-            const d = dayKey(it.ts)
-            if (d !== prevDay) {
-              out.push(
-                <div className="flex items-center gap-3 py-2 text-[11px] text-muted-foreground/60" key={`day-${d}`}>
-                  <div className="h-px flex-1 bg-border/40" />
-                  <span className="font-medium uppercase tracking-wide">{formatDayLabel(it.ts, now)}</span>
-                  <div className="h-px flex-1 bg-border/40" />
-                </div>
-              )
-              prevDay = d
-            }
-            out.push(it.node)
-          }
-          return out
-        })()}
+        <TaskTimeline busy={busy} onCopy={onCopy} onDelete={onDelete} onSend={onSend} tasks={tasks} />
         {busy && (
           <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">
             <Spinner className="size-4 text-primary" />
