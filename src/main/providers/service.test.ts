@@ -250,6 +250,24 @@ describe('service (v4)', () => {
     expect(svc.getInjection()).toBeNull()
   })
 
+  it('getInjection resolves fallbackProviderIds into an ordered fallbackProviders chain, skipping unknown + self', async () => {
+    const primary: Provider = { ...anthropic, apiKey: 'sk-y', fallbackProviderIds: ['c1', 'ghost', 'anthropic'] }
+    const svc = await createService({
+      store: makeStore(state({ active: 'anthropic', providers: [primary, customRow] })),
+    })
+    const inj = svc.getInjection()
+    expect(inj).toMatchObject({ id: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-y' })
+    // 'ghost' (unknown) and 'anthropic' (self) dropped; only c1 resolves.
+    expect(inj?.fallbackProviders).toEqual([
+      { id: 'c1', apiStyle: 'openai', model: 'glm-4', apiKey: 'sk-c', baseUrl: 'https://x.com/v4' },
+    ])
+  })
+
+  it('getInjection omits fallbackProviders when none are configured', async () => {
+    const svc = await createService({ store: makeStore(state({ active: 'anthropic', providers: [anthropic] })) })
+    expect(svc.getInjection()).not.toHaveProperty('fallbackProviders')
+  })
+
   it('in-memory state does not advance when store.save throws', async () => {
     const store = makeStore(empty)
     store.save = vi.fn(async () => {

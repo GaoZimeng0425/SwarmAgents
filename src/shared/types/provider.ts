@@ -130,6 +130,10 @@ export const Provider = z.object({
   baseUrl: BaseUrlString.optional(),
   thinkingLevel: ModelThinkingLevel.optional(),
   modelMeta: z.record(ModelString, ModelMeta).optional(),
+  // Ordered ids of providers to fall back to when this provider's request fails
+  // (transport error / bad key / quota). Resolved into the injection's
+  // `fallbackProviders` chain at injection time. Optional ⇒ no fallback.
+  fallbackProviderIds: z.array(IdString).optional(),
 })
 export type Provider = z.infer<typeof Provider>
 
@@ -285,7 +289,7 @@ export function providerViewById(view: ProvidersStateView, id: string | null): P
 
 // Injection payload travelling Main → Worker on task.assign. `registry` (if
 // present) selects the pi-ai catalog; `apiStyle` is always the wire format.
-export const ProviderInjection = z.object({
+const ProviderInjectionFields = {
   id: z.string(),
   registry: BuiltinProviderId.optional(),
   apiStyle: ApiStyle,
@@ -295,6 +299,14 @@ export const ProviderInjection = z.object({
   thinkingLevel: ModelThinkingLevel.optional(),
   contextWindow: ContextWindow.optional(),
   pricing: ModelPricing.optional(),
+}
+export const ProviderInjection = z.object({
+  ...ProviderInjectionFields,
+  // Resolved fallback chain (from the provider's `fallbackProviderIds`). One
+  // level deep — fallbacks carry no nested fallbacks — so the agent-runner walks
+  // a flat model chain. Resolved in main/providers (where every provider's key
+  // lives) and carried across IPC on the active injection.
+  fallbackProviders: z.array(z.object(ProviderInjectionFields)).optional(),
 })
 export type ProviderInjection = z.infer<typeof ProviderInjection>
 

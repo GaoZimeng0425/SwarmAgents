@@ -1,4 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { applyAgentModel } from '@shared/agents/model-override'
 import { DEFAULT_AGENT_DEF, defaultAgents } from '@shared/constants/agents'
 import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
@@ -381,7 +382,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     const deps: AgentRunnerDeps = {
       task,
-      provider: def.model ? { ...session.provider, model: def.model } : session.provider,
+      provider: applyAgentModel(session.provider, def),
       agentDefinition: withPrompt(def),
       sessionId,
       getPermissionMode: () => resolvePermissionMode(sessionId),
@@ -505,9 +506,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     if (providerKey && !lookedUp) {
       log.warn({ msg: 'providerKey not found, falling back to session provider', providerKey })
     }
-    // The agent type may pin a specific model; otherwise inherit the provider's.
+    // The agent type may pin a model tier (model + thinking depth); otherwise
+    // inherit the provider's. Preserves the provider's fallback chain.
     const baseProvider = lookedUp ?? session.provider
-    const resolvedProvider = def.model ? { ...baseProvider, model: def.model } : baseProvider
+    const resolvedProvider = applyAgentModel(baseProvider, def)
 
     const childTaskId = ulid()
     const now = Date.now()

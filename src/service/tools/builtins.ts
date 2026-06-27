@@ -19,6 +19,7 @@ import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
 import { spawnAgentSpec } from './spawn'
 import { currentTimeSpec } from './time'
+import { analyzeImageSpec } from './vision'
 import { getWeatherSpec } from './weather'
 import { webFetchSpec, webSearchSpec } from './web'
 import { waitForTaskSpecs } from './wait-for-task'
@@ -78,6 +79,9 @@ export function registerBuiltinTools(
   registry.register(currentTimeSpec())
   registry.register(getWeatherSpec())
   registry.register(webFetchSpec())
+  // Vision/OCR: resolves an image-capable model from the task's provider chain
+  // at call time (via ctx.analyzeImage), so it needs no registration-time dep.
+  registry.register(analyzeImageSpec())
   // No config getter (e.g. tests) → 'auto' with env-var fallback inside web.ts.
   registry.register(webSearchSpec(deps?.getWebSearchConfig ?? (() => ({ provider: 'auto' }))))
   for (const spec of fsSpecs()) registry.register(spec)

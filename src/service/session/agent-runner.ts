@@ -3,11 +3,11 @@ import { Agent, DEFAULT_COMPACTION_SETTINGS, shouldCompact } from '@earendil-wor
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { getBuiltinModel as getModel, getBuiltinModels as getModels } from '@earendil-works/pi-ai/providers/all'
+import { reasoningOverridesFor } from '@shared/constants/models'
 import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@shared/types/actor'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { ModelPricing, ProviderInjection } from '@shared/types/provider'
-import { reasoningOverridesFor } from '@shared/constants/models'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
@@ -15,7 +15,14 @@ import {
   OPENAI_MODEL_SUGGESTIONS,
 } from '@shared/types/provider'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import { type ConsumedResources, emptyUsed, type PermissionMode, type Task, type TaskEvent, type TaskResult } from '@shared/types/task'
+import {
+  type ConsumedResources,
+  emptyUsed,
+  type PermissionMode,
+  type Task,
+  type TaskEvent,
+  type TaskResult,
+} from '@shared/types/task'
 
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
 import { encodeActorState } from '../actor/state'
@@ -72,6 +79,33 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
     signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
+
+// Failures where retrying the SAME model is pointless — advance to the next
+// model in the chain (or give up) immediately instead of burning the transient-
+// retry budget on a dead key, a missing model, or an exhausted quota. Anything
+// not matched here (timeouts, 5xx, rate limits, transport resets) is treated as
+// transient and retried in place.
+export function isPermanentModelFailure(message: string): boolean {
+  return /\b(401|403|404)\b|invalid[\s_-]?api[\s_-]?key|unauthor|authentication|permission denied|model not found|no such model|does not exist|insufficient[\s_-]?quota|billing/i.test(
+    message
+  )
+}
+
+// Whether an injection's resolved model accepts image input — used to pick a
+// vision model from the provider chain for the analyze_image tool. Unresolvable
+// models are treated as not image-capable.
+export function injectionSupportsImages(p: ProviderInjection): boolean {
+  try {
+    return resolveModel(p).input?.includes('image') ?? false
+  } catch {
+    return false
+  }
+}
+
+// System prompt for the one-shot vision/OCR sub-call. Kept terse: the sub-call
+// has no tools and runs a single answering turn.
+const VISION_SYSTEM_PROMPT =
+  'You are a vision and OCR assistant. Look at the provided image and answer the request precisely. For OCR, return only the extracted text, preserving line breaks. Do not add commentary.'
 
 // Maps OpenRouter-derived pricing (USD/1M tokens) to pi-ai's Model.cost shape
 // (also USD/1M). Absent cache prices default to 0. Exported for unit testing.
@@ -187,6 +221,15 @@ export type AgentRunnerDeps = {
    * Tests inject smaller values to exercise the loop without real waits.
    */
   retry?: { maxRetries?: number; delayMs?: number }
+  /**
+   * Ordered fallback providers tried after `provider` when a request fails: the
+   * effective model chain is `[provider, ...fallbackProviders]`. A model advances
+   * to the next on exhausting its transient retries, or immediately on a
+   * permanent failure (bad key / missing model / quota). Empty ⇒ unchanged
+   * single-model behavior. Defaults to `provider.fallbackProviders` (resolved in
+   * Main from the provider's fallbackProviderIds); set explicitly to override.
+   */
+  fallbackProviders?: ProviderInjection[]
 }
 
 export type AgentRunner = {
@@ -245,8 +288,60 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
       return res && 'reply' in res ? res.reply : ''
     },
     findPeers: (q) => deps.findPeers?.(q) ?? [],
+    analyzeImage: buildAnalyzeImage(deps),
     writeAgent: deps.writeAgent,
     writeSkill: deps.writeSkill,
+  }
+}
+
+/**
+ * Resolve the vision capability for a task's tool context: pick the first
+ * image-capable model in the chain (provider, then fallbacks) and return a
+ * one-shot completion fn bound to it. Returns undefined when no image-capable
+ * model is configured, so the analyze_image tool reports a clear setup error
+ * instead of silently failing.
+ */
+function buildAnalyzeImage(
+  deps: AgentRunnerDeps
+): ((prompt: string, image: { data: string; mimeType: string }) => Promise<string>) | undefined {
+  const chain = [deps.provider, ...(deps.fallbackProviders ?? deps.provider?.fallbackProviders ?? [])].filter(
+    (p): p is ProviderInjection => !!p
+  )
+  const vision = chain.find(injectionSupportsImages)
+  if (!vision) return undefined
+  return async (prompt, image) => {
+    const visionTask: Task = {
+      ...deps.task,
+      id: `${deps.task.id}:vision`,
+      goal: prompt,
+      attachments: [{ data: image.data, mimeType: image.mimeType }],
+      toolAllowlist: [],
+      executionMode: 'goal',
+    }
+    // A silent, tool-less one-shot on the vision model. emit is a no-op so the
+    // sub-call's tokens/events don't pollute the parent task's transcript; the
+    // visible analyze_image tool.call/result already represents it.
+    const runner = createAgentRunner({
+      task: visionTask,
+      provider: vision,
+      agentDefinition: {
+        id: 'vision',
+        name: 'Vision',
+        description: 'One-shot vision/OCR sub-call.',
+        systemPrompt: VISION_SYSTEM_PROMPT,
+        toolScope: 'all',
+        maxIterations: 2,
+      },
+      sessionId: deps.sessionId,
+      emit: () => undefined,
+      permissionRegistry: deps.permissionRegistry,
+      toolRegistry: deps.toolRegistry,
+      initialMessages: [],
+      spawnChild: deps.spawnChild,
+      signal: deps.signal,
+    })
+    const r = await runner.run()
+    return r.summary
   }
 }
 
@@ -527,6 +622,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   let tools: AgentTool[]
   let riskOf: (name: string, args?: unknown) => ToolRisk
   let model: Model<Api>
+  const fallbackModels: Model<Api>[] = []
   try {
     const runCtx = buildToolContext(deps)
     // Fold spend from delegated runtimes (e.g. a Claude Code session driven via
@@ -545,6 +641,21 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       taskLog.warn({ msg: 'no tools resolved for task', toolAllowlist: task.toolAllowlist })
     }
     model = resolveModel(provider)
+    // The fallback chain rides on the injection (resolved in Main from the
+    // provider's fallbackProviderIds); an explicit deps.fallbackProviders wins
+    // (tests / programmatic override). Resolve defensively: a single
+    // unresolvable fallback must not abort the session — it is dropped.
+    for (const fp of deps.fallbackProviders ?? provider.fallbackProviders ?? []) {
+      try {
+        fallbackModels.push(resolveModel(fp))
+      } catch (e) {
+        taskLog.warn({
+          msg: 'skipping unresolvable fallback provider',
+          model: fp.model,
+          err: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
   } catch (err) {
     taskLog.error({
       msg: 'setup threw before agent could start',
@@ -576,6 +687,11 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       contextWindow: model.contextWindow,
     },
   })
+
+  // The ordered model chain: primary first, then any resolvable fallbacks.
+  // `promptOnce` advances through it on failure; with no fallbacks this is a
+  // single-element list and the loop behaves exactly as the original.
+  const modelChain: Model<Api>[] = [model, ...fallbackModels]
 
   // Runaway guards only (calls/time/cost). Token spend is deliberately
   // absent — context fitness is judged separately, by snapshot vs window.
@@ -687,7 +803,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
           summary: `Run tool: ${toolCall.name}`,
           payload: args,
         },
-        deps.signal,
+        deps.signal
       )
 
       // The request resolves on abort too (fail-safe deny), so re-check the
@@ -814,151 +930,179 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       emit('task.progress', { taskId: task.id, event, ts: Date.now() })
     }
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const isLastAttempt = attempt === maxRetries
-      // Each attempt starts clean for cancel/budget/context detection, while
-      // `used` and the wall-clock baseline keep accumulating across the
-      // residency (one budget envelope per residency).
-      stopCause = null
-      turns = 0
-      translator.resetError()
-      // Hold the TERMINAL task.error back until the last attempt: a retried
-      // failure must not flip the task to 'failed' (that stops the run). The
-      // failure is still made visible — as a transient task.progress notice
-      // emitted before each retry below.
-      translator.setSuppressError(!isLastAttempt)
-      // Discard the prior failed turn before re-issuing the prompt.
-      if (attempt > 0) agent.state.messages = baselineMessages.slice()
-
-      taskLog.info({ msg: 'agent.prompt starting', sessionId, attempt, maxRetries })
-      const t0 = Date.now()
-      let promptError: unknown = null
-      // pi's prompt() resolves with `void`. A failed model/transport request is
-      // NOT thrown here either — pi routes a stopReason 'error' assistant message
-      // through the event stream, which the translator captures (getError). So a
-      // failure is detected via the translator, never the return value.
-      try {
-        await agent.prompt(goal, images && images.length > 0 ? images : undefined)
-        taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0, error: translator.getError() })
-      } catch (err) {
-        // An abort (cancel/budget) may surface here; stopCause disambiguates it
-        // from a genuine failure below.
-        promptError = err
+    // Announce a switch to the next model in the chain. Rendered like a retry
+    // notice (transient tier) so the UI shows it without marking the task failed.
+    const emitModelSwitch = (toModelId: string, reason: string): void => {
+      const event: TaskEvent = {
+        kind: 'error',
+        error: {
+          code: 'agent_model_fallback',
+          message: `Switching to fallback model "${toModelId}" after ${reason}.`,
+          tier: 'transient',
+        },
+        ts: Date.now(),
       }
-
-      // Deliberate stops are never transient — return immediately, no retry.
-      if (stopCause === 'cancelled') {
-        taskLog.info({ msg: 'task cancelled', durationMs: Date.now() - t0 })
-        emit('task.error', {
-          taskId: task.id,
-          error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
-          ts: Date.now(),
-        })
-        return { status: 'cancelled', summary: translator.getFinalSummary() }
-      }
-
-      if (stopCause === 'budget') {
-        taskLog.warn({ msg: 'task budget exhausted', dim: budgetDim, used, durationMs: Date.now() - t0 })
-        emit('task.error', {
-          taskId: task.id,
-          error: { code: 'budget_exhausted', message: `Budget exhausted (${budgetDim}).`, tier: 'gave_up' },
-          ts: Date.now(),
-        })
-        return { status: 'failed', summary: translator.getFinalSummary() }
-      }
-
-      if (stopCause === 'iterations') {
-        taskLog.warn({ msg: 'task hit max iterations', turns, maxTurns, durationMs: Date.now() - t0 })
-        emit('task.error', {
-          taskId: task.id,
-          error: {
-            code: 'max_iterations',
-            message: `Stopped after ${maxTurns} turns (max iterations reached).`,
-            tier: 'gave_up',
-          },
-          ts: Date.now(),
-        })
-        return { status: 'failed', summary: translator.getFinalSummary() }
-      }
-
-      if (stopCause === 'context') {
-        taskLog.warn({
-          msg: 'context window full',
-          contextTokens,
-          contextWindow: model.contextWindow,
-          durationMs: Date.now() - t0,
-        })
-        emit('task.error', {
-          taskId: task.id,
-          error: {
-            code: 'context_window_full',
-            message: `Context window full (${contextTokens} > ${model.contextWindow} tokens).`,
-            tier: 'gave_up',
-          },
-          ts: Date.now(),
-        })
-        return { status: 'failed', summary: translator.getFinalSummary() }
-      }
-
-      // A thrown transport error — retry while attempts remain, else give up.
-      if (promptError) {
-        taskLog.error({
-          msg: 'agent.prompt threw',
-          attempt,
-          durationMs: Date.now() - t0,
-          err:
-            promptError instanceof Error
-              ? { name: promptError.name, message: promptError.message, stack: promptError.stack }
-              : String(promptError),
-        })
-        if (!isLastAttempt) {
-          taskLog.warn({ msg: 'retrying after agent.prompt threw', attempt, delayMs: retryDelayMs })
-          emitRetryNotice(attempt, promptError instanceof Error ? promptError.message : String(promptError))
-          await abortableDelay(retryDelayMs, deps.signal)
-          if (deps.signal?.aborted) return reportCancelled()
-          continue
-        }
-        emit('task.error', {
-          taskId: task.id,
-          error: {
-            code: 'agent_exception',
-            message: promptError instanceof Error ? promptError.message : String(promptError),
-            tier: 'fatal',
-          },
-          ts: Date.now(),
-        })
-        return { status: 'failed', summary: '' }
-      }
-
-      // pi reports a failed model/transport request by routing a stopReason
-      // 'error' assistant message through the event stream (not by throwing or
-      // by a return value). The translator captured it; retry while attempts
-      // remain. On the final attempt the translator (unsuppressed) already
-      // emitted task.error on agent_end, so here we just log and report failed.
-      const requestError = translator.getError()
-      if (requestError) {
-        taskLog.error({
-          msg: 'agent.prompt resolved with error',
-          attempt,
-          errorMessage: requestError,
-          durationMs: Date.now() - t0,
-        })
-        if (!isLastAttempt) {
-          taskLog.warn({ msg: 'retrying after agent.prompt error', attempt, delayMs: retryDelayMs })
-          emitRetryNotice(attempt, requestError)
-          await abortableDelay(retryDelayMs, deps.signal)
-          if (deps.signal?.aborted) return reportCancelled()
-          continue
-        }
-        return { status: 'failed', summary: translator.getFinalSummary() }
-      }
-
-      return { status: 'completed', summary: translator.getFinalSummary() }
+      emit('task.progress', { taskId: task.id, event, ts: Date.now() })
     }
 
-    // Unreachable: the loop returns on every terminal branch. Satisfies the
-    // non-void return type without a misleading fallback outcome.
-    throw new Error('promptOnce retry loop exited without a result')
+    // Outer loop: walk the model chain. Inner loop: transient retries on the
+    // current model. A model is abandoned when its retries are exhausted or it
+    // hits a permanent failure; the run then advances to the next model (if any)
+    // with a fresh retry budget. With no fallbacks this is a single iteration and
+    // the behavior is identical to the prior single-model retry loop.
+    for (let modelIdx = 0; modelIdx < modelChain.length; modelIdx++) {
+      const isLastModel = modelIdx === modelChain.length - 1
+      if (modelIdx > 0) {
+        // Swap the live model so the context-window guard, usage emits, and the
+        // next prompt all use the fallback. `model` is read by reference in the
+        // agent's closures, so reassigning it here propagates everywhere.
+        model = modelChain[modelIdx]
+        agent.state.model = model
+        taskLog.info({ msg: 'falling back to next model', modelId: model.id, modelIdx })
+      }
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const isLastAttempt = attempt === maxRetries
+        // Each attempt starts clean for cancel/budget/context detection, while
+        // `used` and the wall-clock baseline keep accumulating across the
+        // residency (one budget envelope per residency).
+        stopCause = null
+        turns = 0
+        translator.resetError()
+        // Hold the TERMINAL task.error back until the final attempt of the LAST
+        // model: an intermediate failure (a retry pending, or another model still
+        // to try) must not flip the task to 'failed'. It is still made visible —
+        // as a transient retry/fallback notice below.
+        translator.setSuppressError(!(isLastAttempt && isLastModel))
+        // Discard the prior failed turn (an earlier attempt on this model, or the
+        // previous model's failure) before re-issuing the prompt.
+        if (attempt > 0 || modelIdx > 0) agent.state.messages = baselineMessages.slice()
+
+        taskLog.info({ msg: 'agent.prompt starting', sessionId, attempt, maxRetries, modelId: model.id })
+        const t0 = Date.now()
+        let promptError: unknown = null
+        // pi's prompt() resolves with `void`. A failed model/transport request is
+        // NOT thrown here either — pi routes a stopReason 'error' assistant message
+        // through the event stream, which the translator captures (getError). So a
+        // failure is detected via the translator, never the return value.
+        try {
+          await agent.prompt(goal, images && images.length > 0 ? images : undefined)
+          taskLog.info({ msg: 'agent.prompt resolved', durationMs: Date.now() - t0, error: translator.getError() })
+        } catch (err) {
+          // An abort (cancel/budget) may surface here; stopCause disambiguates it
+          // from a genuine failure below.
+          promptError = err
+        }
+
+        // Deliberate stops are never transient and never fall back — they end
+        // the whole run (a budget is shared across models, a cancel is final).
+        if (stopCause === 'cancelled') {
+          taskLog.info({ msg: 'task cancelled', durationMs: Date.now() - t0 })
+          emit('task.error', {
+            taskId: task.id,
+            error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
+            ts: Date.now(),
+          })
+          return { status: 'cancelled', summary: translator.getFinalSummary() }
+        }
+
+        if (stopCause === 'budget') {
+          taskLog.warn({ msg: 'task budget exhausted', dim: budgetDim, used, durationMs: Date.now() - t0 })
+          emit('task.error', {
+            taskId: task.id,
+            error: { code: 'budget_exhausted', message: `Budget exhausted (${budgetDim}).`, tier: 'gave_up' },
+            ts: Date.now(),
+          })
+          return { status: 'failed', summary: translator.getFinalSummary() }
+        }
+
+        if (stopCause === 'iterations') {
+          taskLog.warn({ msg: 'task hit max iterations', turns, maxTurns, durationMs: Date.now() - t0 })
+          emit('task.error', {
+            taskId: task.id,
+            error: {
+              code: 'max_iterations',
+              message: `Stopped after ${maxTurns} turns (max iterations reached).`,
+              tier: 'gave_up',
+            },
+            ts: Date.now(),
+          })
+          return { status: 'failed', summary: translator.getFinalSummary() }
+        }
+
+        if (stopCause === 'context') {
+          taskLog.warn({
+            msg: 'context window full',
+            contextTokens,
+            contextWindow: model.contextWindow,
+            durationMs: Date.now() - t0,
+          })
+          emit('task.error', {
+            taskId: task.id,
+            error: {
+              code: 'context_window_full',
+              message: `Context window full (${contextTokens} > ${model.contextWindow} tokens).`,
+              tier: 'gave_up',
+            },
+            ts: Date.now(),
+          })
+          return { status: 'failed', summary: translator.getFinalSummary() }
+        }
+
+        // A failed request: either a thrown transport error (promptError) or pi's
+        // stopReason 'error' captured by the translator. Both are handled the same
+        // way — retry the current model, then advance to the next, then give up.
+        const requestError = translator.getError()
+        const failure = promptError
+          ? { message: promptError instanceof Error ? promptError.message : String(promptError), thrown: true }
+          : requestError
+            ? { message: requestError, thrown: false }
+            : null
+
+        if (failure) {
+          taskLog.error({
+            msg: failure.thrown ? 'agent.prompt threw' : 'agent.prompt resolved with error',
+            attempt,
+            modelId: model.id,
+            errorMessage: failure.message,
+            durationMs: Date.now() - t0,
+          })
+          const permanent = isPermanentModelFailure(failure.message)
+          // Transient failure with attempts left → retry the SAME model.
+          if (!isLastAttempt && !permanent) {
+            taskLog.warn({ msg: 'retrying same model', attempt, delayMs: retryDelayMs })
+            emitRetryNotice(attempt, failure.message)
+            await abortableDelay(retryDelayMs, deps.signal)
+            if (deps.signal?.aborted) return reportCancelled()
+            continue
+          }
+          // This model is done (retries exhausted, or a permanent failure).
+          // Advance to the next model in the chain if there is one.
+          if (!isLastModel) {
+            emitModelSwitch(modelChain[modelIdx + 1].id, permanent ? 'a permanent error' : 'exhausting retries')
+            break
+          }
+          // Last model gave up. A thrown error needs an explicit terminal emit; a
+          // stopReason-'error' failure was already emitted by the (unsuppressed)
+          // translator on agent_end.
+          if (failure.thrown) {
+            emit('task.error', {
+              taskId: task.id,
+              error: { code: 'agent_exception', message: failure.message, tier: 'fatal' },
+              ts: Date.now(),
+            })
+            return { status: 'failed', summary: '' }
+          }
+          return { status: 'failed', summary: translator.getFinalSummary() }
+        }
+
+        return { status: 'completed', summary: translator.getFinalSummary() }
+      }
+    }
+
+    // Unreachable: every terminal branch returns, and the last model's last
+    // attempt always returns. Satisfies the non-void return type.
+    throw new Error('promptOnce model/retry loops exited without a result')
   }
 
   return {
