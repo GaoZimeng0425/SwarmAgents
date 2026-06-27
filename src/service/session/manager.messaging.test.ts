@@ -71,4 +71,18 @@ describe('sendMessage', () => {
     const res = await (mgr as any).__sendMessageForTest(sessionId, null, 'reviewer', 'check', 'rpc')
     expect(res.reply).toBe('ran:check')
   })
+
+  it('deliverToActor wakes an addressable actor (delivered and consumed)', async () => {
+    const { store, mgr } = makeManager()
+    const { sessionId } = mgr.createSession(fakeProvider)
+    const target = (mgr as any).__ensureActorForTest(sessionId, 'default', 'b')
+
+    mgr.deliverToActor(sessionId, target.address, 'do the next step')
+
+    // FIFO barrier: the rpc is processed after the earlier 'send', so once its
+    // reply returns, both messages have been drained.
+    const res = await (mgr as any).__sendMessageForTest(sessionId, null, target.address, 'ping', 'rpc')
+    expect(res.reply).toBe('ran:ping')
+    expect(store.nextUnconsumedFor(target.address)).toBeUndefined()
+  })
 })

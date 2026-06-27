@@ -20,6 +20,7 @@ import { builtinSkills } from './skills/builtins'
 import { createSkillStore } from './skills/store'
 import { createToolTogglesStore } from './tool-toggles/store'
 import { registerBuiltinTools } from './tools/builtins'
+import { createTaskWaiterService } from './loop/task-waiters'
 import { createToolRegistry } from './tools/registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'index' })
@@ -102,11 +103,20 @@ const scheduler = createCronScheduler({
 // Drives Claude Code sessions the agent operates via cc_* tools. The SDK is
 // loaded lazily on first cc_start, so constructing it here is cheap.
 const claudeCode = createClaudeCodeManager()
+
+const taskWaiters = createTaskWaiterService({
+  store,
+  deliver: (sessionId, address, goal) => manager.deliverToActor(sessionId, address, goal),
+})
+store.setTaskTerminalListener((taskId, status) => taskWaiters.onTaskTerminal(taskId, status))
+taskWaiters.start()
+
 registerBuiltinTools(toolRegistry, {
   memoryStore,
   skillStore,
   scheduler,
   claudeCode,
+  taskWaiters,
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
 })

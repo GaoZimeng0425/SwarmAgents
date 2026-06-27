@@ -12,6 +12,8 @@ import { currentStreak, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './
 
 const log = createLogger({ process: 'service' }).child({ component: 'conversation-store' })
 
+const TERMINAL_TASK_STATUSES = new Set(['completed', 'failed', 'interrupted', 'cancelled'])
+
 export type StoredSession = {
   id: string
   createdAt: number
@@ -43,6 +45,15 @@ export type StoredCronRun = {
   triggeredAt: number
   endedAt: number | null
   error: string | null
+}
+
+export type StoredTaskWaiter = {
+  id: string
+  sessionId: string
+  waiterAddress: string
+  taskId: string
+  goal: string | null
+  createdAt: number
 }
 
 export type ConversationStore = {
@@ -86,6 +97,11 @@ export type ConversationStore = {
   /** Every persisted run across all jobs, newest first (for the schedule calendar). */
   listAllCronRuns(): StoredCronRun[]
   listRunningCronRuns(): StoredCronRun[]
+  saveTaskWaiter(w: StoredTaskWaiter): void
+  listTaskWaitersForTask(taskId: string): StoredTaskWaiter[]
+  listAllTaskWaiters(): StoredTaskWaiter[]
+  deleteTaskWaiter(id: string): void
+  setTaskTerminalListener(fn: (taskId: string, status: string) => void): void
   getTask(taskId: string): Task | undefined
   upsertActor(actor: Actor): void
   getActor(address: string): Actor | undefined
@@ -208,6 +224,15 @@ export function createConversationStore(dbPath: string): ConversationStore {
       ts              INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_addr, consumed, dead, ts);
+    CREATE TABLE IF NOT EXISTS task_waiters (
+      id             TEXT PRIMARY KEY,
+      session_id     TEXT NOT NULL,
+      waiter_address TEXT NOT NULL,
+      task_id        TEXT NOT NULL,
+      goal           TEXT,
+      created_at     INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS task_waiters_task_idx ON task_waiters (task_id);
   `)
 
   for (const stmt of [
@@ -460,6 +485,26 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtGetTaskEvents = db.prepare('SELECT event FROM task_events WHERE task_id = ? ORDER BY id')
   const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
+
+  const stmtInsertTaskWaiter = db.prepare(
+    `INSERT INTO task_waiters (id, session_id, waiter_address, task_id, goal, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  )
+  const stmtListWaitersForTask = db.prepare('SELECT * FROM task_waiters WHERE task_id = ? ORDER BY created_at ASC')
+  const stmtListAllWaiters = db.prepare('SELECT * FROM task_waiters ORDER BY created_at ASC')
+  const stmtDeleteWaiter = db.prepare('DELETE FROM task_waiters WHERE id = ?')
+
+  const rowToTaskWaiter = (row: Record<string, unknown>): StoredTaskWaiter => ({
+    id: row.id as string,
+    sessionId: row.session_id as string,
+    waiterAddress: row.waiter_address as string,
+    taskId: row.task_id as string,
+    goal: (row.goal as string | null) ?? null,
+    createdAt: row.created_at as number,
+  })
+
+  let taskTerminalListener: ((taskId: string, status: string) => void) | null = null
+
   const stmtListSessions = db.prepare(
     // tokensUsed / usdCents sum the per-task `used` snapshots (same method as
     // getUsageStats), so the list shows each session's cumulative cost without
@@ -642,9 +687,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
       )
     },
     updateTaskStatus(taskId, status, result) {
-      const terminalStatuses = new Set(['completed', 'failed', 'interrupted', 'cancelled'])
-      const endedAt = terminalStatuses.has(status) ? Date.now() : null
+      const endedAt = TERMINAL_TASK_STATUSES.has(status) ? Date.now() : null
       stmtUpdateTask.run(status, result ? JSON.stringify(result) : null, endedAt, taskId)
+      if (TERMINAL_TASK_STATUSES.has(status)) taskTerminalListener?.(taskId, status)
     },
     saveTaskUsage(taskId, used, contextWindow) {
       stmtUpdateTaskUsage.run(JSON.stringify(used), contextWindow ?? null, taskId)
@@ -827,6 +872,21 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     listRunningCronRuns() {
       return (stmtListRunningCronRuns.all() as Record<string, unknown>[]).map(rowToCronRun)
+    },
+    saveTaskWaiter(w) {
+      stmtInsertTaskWaiter.run(w.id, w.sessionId, w.waiterAddress, w.taskId, w.goal ?? null, w.createdAt)
+    },
+    listTaskWaitersForTask(taskId) {
+      return (stmtListWaitersForTask.all(taskId) as Record<string, unknown>[]).map(rowToTaskWaiter)
+    },
+    listAllTaskWaiters() {
+      return (stmtListAllWaiters.all() as Record<string, unknown>[]).map(rowToTaskWaiter)
+    },
+    deleteTaskWaiter(id) {
+      stmtDeleteWaiter.run(id)
+    },
+    setTaskTerminalListener(fn) {
+      taskTerminalListener = fn
     },
     getTask(taskId) {
       const row = stmtGetTask.get(taskId) as Record<string, unknown> | undefined
