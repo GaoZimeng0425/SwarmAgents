@@ -55,7 +55,10 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store }): { dispose: 
       return { folders: [], watchLater: [] }
     }
     const cfg = await store.load()
-    if (!cfg.credentials) return { folders: [], watchLater: [] }
+    if (!cfg.credentials) {
+      log.warn({ msg: 'bilibili:list logged-in but no stored credentials', mid: st.mid })
+      return { folders: [], watchLater: [] }
+    }
     log.info({ msg: 'bilibili list started', mid: st.mid })
     const result = await buildList(cfg.credentials, st.mid, deps)
     log.info({

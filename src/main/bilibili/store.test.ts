@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // safeStorage isn't available under ELECTRON_RUN_AS_NODE; stub it with a
-// reversible base64 "cipher" so the store's encrypt/decrypt path is exercised.
+// reversible utf8 round-trip so the store's encrypt/decrypt path is exercised.
 vi.mock('electron', () => ({
   safeStorage: {
     encryptString: (s: string) => Buffer.from(s, 'utf8'),
