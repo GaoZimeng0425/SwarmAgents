@@ -60,6 +60,7 @@ describe('registerBuiltinTools', () => {
       'time.current_time',
       'ui.render_ui',
       'vision.analyze_image',
+      'vision.ocr_image',
       'weather.get_weather',
       'web.fetch',
       'web.web_search',

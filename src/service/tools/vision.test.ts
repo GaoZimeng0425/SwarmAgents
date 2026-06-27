@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRunContext } from './registry'
-import { analyzeImageSpec, mimeFromPath, pickVisionInjection } from './vision'
+import { analyzeImageSpec, mimeFromPath, ocrImageSpec, pickVisionInjection } from './vision'
 
 const inj = (id: string) => ({ id, model: id, apiStyle: 'anthropic', apiKey: 'k' }) as never
 
@@ -103,5 +103,41 @@ describe('analyze_image tool', () => {
 
     expect(res.details?.error).toBeTruthy()
     expect(res.content[0].text.toLowerCase()).toContain('image-capable')
+  })
+})
+
+describe('ocr_image tool', () => {
+  it('runs local OCR on the resolved path and returns the recognized text', async () => {
+    const runOcr = vi.fn(async () => 'line one\nline two')
+    const tool = ocrImageSpec(runOcr).build(ctx({ cwd: dir }))
+
+    const res = await run(tool, { path: 'shot.png' })
+
+    expect(runOcr).toHaveBeenCalledWith(pngPath)
+    expect(res.content[0].text).toBe('line one\nline two')
+  })
+
+  it('returns an error result for an unsupported file type without running OCR', async () => {
+    const txt = join(dir, 'note2.txt')
+    writeFileSync(txt, 'hello')
+    const runOcr = vi.fn(async () => 'unused')
+    const tool = ocrImageSpec(runOcr).build(ctx())
+
+    const res = await run(tool, { path: txt })
+
+    expect(runOcr).not.toHaveBeenCalled()
+    expect(res.details?.error).toBeTruthy()
+  })
+
+  it('surfaces an OCR failure (e.g. swift unavailable) as an error result, not a throw', async () => {
+    const runOcr = vi.fn(async () => {
+      throw new Error('local OCR unavailable (swift): spawn swift ENOENT')
+    })
+    const tool = ocrImageSpec(runOcr).build(ctx())
+
+    const res = await run(tool, { path: pngPath })
+
+    expect(res.details?.error).toBeTruthy()
+    expect(res.content[0].text).toContain('swift')
   })
 })

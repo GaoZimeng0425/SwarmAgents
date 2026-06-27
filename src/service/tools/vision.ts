@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
@@ -84,6 +85,104 @@ export function analyzeImageSpec(): ToolSpec {
         const prompt = p.prompt?.trim() || DEFAULT_PROMPT
         try {
           const text = await ctx.analyzeImage(prompt, { data: bytes.toString('base64'), mimeType })
+          return result(text.slice(0, 8000), { path: abs })
+        } catch (e) {
+          return errorResult(e instanceof Error ? e.message : String(e))
+        }
+      },
+    }),
+  }
+}
+
+// --- Local macOS OCR (offline, no model cost) ------------------------------
+
+// A self-contained Swift program (run via `swift -`) that extracts text from an
+// image using the on-device Vision framework. ImageIO/CoreGraphics decode the
+// file (no AppKit, so it runs headless); the image path is the last argv entry.
+const OCR_SWIFT = `import Foundation
+import Vision
+import ImageIO
+import CoreGraphics
+
+guard let path = CommandLine.arguments.last,
+      let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+      let cg = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
+  FileHandle.standardError.write(Data("cannot load image".utf8)); exit(1)
+}
+let req = VNRecognizeTextRequest()
+req.recognitionLevel = .accurate
+req.usesLanguageCorrection = true
+do {
+  try VNImageRequestHandler(cgImage: cg, options: [:]).perform([req])
+} catch {
+  FileHandle.standardError.write(Data("OCR failed: \\(error)".utf8)); exit(1)
+}
+let text = (req.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\\n")
+print(text)
+`
+
+/** Performs local OCR on an image path, returning the recognized text. Injected so the tool stays testable. */
+export type OcrFn = (imagePath: string) => Promise<string>
+
+/**
+ * Run on-device macOS Vision OCR by piping a Swift program to `swift -`. Rejects
+ * if `swift` is unavailable (non-macOS / no toolchain) or the engine errors, so
+ * the caller can fall back to analyze_image.
+ */
+export function macosOcr(imagePath: string, timeoutMs = 30_000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('swift', ['-', imagePath], { stdio: ['pipe', 'pipe', 'pipe'] })
+    let out = ''
+    let err = ''
+    const timer = setTimeout(() => {
+      proc.kill()
+      reject(new Error(`OCR timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    timer.unref?.()
+    proc.stdout.on('data', (d) => {
+      out += d
+    })
+    proc.stderr.on('data', (d) => {
+      err += d
+    })
+    proc.on('error', (e) => {
+      clearTimeout(timer)
+      reject(new Error(`local OCR unavailable (swift): ${e.message}`))
+    })
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve(out.replace(/\n+$/, ''))
+      else reject(new Error(err.trim() || `swift exited with code ${code}`))
+    })
+    proc.stdin.write(OCR_SWIFT)
+    proc.stdin.end()
+  })
+}
+
+const OcrImageParams = Type.Object({
+  path: Type.String({ description: 'Path to the image file (absolute, or relative to the working directory).' }),
+})
+
+export function ocrImageSpec(runOcr: OcrFn = macosOcr): ToolSpec {
+  return {
+    group: 'vision',
+    name: 'ocr_image',
+    risk: 'low',
+    source: 'builtin',
+    build: (ctx: ToolRunContext): AgentTool => ({
+      name: 'ocr_image',
+      label: 'OCR image',
+      description:
+        'Extract text from an image file using the local macOS Vision OCR engine (offline, no model cost). Use for plain text extraction; use analyze_image for visual questions or descriptions.',
+      parameters: OcrImageParams,
+      execute: async (_id: string, params: unknown) => {
+        const p = params as { path: string }
+        const abs = isAbsolute(p.path) ? p.path : join(ctx.cwd ?? homedir(), p.path)
+        if (!mimeFromPath(abs)) {
+          return errorResult(`Unsupported image type for "${abs}". Supported: ${Object.keys(MIME_BY_EXT).join(', ')}.`)
+        }
+        try {
+          const text = await runOcr(abs)
           return result(text.slice(0, 8000), { path: abs })
         } catch (e) {
           return errorResult(e instanceof Error ? e.message : String(e))
