@@ -14,6 +14,7 @@ import { setupAutoUpdate } from './system/auto-update'
 import { handleDeepLink, registerDeepLinkIpc } from './system/deep-link'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
+import { initTrending } from './trending'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
 import { openSettings } from './windows/open-settings'
@@ -60,11 +61,15 @@ app.whenReady().then(async () => {
   const budgets = await initBudgets()
   log.info({ msg: 'budget config initialised' })
 
+  const trending = initTrending()
+  log.info({ msg: 'trending IPC initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
     mcpServers.dispose()
     webSearch.dispose()
     budgets.dispose()
+    trending.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')

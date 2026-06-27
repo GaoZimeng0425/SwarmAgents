@@ -198,6 +198,12 @@ const swarm: SwarmBridge = {
     get: (rangeDays: number) =>
       ipcRenderer.invoke('swarm:getUsageStats', rangeDays) as Promise<import('../shared/types/usage').UsageStats>,
   },
+  trending: {
+    get: (period: import('../shared/types/trending').TrendingPeriod, language: string) =>
+      ipcRenderer.invoke('trending:get', period, language) as Promise<
+        import('../shared/types/trending').TrendingRepo[]
+      >,
+  },
   cron: {
     listForSession: (sessionId: string) =>
       ipcRenderer.invoke('swarm:listCronJobsForSession', sessionId) as Promise<

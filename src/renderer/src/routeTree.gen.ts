@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsageRouteImport } from './routes/usage'
+import { Route as TrendingRouteImport } from './routes/trending'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
@@ -17,6 +18,11 @@ import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionI
 const UsageRoute = UsageRouteImport.update({
   id: '/usage',
   path: '/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrendingRoute = TrendingRouteImport.update({
+  id: '/trending',
+  path: '/trending',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScheduledRoute = ScheduledRouteImport.update({
@@ -38,12 +44,14 @@ const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/scheduled': typeof ScheduledRoute
+  '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/scheduled': typeof ScheduledRoute
+  '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
@@ -51,20 +59,28 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/scheduled': typeof ScheduledRoute
+  '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/scheduled' | '/usage' | '/session/$sessionId'
+  fullPaths: '/' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/scheduled' | '/usage' | '/session/$sessionId'
-  id: '__root__' | '/' | '/scheduled' | '/usage' | '/session/$sessionId'
+  to: '/' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
+  id:
+    | '__root__'
+    | '/'
+    | '/scheduled'
+    | '/trending'
+    | '/usage'
+    | '/session/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ScheduledRoute: typeof ScheduledRoute
+  TrendingRoute: typeof TrendingRoute
   UsageRoute: typeof UsageRoute
   SessionSessionIdRoute: typeof SessionSessionIdRoute
 }
@@ -76,6 +92,13 @@ declare module '@tanstack/react-router' {
       path: '/usage'
       fullPath: '/usage'
       preLoaderRoute: typeof UsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trending': {
+      id: '/trending'
+      path: '/trending'
+      fullPath: '/trending'
+      preLoaderRoute: typeof TrendingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/scheduled': {
@@ -105,6 +128,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ScheduledRoute: ScheduledRoute,
+  TrendingRoute: TrendingRoute,
   UsageRoute: UsageRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,
 }
