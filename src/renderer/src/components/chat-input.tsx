@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@shared/types/provider'
 import type { Attachment, ExecutionMode, PermissionMode } from '@shared/types/task'
-import { Check, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, Users, X } from 'lucide-react'
+import { Check, Cpu, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, Users, X } from 'lucide-react'
 
 import {
   PromptInput,
@@ -21,7 +21,6 @@ import {
   PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
-  PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
@@ -63,6 +62,9 @@ type ModelOption = { providerId: string; providerName: string; modelId: string; 
 
 const MAX_FILES = 4
 const MAX_FILE_SIZE = 25 * 1024 * 1024
+// Minimum breathing room (px) kept between the footer's left and right control
+// groups; the toolbar collapses labels to icons before this gap would close.
+const GROUP_MIN_GAP = 16
 
 const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
   off: 'No thinking',
@@ -214,10 +216,12 @@ function ComposerCwdMenu({
   cwd,
   onCwdChange,
   anchor,
+  compact,
 }: {
   cwd?: string
   onCwdChange?: (cwd: string | undefined) => void
   anchor: React.RefObject<HTMLElement | null>
+  compact?: boolean
 }): React.JSX.Element {
   const recent = useRecentDirs((s) => s.dirs)
   const addRecent = useRecentDirs((s) => s.add)
@@ -236,7 +240,7 @@ function ComposerCwdMenu({
     <PromptInputActionMenu>
       <PromptInputActionMenuTrigger tooltip={cwd ?? '选择工作目录(默认为用户主目录)'}>
         <Folder className="size-4" />
-        <span className="max-w-32 truncate">{cwd ? basename(cwd) : '工作目录'}</span>
+        {!compact && <span className="max-w-32 truncate">{cwd ? basename(cwd) : '工作目录'}</span>}
       </PromptInputActionMenuTrigger>
       <PromptInputActionMenuContent align="start" anchor={anchor} className="min-w-56" side="top" sideOffset={8}>
         {recent.map((dir) => (
@@ -328,6 +332,54 @@ export function ChatInput({
     await window.swarm.providers.setThinkingLevel(state.active, level as ModelThinkingLevel)
   }
 
+  // Self-measuring footer: collapse the control labels to icons only when the
+  // toolbar can't fit them. We compare the width the two control groups actually
+  // need (measured live while their labels show) against the available row width
+  // — no guessed breakpoint (Tailwind container queries don't fire here).
+  // `naturalRef` remembers the labelled width so we know when there's room to
+  // expand again while collapsed.
+  const toolsRef = useRef<HTMLDivElement>(null)
+  const leftGroupRef = useRef<HTMLDivElement>(null)
+  const rightGroupRef = useRef<HTMLDivElement>(null)
+  const naturalRef = useRef(0)
+  const [compact, setCompact] = useState(false)
+  const recomputeCompact = useCallback(() => {
+    const row = toolsRef.current
+    const left = leftGroupRef.current
+    const right = rightGroupRef.current
+    if (!row || !left || !right) return
+    const available = row.clientWidth
+    if (compact) {
+      if (naturalRef.current && available >= naturalRef.current) setCompact(false)
+    } else {
+      // Labels are visible, so the groups report the width they truly need.
+      naturalRef.current = left.offsetWidth + right.offsetWidth + GROUP_MIN_GAP
+      if (available < naturalRef.current) setCompact(true)
+    }
+  }, [compact])
+  useEffect(() => {
+    const row = toolsRef.current
+    if (!row) return
+    const ro = new ResizeObserver(() => recomputeCompact())
+    ro.observe(row)
+    return () => ro.disconnect()
+  }, [recomputeCompact])
+  // Labels can change width without a row resize (model swap, cwd/team change),
+  // so re-measure when their content changes too.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps are the label-content inputs that change measured width
+  useEffect(() => {
+    recomputeCompact()
+  }, [
+    recomputeCompact,
+    currentKey,
+    agentType,
+    permissionMode,
+    cwd,
+    teamOptions,
+    showThinking,
+    contextTokens === undefined,
+  ])
+
   return (
     <div className="shrink-0 px-4 pt-2 pb-4" ref={containerRef}>
       <div className="mx-auto max-w-3xl" ref={composerRef}>
@@ -342,8 +394,8 @@ export function ChatInput({
             <PromptInputTextarea autoFocus disabled={disabled} placeholder={placeholder ?? 'Message the swarm…'} />
           </PromptInputBody>
           <PromptInputFooter>
-            <PromptInputTools className="w-full">
-              <div className="flex items-center gap-1">
+            <div className="flex w-full items-center overflow-hidden" ref={toolsRef}>
+              <div className="flex shrink-0 items-center gap-1" ref={leftGroupRef}>
                 <ComposerAddMenu
                   anchor={composerRef}
                   executionMode={executionMode}
@@ -351,16 +403,18 @@ export function ChatInput({
                   onInsertPath={insertPathReference}
                   supportsImages={supportsImages}
                 />
-                <ComposerCwdMenu anchor={composerRef} cwd={cwd} onCwdChange={onCwdChange} />
+                <ComposerCwdMenu anchor={composerRef} compact={compact} cwd={cwd} onCwdChange={onCwdChange} />
                 {teamOptions && teamOptions.length > 0 && (
                   <PromptInputSelect onValueChange={(v) => onAgentTypeChange?.(String(v))} value={agentType ?? 'ceo'}>
                     <PromptInputSelectTrigger>
                       <Users className="size-4" />
-                      <PromptInputSelectValue>
-                        {(v) =>
-                          teamOptions.find((t) => t.id === ((v as string) ?? 'ceo'))?.label ?? teamOptions[0]?.label
-                        }
-                      </PromptInputSelectValue>
+                      {!compact && (
+                        <PromptInputSelectValue>
+                          {(v) =>
+                            teamOptions.find((t) => t.id === ((v as string) ?? 'ceo'))?.label ?? teamOptions[0]?.label
+                          }
+                        </PromptInputSelectValue>
+                      )}
                     </PromptInputSelectTrigger>
                     <PromptInputSelectContent>
                       {teamOptions.map((t) => (
@@ -377,9 +431,11 @@ export function ChatInput({
                 >
                   <PromptInputSelectTrigger>
                     <Shield className="size-4" />
-                    <PromptInputSelectValue>
-                      {(v) => PERMISSION_LABELS[(v as PermissionMode) ?? 'ask']}
-                    </PromptInputSelectValue>
+                    {!compact && (
+                      <PromptInputSelectValue>
+                        {(v) => PERMISSION_LABELS[(v as PermissionMode) ?? 'ask']}
+                      </PromptInputSelectValue>
+                    )}
                   </PromptInputSelectTrigger>
                   <PromptInputSelectContent>
                     <PromptInputSelectItem value="ask">{PERMISSION_LABELS.ask}</PromptInputSelectItem>
@@ -387,7 +443,8 @@ export function ChatInput({
                   </PromptInputSelectContent>
                 </PromptInputSelect>
               </div>
-              <div className="ml-auto flex items-center gap-1">
+              <div className="flex-1" />
+              <div className="flex shrink-0 items-center gap-3" ref={rightGroupRef}>
                 {contextTokens !== undefined && contextWindow !== undefined && (
                   <ContextRing
                     cacheRead={cacheReadTokens}
@@ -396,65 +453,67 @@ export function ChatInput({
                     window={contextWindow}
                   />
                 )}
+                {options.length > 0 && (
+                  // Single select merging the model picker and the thinking-level
+                  // picker. The value tracks the model only, so base-ui highlights
+                  // the model row; picking a thinking level calls onPickThinking
+                  // and re-renders without moving the highlight.
+                  <PromptInputSelect
+                    onValueChange={(v) => {
+                      const value = String(v)
+                      if (value.startsWith('thinking::')) {
+                        void onPickThinking(value.slice('thinking::'.length))
+                        return
+                      }
+                      void onPickModel(value)
+                    }}
+                    value={currentKey}
+                  >
+                    <PromptInputSelectTrigger>
+                      {compact ? (
+                        <Cpu className="size-4" />
+                      ) : (
+                        <PromptInputSelectValue>
+                          {() => {
+                            const modelId = activeRow?.model ?? 'Model'
+                            const lvl = activeRow?.thinkingLevel
+                            const think = showThinking && lvl ? ` · ${THINKING_LABELS[lvl]}` : ''
+                            return `${modelId}${think}`
+                          }}
+                        </PromptInputSelectValue>
+                      )}
+                    </PromptInputSelectTrigger>
+                    <PromptInputSelectContent className="w-auto min-w-(--anchor-width) max-w-[min(28rem,90vw)]">
+                      <SelectGroup>
+                        <SelectLabel>模型</SelectLabel>
+                        {options.map((o) => (
+                          <PromptInputSelectItem key={o.key} value={o.key}>
+                            {o.providerName} · {o.modelId}
+                          </PromptInputSelectItem>
+                        ))}
+                      </SelectGroup>
+                      {showThinking && activeRow && (
+                        <>
+                          <SelectSeparator />
+                          <SelectGroup>
+                            <SelectLabel>思考程度</SelectLabel>
+                            {thinkingLevels.map((lvl) => (
+                              <PromptInputSelectItem key={lvl} value={`thinking::${lvl}`}>
+                                {THINKING_LABELS[lvl]}
+                              </PromptInputSelectItem>
+                            ))}
+                          </SelectGroup>
+                        </>
+                      )}
+                    </PromptInputSelectContent>
+                  </PromptInputSelect>
+                )}
+                <PromptInputSubmit
+                  disabled={running ? false : disabled}
+                  onStop={onStop}
+                  status={running ? 'streaming' : undefined}
+                />
               </div>
-            </PromptInputTools>
-            <div className="flex items-center gap-3">
-              {options.length > 0 && (
-                // Single select merging the model picker and the thinking-level
-                // picker. The value tracks the model only, so base-ui highlights
-                // the model row; picking a thinking level calls onPickThinking
-                // and re-renders without moving the highlight.
-                <PromptInputSelect
-                  onValueChange={(v) => {
-                    const value = String(v)
-                    if (value.startsWith('thinking::')) {
-                      void onPickThinking(value.slice('thinking::'.length))
-                      return
-                    }
-                    void onPickModel(value)
-                  }}
-                  value={currentKey}
-                >
-                  <PromptInputSelectTrigger>
-                    <PromptInputSelectValue>
-                      {() => {
-                        const modelId = activeRow?.model ?? 'Model'
-                        const lvl = activeRow?.thinkingLevel
-                        const think = showThinking && lvl ? ` · ${THINKING_LABELS[lvl]}` : ''
-                        return `${modelId}${think}`
-                      }}
-                    </PromptInputSelectValue>
-                  </PromptInputSelectTrigger>
-                  <PromptInputSelectContent className="w-auto min-w-(--anchor-width) max-w-[min(28rem,90vw)]">
-                    <SelectGroup>
-                      <SelectLabel>模型</SelectLabel>
-                      {options.map((o) => (
-                        <PromptInputSelectItem key={o.key} value={o.key}>
-                          {o.providerName} · {o.modelId}
-                        </PromptInputSelectItem>
-                      ))}
-                    </SelectGroup>
-                    {showThinking && activeRow && (
-                      <>
-                        <SelectSeparator />
-                        <SelectGroup>
-                          <SelectLabel>思考程度</SelectLabel>
-                          {thinkingLevels.map((lvl) => (
-                            <PromptInputSelectItem key={lvl} value={`thinking::${lvl}`}>
-                              {THINKING_LABELS[lvl]}
-                            </PromptInputSelectItem>
-                          ))}
-                        </SelectGroup>
-                      </>
-                    )}
-                  </PromptInputSelectContent>
-                </PromptInputSelect>
-              )}
-              <PromptInputSubmit
-                disabled={running ? false : disabled}
-                onStop={onStop}
-                status={running ? 'streaming' : undefined}
-              />
             </div>
           </PromptInputFooter>
         </PromptInput>

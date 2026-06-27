@@ -19,6 +19,11 @@ export function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 900,
     height: 670,
+    // Floor the window so the composer toolbar never gets squeezed past the
+    // point its controls collapse to icons (see chat-input footer container
+    // queries). Tune to taste.
+    minWidth: 680,
+    minHeight: 480,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: isMac ? '#00000000' : '#1b1b1f',
