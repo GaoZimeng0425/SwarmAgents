@@ -20,10 +20,10 @@ function toRepo(row: ApiRow): TrendingRepo {
     repoName: row.repo_name ?? '',
     description: row.description ?? '',
     language: row.language ?? '',
-    stars: Number(row.stars ?? 0),
-    forks: Number(row.forks ?? 0),
-    pullRequests: Number(row.pull_requests ?? 0),
-    totalScore: Number(row.total_score ?? 0),
+    stars: Number(row.stars) || 0,
+    forks: Number(row.forks) || 0,
+    pullRequests: Number(row.pull_requests) || 0,
+    totalScore: Number(row.total_score) || 0,
     contributorLogins: row.contributor_logins ?? '',
   }
 }
@@ -40,7 +40,7 @@ export async function fetchTrending(period: TrendingPeriod, language: string): P
   const startedAt = Date.now()
   log.info({ msg: 'trending fetch started', period, language })
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
     if (!res.ok) throw new Error(`OSSInsight API ${res.status} ${res.statusText}`)
     const body = (await res.json()) as ApiResponse
     const rows = body.data?.rows ?? []

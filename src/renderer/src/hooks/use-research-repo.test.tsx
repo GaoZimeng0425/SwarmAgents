@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { TrendingRepo } from '@shared/types/trending'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,12 @@ vi.mock('@tanstack/react-router', async (orig) => ({
 }))
 
 const navigateSpy = vi.fn()
+
+function makeWrapper(qc: QueryClient) {
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  }
+}
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -48,12 +55,16 @@ describe('useResearchRepo', () => {
     // Arrange: stub api methods
     const createSessionMock = vi.spyOn(api.swarmApi, 'createSession').mockResolvedValue({ sessionId: 'new-123' })
     const submitGoalMock = vi.spyOn(api.swarmApi, 'submitGoal').mockResolvedValue({ taskId: 'task-xyz' })
+    const updateSessionSettingsMock = vi
+      .spyOn(api.swarmApi, 'updateSessionSettings')
+      .mockResolvedValue(undefined as never)
 
     // Spy on the sessions store select method
     const selectSpy = vi.spyOn(useSessionsStore.getState(), 'select')
 
-    // Act: render the hook and invoke the returned callback
-    const { result } = renderHook(() => useResearchRepo())
+    // Act: render the hook wrapped in QueryClientProvider (useSubmitGoal uses useMutation)
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } } })
+    const { result } = renderHook(() => useResearchRepo(), { wrapper: makeWrapper(qc) })
     await act(async () => {
       await result.current(repo, 'past_week')
     })
@@ -69,6 +80,14 @@ describe('useResearchRepo', () => {
       permissionMode: 'ask',
       executionMode: 'goal',
       agentType: 'ceo',
+    })
+
+    // Assert: settings persisted — regression from original useResearchRepo that
+    // bypassed useSubmitGoal and omitted the updateSessionSettings call.
+    expect(updateSessionSettingsMock).toHaveBeenCalledWith('new-123', {
+      cwd: undefined,
+      permissionMode: 'ask',
+      executionMode: 'goal',
     })
 
     // Assert: navigate called to the new session route

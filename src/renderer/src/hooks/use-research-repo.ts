@@ -2,8 +2,7 @@ import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
 import { TRENDING_PERIOD_LABELS } from '@shared/types/trending'
 import { useNavigate } from '@tanstack/react-router'
 
-import { swarmApi } from '@/lib/api'
-import { useSessionsStore } from '@/stores/sessions'
+import { useSubmitGoal } from './use-tasks'
 
 // Build the Chinese research goal handed to the agent when a trending repo is clicked.
 export function buildResearchPrompt(repo: TrendingRepo, period: TrendingPeriod): string {
@@ -17,15 +16,15 @@ export function buildResearchPrompt(repo: TrendingRepo, period: TrendingPeriod):
 
 // Returns a callback that always creates a FRESH session, submits a research
 // goal about the repo, and navigates to the new session.
+// Delegates to useSubmitGoal so settings persistence is included automatically.
 export function useResearchRepo(): (repo: TrendingRepo, period: TrendingPeriod) => Promise<void> {
   const navigate = useNavigate()
+  const submitGoal = useSubmitGoal()
   return async (repo, period) => {
-    const { sessionId } = await swarmApi.createSession()
-    useSessionsStore.getState().select(sessionId)
-    await swarmApi.submitGoal(sessionId, buildResearchPrompt(repo, period), undefined, {
-      permissionMode: 'ask',
-      executionMode: 'goal',
-      agentType: 'ceo',
+    const { sessionId } = await submitGoal.mutateAsync({
+      goal: buildResearchPrompt(repo, period),
+      options: { permissionMode: 'ask', executionMode: 'goal', agentType: 'ceo' },
+      forceNew: true,
     })
     void navigate({ to: '/session/$sessionId', params: { sessionId } })
   }

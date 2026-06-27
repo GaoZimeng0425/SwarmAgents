@@ -82,4 +82,15 @@ describe('fetchTrending', () => {
     mockFetchOnce({}, false, 500)
     await expect(fetchTrending('past_24_hours', 'Java')).rejects.toThrow(/500/)
   })
+
+  it('propagates an abort/timeout rejection', async () => {
+    const abortError = new DOMException('The operation was aborted.', 'AbortError')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw abortError
+      })
+    )
+    await expect(fetchTrending('past_week', 'TypeScript')).rejects.toThrow('aborted')
+  })
 })

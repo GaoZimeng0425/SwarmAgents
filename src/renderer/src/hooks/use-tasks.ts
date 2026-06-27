@@ -29,12 +29,14 @@ export function useSubmitGoal() {
       goal,
       attachments,
       options,
+      forceNew,
     }: {
       goal: string
       attachments?: import('@shared/types/task').Attachment[]
       options?: import('@shared/types/task').TaskOptions
+      forceNew?: boolean
     }): Promise<{ sessionId: string }> => {
-      let sessionId = useSessionsStore.getState().selectedSessionId
+      let sessionId = forceNew ? null : useSessionsStore.getState().selectedSessionId
       if (!sessionId) {
         const created = await swarmApi.createSession()
         sessionId = created.sessionId
