@@ -49,4 +49,25 @@ describe('builtin roster', () => {
     expect(byId['training-head'].systemPrompt).toContain('design-agent-team')
     expect(byId['training-author'].systemPrompt).toContain('design-agent-team')
   })
+
+  it('coordinators carry the borrowed coordination protocol', () => {
+    // CEO + every head + the planner delegate, so they get the shared protocol.
+    expect(byId.ceo.systemPrompt).toContain('retry once')
+    expect(byId.planner.systemPrompt).toContain('retry once')
+    for (const a of defaultAgents) {
+      if (a.teamRole === 'head') {
+        expect(a.systemPrompt, `head ${a.id} missing protocol`).toContain('retry once')
+      }
+    }
+  })
+
+  it('only the CEO carries the goal-integration addendum', () => {
+    expect(byId.ceo.systemPrompt).toContain('assumptions you are delegating under')
+    expect(byId['engineering-lead'].systemPrompt).not.toContain('assumptions you are delegating under')
+  })
+
+  it('non-coordinating ICs do not get the coordination protocol', () => {
+    expect(byId.engineer.systemPrompt).not.toContain('retry once')
+    expect(byId.reviewer.systemPrompt).not.toContain('retry once')
+  })
 })
