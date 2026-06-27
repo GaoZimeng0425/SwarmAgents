@@ -44,4 +44,9 @@ describe('builtin roster', () => {
     expect(byId.ceo.systemPrompt).toContain("teamRole: 'head'")
     expect(byId['engineering-lead'].systemPrompt).toContain("team: 'dev'")
   })
+
+  it('the training team is pointed at the design-agent-team skill', () => {
+    expect(byId['training-head'].systemPrompt).toContain('design-agent-team')
+    expect(byId['training-author'].systemPrompt).toContain('design-agent-team')
+  })
 })
