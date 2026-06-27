@@ -5,7 +5,18 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import type { SessionSummary } from '@shared/types/ui'
 import { useNavigate } from '@tanstack/react-router'
-import { CalendarClock, Loader2, Pencil, Pin, PinOff, Search, SquarePen, Trash2 } from 'lucide-react'
+import {
+  CalendarClock,
+  ChevronRight,
+  Folder,
+  Loader2,
+  Pencil,
+  Pin,
+  PinOff,
+  Search,
+  SquarePen,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -30,9 +41,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { formatTokens } from '@/lib/format-usage'
+import { type DirectoryGroup, flattenForReorder, groupSessionsByDirectory, UNGROUPED } from '@/lib/session-grouping'
 import { pickNextSession } from '@/lib/session-nav'
 import { cn } from '@/lib/utils'
 import { useSearchDialog } from '@/stores/search-dialog'
+import { type SessionViewMode, useSessionView } from '@/stores/session-view'
 import { useSessionsStore } from '@/stores/sessions'
 
 type LiveStatus = 'running' | 'awaiting' | 'idle'
@@ -52,6 +65,54 @@ function SortableSessionRow({ id, children }: { id: string; children: React.Reac
   )
 }
 
+// A collapsible, draggable directory header with its session children nested
+// underneath. The header doubles as the drag handle and the collapse toggle —
+// the pointer sensor's distance threshold keeps a click from starting a drag.
+function SortableDirectoryGroup({
+  dir,
+  label,
+  count,
+  collapsed,
+  draggable,
+  onToggle,
+  children,
+}: {
+  dir: string
+  label: string
+  count: number
+  collapsed: boolean
+  draggable: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dir,
+    disabled: !draggable,
+  })
+  return (
+    <div
+      className="min-w-0"
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+    >
+      <button
+        className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-left font-medium text-muted-foreground text-xs transition-colors hover:bg-muted/30 hover:text-foreground"
+        onClick={onToggle}
+        title={dir === UNGROUPED ? '无目录' : dir}
+        type="button"
+        {...attributes}
+        {...listeners}
+      >
+        <ChevronRight className={cn('size-3.5 shrink-0 transition-transform', !collapsed && 'rotate-90')} />
+        <Folder className="size-3.5 shrink-0" />
+        <span className="flex-1 truncate">{label}</span>
+        <span className="shrink-0 text-muted-foreground/50 tabular-nums">{count}</span>
+      </button>
+      {!collapsed && <div className="mt-1 ml-2 flex flex-col gap-1 border-border/30 border-l pl-2">{children}</div>}
+    </div>
+  )
+}
+
 export function SessionList(): React.JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const selected = useSessionsStore((s) => s.selectedSessionId)
@@ -62,6 +123,13 @@ export function SessionList(): React.JSX.Element {
   const navigate = useNavigate()
   const tasks = useTasks()
   const openSearch = useSearchDialog((s) => s.openSearch)
+
+  const mode = useSessionView((s) => s.mode)
+  const setMode = useSessionView((s) => s.setMode)
+  const directoryOrder = useSessionView((s) => s.directoryOrder)
+  const setDirectoryOrder = useSessionView((s) => s.setDirectoryOrder)
+  const collapsed = useSessionView((s) => s.collapsed)
+  const toggleCollapsed = useSessionView((s) => s.toggleCollapsed)
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -83,20 +151,64 @@ export function SessionList(): React.JSX.Element {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  const onDragEnd = (e: DragEndEvent): void => {
+  const systemSession = sessions.find((s) => s.isSystem)
+  const userVisibleSessions = useMemo(() => sessions.filter((s) => !s.isSystem), [sessions])
+  const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions])
+  const groups = useMemo(() => groupSessionsByDirectory(sessions, directoryOrder), [sessions, directoryOrder])
+
+  // Persist a new global session order to the backend (optimistic locally).
+  const persistOrder = (orderedIds: string[]): void => {
+    reorder(orderedIds)
+    void swarmApi.reorderSessions(orderedIds).catch((err) => {
+      console.error(err)
+      toast.error('Could not save the new order.')
+    })
+  }
+
+  // Flat mode: reorder the whole (non-system) list, same as before.
+  const onFlatDragEnd = (e: DragEndEvent): void => {
     const { active, over } = e
     if (!over || active.id === over.id) return
-    const ids = sessions.filter((s) => !s.isSystem).map((s) => s.id)
+    const ids = userVisibleSessions.map((s) => s.id)
     const from = ids.indexOf(active.id as string)
     const to = ids.indexOf(over.id as string)
     if (from < 0 || to < 0) return
     const next = [...ids]
     next.splice(to, 0, next.splice(from, 1)[0])
-    reorder(next) // optimistic
-    void swarmApi.reorderSessions(next).catch((err) => {
-      console.error(err)
-      toast.error('Could not save the new order.')
-    })
+    persistOrder(next)
+  }
+
+  // Directory mode: reorder the directory groups themselves (localStorage only).
+  const onDirDragEnd = (e: DragEndEvent): void => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    if (active.id === UNGROUPED || over.id === UNGROUPED) return
+    const dirs = groups.map((g) => g.dir).filter((d) => d !== UNGROUPED)
+    const from = dirs.indexOf(active.id as string)
+    const to = dirs.indexOf(over.id as string)
+    if (from < 0 || to < 0) return
+    const next = [...dirs]
+    next.splice(to, 0, next.splice(from, 1)[0])
+    setDirectoryOrder(next)
+  }
+
+  // Directory mode: reorder sessions within a single group, then persist the
+  // full flattened order so backend sortOrder matches the visible order.
+  const onSessionDragEnd = (group: DirectoryGroup, e: DragEndEvent): void => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const ids = group.sessions.map((s) => s.id)
+    const from = ids.indexOf(active.id as string)
+    const to = ids.indexOf(over.id as string)
+    if (from < 0 || to < 0) return // over belongs to a different group — ignore
+    const nextIds = [...ids]
+    nextIds.splice(to, 0, nextIds.splice(from, 1)[0])
+    const nextGroups = groups.map((g) =>
+      g.dir === group.dir
+        ? { ...g, sessions: nextIds.map((id) => byId.get(id)).filter((s): s is SessionSummary => Boolean(s)) }
+        : g
+    )
+    persistOrder(flattenForReorder(nextGroups))
   }
 
   // Don't create a session here — that left empty sessions behind. Route to the
@@ -272,8 +384,21 @@ export function SessionList(): React.JSX.Element {
     )
   }
 
-  const systemSession = sessions.find((s) => s.isSystem)
-  const userVisibleSessions = sessions.filter((s) => !s.isSystem)
+  // Wrap a session row in a sortable shell unless it's being renamed inline.
+  const renderSortableRow = (s: SessionSummary): React.JSX.Element => {
+    const row = renderRow(s)
+    if (renamingId === s.id) return row
+    return (
+      <SortableSessionRow id={s.id} key={s.id}>
+        {row}
+      </SortableSessionRow>
+    )
+  }
+
+  const segments: { value: SessionViewMode; label: string }[] = [
+    { value: 'flat', label: '默认' },
+    { value: 'directory', label: '按目录' },
+  ]
 
   return (
     // The sidebar header (toggle + nav arrows) already clears the traffic
@@ -296,38 +421,91 @@ export function SessionList(): React.JSX.Element {
         Search
         <kbd className="ml-auto font-sans text-[10px] text-muted-foreground/60 normal-case tracking-normal">⌘K</kbd>
       </button>
+
+      {/* Segmented control: flat list vs. directory grouping. Persisted. */}
+      <div className="mt-2 flex shrink-0 rounded-lg bg-muted/40 p-0.5 text-xs">
+        {segments.map((seg) => (
+          <button
+            className={cn(
+              'flex-1 rounded-md px-2 py-1 font-medium transition-colors',
+              mode === seg.value
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+            key={seg.value}
+            onClick={() => setMode(seg.value)}
+            type="button"
+          >
+            {seg.label}
+          </button>
+        ))}
+      </div>
+
       <ScrollArea className="mt-2 min-h-0 flex-1">
         {systemSession && (
           <div className="mb-1 flex flex-col gap-1 border-border/30 border-b pb-1">
             {renderSystemRow(systemSession)}
           </div>
         )}
-        <DndContext
-          collisionDetection={closestCenter}
-          modifiers={[restrictToVerticalAxis]}
-          onDragEnd={onDragEnd}
-          sensors={sensors}
-        >
-          <SortableContext items={userVisibleSessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-            <div className="flex flex-col gap-1">
-              {userVisibleSessions.map((s) => {
-                const row = renderRow(s)
-                // Rename input: don't wrap in SortableSessionRow (no drag while editing)
-                if (renamingId === s.id) return row
-                return (
-                  <SortableSessionRow id={s.id} key={s.id}>
-                    {row}
-                  </SortableSessionRow>
-                )
-              })}
-              {userVisibleSessions.length === 0 && (
-                <p className="px-3 py-2 text-muted-foreground text-xs">
-                  No chats yet. Click &quot;New chat&quot; above.
-                </p>
-              )}
-            </div>
-          </SortableContext>
-        </DndContext>
+
+        {mode === 'flat' ? (
+          <DndContext
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            onDragEnd={onFlatDragEnd}
+            sensors={sensors}
+          >
+            <SortableContext items={userVisibleSessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <div className="flex flex-col gap-1">
+                {userVisibleSessions.map((s) => renderSortableRow(s))}
+                {userVisibleSessions.length === 0 && (
+                  <p className="px-3 py-2 text-muted-foreground text-xs">
+                    No chats yet. Click &quot;New chat&quot; above.
+                  </p>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <DndContext
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            onDragEnd={onDirDragEnd}
+            sensors={sensors}
+          >
+            <SortableContext items={groups.map((g) => g.dir)} strategy={verticalListSortingStrategy}>
+              <div className="flex flex-col gap-1">
+                {groups.map((group) => (
+                  <SortableDirectoryGroup
+                    collapsed={Boolean(collapsed[group.dir])}
+                    count={group.sessions.length}
+                    dir={group.dir}
+                    draggable={group.dir !== UNGROUPED}
+                    key={group.dir}
+                    label={group.label}
+                    onToggle={() => toggleCollapsed(group.dir)}
+                  >
+                    <DndContext
+                      collisionDetection={closestCenter}
+                      modifiers={[restrictToVerticalAxis]}
+                      onDragEnd={(e) => onSessionDragEnd(group, e)}
+                      sensors={sensors}
+                    >
+                      <SortableContext items={group.sessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                        {group.sessions.map((s) => renderSortableRow(s))}
+                      </SortableContext>
+                    </DndContext>
+                  </SortableDirectoryGroup>
+                ))}
+                {groups.length === 0 && (
+                  <p className="px-3 py-2 text-muted-foreground text-xs">
+                    No chats yet. Click &quot;New chat&quot; above.
+                  </p>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
       </ScrollArea>
 
       <AlertDialog onOpenChange={(open) => !open && setPendingDelete(null)} open={pendingDelete !== null}>
@@ -335,7 +513,7 @@ export function SessionList(): React.JSX.Element {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              “{pendingDelete?.title ?? 'Untitled chat'}” and its history will be permanently removed. This cannot be
+              "{pendingDelete?.title ?? 'Untitled chat'}" and its history will be permanently removed. This cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
