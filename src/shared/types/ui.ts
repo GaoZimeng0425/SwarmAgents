@@ -314,6 +314,9 @@ export type SwarmBridge = {
   usage: {
     get(rangeDays: number): Promise<import('./usage').UsageStats>
   }
+  trending: {
+    get(period: import('./trending').TrendingPeriod, language: string): Promise<import('./trending').TrendingRepo[]>
+  }
   cron: {
     listForSession(sessionId: string): Promise<CronJobSummary[]>
     listAll(): Promise<ScheduledTask[]>

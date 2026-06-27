@@ -1,6 +1,7 @@
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
 import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task, TaskOptions } from '@shared/types/task'
+import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
 import type {
   CronJobSummary,
   CronRun,
@@ -44,6 +45,8 @@ export const swarmApi = {
   removeAgent: (id: string): Promise<AgentMutationResult> => window.swarm.agents.remove(id),
   restoreDefaultAgents: (): Promise<AgentMutationResult> => window.swarm.agents.restoreDefaults(),
   getUsageStats: (rangeDays: number): Promise<UsageStats> => window.swarm.usage.get(rangeDays),
+  getTrendingRepos: (period: TrendingPeriod, language: string): Promise<TrendingRepo[]> =>
+    window.swarm.trending.get(period, language),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
   listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),
