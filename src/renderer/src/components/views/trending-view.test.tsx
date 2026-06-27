@@ -53,4 +53,11 @@ describe('TrendingView', () => {
     render(wrap(<TrendingView />))
     await waitFor(() => expect(screen.getByText(/暂无/)).toBeInTheDocument())
   })
+
+  it('shows a loading indicator while fetching', () => {
+    // Never-resolving promise keeps isPending=true for the lifetime of this test
+    vi.spyOn(swarmApi, 'getTrendingRepos').mockReturnValue(new Promise(() => {}))
+    render(wrap(<TrendingView />))
+    expect(screen.getByText(/加载中/)).toBeInTheDocument()
+  })
 })
