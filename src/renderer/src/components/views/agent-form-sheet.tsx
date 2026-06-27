@@ -19,7 +19,7 @@ type AgentFormSheetProps = {
   onOpenChange: (open: boolean) => void
 }
 
-const SCOPES: ToolScope[] = ['peekaboo', 'web', 'fs', 'memory', 'authoring', 'all']
+const SCOPES: ToolScope[] = ['peekaboo', 'web', 'fs', 'memory', 'authoring', 'coordinate', 'all']
 
 /** Right-side form to create / edit / duplicate an agent. Prop-driven: it owns
  *  only local field state and calls onSubmit with the assembled definition;
