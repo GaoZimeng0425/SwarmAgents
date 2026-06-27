@@ -63,7 +63,14 @@ describe('builtin roster', () => {
 
   it('only the CEO carries the goal-integration addendum', () => {
     expect(byId.ceo.systemPrompt).toContain('assumptions you are delegating under')
-    expect(byId['engineering-lead'].systemPrompt).not.toContain('assumptions you are delegating under')
+    // No head and not the planner carry the CEO-only addendum.
+    for (const a of defaultAgents) {
+      if (a.teamRole === 'head' || a.id === 'planner') {
+        expect(a.systemPrompt, `${a.id} should not have the CEO addendum`).not.toContain(
+          'assumptions you are delegating under'
+        )
+      }
+    }
   })
 
   it('non-coordinating ICs do not get the coordination protocol', () => {
