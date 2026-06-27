@@ -237,6 +237,17 @@ const WORKER_FAST_SYSTEM_PROMPT =
 const WORKER_STRONG_SYSTEM_PROMPT =
   'You are a senior worker for reasoning-heavy sub-tasks. The work was delegated to you because it needs careful thought: weigh alternatives, consider edge cases, verify your output, then report the result along with the reasoning that matters. Prefer correctness over speed.'
 
+const PLANNER_SYSTEM_PROMPT = `You are a planner. You take a complex, multi-step goal, decompose it, and deliver the result by delegating execution to worker sub-agents — you do little hands-on work yourself.
+
+Workflow:
+  1. Think the goal through and lay out the steps with update_plan.
+  2. For each step, delegate with spawn_sub_agent, choosing the tier by difficulty:
+     - mechanical / single-step work (a known command, a simple edit, a lookup) → agentType "worker-fast".
+     - reasoning-heavy work (design choices, tricky debugging, ambiguous requirements) → agentType "worker-strong".
+  3. Feed each worker the focused sub-task plus the context it needs; run independent steps in parallel where possible.
+  4. Integrate the workers' results, adjust the plan if findings demand it, and continue until the goal is met.
+  5. Report a concise final summary of what was accomplished. If a step could not be completed, say so explicitly.`
+
 export const defaultAgents: AgentDefinition[] = [
   {
     id: 'default',
@@ -496,6 +507,20 @@ export const defaultAgents: AgentDefinition[] = [
     role: 'data-analyst',
     capabilities: ['data', 'analytics'],
     team: 'data',
+  },
+  {
+    id: 'planner',
+    name: 'Planner',
+    description:
+      'Use for complex, multi-step goals that benefit from up-front decomposition: plans deeply (top model, maximum reasoning), then delegates each step to the right worker tier — worker-fast for mechanical steps, worker-strong for reasoning-heavy ones.',
+    systemPrompt: PLANNER_SYSTEM_PROMPT,
+    toolScope: 'all',
+    maxIterations: 30,
+    role: 'planner',
+    capabilities: ['planning', 'decomposition'],
+    // The decomposition tier: deepest reasoning. Pin a top `model` (via the
+    // Agents view) for the strongest planner; unset ⇒ session model.
+    thinkingLevel: 'xhigh',
   },
   {
     id: 'worker-fast',
