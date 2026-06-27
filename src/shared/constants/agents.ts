@@ -250,7 +250,36 @@ Workflow:
   4. Integrate the workers' results, adjust the plan if findings demand it, and continue until the goal is met.
   5. Report a concise final summary of what was accomplished. If a step could not be completed, say so explicitly.`
 
-export const defaultAgents: AgentDefinition[] = [
+// Orchestrator craft borrowed from the harness plugin: every coordinating agent
+// (the CEO, each team head, and the planner) gets the same delegation protocol —
+// error handling, conflict reconciliation, and honest partial-result reporting —
+// appended once from a single source of truth rather than copied into each prompt.
+const COORDINATION_PROTOCOL = `Coordination protocol (applies whenever you delegate):
+- If a delegatee fails or returns nothing, retry once. If it still fails, proceed without that piece and record the gap explicitly in your final report.
+- If a critical part — or the majority of delegatees — fails, stop and report that you could not meet the goal, with what is missing and why.
+- When results conflict, keep both and note their source; never silently drop one.
+- Your final summary must honestly state what succeeded, what failed, and what was skipped. Never claim a deliverable you did not actually receive.`
+
+// Extra clauses only the CEO needs: it receives the raw, possibly vague goal and
+// integrates deliverables across multiple teams.
+const CEO_COORDINATION_ADDENDUM = `- The goal may be under-specified. Do not stall: state the assumptions you are delegating under in your message to each head, so their work is anchored.
+- For goals spanning multiple teams, integrate the heads' deliverables into one coherent result — reconcile overlaps and contradictions explicitly rather than concatenating.`
+
+/**
+ * Append the coordination protocol to every agent that delegates: the CEO, any
+ * team head (teamRole 'head'), and the standalone planner. The CEO additionally
+ * gets the goal-integration addendum. Non-coordinating agents pass through
+ * unchanged. Keeps the protocol text in one place instead of duplicated across
+ * the coordinator prompts.
+ */
+function applyCoordinationProtocol(def: AgentDefinition): AgentDefinition {
+  const isCoordinator = def.id === 'ceo' || def.teamRole === 'head' || def.id === 'planner'
+  if (!isCoordinator) return def
+  const addendum = def.id === 'ceo' ? `\n${CEO_COORDINATION_ADDENDUM}` : ''
+  return { ...def, systemPrompt: `${def.systemPrompt}\n\n${COORDINATION_PROTOCOL}${addendum}` }
+}
+
+const baseAgents: AgentDefinition[] = [
   {
     id: 'default',
     name: 'Default Agent',
@@ -553,6 +582,13 @@ export const defaultAgents: AgentDefinition[] = [
     thinkingLevel: 'high',
   },
 ]
+
+/**
+ * The builtin roster, with the borrowed coordination protocol applied to every
+ * coordinating agent. This is the exported source of truth; `baseAgents` is the
+ * raw definitions before the protocol is appended.
+ */
+export const defaultAgents: AgentDefinition[] = baseAgents.map(applyCoordinationProtocol)
 
 /** The default agent type — single source of truth for the fallback definition. */
 export const DEFAULT_AGENT_DEF: AgentDefinition = defaultAgents[0]
