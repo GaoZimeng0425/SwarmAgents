@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { BarChart3, CalendarClock, Settings } from 'lucide-react'
+import { BarChart3, CalendarClock, Settings, TrendingUp } from 'lucide-react'
 
 import { SessionList } from '@/components/session-list'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -58,6 +58,23 @@ export function AppSidebar(): React.JSX.Element {
               }
             />
             <TooltipContent side="top">用量统计</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Link
+                  // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
+                  activeProps={{ 'data-active': 'true' } as any}
+                  className={iconBtn}
+                  // biome-ignore lint/suspicious/noExplicitAny: `to` widened over Router's typed registry
+                  to={'/trending' as any}
+                >
+                  <TrendingUp />
+                </Link>
+              }
+            />
+            <TooltipContent side="top">GitHub 趋势</TooltipContent>
           </Tooltip>
 
           <Tooltip>
