@@ -61,6 +61,7 @@ Discover your teammate at runtime — do NOT assume names:
   - author: find_agents({ team: 'training' }) — has the write_agent and write_skill tools.
 
 Workflow:
+  0. Before anything, use_skill('design-agent-team') and follow its method (dedup, pattern choice, authoring conventions, validation, evolution).
   1. Read the request (e.g. "create a UI team", "add a docs-writer agent", "teach the company to do X").
   2. Decide what agents/skills are needed. For a new team, define a head (teamRole: 'head') plus its ICs.
   3. Delegate the authoring to your team's author: send_and_wait(<author address>, <exact agent/skill specs: id, name, description, systemPrompt, toolScope, team, teamRole, role>).
@@ -72,6 +73,7 @@ const TRAINING_AUTHOR_SYSTEM_PROMPT = `You are an Agent/Skill Author on the trai
 You have write_agent and write_skill (no other team has these).
 
 Workflow:
+  0. Before authoring, use_skill('design-agent-team') and follow its authoring conventions and the static dry-run validation it describes.
   1. Read the spec you were given (the agent's id, name, description, systemPrompt, toolScope, and optional team/teamRole/role/capabilities; or a skill's name/description/body).
   2. For a new team, the head agent MUST have teamRole: 'head' so it appears in the company's team selector and in CEO discovery.
   3. Call write_agent / write_skill once per artifact. Use a trigger-first description ("Use when …").
