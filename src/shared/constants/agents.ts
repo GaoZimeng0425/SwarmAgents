@@ -295,9 +295,9 @@ const baseAgents: AgentDefinition[] = [
     id: 'ceo',
     name: 'CEO',
     description:
-      'Use as the top of a software-company run: receives a high-level goal, delegates to the PM, and produces the final summary. Coordinates only — does not write code.',
+      'Use as the top of a software-company run: receives a high-level goal, delegates to the team heads, and produces the final summary. Coordinates only — does not write code.',
     systemPrompt: CEO_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'ceo',
     capabilities: ['delegation', 'summary'],
@@ -308,7 +308,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a goal into a concrete deliverable by coordinating an engineer and a reviewer, driving a fix/review loop until the work meets the bar.',
     systemPrompt: ENGINEERING_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 25,
     role: 'engineering-lead',
     capabilities: ['planning', 'coordination'],
@@ -370,7 +370,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a vague goal into a concrete product spec — problem, user stories, requirements, acceptance criteria and scope — that design and engineering can build against.',
     systemPrompt: PRODUCT_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'product-lead',
     capabilities: ['product', 'requirements', 'coordination'],
@@ -395,7 +395,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a product spec into a UI/UX design deliverable — key screens and flows — by coordinating a designer; reviews against the spec but does not write production code.',
     systemPrompt: DESIGN_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'design-lead',
     capabilities: ['design', 'ux', 'coordination'],
@@ -420,7 +420,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to own quality for a deliverable — decide a test strategy, coordinate a QA engineer, and report a PASS/FAIL verdict with defects, gating release.',
     systemPrompt: QA_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'qa-lead',
     capabilities: ['qa', 'coordination'],
@@ -445,7 +445,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to own build, release and infrastructure for a goal — plan the steps and coordinate a DevOps engineer, verifying the outcome is healthy.',
     systemPrompt: OPS_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'ops-lead',
     capabilities: ['devops', 'coordination'],
@@ -470,7 +470,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a deliverable into clear documentation — decide what docs are needed and for whom, coordinate a writer, and review drafts for accuracy.',
     systemPrompt: DOCS_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'docs-lead',
     capabilities: ['docs', 'coordination'],
@@ -495,7 +495,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to own a security review or audit — scope the threats, coordinate a security analyst, and report findings by severity with remediation.',
     systemPrompt: SECURITY_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'security-lead',
     capabilities: ['security', 'coordination'],
@@ -520,7 +520,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a question about usage or metrics into an evidence-backed answer by coordinating a data analyst and sanity-checking the result.',
     systemPrompt: DATA_LEAD_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'data-lead',
     capabilities: ['data', 'coordination'],
@@ -545,7 +545,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use for complex, multi-step goals that benefit from up-front decomposition: plans deeply (top model, maximum reasoning), then delegates each step to the right worker tier — worker-fast for mechanical steps, worker-strong for reasoning-heavy ones.',
     systemPrompt: PLANNER_SYSTEM_PROMPT,
-    toolScope: 'all',
+    toolScope: 'coordinate',
     maxIterations: 30,
     role: 'planner',
     capabilities: ['planning', 'decomposition'],

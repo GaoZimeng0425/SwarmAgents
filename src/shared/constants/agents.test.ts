@@ -77,4 +77,19 @@ describe('builtin roster', () => {
     expect(byId.engineer.systemPrompt).not.toContain('retry once')
     expect(byId.reviewer.systemPrompt).not.toContain('retry once')
   })
+
+  it('pure-delegator coordinators use the least-privilege coordinate scope', () => {
+    const coordinators = ['ceo', 'planner', 'engineering-lead', 'product-lead', 'design-lead', 'qa-lead', 'ops-lead', 'docs-lead', 'security-lead', 'data-lead']
+    for (const id of coordinators) {
+      expect(byId[id].toolScope, `${id} should be coordinate`).toBe('coordinate')
+    }
+    // The training head stays privileged; ICs keep full access.
+    expect(byId['training-head'].toolScope).toBe('authoring')
+    expect(byId.engineer.toolScope).toBe('all')
+    expect(byId['worker-fast'].toolScope).toBe('all')
+  })
+
+  it('the CEO description no longer references the renamed PM role', () => {
+    expect(byId.ceo.description).not.toContain('PM')
+  })
 })
