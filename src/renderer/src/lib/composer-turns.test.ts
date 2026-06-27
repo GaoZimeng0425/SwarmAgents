@@ -64,4 +64,30 @@ describe('classifyComposerTurns', () => {
     expect(activeTask).toBeUndefined()
     expect(queuedTasks).toEqual([])
   })
+
+  it('keeps a turn submitted mid-run out of the transcript (only in the pending list)', () => {
+    const running = rec({ id: 'r', status: 'running', startedAt: 100 })
+    const queued = rec({ id: 'q', status: 'pending', startedAt: 200 })
+    const { queuedTasks, transcriptTasks } = classifyComposerTurns([queued, running])
+    expect(queuedTasks.map((t) => t.id)).toEqual(['q'])
+    // The queued turn is staged in the composer; the transcript shows only the
+    // active running turn — not the just-submitted pending one.
+    expect(transcriptTasks.map((t) => t.id)).toEqual(['r'])
+  })
+
+  it('keeps the active (running and starting) turns in the transcript', () => {
+    const running = rec({ id: 'r', status: 'running', startedAt: 100 })
+    const done = rec({ id: 'd', status: 'completed', startedAt: 50 })
+    const { transcriptTasks } = classifyComposerTurns([done, running])
+    expect(transcriptTasks.map((t) => t.id).sort()).toEqual(['d', 'r'])
+  })
+
+  it('keeps sub-agent children in the transcript', () => {
+    const running = rec({ id: 'r', status: 'running', startedAt: 100 })
+    const child = rec({ id: 'c', status: 'pending', startedAt: 150, parentTaskId: 'r' })
+    const queued = rec({ id: 'q', status: 'pending', startedAt: 200 })
+    const { transcriptTasks } = classifyComposerTurns([running, child, queued])
+    // Children belong in the transcript; only the top-level queued turn is excluded.
+    expect(transcriptTasks.map((t) => t.id).sort()).toEqual(['c', 'r'])
+  })
 })

@@ -9,6 +9,13 @@ export type ComposerTurns = {
   activeTask: TaskRecord | undefined
   /** Turns genuinely waiting behind the active turn, FIFO (oldest first). */
   queuedTasks: TaskRecord[]
+  /**
+   * Tasks belonging in the conversation transcript: every session task except
+   * the queued ones, which are staged as pending cards in the composer and not
+   * yet part of the conversation. Keeps a message submitted mid-run out of the
+   * message list (it shows only in the pending list until it starts).
+   */
+  transcriptTasks: TaskRecord[]
 }
 
 /**
@@ -29,8 +36,11 @@ export function classifyComposerTurns(sessionTasks: TaskRecord[]): ComposerTurns
   const running = topLevel.find((t) => t.status === 'running' || t.status === 'awaiting_user')
   const pending = topLevel.filter((t) => t.status === 'pending').sort((a, b) => a.startedAt - b.startedAt)
   const startingTask = running ? undefined : pending[0]
+  const queuedTasks = startingTask ? pending.slice(1) : pending
+  const queuedIds = new Set(queuedTasks.map((t) => t.id))
   return {
     activeTask: running ?? startingTask,
-    queuedTasks: startingTask ? pending.slice(1) : pending,
+    queuedTasks,
+    transcriptTasks: sessionTasks.filter((t) => !queuedIds.has(t.id)),
   }
 }

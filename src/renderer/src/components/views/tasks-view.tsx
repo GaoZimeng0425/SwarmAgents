@@ -35,7 +35,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // briefly 'pending' too. classifyComposerTurns promotes the earliest pending
   // turn to active when nothing is running (instead of flashing it as a staging
   // card) and queues the rest FIFO; sub-agent children are excluded.
-  const { activeTask: runningTask, queuedTasks } = classifyComposerTurns(sessionTasks)
+  const { activeTask: runningTask, queuedTasks, transcriptTasks } = classifyComposerTurns(sessionTasks)
   const sessionPrompts = queue.filter((p) => p.sessionId === selectedSessionId)
   // Session execution history: each top-level turn that produced a plan becomes
   // a group, ordered oldest-first so the panel reads top-to-bottom as the run
@@ -105,7 +105,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
             if (!ready) return
             void submitGoal.mutateAsync({ goal: text, options: taskOptions })
           }}
-          tasks={sessionTasks}
+          tasks={transcriptTasks}
         />
         <ComposerOverlay
           onCancelQueued={(taskId) => {
