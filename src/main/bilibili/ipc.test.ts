@@ -17,6 +17,8 @@ vi.mock('electron', () => {
       },
       _handlers: handlers,
     },
+    shell: { openExternal: async () => undefined },
+    dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] as string[] }) },
   }
 })
 
@@ -78,6 +80,25 @@ describe('openVideo', () => {
     await openVideo('BV1x', opener)
     expect(opener).toHaveBeenNthCalledWith(1, 'bilipc://video/BV1x')
     expect(opener).toHaveBeenNthCalledWith(2, 'https://www.bilibili.com/video/BV1x')
+  })
+})
+
+describe('wireBilibiliIpc / bilibili:save', () => {
+  it('save returns no_vault when no obsidian vault is configured', async () => {
+    const fakeAuth: Auth = {
+      status: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      login: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      logout: vi.fn(async () => undefined),
+    }
+    const fakeStore: Store = {
+      load: vi.fn(async () => ({ credentials: creds, obsidian: null })),
+      save: vi.fn(async () => undefined),
+    }
+    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, getInjection: () => null })
+    const video = vid('BV1', 'CS')
+    const summary = { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] }
+    const result = await invokeHandler('bilibili:save', video, summary)
+    expect(result).toMatchObject({ ok: false, code: 'no_vault' })
   })
 })
 
