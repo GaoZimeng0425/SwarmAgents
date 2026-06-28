@@ -1,4 +1,10 @@
-import type { Attachment, ConsumedResources, PlanTodo } from '@shared/types/task'
+import type {
+  AcceptanceCriterion,
+  Attachment,
+  ConsumedResources,
+  PlanTodo,
+  VerificationRound,
+} from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
@@ -16,6 +22,8 @@ export type TaskRecord = {
   contextTokens?: number
   contextWindow?: number
   plan?: PlanTodo[]
+  acceptanceCriteria?: AcceptanceCriterion[]
+  verifications?: VerificationRound[]
   /** Set when this task is a spawned sub-agent (links to its parent). */
   parentTaskId?: string
   /** Sub-agent definition id, used to label the subagent block. */
@@ -97,6 +105,14 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
       break
     case 'task.plan':
       updated = { ...updated, plan: e.todos }
+      break
+    case 'task.criteria':
+      updated = { ...updated, acceptanceCriteria: e.criteria }
+      break
+    case 'task.verification':
+      // Append each round; the panel renders the latest. Mirrors the manager's
+      // read-modify-write persistence so the in-memory view matches the store.
+      updated = { ...updated, verifications: [...(updated.verifications ?? []), e.round] }
       break
     case 'task.permission_request':
       updated = setStatus(updated, 'awaiting_user')
