@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { emptyBudget, TaskSchema, taskStatusValues } from './task'
+import {
+  AcceptanceCriterionSchema,
+  ExecutableCheckSchema,
+  emptyBudget,
+  TaskSchema,
+  taskStatusValues,
+  VerificationRoundSchema,
+} from './task'
 
 describe('Task types', () => {
   it('exposes the full status enum', () => {
@@ -73,5 +80,76 @@ describe('TaskSchema.attachments', () => {
   it('accepts image attachments', () => {
     const t = TaskSchema.parse({ ...base, attachments: [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }] })
     expect(t.attachments[0]).toEqual({ data: 'AAAA', mimeType: 'image/png', name: 'a.png' })
+  })
+})
+
+const baseTask = {
+  id: '01HZZZZZZZZZZZZZZZZZZZZZZZ',
+  parentId: null,
+  agentDefId: 'default',
+  goal: 'do it',
+  status: 'pending',
+  assignedWorkerId: null,
+  toolAllowlist: [],
+  budget: { tokens: 1, calls: 1, wallMs: 1, usdCents: 1 },
+  used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
+  history: [],
+  attachments: [],
+  plan: [],
+  result: null,
+  createdAt: 1,
+  startedAt: null,
+  endedAt: null,
+}
+
+describe('acceptance criteria schemas', () => {
+  it('parses a command check', () => {
+    const c = ExecutableCheckSchema.parse({ kind: 'command', command: 'npm test', expectExitCode: 0 })
+    expect(c.kind).toBe('command')
+  })
+
+  it('parses a file_exists check', () => {
+    const c = ExecutableCheckSchema.parse({ kind: 'file_exists', path: 'dist/out.js' })
+    expect(c.kind).toBe('file_exists')
+  })
+
+  it('rejects an unknown check kind', () => {
+    expect(ExecutableCheckSchema.safeParse({ kind: 'http', url: 'x' }).success).toBe(false)
+  })
+
+  it('parses a criterion with and without a check', () => {
+    expect(
+      AcceptanceCriterionSchema.parse({
+        id: 'c1',
+        description: 'tests pass',
+        check: { kind: 'command', command: 'npm test' },
+      }).id
+    ).toBe('c1')
+    expect(AcceptanceCriterionSchema.parse({ id: 'c2', description: 'reads well' }).check).toBeUndefined()
+  })
+
+  it('parses a verification round', () => {
+    const r = VerificationRoundSchema.parse({
+      round: 0,
+      verdict: 'fail',
+      results: [{ criterionId: 'c1', pass: false, detail: 'exit 1' }],
+      gaps: ['c1: exit 1'],
+      ts: 123,
+    })
+    expect(r.verdict).toBe('fail')
+  })
+
+  it('accepts a task carrying criteria and verifications', () => {
+    const t = TaskSchema.parse({
+      ...baseTask,
+      acceptanceCriteria: [{ id: 'c1', description: 'tests pass' }],
+      verifications: [{ round: 0, verdict: 'pass', results: [], gaps: [], ts: 1 }],
+    })
+    expect(t.acceptanceCriteria).toHaveLength(1)
+    expect(t.verifications).toHaveLength(1)
+  })
+
+  it('accepts a task without criteria (backward compatible)', () => {
+    expect(TaskSchema.parse(baseTask).acceptanceCriteria).toBeUndefined()
   })
 })
