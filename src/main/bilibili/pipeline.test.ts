@@ -25,7 +25,12 @@ describe('processVideo', () => {
 
   it('returns the summary on the happy path', async () => {
     const r = await processVideo(baseDeps, CRED, 'BV1')
-    expect(r).toEqual({ ok: true, summary: { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] } })
+    expect(r).toEqual({
+      ok: true,
+      summary: { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] },
+      text: '字幕文本',
+      source: 'subtitle',
+    })
   })
 
   it('maps a summarize throw to llm_failed', async () => {

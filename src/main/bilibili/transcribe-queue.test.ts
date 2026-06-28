@@ -31,7 +31,7 @@ describe('createTranscribeQueue', () => {
     const stages: string[] = []
     q.onProgress((p: BiliTranscribeProgress) => stages.push(p.stage))
     const res = await q.enqueue('BV1')
-    expect(res).toEqual({ ok: true, summary: SUMMARY })
+    expect(res).toEqual({ ok: true, summary: SUMMARY, text: '转写文本', source: 'transcript' })
     expect(stages).toEqual(['queued', 'audio', 'transcribing', 'summarizing', 'done'])
   })
 
