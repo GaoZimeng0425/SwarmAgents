@@ -11,6 +11,10 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+  # sherpa-onnx ships native .node + onnxruntime .dylib loaded at runtime;
+  # they must live unpacked on disk, not inside the asar archive.
+  - node_modules/sherpa-onnx-node/**
+  - node_modules/sherpa-onnx-*/**
 # Registers swarmagents:// as a default protocol client. electron-builder
 # writes the macOS CFBundleURLTypes (Info.plist) and Windows NSIS registry keys.
 protocols:
