@@ -14,11 +14,11 @@ describe('UsageStatsSchema', () => {
         messages: 8,
         activeDays: 1,
         currentStreak: 1,
-        topModel: { model: 'GLM-5.2', tokens: 100, pct: 100 },
+        topModel: { model: 'GLM-5.2', tokens: 100, usdCents: 5, pct: 100 },
       },
       daily: [{ date: '2026-06-17', tokens: 100 }],
       dailyByModel: [{ date: '2026-06-17', model: 'GLM-5.2', tokens: 100 }],
-      byModel: [{ model: 'GLM-5.2', tokens: 100, pct: 100 }],
+      byModel: [{ model: 'GLM-5.2', tokens: 100, usdCents: 5, pct: 100 }],
       heatmap: [{ date: '2026-06-17', tokens: 100 }],
     })
     expect(ok.success).toBe(true)
