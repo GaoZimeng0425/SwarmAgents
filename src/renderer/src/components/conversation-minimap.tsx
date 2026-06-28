@@ -64,7 +64,7 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
     <TooltipProvider delay={150}>
       <nav
         aria-label="Conversation navigation"
-        className="absolute bottom-6 left-2 z-20 flex max-h-[60%] flex-col justify-end gap-1.5 overflow-hidden"
+        className="absolute bottom-8 left-3 z-20 flex max-h-[55%] flex-col justify-end gap-1.5 overflow-hidden rounded-full bg-muted/60 p-2 ring-1 ring-border/50 backdrop-blur-sm"
       >
         {items.map((it) => {
           const active = it.taskId === activeId
@@ -73,8 +73,8 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
             <button
               aria-label={label.slice(0, 80)}
               className={cn(
-                'h-0.5 rounded-full bg-muted-foreground/30 transition-all hover:bg-primary',
-                active ? 'w-6 bg-primary' : 'w-4'
+                'h-1.5 rounded-full transition-all hover:bg-foreground/70',
+                active ? 'w-7 bg-primary' : 'w-4 bg-muted-foreground/40'
               )}
               onClick={() => jump(it.taskId)}
               type="button"
