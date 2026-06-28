@@ -76,6 +76,8 @@ export type ConversationStore = {
   getAgentSnapshot(sessionId: string): AgentMessage[]
   appendTaskEvent(taskId: string, event: import('@shared/types/task').TaskEvent): void
   saveTaskPlan(taskId: string, plan: Task['plan']): void
+  saveTaskCriteria(taskId: string, criteria: Task['acceptanceCriteria']): void
+  saveTaskVerifications(taskId: string, rounds: Task['verifications']): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
   saveTaskUsage(taskId: string, used: Task['used'], contextWindow?: number): void
@@ -156,6 +158,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
       history             TEXT NOT NULL DEFAULT '[]',
       attachments         TEXT NOT NULL DEFAULT '[]',
       plan                TEXT NOT NULL DEFAULT '[]',
+      acceptance_criteria TEXT NOT NULL DEFAULT '[]',
+      verifications       TEXT NOT NULL DEFAULT '[]',
       context_window      INTEGER,
       created_at          INTEGER NOT NULL,
       started_at          INTEGER,
@@ -246,6 +250,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
     'ALTER TABLE sessions ADD COLUMN agent_type TEXT',
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
+    `ALTER TABLE tasks ADD COLUMN acceptance_criteria TEXT NOT NULL DEFAULT '[]'`,
+    `ALTER TABLE tasks ADD COLUMN verifications TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
     'ALTER TABLE cron_jobs ADD COLUMN origin_session_id TEXT',
   ]) {
@@ -298,6 +304,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
     ) as Task['history'],
     attachments: JSON.parse((row.attachments as string) ?? '[]') as Task['attachments'],
     plan: JSON.parse((row.plan as string) ?? '[]') as Task['plan'],
+    acceptanceCriteria: JSON.parse((row.acceptance_criteria as string) ?? '[]') as Task['acceptanceCriteria'],
+    verifications: JSON.parse((row.verifications as string) ?? '[]') as Task['verifications'],
     result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
     createdAt: row.created_at as number,
     startedAt: (row.started_at as number | null) ?? null,
@@ -460,8 +468,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `INSERT OR REPLACE INTO tasks
      (id, session_id, parent_id, goal, status, result, budget, used,
       agent_def_id, assigned_worker_id, tool_allowlist, history, attachments, plan,
+      acceptance_criteria, verifications,
       created_at, started_at, ended_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
   // COALESCE keeps a previously-stored window when this call has none, so a
@@ -485,6 +494,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtGetTaskEvents = db.prepare('SELECT event FROM task_events WHERE task_id = ? ORDER BY id')
   const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
+  const stmtSetTaskCriteria = db.prepare('UPDATE tasks SET acceptance_criteria = ? WHERE id = ?')
+  const stmtSetTaskVerifications = db.prepare('UPDATE tasks SET verifications = ? WHERE id = ?')
 
   const stmtInsertTaskWaiter = db.prepare(
     `INSERT INTO task_waiters (id, session_id, waiter_address, task_id, goal, created_at)
@@ -665,6 +676,12 @@ export function createConversationStore(dbPath: string): ConversationStore {
     saveTaskPlan(taskId, plan) {
       stmtSetTaskPlan.run(JSON.stringify(plan), taskId)
     },
+    saveTaskCriteria(taskId, criteria) {
+      stmtSetTaskCriteria.run(JSON.stringify(criteria), taskId)
+    },
+    saveTaskVerifications(taskId, rounds) {
+      stmtSetTaskVerifications.run(JSON.stringify(rounds), taskId)
+    },
     saveTask(task, sessionId) {
       stmtInsertTask.run(
         task.id,
@@ -681,6 +698,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
         JSON.stringify(task.history),
         JSON.stringify(task.attachments ?? []),
         JSON.stringify(task.plan ?? []),
+        JSON.stringify(task.acceptanceCriteria ?? []),
+        JSON.stringify(task.verifications ?? []),
         task.createdAt,
         task.startedAt ?? null,
         task.endedAt ?? null
