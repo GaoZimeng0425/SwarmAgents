@@ -9,3 +9,4 @@ out
 .claude/worktrees/
 screenshot_*.png
 *.tsbuildinfo
+references
