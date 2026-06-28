@@ -85,7 +85,7 @@ export function BilibiliView(): React.JSX.Element {
           {listQuery.data.folders.map(({ folder, videos }) => (
             <section className="flex flex-col gap-2" key={folder.id}>
               <h2 className="font-medium text-foreground/80 text-sm">{folder.title}</h2>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
                 {videos.map((v) => (
                   <VideoCard key={v.bvid} onClick={handleClickVideo} video={v} />
                 ))}
@@ -95,7 +95,7 @@ export function BilibiliView(): React.JSX.Element {
           {listQuery.data.watchLater.length > 0 ? (
             <section className="flex flex-col gap-2">
               <h2 className="font-medium text-foreground/80 text-sm">稍后再看</h2>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
                 {listQuery.data.watchLater.map((v) => (
                   <VideoCard key={v.bvid} onClick={handleClickVideo} video={v} />
                 ))}
