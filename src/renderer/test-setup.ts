@@ -12,6 +12,21 @@ if (!globalThis.ResizeObserver) {
   globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
 }
 
+// jsdom does not implement IntersectionObserver; ConversationMinimap observes
+// user-turn elements to highlight the in-view tick. Provide a no-op stub so the
+// component mounts in tests without crashing.
+if (!globalThis.IntersectionObserver) {
+  class IntersectionObserverStub {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+    takeRecords(): [] {
+      return []
+    }
+  }
+  globalThis.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver
+}
+
 // The remaining stubs need DOM globals. Renderer tests that opt into the `node`
 // environment (pure-logic specs via `// @vitest-environment node`) share this
 // setup file, so guard on the DOM being present before touching it.
