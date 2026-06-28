@@ -50,17 +50,27 @@ export const ObsidianConfigSchema = z
 
 export type ObsidianConfig = z.infer<typeof ObsidianConfigSchema>
 
+export const TranscriptionConfigSchema = z
+  .object({
+    ffmpegPath: z.string(),
+    modelDir: z.string(),
+  })
+  .strict()
+
+export type TranscriptionConfig = z.infer<typeof TranscriptionConfigSchema>
+
 export const BilibiliConfigOnDisk = z
   .object({
     credentials: BiliCredentialsSchema.nullable(),
     obsidian: ObsidianConfigSchema.nullable().default(null),
+    transcription: TranscriptionConfigSchema.nullable().default(null),
   })
   .strict()
 
 export type BilibiliConfigOnDisk = z.infer<typeof BilibiliConfigOnDisk>
 
 export function defaultBilibiliConfigOnDisk(): BilibiliConfigOnDisk {
-  return { credentials: null, obsidian: null }
+  return { credentials: null, obsidian: null, transcription: null }
 }
 
 export type BiliListResult = {
@@ -84,3 +94,15 @@ export type BiliProcessResult =
 export type BiliSaveResult =
   | { ok: true; path: string }
   | { ok: false; code: 'no_vault' | 'write_failed'; message: string }
+
+export type BiliTranscribeStage = 'queued' | 'audio' | 'transcribing' | 'summarizing' | 'done' | 'failed'
+
+export type BiliTranscribeProgress = { bvid: string; stage: BiliTranscribeStage }
+
+export type BiliTranscribeResult =
+  | { ok: true; summary: BiliSummary }
+  | {
+      ok: false
+      code: 'no_config' | 'no_provider' | 'audio_failed' | 'ffmpeg_failed' | 'asr_failed' | 'llm_failed' | 'unknown'
+      message: string
+    }
