@@ -349,6 +349,11 @@ export function ChatInput({
     const right = rightGroupRef.current
     if (!row || !left || !right) return
     const available = row.clientWidth
+    // Until the row has a real layout width (initial mount before paint, hidden
+    // states, or a non-layout test env), every measurement reads zero and any
+    // collapse decision would be bogus. Skip — the ResizeObserver recomputes once
+    // the row is actually laid out with a real width.
+    if (available === 0) return
     if (compact) {
       if (naturalRef.current && available >= naturalRef.current) setCompact(false)
     } else {
