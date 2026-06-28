@@ -19,6 +19,8 @@ vi.mock('electron', () => {
     },
     shell: { openExternal: async () => undefined },
     dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] as string[] }) },
+    app: { getPath: () => '/tmp' },
+    BrowserWindow: { getAllWindows: () => [] as unknown[] },
   }
 })
 
