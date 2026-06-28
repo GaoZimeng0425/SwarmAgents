@@ -1,5 +1,5 @@
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
-import type { BiliListResult, BiliLoginStatus } from '@shared/types/bilibili'
+import type { BiliListResult, BiliLoginStatus, BiliProcessResult } from '@shared/types/bilibili'
 import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task, TaskOptions } from '@shared/types/task'
 import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
@@ -52,6 +52,7 @@ export const swarmApi = {
   bilibiliLogin: (): Promise<BiliLoginStatus> => window.swarm.bilibili.login(),
   bilibiliLogout: (): Promise<void> => window.swarm.bilibili.logout(),
   getBilibiliList: (): Promise<BiliListResult> => window.swarm.bilibili.list(),
+  bilibiliProcess: (bvid: string): Promise<BiliProcessResult> => window.swarm.bilibili.process(bvid),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
   listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),

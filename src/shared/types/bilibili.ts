@@ -57,3 +57,16 @@ export type BiliListResult = {
   folders: { folder: BiliFavFolder; videos: BiliVideo[] }[]
   watchLater: BiliVideo[]
 }
+
+// AI summary of a single video, parsed from the LLM's structured output.
+export type BiliSummary = {
+  gist: string
+  points: string[]
+  experience: string[]
+  pitfalls: string[]
+  steps: string[]
+}
+
+export type BiliProcessResult =
+  | { ok: true; summary: BiliSummary }
+  | { ok: false; code: 'no_subtitle' | 'no_provider' | 'llm_failed' | 'unknown'; message: string }

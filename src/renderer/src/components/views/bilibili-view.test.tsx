@@ -92,4 +92,32 @@ describe('BilibiliView', () => {
     fireEvent.click(await screen.findByText('视频甲'))
     expect(await screen.findByText('简介甲内容')).toBeInTheDocument()
   })
+
+  it('runs AI analysis from the detail panel and shows the summary', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
+      ok: true,
+      summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+    })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
+    expect(await screen.findByText('AI主旨')).toBeInTheDocument()
+    expect(screen.getByText('要点一')).toBeInTheDocument()
+  })
+
+  it('shows the no-subtitle message when analysis fails that way', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
+      ok: false,
+      code: 'no_subtitle',
+      message: '该视频没有字幕，暂不支持（语音转写为后续里程碑）。',
+    })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
+    expect(await screen.findByText(/没有字幕/)).toBeInTheDocument()
+  })
 })

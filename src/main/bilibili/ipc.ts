@@ -3,12 +3,16 @@
 // Wires the Bilibili subsystem to Electron IPC: login/logout/status and a single
 // aggregated list endpoint. buildList is exported for unit testing.
 import { createLogger } from '@shared/logger'
-import type { BiliCredentials, BiliListResult, BiliVideo, BiliFavFolder } from '@shared/types/bilibili'
+import type { BiliCredentials, BiliListResult, BiliProcessResult, BiliVideo, BiliFavFolder } from '@shared/types/bilibili'
+import type { ProviderInjection } from '@shared/types/provider'
 import { ipcMain } from 'electron'
 
 import { getFavFolders, getFavResources, getWatchLater } from './api'
 import type { Auth } from './auth'
+import { processVideo } from './pipeline'
 import type { Store } from './store'
+import { getSubtitleText, defaultSubtitleDeps } from './subtitle'
+import { summarize } from './summarize'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-ipc' })
 
@@ -40,9 +44,16 @@ export async function buildList(c: BiliCredentials, mid: number, deps: ListDeps)
   return { folders: withVideos, watchLater }
 }
 
-export function wireBilibiliIpc(opts: { auth: Auth; store: Store }): { dispose: () => void } {
+export function wireBilibiliIpc(opts: {
+  auth: Auth
+  store: Store
+  getInjection: () => ProviderInjection | null
+}): { dispose: () => void } {
   const { auth, store } = opts
   const deps: ListDeps = { getFavFolders, getFavResources, getWatchLater }
+
+  // Populated when bilibili:list resolves so pipeline can look up title/author without refetch.
+  const metaIndex = new Map<string, { title: string; author: string }>()
 
   ipcMain.handle('bilibili:status', () => auth.status())
   ipcMain.handle('bilibili:login', () => auth.login())
@@ -67,13 +78,55 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store }): { dispose: 
       watchLater: result.watchLater.length,
       durationMs: Date.now() - started,
     })
+    // Refresh metaIndex so bilibili:process has title/author without a refetch.
+    metaIndex.clear()
+    for (const { videos } of result.folders) {
+      for (const v of videos) {
+        metaIndex.set(v.bvid, { title: v.title, author: v.author })
+      }
+    }
+    for (const v of result.watchLater) {
+      metaIndex.set(v.bvid, { title: v.title, author: v.author })
+    }
     return result
+  })
+
+  // Single-flight map: concurrent requests for the same bvid join the in-flight Promise.
+  const inflight = new Map<string, Promise<BiliProcessResult>>()
+
+  ipcMain.handle('bilibili:process', async (_e, bvid: string): Promise<BiliProcessResult> => {
+    const existing = inflight.get(bvid)
+    if (existing) {
+      log.warn({ msg: 'process already inflight; joining', bvid })
+      return existing
+    }
+    const run = (async (): Promise<BiliProcessResult> => {
+      const st = await auth.status()
+      const cfg = await store.load()
+      if (!st.loggedIn || !cfg.credentials) return { ok: false, code: 'unknown', message: '未登录' }
+      return processVideo(
+        {
+          getInjection: opts.getInjection,
+          getMeta: (id) => metaIndex.get(id) ?? null,
+          getSubtitleText: (c, id) => getSubtitleText(defaultSubtitleDeps, c, id),
+          summarize,
+        },
+        cfg.credentials,
+        bvid
+      )
+    })()
+    inflight.set(bvid, run)
+    try {
+      return await run
+    } finally {
+      inflight.delete(bvid)
+    }
   })
 
   log.info({ msg: 'bilibili IPC wired' })
   return {
     dispose(): void {
-      for (const ch of ['bilibili:status', 'bilibili:login', 'bilibili:logout', 'bilibili:list']) {
+      for (const ch of ['bilibili:status', 'bilibili:login', 'bilibili:logout', 'bilibili:list', 'bilibili:process']) {
         ipcMain.removeHandler(ch)
       }
     },

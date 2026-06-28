@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
   const trending = initTrending()
   log.info({ msg: 'trending IPC initialised' })
 
-  const bilibili = initBilibili()
+  const bilibili = initBilibili({ getInjection: () => providers.service.getInjection() })
   log.info({ msg: 'bilibili IPC initialised' })
 
   app.on('before-quit', () => {

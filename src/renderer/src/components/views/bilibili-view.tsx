@@ -2,9 +2,9 @@
 // switches between the two; in favorites mode a dropdown filters to a single
 // folder. Clicking a video opens a read-only detail panel (no external nav).
 // Prompts for login when logged out.
-import { useCallback, useMemo, useRef, useState } from 'react'
-import type { BiliListResult, BiliVideo } from '@shared/types/bilibili'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { BiliListResult, BiliSummary, BiliVideo } from '@shared/types/bilibili'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -100,7 +100,43 @@ function VideoCard({
   )
 }
 
+// Renders a structured BiliSummary: gist + non-empty labelled sections.
+function SummaryView({ summary }: { summary: BiliSummary }): React.JSX.Element {
+  const sections: { label: string; items: string[] }[] = [
+    { label: '核心要点', items: summary.points },
+    { label: '可复用经验', items: summary.experience },
+    { label: '踩坑注意', items: summary.pitfalls },
+    { label: '可执行步骤', items: summary.steps },
+  ]
+  return (
+    <div className="flex flex-col gap-3 text-sm">
+      <p className="text-foreground/90">{summary.gist}</p>
+      {sections
+        .filter(({ items }) => items.length > 0)
+        .map(({ label, items }) => (
+          <div key={label}>
+            <p className="mb-1 font-medium text-foreground/70 text-xs">{label}</p>
+            <ul className="list-disc pl-4 text-foreground/80">
+              {items.map((item, i) => (
+                <li key={`${label}-${i}`}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+    </div>
+  )
+}
+
 function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose: () => void }): React.JSX.Element {
+  const mutation = useMutation({ mutationFn: (bvid: string) => swarmApi.bilibiliProcess(bvid) })
+
+  // Reset summary when the user switches to a different video card.
+  useEffect(() => {
+    mutation.reset()
+    // We intentionally omit `mutation` from deps — we only want to reset on bvid change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video?.bvid])
+
   return (
     <Sheet onOpenChange={(open) => !open && onClose()} open={video !== null}>
       <SheetContent className="w-full gap-0 sm:max-w-md">
@@ -127,6 +163,13 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
                 <p className="text-muted-foreground text-sm">无简介</p>
               )}
               <div className="text-muted-foreground text-xs">来源：{video.source}</div>
+              <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
+                {mutation.isPending ? '分析中…' : 'AI 分析'}
+              </Button>
+              {mutation.data?.ok ? <SummaryView summary={mutation.data.summary} /> : null}
+              {mutation.data && !mutation.data.ok ? (
+                <p className="text-destructive text-sm">{mutation.data.message}</p>
+              ) : null}
             </div>
           </>
         ) : null}

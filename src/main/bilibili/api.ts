@@ -3,15 +3,19 @@
 // UA + Referer (required to avoid -412 风控). All endpoints wrap responses as
 // { code, message, data }; a non-zero code is an error.
 import type { BiliCredentials, BiliFavFolder, BiliLoginStatus, BiliVideo } from '@shared/types/bilibili'
+import { keyFromUrl } from './wbi'
 
 export const BILI_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 export const BILI_REFERER = 'https://www.bilibili.com'
 
-// Bilibili returns cover/pic URLs as http://; rewrite to https:// so the renderer
-// (CSP allows only https image hosts) doesn't block them as mixed content.
+// Bilibili returns cover/pic URLs as http:// or protocol-relative //; rewrite
+// to https:// so the renderer (CSP allows only https image hosts) doesn't block
+// them as mixed content.
 export function toHttpsUrl(url: string): string {
-  return url.startsWith('http://') ? `https://${url.slice('http://'.length)}` : url
+  if (url.startsWith('http://')) return `https://${url.slice('http://'.length)}`
+  if (url.startsWith('//')) return `https:${url}`
+  return url
 }
 
 const TIMEOUT_MS = 10_000
@@ -22,7 +26,7 @@ export function cookieHeader(c: BiliCredentials): string {
 
 type Envelope<T> = { code: number; message?: string; data?: T }
 
-async function get<T>(url: string, c: BiliCredentials): Promise<T> {
+export async function get<T>(url: string, c: BiliCredentials): Promise<T> {
   const res = await fetch(url, {
     signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: {
@@ -107,4 +111,23 @@ export async function getWatchLater(c: BiliCredentials): Promise<BiliVideo[]> {
     intro: v.desc ?? '',
     source: '稍后再看',
   }))
+}
+
+// The two WBI keys live in the nav response under wbi_img; their filename stems
+// feed the signing mixin.
+export async function getWbiKeys(c: BiliCredentials): Promise<{ imgKey: string; subKey: string }> {
+  const data = await get<{ wbi_img: { img_url: string; sub_url: string } }>(
+    'https://api.bilibili.com/x/web-interface/nav',
+    c
+  )
+  return { imgKey: keyFromUrl(data.wbi_img.img_url), subKey: keyFromUrl(data.wbi_img.sub_url) }
+}
+
+// Returns the first page's cid for a video, needed to call the player subtitle endpoint.
+export async function getCid(c: BiliCredentials, bvid: string): Promise<number> {
+  const data = await get<{ cid: number }>(
+    `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
+    c
+  )
+  return data.cid
 }

@@ -31,7 +31,7 @@ import type {
   WebSearchKeyId,
   WebSearchSetResult,
 } from '../shared/types/ui'
-import type { BiliListResult, BiliLoginStatus } from '../shared/types/bilibili'
+import type { BiliListResult, BiliLoginStatus, BiliProcessResult } from '../shared/types/bilibili'
 import type { WebSearchConfigView, WebSearchProviderId } from '../shared/types/web-search'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
@@ -180,6 +180,7 @@ const bilibili: BilibiliBridge = {
   login: () => ipcRenderer.invoke('bilibili:login') as Promise<BiliLoginStatus>,
   logout: () => ipcRenderer.invoke('bilibili:logout') as Promise<void>,
   list: () => ipcRenderer.invoke('bilibili:list') as Promise<BiliListResult>,
+  process: (bvid: string) => ipcRenderer.invoke('bilibili:process', bvid) as Promise<BiliProcessResult>,
 }
 
 const swarm: SwarmBridge = {

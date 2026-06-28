@@ -9,7 +9,7 @@
  */
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
-import type { BiliListResult, BiliLoginStatus } from './bilibili'
+import type { BiliListResult, BiliLoginStatus, BiliProcessResult } from './bilibili'
 import type { BudgetConfig } from './budgets'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
@@ -192,6 +192,7 @@ export type BilibiliBridge = {
   login: () => Promise<BiliLoginStatus>
   logout: () => Promise<void>
   list: () => Promise<BiliListResult>
+  process: (bvid: string) => Promise<BiliProcessResult>
 }
 
 export type ProvidersBridge = {
