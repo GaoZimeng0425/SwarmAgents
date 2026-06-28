@@ -8,6 +8,12 @@ export const BILI_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 export const BILI_REFERER = 'https://www.bilibili.com'
 
+// Bilibili returns cover/pic URLs as http://; rewrite to https:// so the renderer
+// (CSP allows only https image hosts) doesn't block them as mixed content.
+export function toHttpsUrl(url: string): string {
+  return url.startsWith('http://') ? `https://${url.slice('http://'.length)}` : url
+}
+
 const TIMEOUT_MS = 10_000
 
 export function cookieHeader(c: BiliCredentials): string {
@@ -72,7 +78,7 @@ export async function getFavResources(c: BiliCredentials, mediaId: number, folde
   return medias.map((m) => ({
     bvid: m.bvid,
     title: m.title,
-    cover: m.cover,
+    cover: toHttpsUrl(m.cover),
     author: m.upper?.name ?? '',
     durationSec: m.duration,
     intro: m.intro ?? '',
@@ -95,7 +101,7 @@ export async function getWatchLater(c: BiliCredentials): Promise<BiliVideo[]> {
   return list.map((v) => ({
     bvid: v.bvid,
     title: v.title,
-    cover: v.pic,
+    cover: toHttpsUrl(v.pic),
     author: v.owner?.name ?? '',
     durationSec: v.duration,
     intro: v.desc ?? '',

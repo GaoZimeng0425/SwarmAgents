@@ -14,7 +14,14 @@ function VideoCard({ video, onClick }: { video: BiliVideo; onClick: (v: BiliVide
       onClick={() => onClick(video)}
       type="button"
     >
-      {video.cover ? <img alt="" className="aspect-video w-full rounded object-cover" src={video.cover} /> : null}
+      {video.cover ? (
+        <img
+          alt=""
+          className="aspect-video w-full rounded object-cover"
+          referrerPolicy="no-referrer"
+          src={video.cover}
+        />
+      ) : null}
       <div className="truncate font-medium text-foreground text-sm">{video.title}</div>
       <div className="truncate text-muted-foreground text-xs">{video.author}</div>
     </button>
