@@ -1,11 +1,15 @@
-// Shows the user's Bilibili favorites folders and watch-later list. Prompts for
-// login when logged out. Clicking a video is a no-op until milestone C wires the
-// summarize -> Obsidian pipeline.
+// Shows the user's Bilibili favorites folders and watch-later list. A top tab
+// switches between the two; in favorites mode a dropdown filters to a single
+// folder. Clicking a video opens a read-only detail panel (no external nav).
+// Prompts for login when logged out.
 import { useCallback, useMemo, useRef, useState } from 'react'
-import type { BiliVideo } from '@shared/types/bilibili'
+import type { BiliListResult, BiliVideo } from '@shared/types/bilibili'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VirtualList } from '@/components/ui/virtual-list'
 import { swarmApi } from '@/lib/api'
 
@@ -14,6 +18,11 @@ import { swarmApi } from '@/lib/api'
 // gap-3 (0.75rem) gutter.
 const MIN_CARD_PX = 176
 const GAP_PX = 12
+
+// Top-level view: the favorites folders, or the watch-later list.
+type Tab = 'favorites' | 'watch-later'
+// Favorites filter: a specific folder id, or every folder.
+type FolderFilter = number | 'all'
 
 // A flattened row in the virtualized list: either a section heading or one row
 // of video cards. Chunking videos into fixed-width rows lets a single vertical
@@ -32,31 +41,48 @@ function chunk<T>(items: T[], size: number): T[][] {
   return rows
 }
 
-function buildRows(
-  folders: { folder: { id: number; title: string }; videos: BiliVideo[] }[],
-  watchLater: BiliVideo[],
-  columns: number
-): GridRow[] {
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+// Pure list builder so the tab/folder selection logic is unit-testable without
+// a DOM. In 'watch-later' the folder filter is ignored and no headers render
+// (the tab already names the section); in 'favorites' a numeric folderId limits
+// the output to that one folder.
+export function buildRows(data: BiliListResult, tab: Tab, folderId: FolderFilter, columns: number): GridRow[] {
   const rows: GridRow[] = []
+  if (tab === 'watch-later') {
+    chunk(data.watchLater, columns).forEach((group, i) => {
+      rows.push({ kind: 'grid', key: `grid:watch-later:${i}`, videos: group })
+    })
+    return rows
+  }
+  const folders = folderId === 'all' ? data.folders : data.folders.filter((f) => f.folder.id === folderId)
   for (const { folder, videos } of folders) {
     rows.push({ kind: 'header', key: `header:${folder.id}`, title: folder.title })
     chunk(videos, columns).forEach((group, i) => {
       rows.push({ kind: 'grid', key: `grid:${folder.id}:${i}`, videos: group })
     })
   }
-  if (watchLater.length > 0) {
-    rows.push({ kind: 'header', key: 'header:watch-later', title: '稍后再看' })
-    chunk(watchLater, columns).forEach((group, i) => {
-      rows.push({ kind: 'grid', key: `grid:watch-later:${i}`, videos: group })
-    })
-  }
   return rows
 }
 
-function VideoCard({ video, onClick }: { video: BiliVideo; onClick: (v: BiliVideo) => void }): React.JSX.Element {
+function VideoCard({
+  video,
+  selected,
+  onClick,
+}: {
+  video: BiliVideo
+  selected: boolean
+  onClick: (v: BiliVideo) => void
+}): React.JSX.Element {
   return (
     <button
-      className="flex flex-col gap-1 rounded-md border border-sidebar-border p-2 text-left transition-colors hover:bg-sidebar-accent"
+      className={`flex flex-col gap-1 rounded-md border p-2 text-left transition-colors hover:bg-sidebar-accent ${
+        selected ? 'border-ring ring-2 ring-ring/50' : 'border-sidebar-border'
+      }`}
       onClick={() => onClick(video)}
       type="button"
     >
@@ -74,6 +100,41 @@ function VideoCard({ video, onClick }: { video: BiliVideo; onClick: (v: BiliVide
   )
 }
 
+function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose: () => void }): React.JSX.Element {
+  return (
+    <Sheet onOpenChange={(open) => !open && onClose()} open={video !== null}>
+      <SheetContent className="w-full gap-0 sm:max-w-md">
+        {video ? (
+          <>
+            <SheetHeader>
+              <SheetTitle>{video.title}</SheetTitle>
+              <SheetDescription>
+                {video.author} · {formatDuration(video.durationSec)}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">
+              {video.cover ? (
+                <img
+                  alt=""
+                  className="aspect-video w-full rounded object-cover"
+                  referrerPolicy="no-referrer"
+                  src={video.cover}
+                />
+              ) : null}
+              {video.intro ? (
+                <p className="whitespace-pre-wrap text-foreground/80 text-sm">{video.intro}</p>
+              ) : (
+                <p className="text-muted-foreground text-sm">无简介</p>
+              )}
+              <div className="text-muted-foreground text-xs">来源：{video.source}</div>
+            </div>
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 export function BilibiliView(): React.JSX.Element {
   const queryClient = useQueryClient()
   const statusQuery = useQuery({
@@ -86,6 +147,10 @@ export function BilibiliView(): React.JSX.Element {
     queryFn: () => swarmApi.getBilibiliList(),
     enabled: loggedIn,
   })
+
+  const [tab, setTab] = useState<Tab>('favorites')
+  const [folderId, setFolderId] = useState<FolderFilter>('all')
+  const [selected, setSelected] = useState<BiliVideo | null>(null)
 
   // Track the content width so the grid can be chunked into fixed-column rows
   // that match a responsive `auto-fill` layout. A callback ref (not an effect)
@@ -105,17 +170,12 @@ export function BilibiliView(): React.JSX.Element {
 
   const rows = useMemo(() => {
     if (!listQuery.data) return []
-    return buildRows(listQuery.data.folders, listQuery.data.watchLater, columns)
-  }, [listQuery.data, columns])
+    return buildRows(listQuery.data, tab, folderId, columns)
+  }, [listQuery.data, tab, folderId, columns])
 
   async function handleLogin(): Promise<void> {
     await swarmApi.bilibiliLogin()
     await queryClient.invalidateQueries({ queryKey: ['bilibili'] })
-  }
-
-  function handleClickVideo(v: BiliVideo): void {
-    // Milestone C wires the summarize -> Obsidian pipeline here.
-    console.debug('bilibili video clicked', v.bvid)
   }
 
   if (statusQuery.isPending) {
@@ -131,11 +191,38 @@ export function BilibiliView(): React.JSX.Element {
     )
   }
 
+  const folders = listQuery.data?.folders ?? []
+
   return (
     <div className="mx-auto flex h-full w-full flex-col gap-4 p-4">
-      <div className="flex items-center gap-2">
-        <h1 className="mr-auto font-semibold text-foreground/90 text-lg">Bilibili 收藏</h1>
-        <span className="text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
+      <div className="flex flex-wrap items-center gap-3">
+        <Tabs onValueChange={(v) => setTab(v as Tab)} value={tab}>
+          <TabsList>
+            <TabsTrigger value="favorites">收藏夹</TabsTrigger>
+            <TabsTrigger value="watch-later">稍后再看</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {tab === 'favorites' ? (
+          <Select
+            onValueChange={(v) => setFolderId(v === 'all' ? 'all' : Number(v))}
+            value={folderId === 'all' ? 'all' : String(folderId)}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部收藏夹</SelectItem>
+              {folders.map(({ folder }) => (
+                <SelectItem key={folder.id} value={String(folder.id)}>
+                  {folder.title} ({folder.count})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+
+        <span className="ml-auto text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
       </div>
 
       {listQuery.isError ? (
@@ -162,7 +249,7 @@ export function BilibiliView(): React.JSX.Element {
               ) : (
                 <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                   {row.videos.map((v) => (
-                    <VideoCard key={v.bvid} onClick={handleClickVideo} video={v} />
+                    <VideoCard key={v.bvid} onClick={setSelected} selected={selected?.bvid === v.bvid} video={v} />
                   ))}
                 </div>
               )
@@ -170,6 +257,8 @@ export function BilibiliView(): React.JSX.Element {
           />
         </div>
       )}
+
+      <VideoDetailSheet onClose={() => setSelected(null)} video={selected} />
     </div>
   )
 }
