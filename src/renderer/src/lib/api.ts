@@ -53,6 +53,7 @@ export const swarmApi = {
   bilibiliLogout: (): Promise<void> => window.swarm.bilibili.logout(),
   getBilibiliList: (): Promise<BiliListResult> => window.swarm.bilibili.list(),
   bilibiliProcess: (bvid: string): Promise<BiliProcessResult> => window.swarm.bilibili.process(bvid),
+  bilibiliOpen: (bvid: string): Promise<void> => window.swarm.bilibili.open(bvid),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
   listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),

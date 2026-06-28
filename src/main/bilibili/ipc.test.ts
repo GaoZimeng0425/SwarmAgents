@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildList, wireBilibiliIpc } from './ipc'
+
 import type { Auth } from './auth'
+import { buildList, openVideo, wireBilibiliIpc } from './ipc'
 import type { Store } from './store'
 
 // ipcMain mock: capture registered handlers by channel name.
@@ -8,8 +9,12 @@ vi.mock('electron', () => {
   const handlers = new Map<string, Function>()
   return {
     ipcMain: {
-      handle: (ch: string, fn: Function) => { handlers.set(ch, fn) },
-      removeHandler: (ch: string) => { handlers.delete(ch) },
+      handle: (ch: string, fn: Function) => {
+        handlers.set(ch, fn)
+      },
+      removeHandler: (ch: string) => {
+        handlers.delete(ch)
+      },
       _handlers: handlers,
     },
   }
@@ -26,7 +31,13 @@ async function invokeHandler(channel: string, ...args: unknown[]): Promise<unkno
 
 const creds = { sessdata: 's', biliJct: 'j', dedeUserId: '42' }
 const vid = (bvid: string, source: string) => ({
-  bvid, title: bvid, cover: '', author: 'up', durationSec: 1, intro: '', source,
+  bvid,
+  title: bvid,
+  cover: '',
+  author: 'up',
+  durationSec: 1,
+  intro: '',
+  source,
 })
 
 describe('wireBilibiliIpc / bilibili:process', () => {
@@ -48,6 +59,25 @@ describe('wireBilibiliIpc / bilibili:process', () => {
 
     // Assert
     expect(result).toMatchObject({ ok: false, code: 'no_provider' })
+  })
+})
+
+describe('openVideo', () => {
+  it('opens the bilipc app deep link and does not touch the web url on success', async () => {
+    const opener = vi.fn(async () => undefined)
+    await openVideo('BV1x', opener)
+    expect(opener).toHaveBeenCalledTimes(1)
+    expect(opener).toHaveBeenCalledWith('bilipc://video/BV1x')
+  })
+
+  it('falls back to the web url when the app open rejects', async () => {
+    const opener = vi
+      .fn<(url: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('no handler'))
+      .mockResolvedValueOnce(undefined)
+    await openVideo('BV1x', opener)
+    expect(opener).toHaveBeenNthCalledWith(1, 'bilipc://video/BV1x')
+    expect(opener).toHaveBeenNthCalledWith(2, 'https://www.bilibili.com/video/BV1x')
   })
 })
 

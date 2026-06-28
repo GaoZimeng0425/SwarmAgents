@@ -163,9 +163,15 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
                 <p className="text-muted-foreground text-sm">无简介</p>
               )}
               <div className="text-muted-foreground text-xs">来源：{video.source}</div>
-              <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
-                {mutation.isPending ? '分析中…' : 'AI 分析'}
-              </Button>
+              <div className="flex gap-2">
+                <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
+                  {mutation.isPending ? '分析中…' : 'AI 分析'}
+                </Button>
+                {/* Opens the video in the local Bilibili app (bilipc:), falling back to the browser. */}
+                <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
+                  观看
+                </Button>
+              </div>
               {mutation.data?.ok ? <SummaryView summary={mutation.data.summary} /> : null}
               {mutation.data && !mutation.data.ok ? (
                 <p className="text-destructive text-sm">{mutation.data.message}</p>

@@ -3,18 +3,44 @@
 // Wires the Bilibili subsystem to Electron IPC: login/logout/status and a single
 // aggregated list endpoint. buildList is exported for unit testing.
 import { createLogger } from '@shared/logger'
-import type { BiliCredentials, BiliListResult, BiliProcessResult, BiliVideo, BiliFavFolder } from '@shared/types/bilibili'
+import type {
+  BiliCredentials,
+  BiliFavFolder,
+  BiliListResult,
+  BiliProcessResult,
+  BiliVideo,
+} from '@shared/types/bilibili'
 import type { ProviderInjection } from '@shared/types/provider'
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
 
 import { getFavFolders, getFavResources, getWatchLater } from './api'
 import type { Auth } from './auth'
 import { processVideo } from './pipeline'
 import type { Store } from './store'
-import { getSubtitleText, defaultSubtitleDeps } from './subtitle'
+import { defaultSubtitleDeps, getSubtitleText } from './subtitle'
 import { summarize } from './summarize'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-ipc' })
+
+// Opens a video in the local Bilibili desktop app via its `bilipc:` URL scheme,
+// falling back to the web page in the browser when the app isn't installed (the
+// scheme has no handler, so openExternal rejects). `openExternal` is injected so
+// the fallback logic is unit-testable without Electron's shell.
+export async function openVideo(bvid: string, openExternal: (url: string) => Promise<void>): Promise<void> {
+  const appUrl = `bilipc://video/${bvid}`
+  const webUrl = `https://www.bilibili.com/video/${bvid}`
+  try {
+    await openExternal(appUrl)
+    log.info({ msg: 'opened video in app', bvid })
+  } catch (err) {
+    log.warn({
+      msg: 'app open failed; falling back to browser',
+      bvid,
+      err: err instanceof Error ? err.message : String(err),
+    })
+    await openExternal(webUrl)
+  }
+}
 
 export type ListDeps = {
   getFavFolders: (c: BiliCredentials, mid: number) => Promise<BiliFavFolder[]>
@@ -30,7 +56,11 @@ export async function buildList(c: BiliCredentials, mid: number, deps: ListDeps)
         const videos = await deps.getFavResources(c, folder.id, folder.title)
         return { folder, videos }
       } catch (err) {
-        log.warn({ msg: 'fav folder load failed', folderId: folder.id, err: err instanceof Error ? err.message : String(err) })
+        log.warn({
+          msg: 'fav folder load failed',
+          folderId: folder.id,
+          err: err instanceof Error ? err.message : String(err),
+        })
         return { folder, videos: [] as BiliVideo[] }
       }
     })
@@ -44,11 +74,9 @@ export async function buildList(c: BiliCredentials, mid: number, deps: ListDeps)
   return { folders: withVideos, watchLater }
 }
 
-export function wireBilibiliIpc(opts: {
-  auth: Auth
-  store: Store
-  getInjection: () => ProviderInjection | null
-}): { dispose: () => void } {
+export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: () => ProviderInjection | null }): {
+  dispose: () => void
+} {
   const { auth, store } = opts
   const deps: ListDeps = { getFavFolders, getFavResources, getWatchLater }
 
@@ -123,10 +151,19 @@ export function wireBilibiliIpc(opts: {
     }
   })
 
+  ipcMain.handle('bilibili:open', (_e, bvid: string) => openVideo(bvid, (url) => shell.openExternal(url)))
+
   log.info({ msg: 'bilibili IPC wired' })
   return {
     dispose(): void {
-      for (const ch of ['bilibili:status', 'bilibili:login', 'bilibili:logout', 'bilibili:list', 'bilibili:process']) {
+      for (const ch of [
+        'bilibili:status',
+        'bilibili:login',
+        'bilibili:logout',
+        'bilibili:list',
+        'bilibili:process',
+        'bilibili:open',
+      ]) {
         ipcMain.removeHandler(ch)
       }
     },

@@ -120,4 +120,14 @@ describe('BilibiliView', () => {
     fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
     expect(await screen.findByText(/没有字幕/)).toBeInTheDocument()
   })
+
+  it('opens the video via the watch button with the clicked bvid', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    const open = vi.spyOn(swarmApi, 'bilibiliOpen').mockResolvedValue(undefined)
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    fireEvent.click(await screen.findByRole('button', { name: /观看/ }))
+    expect(open).toHaveBeenCalledWith('BV1')
+  })
 })

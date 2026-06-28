@@ -2,6 +2,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '../shared/types/agent'
+import type { BiliListResult, BiliLoginStatus, BiliProcessResult } from '../shared/types/bilibili'
 import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
@@ -31,7 +32,6 @@ import type {
   WebSearchKeyId,
   WebSearchSetResult,
 } from '../shared/types/ui'
-import type { BiliListResult, BiliLoginStatus, BiliProcessResult } from '../shared/types/bilibili'
 import type { WebSearchConfigView, WebSearchProviderId } from '../shared/types/web-search'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
@@ -181,6 +181,7 @@ const bilibili: BilibiliBridge = {
   logout: () => ipcRenderer.invoke('bilibili:logout') as Promise<void>,
   list: () => ipcRenderer.invoke('bilibili:list') as Promise<BiliListResult>,
   process: (bvid: string) => ipcRenderer.invoke('bilibili:process', bvid) as Promise<BiliProcessResult>,
+  open: (bvid: string) => ipcRenderer.invoke('bilibili:open', bvid) as Promise<void>,
 }
 
 const swarm: SwarmBridge = {

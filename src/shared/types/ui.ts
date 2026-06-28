@@ -193,6 +193,7 @@ export type BilibiliBridge = {
   logout: () => Promise<void>
   list: () => Promise<BiliListResult>
   process: (bvid: string) => Promise<BiliProcessResult>
+  open: (bvid: string) => Promise<void>
 }
 
 export type ProvidersBridge = {
