@@ -2,7 +2,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '../shared/types/agent'
-import type { BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, ObsidianConfig, BiliVideo, BiliSummary } from '../shared/types/bilibili'
+import type { BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '../shared/types/bilibili'
 import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
@@ -187,6 +187,19 @@ const bilibili: BilibiliBridge = {
   pickVault: () => ipcRenderer.invoke('bilibili:pickVault') as Promise<string | null>,
   save: (video: BiliVideo, summary: BiliSummary) =>
     ipcRenderer.invoke('bilibili:save', video, summary) as Promise<BiliSaveResult>,
+  getTranscribeConfig: () =>
+    ipcRenderer.invoke('bilibili:getTranscribeConfig') as Promise<TranscriptionConfig | null>,
+  setTranscribeConfig: (cfg: TranscriptionConfig) =>
+    ipcRenderer.invoke('bilibili:setTranscribeConfig', cfg) as Promise<void>,
+  pickModelDir: () => ipcRenderer.invoke('bilibili:pickModelDir') as Promise<string | null>,
+  transcribe: (bvid: string) => ipcRenderer.invoke('bilibili:transcribe', bvid) as Promise<BiliTranscribeResult>,
+  onTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void) => {
+    const listener = (_e: unknown, p: BiliTranscribeProgress): void => cb(p)
+    ipcRenderer.on('bilibili:transcribe:progress', listener)
+    return () => {
+      ipcRenderer.removeListener('bilibili:transcribe:progress', listener)
+    }
+  },
 }
 
 const swarm: SwarmBridge = {
