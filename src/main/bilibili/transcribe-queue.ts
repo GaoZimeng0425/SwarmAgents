@@ -105,7 +105,11 @@ export function createTranscribeQueue(deps: TranscribeQueueDeps): {
       log.error({ msg: 'transcribe asr stage failed', bvid, err: errMsg(err) })
       return { ok: false, code: 'asr_failed', message: '本地转写失败，请检查模型目录。' }
     } finally {
-      await deps.cleanup(wav).catch(() => undefined)
+      // Best-effort temp cleanup: a failure here must not fail the job, but log it
+      // so a leaking temp dir is diagnosable.
+      await deps.cleanup(wav).catch((err) => {
+        log.warn({ msg: 'transcribe wav cleanup failed', bvid, err: errMsg(err) })
+      })
     }
 
     const meta = deps.getMeta(bvid) ?? { title: '', author: '' }

@@ -26,7 +26,8 @@ export async function getDashAudioUrl(deps: PlayUrlDeps, c: BiliCredentials, bvi
   log.info({ msg: 'playurl started', bvid })
   const cid = await deps.getCid(c, bvid)
   const { imgKey, subKey } = await deps.getWbiKeys(c)
-  const query = encWbi({ bvid, cid, fnval: 16, fourk: 1 }, imgKey, subKey, deps.nowSec())
+  // fnval=16 requests the DASH format (separate audio/video streams).
+  const query = encWbi({ bvid, cid, fnval: 16 }, imgKey, subKey, deps.nowSec())
 
   const data = await get<PlayUrlData>(`https://api.bilibili.com/x/player/wbi/playurl?${query}`, c)
   const audios = data.dash?.audio ?? []
