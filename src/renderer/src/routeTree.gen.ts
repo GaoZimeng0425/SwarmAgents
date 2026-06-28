@@ -11,8 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as TrendingRouteImport } from './routes/trending'
-import { Route as BilibiliRouteImport } from './routes/bilibili'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
+import { Route as BilibiliRouteImport } from './routes/bilibili'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
 
@@ -26,14 +26,14 @@ const TrendingRoute = TrendingRouteImport.update({
   path: '/trending',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BilibiliRoute = BilibiliRouteImport.update({
-  id: '/bilibili',
-  path: '/bilibili',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ScheduledRoute = ScheduledRouteImport.update({
   id: '/scheduled',
   path: '/scheduled',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BilibiliRoute = BilibiliRouteImport.update({
+  id: '/bilibili',
+  path: '/bilibili',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -49,49 +49,61 @@ const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bilibili': typeof BilibiliRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
-  '/bilibili': typeof BilibiliRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bilibili': typeof BilibiliRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
-  '/bilibili': typeof BilibiliRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bilibili': typeof BilibiliRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
-  '/bilibili': typeof BilibiliRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/scheduled' | '/trending' | '/bilibili' | '/usage' | '/session/$sessionId'
+  fullPaths:
+    | '/'
+    | '/bilibili'
+    | '/scheduled'
+    | '/trending'
+    | '/usage'
+    | '/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/scheduled' | '/trending' | '/bilibili' | '/usage' | '/session/$sessionId'
+  to:
+    | '/'
+    | '/bilibili'
+    | '/scheduled'
+    | '/trending'
+    | '/usage'
+    | '/session/$sessionId'
   id:
     | '__root__'
     | '/'
+    | '/bilibili'
     | '/scheduled'
     | '/trending'
-    | '/bilibili'
     | '/usage'
     | '/session/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BilibiliRoute: typeof BilibiliRoute
   ScheduledRoute: typeof ScheduledRoute
   TrendingRoute: typeof TrendingRoute
-  BilibiliRoute: typeof BilibiliRoute
   UsageRoute: typeof UsageRoute
   SessionSessionIdRoute: typeof SessionSessionIdRoute
 }
@@ -112,18 +124,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrendingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/bilibili': {
-      id: '/bilibili'
-      path: '/bilibili'
-      fullPath: '/bilibili'
-      preLoaderRoute: typeof BilibiliRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/scheduled': {
       id: '/scheduled'
       path: '/scheduled'
       fullPath: '/scheduled'
       preLoaderRoute: typeof ScheduledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bilibili': {
+      id: '/bilibili'
+      path: '/bilibili'
+      fullPath: '/bilibili'
+      preLoaderRoute: typeof BilibiliRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -145,9 +157,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BilibiliRoute: BilibiliRoute,
   ScheduledRoute: ScheduledRoute,
   TrendingRoute: TrendingRoute,
-  BilibiliRoute: BilibiliRoute,
   UsageRoute: UsageRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,
 }
