@@ -20,6 +20,7 @@ function fmtDuration(sec: number): string {
 export function noteFilename(title: string, bvid: string): string {
   const safe = title
     .replace(/[/\\:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80)
   return `${safe || bvid}-${bvid}.md`

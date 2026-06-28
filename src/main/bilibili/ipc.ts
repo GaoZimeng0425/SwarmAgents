@@ -1,7 +1,7 @@
 // src/main/bilibili/ipc.ts
 //
-// Wires the Bilibili subsystem to Electron IPC: login/logout/status and a single
-// aggregated list endpoint. buildList is exported for unit testing.
+// Wires the Bilibili subsystem to Electron IPC: login/logout/status, an aggregated list
+// endpoint, video processing/open, and Obsidian config/save. buildList is exported for unit testing.
 import { createLogger } from '@shared/logger'
 import type {
   BiliCredentials,

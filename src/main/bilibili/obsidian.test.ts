@@ -24,7 +24,7 @@ const summary: BiliSummary = {
 
 describe('noteFilename', () => {
   it('strips path-unsafe characters and appends the bvid', () => {
-    expect(noteFilename('How to: build/things', 'BV1x')).toBe('How to  build things-BV1x.md')
+    expect(noteFilename('How to: build/things', 'BV1x')).toBe('How to build things-BV1x.md')
   })
   it('falls back to the bvid when the title sanitizes to empty', () => {
     expect(noteFilename('///', 'BV9')).toBe('BV9-BV9.md')
@@ -57,7 +57,7 @@ describe('writeNote', () => {
     const r = await writeNote({ vaultPath: vault, subdir: 'bili' }, video, summary, '2026-06-28')
     expect(r.ok).toBe(true)
     if (r.ok) {
-      expect(r.path).toBe(join(vault, 'bili', 'How to  build things-BV1x.md'))
+      expect(r.path).toBe(join(vault, 'bili', 'How to build things-BV1x.md'))
       const written = await readFile(r.path, 'utf8')
       expect(written).toContain('主旨一句话')
     }
