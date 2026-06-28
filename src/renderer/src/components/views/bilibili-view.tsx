@@ -72,10 +72,12 @@ export function buildRows(data: BiliListResult, tab: Tab, folderId: FolderFilter
 function VideoCard({
   video,
   selected,
+  analyzed,
   onClick,
 }: {
   video: BiliVideo
   selected: boolean
+  analyzed: boolean
   onClick: (v: BiliVideo) => void
 }): React.JSX.Element {
   return (
@@ -86,14 +88,21 @@ function VideoCard({
       onClick={() => onClick(video)}
       type="button"
     >
-      {video.cover ? (
-        <img
-          alt=""
-          className="aspect-video w-full rounded object-cover"
-          referrerPolicy="no-referrer"
-          src={video.cover}
-        />
-      ) : null}
+      <div className="relative w-full">
+        {video.cover ? (
+          <img
+            alt=""
+            className="aspect-video w-full rounded object-cover"
+            referrerPolicy="no-referrer"
+            src={video.cover}
+          />
+        ) : null}
+        {analyzed ? (
+          <span className="absolute top-1 right-1 rounded bg-primary px-1.5 py-0.5 font-medium text-[10px] text-primary-foreground">
+            AI
+          </span>
+        ) : null}
+      </div>
       <div className="truncate font-medium text-foreground text-sm">{video.title}</div>
       <div className="truncate text-muted-foreground text-xs">{video.author}</div>
     </button>
@@ -259,6 +268,11 @@ export function BilibiliView(): React.JSX.Element {
     queryFn: () => swarmApi.getBilibiliList(),
     enabled: loggedIn,
   })
+  const analyzedQuery = useQuery({
+    queryKey: ['bilibili', 'analyzedBvids'],
+    queryFn: () => swarmApi.bilibiliAnalyzedBvids(),
+  })
+  const analyzedSet = useMemo(() => new Set(analyzedQuery.data ?? []), [analyzedQuery.data])
 
   const [tab, setTab] = useState<Tab>('favorites')
   const [folderId, setFolderId] = useState<FolderFilter>('all')
@@ -361,7 +375,13 @@ export function BilibiliView(): React.JSX.Element {
               ) : (
                 <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                   {row.videos.map((v) => (
-                    <VideoCard key={v.bvid} onClick={setSelected} selected={selected?.bvid === v.bvid} video={v} />
+                    <VideoCard
+                      analyzed={analyzedSet.has(v.bvid)}
+                      key={v.bvid}
+                      onClick={setSelected}
+                      selected={selected?.bvid === v.bvid}
+                      video={v}
+                    />
                   ))}
                 </div>
               )
