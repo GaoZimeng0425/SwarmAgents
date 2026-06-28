@@ -57,7 +57,7 @@ export function BilibiliView(): React.JSX.Element {
 
   if (!loggedIn) {
     return (
-      <div className="mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center gap-4 p-4">
+      <div className="mx-auto flex h-full w-full flex-col items-center justify-center gap-4 p-4">
         <p className="text-muted-foreground">未登录 Bilibili</p>
         <Button onClick={() => void handleLogin()}>登录 Bilibili</Button>
       </div>
@@ -65,7 +65,7 @@ export function BilibiliView(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4 overflow-auto p-4">
+    <div className="mx-auto flex h-full w-full flex-col gap-4 overflow-auto p-4">
       <div className="flex items-center gap-2">
         <h1 className="mr-auto font-semibold text-foreground/90 text-lg">Bilibili 收藏</h1>
         <span className="text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
