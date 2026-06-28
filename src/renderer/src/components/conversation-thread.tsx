@@ -9,6 +9,7 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation'
+import { ConversationMinimap } from '@/components/conversation-minimap'
 import { TaskTimeline } from '@/components/task-transcript'
 import { Spinner } from '@/components/ui/spinner'
 import { TASKS_KEY } from '@/hooks/use-tasks'
@@ -101,6 +102,7 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
           </div>
         )}
       </ConversationContent>
+      <ConversationMinimap tasks={tasks} />
       <ConversationScrollButton />
     </Conversation>
   )
