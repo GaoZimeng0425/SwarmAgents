@@ -87,8 +87,32 @@ export type BiliSummary = {
   steps: string[]
 }
 
+export type BiliAnalysisSource = 'subtitle' | 'transcript'
+
+const BiliSummarySchema = z
+  .object({
+    gist: z.string(),
+    points: z.array(z.string()),
+    experience: z.array(z.string()),
+    pitfalls: z.array(z.string()),
+    steps: z.array(z.string()),
+  })
+  .strict()
+
+export const BiliAnalysisSchema = z
+  .object({
+    bvid: z.string(),
+    summary: BiliSummarySchema,
+    text: z.string(),
+    source: z.enum(['subtitle', 'transcript']),
+    analyzedAt: z.string(),
+  })
+  .strict()
+
+export type BiliAnalysis = z.infer<typeof BiliAnalysisSchema>
+
 export type BiliProcessResult =
-  | { ok: true; summary: BiliSummary }
+  | { ok: true; summary: BiliSummary; text: string; source: 'subtitle' }
   | { ok: false; code: 'no_subtitle' | 'no_provider' | 'llm_failed' | 'unknown'; message: string }
 
 export type BiliSaveResult =
@@ -100,7 +124,7 @@ export type BiliTranscribeStage = 'queued' | 'audio' | 'transcribing' | 'summari
 export type BiliTranscribeProgress = { bvid: string; stage: BiliTranscribeStage }
 
 export type BiliTranscribeResult =
-  | { ok: true; summary: BiliSummary }
+  | { ok: true; summary: BiliSummary; text: string; source: 'transcript' }
   | {
       ok: false
       code: 'no_config' | 'no_provider' | 'audio_failed' | 'ffmpeg_failed' | 'asr_failed' | 'llm_failed' | 'unknown'
