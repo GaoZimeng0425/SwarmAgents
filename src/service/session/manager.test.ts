@@ -725,18 +725,20 @@ describe('SessionManager', () => {
   it('cancelTask drops a queued task so it never runs and marks it cancelled', async () => {
     const ran: string[] = []
     let resolveA: (() => void) | null = null
-    mockCreate.mockImplementation((deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-      run: async () => {
-        ran.push(deps.task.goal)
-        if (deps.task.goal === 'A') {
-          await new Promise<void>((r) => {
-            resolveA = r
-          })
-        }
-        deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
-        return { status: 'completed' as const, summary: '' }
-      },
-    }))
+    mockCreate.mockImplementation(
+      (deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+        run: async () => {
+          ran.push(deps.task.goal)
+          if (deps.task.goal === 'A') {
+            await new Promise<void>((r) => {
+              resolveA = r
+            })
+          }
+          deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+          return { status: 'completed' as const, summary: '' }
+        },
+      })
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -896,30 +898,37 @@ describe('SessionManager', () => {
   it('interruptWith cancels the running task and runs the promoted one before the rest', async () => {
     const ran: string[] = []
     const seeds: Record<string, unknown> = {}
-    mockCreate.mockImplementation((deps: { task: { goal: string }; signal?: AbortSignal; initialMessages?: unknown; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-      run: () =>
-        new Promise<{ status: 'completed' | 'cancelled'; summary: string }>((resolve) => {
-          ran.push(deps.task.goal)
-          seeds[deps.task.goal] = deps.initialMessages
-          if (deps.task.goal === 'A') {
-            // A stays running until interrupted (aborted). On abort it persists a
-            // partial transcript via saveSnapshot before resolving cancelled, so
-            // the promoted turn must seed from that partial output.
-            deps.signal?.addEventListener('abort', () => {
-              deps.saveSnapshot?.([{ role: 'assistant', content: 'partial-A' }], {
-                tokens: 0,
-                calls: 0,
-                wallMs: 0,
-                usdCents: 0,
+    mockCreate.mockImplementation(
+      (deps: {
+        task: { goal: string }
+        signal?: AbortSignal
+        initialMessages?: unknown
+        saveSnapshot?: (m: unknown, u: unknown) => void
+      }) => ({
+        run: () =>
+          new Promise<{ status: 'completed' | 'cancelled'; summary: string }>((resolve) => {
+            ran.push(deps.task.goal)
+            seeds[deps.task.goal] = deps.initialMessages
+            if (deps.task.goal === 'A') {
+              // A stays running until interrupted (aborted). On abort it persists a
+              // partial transcript via saveSnapshot before resolving cancelled, so
+              // the promoted turn must seed from that partial output.
+              deps.signal?.addEventListener('abort', () => {
+                deps.saveSnapshot?.([{ role: 'assistant', content: 'partial-A' }], {
+                  tokens: 0,
+                  calls: 0,
+                  wallMs: 0,
+                  usdCents: 0,
+                })
+                resolve({ status: 'cancelled', summary: '' })
               })
-              resolve({ status: 'cancelled', summary: '' })
-            })
-            return
-          }
-          deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
-          resolve({ status: 'completed', summary: '' })
-        }),
-    }))
+              return
+            }
+            deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+            resolve({ status: 'completed', summary: '' })
+          }),
+      })
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -947,13 +956,15 @@ describe('SessionManager', () => {
     // submitGoal always pumps, so we reach an idle-with-pending state via the
     // test-only enqueue seam, then promote C ahead of B and assert C runs first.
     const ran: string[] = []
-    mockCreate.mockImplementation((deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-      run: async () => {
-        ran.push(deps.task.goal)
-        deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
-        return { status: 'completed' as const, summary: '' }
-      },
-    }))
+    mockCreate.mockImplementation(
+      (deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
+        run: async () => {
+          ran.push(deps.task.goal)
+          deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+          return { status: 'completed' as const, summary: '' }
+        },
+      })
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -1062,6 +1073,53 @@ describe('SessionManager', () => {
     const tasks = store.getSessionTasks(sessionId)
     expect(tasks).toHaveLength(1)
     expect(tasks[0].agentDefId).toBe('default')
+    store.close()
+  })
+
+  it('persists task.criteria and task.verification emits via the emit handler', async () => {
+    // The emit fn passed to createAgentRunner is makeEmit(sessionId) — we capture
+    // it from the mock and call it directly to exercise the two new branches without
+    // needing a real runner loop. This mirrors the task.plan/saveTaskPlan pattern.
+    let capturedEmit: ((event: string, data: unknown) => void) | null = null
+    mockCreate.mockImplementation((deps: { emit: (event: string, data: unknown) => void }) => {
+      capturedEmit = deps.emit
+      return { run: () => new Promise<never>(() => {}) }
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+    const { taskId } = manager.submitGoal(sessionId, 'solve it')
+    // Flush microtasks so the runner starts and capturedEmit is set.
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(capturedEmit).not.toBeNull()
+    const emit = capturedEmit!
+
+    const saveCriteriaSpy = vi.spyOn(store, 'saveTaskCriteria')
+    const saveVerifSpy = vi.spyOn(store, 'saveTaskVerifications')
+
+    // Exercise task.criteria branch.
+    const criteria = [{ id: 'c1', description: 'Output must be correct' }]
+    emit('task.criteria', { taskId, criteria, ts: Date.now() })
+    expect(saveCriteriaSpy).toHaveBeenCalledWith(taskId, criteria)
+
+    // Exercise task.verification branch (read-modify-write: second round appends).
+    const round1 = { round: 1, verdict: 'pass' as const, results: [], gaps: [], ts: Date.now() }
+    emit('task.verification', { taskId, round: round1, ts: Date.now() })
+    expect(saveVerifSpy).toHaveBeenCalledWith(taskId, [round1])
+
+    const round2 = { round: 2, verdict: 'fail' as const, results: [], gaps: ['missing output'], ts: Date.now() }
+    emit('task.verification', { taskId, round: round2, ts: Date.now() })
+    expect(saveVerifSpy).toHaveBeenCalledWith(taskId, [round1, round2])
+
     store.close()
   })
 })

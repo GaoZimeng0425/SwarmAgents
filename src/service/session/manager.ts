@@ -44,6 +44,10 @@ const MAX_RETRIES = 3
 // How long an rpc caller waits for the resident's reply before resolving to ''.
 const RPC_TIMEOUT_MS = 120_000
 
+// Max execute→verify→rework rounds for autonomous ('goal') tasks. Bounded so a
+// task that can't satisfy its criteria fails instead of looping forever.
+const MAX_VERIFY_ROUNDS = 3
+
 // Plan mode is read-only: it grants inspection tools but no shell, no fs writes,
 // and no peekaboo interactions, so the agent physically cannot mutate anything
 // while it produces a plan. Applies to the composer's main task only.
@@ -253,6 +257,19 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const todos = obj.todos as import('@shared/types/task').PlanTodo[]
         store.saveTaskPlan(taskId, todos)
         log.debug({ msg: 'plan persisted', taskId, steps: todos.length })
+      }
+      if (event === 'task.criteria' && taskId && Array.isArray(obj?.criteria)) {
+        const criteria = obj.criteria as import('@shared/types/task').AcceptanceCriterion[]
+        store.saveTaskCriteria(taskId, criteria)
+        log.info({ msg: 'acceptance criteria persisted', taskId, count: criteria.length })
+      }
+      if (event === 'task.verification' && taskId && obj?.round) {
+        const round = obj.round as import('@shared/types/task').VerificationRound
+        // Replace the full audit array each round (read-modify-write keeps it simple
+        // and the array is tiny — bounded by maxVerifyRounds + 1).
+        const existing = store.getTask(taskId)?.verifications ?? []
+        store.saveTaskVerifications(taskId, [...existing, round])
+        log.info({ msg: 'verification round persisted', taskId, round: round.round, verdict: round.verdict })
       }
       broadcaster.broadcast(event, payload)
     }
@@ -570,6 +587,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
+          maxVerifyRounds: MAX_VERIFY_ROUNDS,
         })
         try {
           const { status, summary } = await runner.run()
@@ -749,6 +767,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         cwd: options?.cwd,
         permissionMode: options?.permissionMode,
         executionMode: options?.executionMode,
+        acceptanceCriteria: options?.acceptanceCriteria,
       }
       store.saveTask(task, sessionId)
       broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
@@ -800,6 +819,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
+          maxVerifyRounds: MAX_VERIFY_ROUNDS,
         })
         try {
           const { status } = await runner.run()

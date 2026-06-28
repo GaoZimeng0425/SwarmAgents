@@ -17,6 +17,7 @@ import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type {
+  AcceptanceCriterion,
   Attachment,
   ConsumedResources,
   ExecutionMode,
@@ -25,6 +26,7 @@ import type {
   TaskEvent,
   TaskOptions,
   TaskResult,
+  VerificationRound,
 } from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
@@ -77,6 +79,8 @@ export type UIEvent =
       ts: number
     }
   | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number }
+  | { kind: 'task.criteria'; sessionId: string; taskId: string; criteria: AcceptanceCriterion[]; ts: number }
+  | { kind: 'task.verification'; sessionId: string; taskId: string; round: VerificationRound; ts: number }
   | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number }
   | {
       kind: 'task.handoff.completed'
