@@ -9,7 +9,7 @@
  */
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
-import type { BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from './bilibili'
+import type { BiliAnalysis, BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from './bilibili'
 import type { BudgetConfig } from './budgets'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
@@ -207,6 +207,8 @@ export type BilibiliBridge = {
   pickModelDir: () => Promise<string | null>
   transcribe: (bvid: string) => Promise<BiliTranscribeResult>
   onTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void) => () => void
+  analyzedBvids: () => Promise<string[]>
+  getAnalysis: (bvid: string) => Promise<BiliAnalysis | null>
 }
 
 export type ProvidersBridge = {

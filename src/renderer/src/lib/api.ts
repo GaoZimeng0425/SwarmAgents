@@ -1,5 +1,5 @@
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
-import type { BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '@shared/types/bilibili'
+import type { BiliAnalysis, BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '@shared/types/bilibili'
 import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task, TaskOptions } from '@shared/types/task'
 import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
@@ -67,6 +67,8 @@ export const swarmApi = {
   bilibiliTranscribe: (bvid: string): Promise<BiliTranscribeResult> => window.swarm.bilibili.transcribe(bvid),
   bilibiliOnTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void): (() => void) =>
     window.swarm.bilibili.onTranscribeProgress(cb),
+  bilibiliAnalyzedBvids: (): Promise<string[]> => window.swarm.bilibili.analyzedBvids(),
+  bilibiliGetAnalysis: (bvid: string): Promise<BiliAnalysis | null> => window.swarm.bilibili.getAnalysis(bvid),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
   listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),
