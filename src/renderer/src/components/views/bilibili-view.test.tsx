@@ -156,6 +156,39 @@ describe('BilibiliView', () => {
     expect(transcribe).toHaveBeenCalledWith('BV1')
   })
 
+  it('shows a cached analysis without calling bilibiliProcess', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    const process = vi.spyOn(swarmApi, 'bilibiliProcess')
+    vi.spyOn(swarmApi, 'bilibiliGetAnalysis').mockResolvedValue({
+      bvid: 'BV1',
+      summary: { gist: '缓存主旨', points: [], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文内容',
+      source: 'subtitle',
+      analyzedAt: '2026-06-28T00:00:00.000Z',
+    })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    expect(await screen.findByText('缓存主旨')).toBeInTheDocument()
+    expect(process).not.toHaveBeenCalled()
+  })
+
+  it('reveals the full text when the section is expanded', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    vi.spyOn(swarmApi, 'bilibiliGetAnalysis').mockResolvedValue({
+      bvid: 'BV1',
+      summary: { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文内容',
+      source: 'subtitle',
+      analyzedAt: '2026-06-28T00:00:00.000Z',
+    })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    fireEvent.click(await screen.findByRole('button', { name: /字幕原文/ }))
+    expect(await screen.findByText('字幕全文内容')).toBeInTheDocument()
+  })
+
   it('shows an AI badge on analyzed videos', async () => {
     vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
     vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
