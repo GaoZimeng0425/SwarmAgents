@@ -118,7 +118,7 @@ export function createTranscribeQueue(deps: TranscribeQueueDeps): {
       const summary = await deps.summarize(inj, { bvid, ...meta, text })
       emit(bvid, 'done')
       log.info({ msg: 'transcribe ok', bvid, durationMs: Date.now() - started })
-      return { ok: true, summary }
+      return { ok: true, summary, text, source: 'transcript' }
     } catch (err) {
       emit(bvid, 'failed')
       log.error({ msg: 'transcribe summarize stage failed', bvid, err: errMsg(err) })

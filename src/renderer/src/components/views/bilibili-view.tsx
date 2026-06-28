@@ -7,11 +7,13 @@ import type { BiliListResult, BiliSummary, BiliVideo } from '@shared/types/bilib
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VirtualList } from '@/components/ui/virtual-list'
 import { swarmApi } from '@/lib/api'
+import { TranscribeProgress } from './transcribe-progress'
 
 // Grid metrics — kept in sync with the inline grid template below. MIN_CARD is
 // the 11rem min column width the layout used before virtualization; GAP is the
@@ -72,10 +74,12 @@ export function buildRows(data: BiliListResult, tab: Tab, folderId: FolderFilter
 function VideoCard({
   video,
   selected,
+  analyzed,
   onClick,
 }: {
   video: BiliVideo
   selected: boolean
+  analyzed: boolean
   onClick: (v: BiliVideo) => void
 }): React.JSX.Element {
   return (
@@ -86,14 +90,21 @@ function VideoCard({
       onClick={() => onClick(video)}
       type="button"
     >
-      {video.cover ? (
-        <img
-          alt=""
-          className="aspect-video w-full rounded object-cover"
-          referrerPolicy="no-referrer"
-          src={video.cover}
-        />
-      ) : null}
+      <div className="relative w-full">
+        {video.cover ? (
+          <img
+            alt=""
+            className="aspect-video w-full rounded object-cover"
+            referrerPolicy="no-referrer"
+            src={video.cover}
+          />
+        ) : null}
+        {analyzed ? (
+          <span className="absolute top-1 right-1 rounded bg-primary px-1.5 py-0.5 font-medium text-[10px] text-primary-foreground">
+            AI
+          </span>
+        ) : null}
+      </div>
       <div className="truncate font-medium text-foreground text-sm">{video.title}</div>
       <div className="truncate text-muted-foreground text-xs">{video.author}</div>
     </button>
@@ -128,19 +139,39 @@ function SummaryView({ summary }: { summary: BiliSummary }): React.JSX.Element {
 }
 
 function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose: () => void }): React.JSX.Element {
-  const mutation = useMutation({ mutationFn: (bvid: string) => swarmApi.bilibiliProcess(bvid) })
-  const transcribeMutation = useMutation({ mutationFn: (bvid: string) => swarmApi.bilibiliTranscribe(bvid) })
+  const queryClient = useQueryClient()
+  const invalidateAnalysis = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['bilibili', 'analyzedBvids'] })
+    if (video) void queryClient.invalidateQueries({ queryKey: ['bilibili', 'analysis', video.bvid] })
+  }
+  const mutation = useMutation({
+    mutationFn: (bvid: string) => swarmApi.bilibiliProcess(bvid),
+    onSuccess: invalidateAnalysis,
+  })
+  const transcribeMutation = useMutation({
+    mutationFn: (bvid: string) => swarmApi.bilibiliTranscribe(bvid),
+    onSuccess: invalidateAnalysis,
+  })
   const saveMutation = useMutation({
     mutationFn: (args: { video: BiliVideo; summary: BiliSummary }) => swarmApi.bilibiliSave(args.video, args.summary),
   })
   const [stage, setStage] = useState<string | null>(null)
+  const [showText, setShowText] = useState(false)
 
-  // Reset mutations and stage when the user switches to a different video card.
+  // Cached analysis for this video, if it has been analyzed before.
+  const analysisQuery = useQuery({
+    queryKey: ['bilibili', 'analysis', video?.bvid],
+    queryFn: () => (video ? swarmApi.bilibiliGetAnalysis(video.bvid) : Promise.resolve(null)),
+    enabled: video !== null,
+  })
+
+  // Reset mutations, stage, and the text toggle when the user switches video cards.
   useEffect(() => {
     mutation.reset()
     transcribeMutation.reset()
     saveMutation.reset()
     setStage(null)
+    setShowText(false)
     // We intentionally omit the mutation objects from deps — we only want to reset on bvid change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.bvid])
@@ -154,12 +185,21 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
     return off
   }, [video?.bvid])
 
-  // Summary can come from the subtitle path or the local-transcription path.
+  // Summary/full-text can come from a fresh subtitle run, a fresh transcription, or
+  // the cached analysis loaded on open.
+  const cached = analysisQuery.data ?? null
   const summary = mutation.data?.ok
     ? mutation.data.summary
     : transcribeMutation.data?.ok
       ? transcribeMutation.data.summary
-      : null
+      : (cached?.summary ?? null)
+  const fullText = mutation.data?.ok
+    ? { text: mutation.data.text, source: mutation.data.source }
+    : transcribeMutation.data?.ok
+      ? { text: transcribeMutation.data.text, source: transcribeMutation.data.source }
+      : cached
+        ? { text: cached.text, source: cached.source }
+        : null
 
   return (
     <Sheet onOpenChange={(open) => !open && onClose()} open={video !== null}>
@@ -189,7 +229,7 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
               <div className="text-muted-foreground text-xs">来源：{video.source}</div>
               <div className="flex gap-2">
                 <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
-                  {mutation.isPending ? '分析中…' : 'AI 分析'}
+                  {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
                 </Button>
                 {/* Opens the video in the local Bilibili app (bilipc:), falling back to the browser. */}
                 <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
@@ -226,8 +266,9 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
                     onClick={() => video && transcribeMutation.mutate(video.bvid)}
                     variant="outline"
                   >
-                    {transcribeMutation.isPending ? `转写中…${stage ? ` (${stage})` : ''}` : '本地转写'}
+                    {transcribeMutation.isPending ? '转写中…' : '本地转写'}
                   </Button>
+                  {transcribeMutation.isPending ? <TranscribeProgress stage={stage} /> : null}
                   <span className="text-muted-foreground text-xs">
                     该视频没有字幕，可下载音轨本地转写（需在设置中配置 ffmpeg 与模型）。
                   </span>
@@ -238,6 +279,20 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
               ) : null}
               {!summary && mutation.data && !mutation.data.ok && mutation.data.code !== 'no_subtitle' ? (
                 <p className="text-destructive text-sm">{mutation.data.message}</p>
+              ) : null}
+              {/* Full parsed text (subtitle or transcript), collapsed by default. */}
+              {fullText ? (
+                <div className="flex flex-col gap-1">
+                  <Button className="w-fit" onClick={() => setShowText((v) => !v)} variant="ghost">
+                    {showText ? '收起 ' : ''}
+                    {fullText.source === 'subtitle' ? '字幕原文' : '转写全文'}
+                  </Button>
+                  {showText ? (
+                    <ScrollArea className="h-64 rounded border p-2">
+                      <p className="whitespace-pre-wrap text-foreground/80 text-sm">{fullText.text}</p>
+                    </ScrollArea>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </>
@@ -259,6 +314,11 @@ export function BilibiliView(): React.JSX.Element {
     queryFn: () => swarmApi.getBilibiliList(),
     enabled: loggedIn,
   })
+  const analyzedQuery = useQuery({
+    queryKey: ['bilibili', 'analyzedBvids'],
+    queryFn: () => swarmApi.bilibiliAnalyzedBvids(),
+  })
+  const analyzedSet = useMemo(() => new Set(analyzedQuery.data ?? []), [analyzedQuery.data])
 
   const [tab, setTab] = useState<Tab>('favorites')
   const [folderId, setFolderId] = useState<FolderFilter>('all')
@@ -361,7 +421,13 @@ export function BilibiliView(): React.JSX.Element {
               ) : (
                 <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                   {row.videos.map((v) => (
-                    <VideoCard key={v.bvid} onClick={setSelected} selected={selected?.bvid === v.bvid} video={v} />
+                    <VideoCard
+                      analyzed={analyzedSet.has(v.bvid)}
+                      key={v.bvid}
+                      onClick={setSelected}
+                      selected={selected?.bvid === v.bvid}
+                      video={v}
+                    />
                   ))}
                 </div>
               )

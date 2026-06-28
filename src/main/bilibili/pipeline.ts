@@ -41,7 +41,7 @@ export async function processVideo(deps: PipelineDeps, c: BiliCredentials, bvid:
   try {
     const summary = await deps.summarize(inj, { bvid, ...meta, text })
     log.info({ msg: 'process ok', bvid, durationMs: Date.now() - started })
-    return { ok: true, summary }
+    return { ok: true, summary, text, source: 'subtitle' }
   } catch (err) {
     log.error({ msg: 'summarize stage failed', bvid, err: err instanceof Error ? err.message : String(err) })
     return { ok: false, code: 'llm_failed', message: 'AI 总结失败，请稍后重试。' }

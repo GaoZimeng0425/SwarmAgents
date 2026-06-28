@@ -3,16 +3,19 @@ import '@testing-library/jest-dom/vitest'
 import type React from 'react'
 import type { BiliListResult } from '@shared/types/bilibili'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { swarmApi } from '@/lib/api'
 import { BilibiliView, buildRows } from './bilibili-view'
 
-// The always-mounted detail sheet subscribes to transcription progress on render;
-// stub it by default so tests that don't care don't hit the (absent) preload bridge.
+// The always-mounted detail sheet subscribes to transcription progress on render and
+// the list/panel query the analysis cache; stub these by default so tests that don't
+// care don't hit the (absent) preload bridge.
 beforeEach(() => {
   vi.spyOn(swarmApi, 'bilibiliOnTranscribeProgress').mockReturnValue(() => {})
+  vi.spyOn(swarmApi, 'bilibiliAnalyzedBvids').mockResolvedValue([])
+  vi.spyOn(swarmApi, 'bilibiliGetAnalysis').mockResolvedValue(null)
 })
 
 function wrap(node: React.ReactElement): React.ReactElement {
@@ -105,6 +108,8 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
       ok: true,
       summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文',
+      source: 'subtitle',
     })
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
@@ -139,6 +144,8 @@ describe('BilibiliView', () => {
     const transcribe = vi.spyOn(swarmApi, 'bilibiliTranscribe').mockResolvedValue({
       ok: true,
       summary: { gist: '转写主旨', points: ['转写要点'], experience: [], pitfalls: [], steps: [] },
+      text: '转写全文',
+      source: 'transcript',
     })
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
@@ -147,6 +154,48 @@ describe('BilibiliView', () => {
     expect(await screen.findByText('转写主旨')).toBeInTheDocument()
     expect(screen.getByText('转写要点')).toBeInTheDocument()
     expect(transcribe).toHaveBeenCalledWith('BV1')
+  })
+
+  it('shows a cached analysis without calling bilibiliProcess', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    const process = vi.spyOn(swarmApi, 'bilibiliProcess')
+    vi.spyOn(swarmApi, 'bilibiliGetAnalysis').mockResolvedValue({
+      bvid: 'BV1',
+      summary: { gist: '缓存主旨', points: [], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文内容',
+      source: 'subtitle',
+      analyzedAt: '2026-06-28T00:00:00.000Z',
+    })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    expect(await screen.findByText('缓存主旨')).toBeInTheDocument()
+    expect(process).not.toHaveBeenCalled()
+  })
+
+  it('reveals the full text when the section is expanded', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    vi.spyOn(swarmApi, 'bilibiliGetAnalysis').mockResolvedValue({
+      bvid: 'BV1',
+      summary: { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文内容',
+      source: 'subtitle',
+      analyzedAt: '2026-06-28T00:00:00.000Z',
+    })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    fireEvent.click(await screen.findByRole('button', { name: /字幕原文/ }))
+    expect(await screen.findByText('字幕全文内容')).toBeInTheDocument()
+  })
+
+  it('shows an AI badge on analyzed videos', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    vi.spyOn(swarmApi, 'bilibiliAnalyzedBvids').mockResolvedValue(['BV1'])
+    render(wrap(<BilibiliView />))
+    const card = (await screen.findByText('视频甲')).closest('button') as HTMLElement
+    expect(within(card).getByText('AI')).toBeInTheDocument()
   })
 
   it('opens the video via the watch button with the clicked bvid', async () => {
@@ -165,6 +214,8 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
       ok: true,
       summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文',
+      source: 'subtitle',
     })
     const save = vi.spyOn(swarmApi, 'bilibiliSave').mockResolvedValue({ ok: true, path: '/vault/bili/x.md' })
     render(wrap(<BilibiliView />))
