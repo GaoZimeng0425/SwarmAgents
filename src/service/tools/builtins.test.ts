@@ -2,8 +2,8 @@ import { homedir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 
 import type { CronScheduler } from '../cron/scheduler'
-import type { MemoryStore } from '../memory/store'
 import type { TaskWaiterService } from '../loop/task-waiters'
+import type { MemoryStore } from '../memory/store'
 import { registerBuiltinTools } from './builtins'
 import { createToolRegistry, type ToolRunContext } from './registry'
 
@@ -40,6 +40,7 @@ describe('registerBuiltinTools', () => {
       'agent.find_agents',
       'agent.send_and_wait',
       'agent.send_message',
+      'agent.set_acceptance_criteria',
       'agent.spawn_sub_agent',
       'agent.update_plan',
       'agent.whoami',
@@ -159,7 +160,11 @@ describe('registerBuiltinTools with a task waiter service', () => {
   it('registers wait_for_task when a taskWaiters service is provided', () => {
     const registry = createToolRegistry()
     registerBuiltinTools(registry, {
-      taskWaiters: { register: () => ({ id: null, firedImmediately: false }), onTaskTerminal: () => {}, start: () => {} },
+      taskWaiters: {
+        register: () => ({ id: null, firedImmediately: false }),
+        onTaskTerminal: () => {},
+        start: () => {},
+      },
     })
     expect(registry.list().some((s) => s.name === 'wait_for_task')).toBe(true)
   })

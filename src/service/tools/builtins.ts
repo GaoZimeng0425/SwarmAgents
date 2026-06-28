@@ -2,9 +2,10 @@ import type { WebSearchInjection } from '@shared/types/web-search'
 
 import type { ClaudeCodeManager } from '../claude-code/manager'
 import type { CronScheduler } from '../cron/scheduler'
+import type { TaskWaiterService } from '../loop/task-waiters'
 import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
-import type { TaskWaiterService } from '../loop/task-waiters'
+import { acceptanceCriteriaSpec } from './acceptance-criteria'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
 import { claudeCodeSpecs } from './claude-code'
 import { cronSpecs } from './cron'
@@ -20,9 +21,9 @@ import { useSkillSpec } from './skill'
 import { spawnAgentSpec } from './spawn'
 import { currentTimeSpec } from './time'
 import { analyzeImageSpec, ocrImageSpec } from './vision'
+import { waitForTaskSpecs } from './wait-for-task'
 import { getWeatherSpec } from './weather'
 import { webFetchSpec, webSearchSpec } from './web'
-import { waitForTaskSpecs } from './wait-for-task'
 
 const PEEKABOO_RISK: Record<string, ToolRisk> = {
   // Read-only observation and the reversible scroll auto-run; consequential
@@ -74,6 +75,7 @@ export function registerBuiltinTools(
   registry.register(writeAgentSpec())
   registry.register(writeSkillSpec())
   registry.register(updatePlanSpec())
+  registry.register(acceptanceCriteriaSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(currentTimeSpec())
