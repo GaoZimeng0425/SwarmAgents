@@ -71,7 +71,7 @@ export function createAuth(opts: { store: Store }): Auth {
           const cookies = await ses.cookies.get({ url: COOKIE_URL })
           const creds = extractCredentials(cookies)
           if (!creds) return
-          await store.save({ credentials: creds })
+          await store.save({ ...(await store.load()), credentials: creds })
           const st = await getNav(creds)
           log.info({ msg: 'bilibili login captured', loggedIn: st.loggedIn, mid: st.mid })
           finish(() => resolve(st))
@@ -90,7 +90,7 @@ export function createAuth(opts: { store: Store }): Auth {
     })
 
   const logout: Auth['logout'] = async () => {
-    await store.save({ credentials: null })
+    await store.save({ ...(await store.load()), credentials: null })
     const ses = session.fromPartition('persist:bilibili')
     await ses.clearStorageData()
     log.info({ msg: 'bilibili logged out' })

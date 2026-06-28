@@ -2,7 +2,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '../shared/types/agent'
-import type { BiliListResult, BiliLoginStatus, BiliProcessResult } from '../shared/types/bilibili'
+import type { BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, ObsidianConfig, BiliVideo, BiliSummary } from '../shared/types/bilibili'
 import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
@@ -182,6 +182,11 @@ const bilibili: BilibiliBridge = {
   list: () => ipcRenderer.invoke('bilibili:list') as Promise<BiliListResult>,
   process: (bvid: string) => ipcRenderer.invoke('bilibili:process', bvid) as Promise<BiliProcessResult>,
   open: (bvid: string) => ipcRenderer.invoke('bilibili:open', bvid) as Promise<void>,
+  getObsidianConfig: () => ipcRenderer.invoke('bilibili:getObsidianConfig') as Promise<ObsidianConfig | null>,
+  setObsidianConfig: (cfg: ObsidianConfig) => ipcRenderer.invoke('bilibili:setObsidianConfig', cfg) as Promise<void>,
+  pickVault: () => ipcRenderer.invoke('bilibili:pickVault') as Promise<string | null>,
+  save: (video: BiliVideo, summary: BiliSummary) =>
+    ipcRenderer.invoke('bilibili:save', video, summary) as Promise<BiliSaveResult>,
 }
 
 const swarm: SwarmBridge = {
