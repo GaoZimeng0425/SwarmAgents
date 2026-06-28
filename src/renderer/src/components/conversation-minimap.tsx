@@ -13,7 +13,7 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
   const items = useMemo(() => minimapItems(tasks), [tasks])
   const [activeId, setActiveId] = useState<string | null>(null)
   // Stable dep: only changes when a turn is added/removed, not on every stream tick.
-  const idsKey = items.map((it) => it.taskId).join('|')
+  const idsKey = useMemo(() => items.map((it) => it.taskId).join('|'), [items])
 
   useEffect(() => {
     const ids = idsKey ? idsKey.split('|') : []
@@ -42,7 +42,9 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
             best = id
           }
         }
-        if (best) setActiveId(best)
+        // Set unconditionally: when no turn is in the top band, best is null and
+        // the highlight clears rather than sticking to a turn that left the view.
+        setActiveId(best)
       },
       { rootMargin: '0px 0px -60% 0px' }
     )
