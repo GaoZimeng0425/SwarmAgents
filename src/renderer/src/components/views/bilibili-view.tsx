@@ -129,11 +129,15 @@ function SummaryView({ summary }: { summary: BiliSummary }): React.JSX.Element {
 
 function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose: () => void }): React.JSX.Element {
   const mutation = useMutation({ mutationFn: (bvid: string) => swarmApi.bilibiliProcess(bvid) })
+  const saveMutation = useMutation({
+    mutationFn: (args: { video: BiliVideo; summary: BiliSummary }) => swarmApi.bilibiliSave(args.video, args.summary),
+  })
 
-  // Reset summary when the user switches to a different video card.
+  // Reset both mutations when the user switches to a different video card.
   useEffect(() => {
     mutation.reset()
-    // We intentionally omit `mutation` from deps — we only want to reset on bvid change.
+    saveMutation.reset()
+    // We intentionally omit the mutation objects from deps — we only want to reset on bvid change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.bvid])
 
@@ -172,7 +176,29 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
                   观看
                 </Button>
               </div>
-              {mutation.data?.ok ? <SummaryView summary={mutation.data.summary} /> : null}
+              {mutation.data?.ok ? (
+                <>
+                  <SummaryView summary={mutation.data.summary} />
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      className="w-fit"
+                      disabled={saveMutation.isPending}
+                      onClick={() =>
+                        video && mutation.data?.ok && saveMutation.mutate({ video, summary: mutation.data.summary })
+                      }
+                      variant="outline"
+                    >
+                      {saveMutation.isPending ? '保存中…' : '保存到 Obsidian'}
+                    </Button>
+                    {saveMutation.data?.ok ? (
+                      <span className="text-muted-foreground text-xs">已保存到 {saveMutation.data.path}</span>
+                    ) : null}
+                    {saveMutation.data && !saveMutation.data.ok ? (
+                      <span className="text-destructive text-xs">{saveMutation.data.message}</span>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
               {mutation.data && !mutation.data.ok ? (
                 <p className="text-destructive text-sm">{mutation.data.message}</p>
               ) : null}

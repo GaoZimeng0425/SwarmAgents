@@ -41,16 +41,26 @@ export const BiliCredentialsSchema = z
   })
   .strict()
 
+export const ObsidianConfigSchema = z
+  .object({
+    vaultPath: z.string(),
+    subdir: z.string(),
+  })
+  .strict()
+
+export type ObsidianConfig = z.infer<typeof ObsidianConfigSchema>
+
 export const BilibiliConfigOnDisk = z
   .object({
     credentials: BiliCredentialsSchema.nullable(),
+    obsidian: ObsidianConfigSchema.nullable().default(null),
   })
   .strict()
 
 export type BilibiliConfigOnDisk = z.infer<typeof BilibiliConfigOnDisk>
 
 export function defaultBilibiliConfigOnDisk(): BilibiliConfigOnDisk {
-  return { credentials: null }
+  return { credentials: null, obsidian: null }
 }
 
 export type BiliListResult = {
@@ -70,3 +80,7 @@ export type BiliSummary = {
 export type BiliProcessResult =
   | { ok: true; summary: BiliSummary }
   | { ok: false; code: 'no_subtitle' | 'no_provider' | 'llm_failed' | 'unknown'; message: string }
+
+export type BiliSaveResult =
+  | { ok: true; path: string }
+  | { ok: false; code: 'no_vault' | 'write_failed'; message: string }

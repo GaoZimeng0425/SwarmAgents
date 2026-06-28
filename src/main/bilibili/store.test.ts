@@ -28,20 +28,21 @@ afterEach(async () => {
 describe('bilibili store', () => {
   it('returns defaults when file is missing', async () => {
     const store = createStore({ filePath })
-    expect(await store.load()).toEqual({ credentials: null })
+    expect(await store.load()).toEqual({ credentials: null, obsidian: null })
   })
 
   it('round-trips saved credentials', async () => {
     const store = createStore({ filePath })
-    await store.save({ credentials: { sessdata: 's', biliJct: 'j', dedeUserId: '1' } })
+    await store.save({ credentials: { sessdata: 's', biliJct: 'j', dedeUserId: '1' }, obsidian: null })
     expect(await store.load()).toEqual({
       credentials: { sessdata: 's', biliJct: 'j', dedeUserId: '1' },
+      obsidian: null,
     })
   })
 
   it('returns defaults when stored bytes are not valid', async () => {
     await fs.writeFile(filePath, Buffer.from('not json', 'utf8'))
     const store = createStore({ filePath })
-    expect(await store.load()).toEqual({ credentials: null })
+    expect(await store.load()).toEqual({ credentials: null, obsidian: null })
   })
 })

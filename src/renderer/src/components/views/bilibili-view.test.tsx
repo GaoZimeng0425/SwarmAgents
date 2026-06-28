@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type React from 'react'
 import type { BiliListResult } from '@shared/types/bilibili'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { swarmApi } from '@/lib/api'
@@ -129,5 +129,22 @@ describe('BilibiliView', () => {
     fireEvent.click(await screen.findByText('视频甲'))
     fireEvent.click(await screen.findByRole('button', { name: /观看/ }))
     expect(open).toHaveBeenCalledWith('BV1')
+  })
+
+  it('saves the summary to Obsidian from the detail panel', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
+      ok: true,
+      summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+    })
+    const save = vi.spyOn(swarmApi, 'bilibiliSave').mockResolvedValue({ ok: true, path: '/vault/bili/x.md' })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
+    await screen.findByText('AI主旨')
+    fireEvent.click(screen.getByRole('button', { name: /保存到 Obsidian/ }))
+    await waitFor(() => expect(save).toHaveBeenCalled())
+    expect(await screen.findByText(/已保存/)).toBeInTheDocument()
   })
 })

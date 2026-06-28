@@ -1,17 +1,22 @@
 // src/main/bilibili/ipc.ts
 //
-// Wires the Bilibili subsystem to Electron IPC: login/logout/status and a single
-// aggregated list endpoint. buildList is exported for unit testing.
+// Wires the Bilibili subsystem to Electron IPC: login/logout/status, an aggregated list
+// endpoint, video processing/open, and Obsidian config/save. buildList is exported for unit testing.
 import { createLogger } from '@shared/logger'
 import type {
   BiliCredentials,
   BiliFavFolder,
   BiliListResult,
   BiliProcessResult,
+  BiliSaveResult,
+  BiliSummary,
   BiliVideo,
+  ObsidianConfig,
 } from '@shared/types/bilibili'
 import type { ProviderInjection } from '@shared/types/provider'
-import { ipcMain, shell } from 'electron'
+import { dialog, ipcMain, shell } from 'electron'
+
+import { writeNote } from './obsidian'
 
 import { getFavFolders, getFavResources, getWatchLater } from './api'
 import type { Auth } from './auth'
@@ -153,6 +158,26 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
 
   ipcMain.handle('bilibili:open', (_e, bvid: string) => openVideo(bvid, (url) => shell.openExternal(url)))
 
+  ipcMain.handle('bilibili:getObsidianConfig', async (): Promise<ObsidianConfig | null> => {
+    return (await store.load()).obsidian ?? null
+  })
+
+  ipcMain.handle('bilibili:setObsidianConfig', async (_e, cfg: ObsidianConfig): Promise<void> => {
+    const current = await store.load()
+    await store.save({ ...current, obsidian: cfg })
+    log.info({ msg: 'obsidian config saved', vaultPath: cfg.vaultPath, subdir: cfg.subdir })
+  })
+
+  ipcMain.handle('bilibili:pickVault', async (): Promise<string | null> => {
+    const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0]
+  })
+
+  ipcMain.handle('bilibili:save', async (_e, video: BiliVideo, summary: BiliSummary): Promise<BiliSaveResult> => {
+    const cfg = (await store.load()).obsidian ?? null
+    return writeNote(cfg, video, summary, new Date().toISOString().slice(0, 10))
+  })
+
   log.info({ msg: 'bilibili IPC wired' })
   return {
     dispose(): void {
@@ -163,6 +188,10 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
         'bilibili:list',
         'bilibili:process',
         'bilibili:open',
+        'bilibili:getObsidianConfig',
+        'bilibili:setObsidianConfig',
+        'bilibili:pickVault',
+        'bilibili:save',
       ]) {
         ipcMain.removeHandler(ch)
       }
