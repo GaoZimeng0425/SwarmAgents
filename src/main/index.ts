@@ -14,6 +14,7 @@ import { setupAutoUpdate } from './system/auto-update'
 import { handleDeepLink, registerDeepLinkIpc } from './system/deep-link'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
+import { initBilibili } from './bilibili'
 import { initTrending } from './trending'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
@@ -64,12 +65,16 @@ app.whenReady().then(async () => {
   const trending = initTrending()
   log.info({ msg: 'trending IPC initialised' })
 
+  const bilibili = initBilibili()
+  log.info({ msg: 'bilibili IPC initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
     mcpServers.dispose()
     webSearch.dispose()
     budgets.dispose()
     trending.dispose()
+    bilibili.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')

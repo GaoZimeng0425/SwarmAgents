@@ -33,6 +33,7 @@ export const paths = {
   db: () => join(app.getPath('userData'), 'agent-service.db'),
   memory: () => join(app.getPath('userData'), 'agent-memory.json'),
   providers: () => join(app.getPath('userData'), 'providers.enc'),
+  bilibili: () => join(app.getPath('userData'), 'bilibili.bin'),
   // Locally-cached OpenRouter model catalog (public pricing/context data — plain
   // JSON, not a credential). Lets pricing auto-match offline and survive restart.
   openrouterCatalog: () => join(app.getPath('userData'), 'openrouter-catalog.json'),

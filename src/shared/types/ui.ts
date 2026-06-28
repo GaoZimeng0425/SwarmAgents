@@ -9,6 +9,7 @@
  */
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
+import type { BiliListResult, BiliLoginStatus } from './bilibili'
 import type { BudgetConfig } from './budgets'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
@@ -186,6 +187,13 @@ export type ProvidersFetchModelInfoResult =
   | { ok: true; matched: number; total: number; unmatched: string[] }
   | { ok: false; code: 'invalid' | 'network'; message: string }
 
+export type BilibiliBridge = {
+  status: () => Promise<BiliLoginStatus>
+  login: () => Promise<BiliLoginStatus>
+  logout: () => Promise<void>
+  list: () => Promise<BiliListResult>
+}
+
 export type ProvidersBridge = {
   get(): Promise<ProvidersStateView>
   /** id is a builtin id ('anthropic'|'openai') or a custom provider id. */
@@ -356,6 +364,7 @@ export type SwarmBridge = {
   toolToggles: ToolTogglesBridge
   memory: MemoryBridge
   agents: AgentBridge
+  bilibili: BilibiliBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.
