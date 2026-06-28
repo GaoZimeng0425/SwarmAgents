@@ -51,7 +51,7 @@ describe('wireBilibiliIpc / bilibili:process', () => {
       logout: vi.fn(async () => undefined),
     }
     const fakeStore: Store = {
-      load: vi.fn(async () => ({ credentials: creds, obsidian: null })),
+      load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
       save: vi.fn(async () => undefined),
     }
     wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, getInjection: () => null })
@@ -91,7 +91,7 @@ describe('wireBilibiliIpc / bilibili:save', () => {
       logout: vi.fn(async () => undefined),
     }
     const fakeStore: Store = {
-      load: vi.fn(async () => ({ credentials: creds, obsidian: null })),
+      load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
       save: vi.fn(async () => undefined),
     }
     wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, getInjection: () => null })
