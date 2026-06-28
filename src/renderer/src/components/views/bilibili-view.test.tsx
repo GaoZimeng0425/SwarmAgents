@@ -105,6 +105,8 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
       ok: true,
       summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文',
+      source: 'subtitle',
     })
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
@@ -139,6 +141,8 @@ describe('BilibiliView', () => {
     const transcribe = vi.spyOn(swarmApi, 'bilibiliTranscribe').mockResolvedValue({
       ok: true,
       summary: { gist: '转写主旨', points: ['转写要点'], experience: [], pitfalls: [], steps: [] },
+      text: '转写全文',
+      source: 'transcript',
     })
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
@@ -165,6 +169,8 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
       ok: true,
       summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+      text: '字幕全文',
+      source: 'subtitle',
     })
     const save = vi.spyOn(swarmApi, 'bilibiliSave').mockResolvedValue({ ok: true, path: '/vault/bili/x.md' })
     render(wrap(<BilibiliView />))
