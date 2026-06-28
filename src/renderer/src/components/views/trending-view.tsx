@@ -12,6 +12,7 @@ import { ExternalLink, GitFork, GitPullRequest, Loader2, Sparkles, Star } from '
 import { Button, buttonVariants } from '@/components/ui/button'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { VirtualList } from '@/components/ui/virtual-list'
 import { useResearchRepo } from '@/hooks/use-research-repo'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -171,19 +172,24 @@ export function TrendingView(): React.JSX.Element {
           <p className="text-muted-foreground text-sm">试试切换周期或语言。</p>
         </div>
       ) : (
-        <ol className="flex flex-col gap-2">
-          {data.map((repo, i) => (
+        <VirtualList
+          className="-mr-2 min-h-0 flex-1 pr-2"
+          edgeFade
+          estimateSize={96}
+          gap={8}
+          getKey={(repo) => repo.repoName}
+          items={data}
+          renderItem={(repo, i) => (
             <RepoRow
               index={i}
               isError={researchError === repo.repoName}
               isResearching={researching === repo.repoName}
-              key={repo.repoName}
               onResearch={() => void handleResearch(repo)}
               repo={repo}
               researchDisabled={researching !== null}
             />
-          ))}
-        </ol>
+          )}
+        />
       )}
     </div>
   )
@@ -204,7 +210,7 @@ function RepoRow(props: {
   const topThree = index < 3
 
   return (
-    <li className="flex items-start gap-3 rounded-lg border border-border bg-card/60 p-3.5 transition-colors hover:bg-card/80">
+    <div className="flex items-start gap-3 rounded-lg border border-border bg-card/60 p-3.5 transition-colors hover:bg-card/80">
       <span
         className={cn(
           'w-6 shrink-0 pt-0.5 text-center font-mono text-sm tabular-nums',
@@ -268,7 +274,7 @@ function RepoRow(props: {
         </div>
         {isError ? <p className="text-destructive text-xs">创建会话失败，请检查模型配置</p> : null}
       </div>
-    </li>
+    </div>
   )
 }
 

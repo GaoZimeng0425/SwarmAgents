@@ -1,16 +1,20 @@
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
+import type { Ref } from "react"
 
 import { cn } from "@/lib/utils"
 
 type ScrollAreaProps = ScrollAreaPrimitive.Root.Props & {
   /** Show top/bottom gradient edge fades when content overflows. */
   edgeFade?: boolean
+  /** Ref to the scrolling viewport element, e.g. for `@tanstack/react-virtual`. */
+  viewportRef?: Ref<HTMLDivElement>
 }
 
 function ScrollArea({
   className,
   children,
   edgeFade = false,
+  viewportRef,
   ...props
 }: ScrollAreaProps) {
   return (
@@ -22,6 +26,7 @@ function ScrollArea({
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
         className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        ref={viewportRef}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

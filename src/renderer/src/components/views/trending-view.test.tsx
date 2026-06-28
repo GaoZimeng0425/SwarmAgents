@@ -38,8 +38,11 @@ describe('TrendingView', () => {
   it('renders the trending repo rows on success', async () => {
     vi.spyOn(swarmApi, 'getTrendingRepos').mockResolvedValue([repo])
     render(wrap(<TrendingView />))
-    expect(await screen.findByText('oven-sh/bun')).toBeInTheDocument()
-    expect(screen.getByText('Incredibly fast JavaScript runtime')).toBeInTheDocument()
+    // The repo name renders as split owner / repo spans, so assert on the
+    // description (a single text node) to confirm the virtualized row mounted.
+    expect(await screen.findByText('Incredibly fast JavaScript runtime')).toBeInTheDocument()
+    expect(screen.getByText('oven-sh')).toBeInTheDocument()
+    expect(screen.getByText('bun')).toBeInTheDocument()
   })
 
   it('shows an error state with a retry control when the fetch fails', async () => {
@@ -57,7 +60,8 @@ describe('TrendingView', () => {
   it('shows a loading indicator while fetching', () => {
     // Never-resolving promise keeps isPending=true for the lifetime of this test
     vi.spyOn(swarmApi, 'getTrendingRepos').mockReturnValue(new Promise(() => {}))
-    render(wrap(<TrendingView />))
-    expect(screen.getByText(/加载中/)).toBeInTheDocument()
+    const { container } = render(wrap(<TrendingView />))
+    // The loading state renders skeleton placeholder rows.
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 })

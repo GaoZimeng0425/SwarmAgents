@@ -1,11 +1,57 @@
 // Shows the user's Bilibili favorites folders and watch-later list. Prompts for
 // login when logged out. Clicking a video is a no-op until milestone C wires the
 // summarize -> Obsidian pipeline.
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BiliVideo } from '@shared/types/bilibili'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
+import { VirtualList } from '@/components/ui/virtual-list'
 import { swarmApi } from '@/lib/api'
+
+// Grid metrics — kept in sync with the inline grid template below. MIN_CARD is
+// the 11rem min column width the layout used before virtualization; GAP is the
+// gap-3 (0.75rem) gutter.
+const MIN_CARD_PX = 176
+const GAP_PX = 12
+
+// A flattened row in the virtualized list: either a section heading or one row
+// of video cards. Chunking videos into fixed-width rows lets a single vertical
+// virtualizer drive the whole grid, so off-screen cards (and their <img>s) stay
+// unmounted regardless of how large a favorites folder is.
+type GridRow = { kind: 'header'; key: string; title: string } | { kind: 'grid'; key: string; videos: BiliVideo[] }
+
+function columnsForWidth(width: number): number {
+  if (width <= 0) return 1
+  return Math.max(1, Math.floor((width + GAP_PX) / (MIN_CARD_PX + GAP_PX)))
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = []
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size))
+  return rows
+}
+
+function buildRows(
+  folders: { folder: { id: number; title: string }; videos: BiliVideo[] }[],
+  watchLater: BiliVideo[],
+  columns: number
+): GridRow[] {
+  const rows: GridRow[] = []
+  for (const { folder, videos } of folders) {
+    rows.push({ kind: 'header', key: `header:${folder.id}`, title: folder.title })
+    chunk(videos, columns).forEach((group, i) => {
+      rows.push({ kind: 'grid', key: `grid:${folder.id}:${i}`, videos: group })
+    })
+  }
+  if (watchLater.length > 0) {
+    rows.push({ kind: 'header', key: 'header:watch-later', title: '稍后再看' })
+    chunk(watchLater, columns).forEach((group, i) => {
+      rows.push({ kind: 'grid', key: `grid:watch-later:${i}`, videos: group })
+    })
+  }
+  return rows
+}
 
 function VideoCard({ video, onClick }: { video: BiliVideo; onClick: (v: BiliVideo) => void }): React.JSX.Element {
   return (
@@ -41,6 +87,25 @@ export function BilibiliView(): React.JSX.Element {
     enabled: loggedIn,
   })
 
+  // Track the content width so the grid can be chunked into fixed-column rows
+  // that match a responsive `auto-fill` layout.
+  const widthRef = useRef<HTMLDivElement>(null)
+  const [columns, setColumns] = useState(1)
+  useEffect(() => {
+    const el = widthRef.current
+    if (!el) return
+    const update = (): void => setColumns(columnsForWidth(el.clientWidth))
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const rows = useMemo(() => {
+    if (!listQuery.data) return []
+    return buildRows(listQuery.data.folders, listQuery.data.watchLater, columns)
+  }, [listQuery.data, columns])
+
   async function handleLogin(): Promise<void> {
     await swarmApi.bilibiliLogin()
     await queryClient.invalidateQueries({ queryKey: ['bilibili'] })
@@ -65,7 +130,7 @@ export function BilibiliView(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full flex-col gap-4 overflow-auto p-4">
+    <div className="mx-auto flex h-full w-full flex-col gap-4 p-4">
       <div className="flex items-center gap-2">
         <h1 className="mr-auto font-semibold text-foreground/90 text-lg">Bilibili 收藏</h1>
         <span className="text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
@@ -81,28 +146,27 @@ export function BilibiliView(): React.JSX.Element {
       ) : listQuery.isPending ? (
         <div className="py-12 text-center text-muted-foreground">加载中…</div>
       ) : (
-        <>
-          {listQuery.data.folders.map(({ folder, videos }) => (
-            <section className="flex flex-col gap-2" key={folder.id}>
-              <h2 className="font-medium text-foreground/80 text-sm">{folder.title}</h2>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
-                {videos.map((v) => (
-                  <VideoCard key={v.bvid} onClick={handleClickVideo} video={v} />
-                ))}
-              </div>
-            </section>
-          ))}
-          {listQuery.data.watchLater.length > 0 ? (
-            <section className="flex flex-col gap-2">
-              <h2 className="font-medium text-foreground/80 text-sm">稍后再看</h2>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
-                {listQuery.data.watchLater.map((v) => (
-                  <VideoCard key={v.bvid} onClick={handleClickVideo} video={v} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </>
+        // widthRef measures the available content width to derive the column count.
+        <div className="min-h-0 flex-1" ref={widthRef}>
+          <VirtualList
+            className="h-full"
+            estimateSize={170}
+            gap={12}
+            getKey={(row) => row.key}
+            items={rows}
+            renderItem={(row) =>
+              row.kind === 'header' ? (
+                <h2 className="pt-2 font-medium text-foreground/80 text-sm">{row.title}</h2>
+              ) : (
+                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+                  {row.videos.map((v) => (
+                    <VideoCard key={v.bvid} onClick={handleClickVideo} video={v} />
+                  ))}
+                </div>
+              )
+            }
+          />
+        </div>
       )}
     </div>
   )
