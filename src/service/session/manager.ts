@@ -587,7 +587,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-          maxVerifyRounds: MAX_VERIFY_ROUNDS,
+          // Children verify single-shot; only top-level submitGoal tasks run the verify loop.
+          maxVerifyRounds: 0,
         })
         try {
           const { status, summary } = await runner.run()

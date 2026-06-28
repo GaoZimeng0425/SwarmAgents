@@ -1216,7 +1216,11 @@ function defaultVerifyCompletion(deps: AgentRunnerDeps): NonNullable<AgentRunner
       }
       return parsed
     }
-    const verdict = await verifyTask({ criteria, summary, cwd, judge })
+    // Model-authored command checks bypass the shell permission gate, so only
+    // run them as hard checks when the session is in 'full' permission mode;
+    // otherwise verifyTask demotes them to the LLM judge.
+    const allowCommands = (deps.getPermissionMode?.() ?? deps.task.permissionMode ?? 'ask') === 'full'
+    const verdict = await verifyTask({ criteria, summary, cwd, judge, allowCommands })
     return { ...verdict, judgeUsed }
   }
 }

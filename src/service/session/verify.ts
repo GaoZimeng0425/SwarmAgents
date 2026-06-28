@@ -15,13 +15,18 @@ export type Judge = (soft: AcceptanceCriterion[], summary: string) => Promise<{ 
 
 const CHECK_TIMEOUT_MS = 120_000
 
-async function runCheck(check: ExecutableCheck, cwd?: string): Promise<{ pass: boolean; detail: string }> {
+async function runCheck(
+  check: ExecutableCheck,
+  criterionId: string,
+  cwd?: string
+): Promise<{ pass: boolean; detail: string }> {
   const base = cwd ?? homedir()
   if (check.kind === 'file_exists') {
     const abs = isAbsolute(check.path) ? check.path : join(base, check.path)
     const pass = existsSync(abs)
     return { pass, detail: pass ? `exists: ${abs}` : `missing: ${abs}` }
   }
+  log.info({ msg: 'running command check', criterionId, command: check.command })
   const expectExit = check.expectExitCode ?? 0
   const stdoutOk = (stdout: string): boolean => (check.expectStdout ? stdout.includes(check.expectStdout) : true)
   try {
@@ -31,7 +36,9 @@ async function runCheck(check: ExecutableCheck, cwd?: string): Promise<{ pass: b
       pass,
       detail: pass
         ? `exit 0${check.expectStdout ? ', stdout matched' : ''}`
-        : `exit 0 but stdout missing "${check.expectStdout}"`,
+        : expectExit !== 0
+          ? `exit 0 (expected ${expectExit})`
+          : `exit 0 but stdout missing "${check.expectStdout}"`,
     }
   } catch (e) {
     // A non-zero exit rejects; `code` carries the exit status, `stdout` the captured output.
@@ -49,7 +56,7 @@ export async function runHardChecks(criteria: AcceptanceCriterion[], cwd?: strin
   for (const c of criteria) {
     if (!c.check) continue
     try {
-      const r = await runCheck(c.check, cwd)
+      const r = await runCheck(c.check, c.id, cwd)
       results.push({ criterionId: c.id, pass: r.pass, detail: r.detail })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -81,10 +88,31 @@ export async function verifyTask(input: {
   summary: string
   cwd?: string
   judge: Judge
+  // When false, model-authored `kind: 'command'` checks are NOT executed (they
+  // would bypass the shell permission gate); they are demoted to the soft set
+  // and judged by the LLM instead. `file_exists` checks always run (read-only).
+  allowCommands: boolean
 }): Promise<Verdict> {
-  const { criteria, summary, cwd, judge } = input
-  const hard = await runHardChecks(criteria, cwd)
-  const soft = criteria.filter((c) => !c.check)
+  const { criteria, summary, cwd, judge, allowCommands } = input
+  // Partition criteria into the runnable-hard subset and the soft subset.
+  // A criterion runs as a hard check when it has a check AND that check is
+  // either file_exists (always allowed) or a command with allowCommands=true.
+  // Everything else — no check, or a demoted command check — is judged.
+  const runnableHard: AcceptanceCriterion[] = []
+  const soft: AcceptanceCriterion[] = []
+  for (const c of criteria) {
+    if (!c.check) {
+      soft.push(c)
+      continue
+    }
+    if (c.check.kind === 'command' && !allowCommands) {
+      log.warn({ msg: 'command check skipped (permission mode not full); judged instead', criterionId: c.id })
+      soft.push(c)
+      continue
+    }
+    runnableHard.push(c)
+  }
+  const hard = await runHardChecks(runnableHard, cwd)
   // Judge runs for soft criteria, or for an overall judgment when there are none.
   let judged = { pass: true, gaps: [] as string[] }
   if (soft.length > 0 || criteria.length === 0) {

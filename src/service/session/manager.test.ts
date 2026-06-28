@@ -267,6 +267,7 @@ describe('SessionManager', () => {
 
   it('propagates child runner summary through spawnChild', async () => {
     let callCount = 0
+    let childMaxVerifyRounds: number | undefined
     let capturedSpawnChild:
       | ((...args: unknown[]) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>)
       | null = null
@@ -278,7 +279,8 @@ describe('SessionManager', () => {
         capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
         return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'parent done' }) }
       }
-      // Child runner: resolves with a non-empty summary
+      // Child runner: capture its verify-round budget; resolves with a non-empty summary
+      childMaxVerifyRounds = deps.maxVerifyRounds
       return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'child result text' }) }
     })
 
@@ -302,6 +304,8 @@ describe('SessionManager', () => {
     expect(capturedSpawnChild).not.toBeNull()
     const childResult = await capturedSpawnChild!(parentTaskId, 'child goal')
     expect(childResult.result.summary).toBe('child result text')
+    // Children verify single-shot: only top-level submitGoal tasks run the verify loop.
+    expect(childMaxVerifyRounds).toBe(0)
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
