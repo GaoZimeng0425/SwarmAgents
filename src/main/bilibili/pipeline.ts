@@ -12,7 +12,10 @@ export type PipelineDeps = {
   getInjection: () => ProviderInjection | null
   getMeta: (bvid: string) => { title: string; author: string } | null
   getSubtitleText: (c: BiliCredentials, bvid: string) => Promise<string | null>
-  summarize: (inj: ProviderInjection, input: { title: string; author: string; text: string }) => Promise<BiliSummary>
+  summarize: (
+    inj: ProviderInjection,
+    input: { bvid: string; title: string; author: string; text: string }
+  ) => Promise<BiliSummary>
 }
 
 export async function processVideo(deps: PipelineDeps, c: BiliCredentials, bvid: string): Promise<BiliProcessResult> {
@@ -36,7 +39,7 @@ export async function processVideo(deps: PipelineDeps, c: BiliCredentials, bvid:
   }
   const meta = deps.getMeta(bvid) ?? { title: '', author: '' }
   try {
-    const summary = await deps.summarize(inj, { ...meta, text })
+    const summary = await deps.summarize(inj, { bvid, ...meta, text })
     log.info({ msg: 'process ok', bvid, durationMs: Date.now() - started })
     return { ok: true, summary }
   } catch (err) {

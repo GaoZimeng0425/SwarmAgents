@@ -117,8 +117,8 @@ function SummaryView({ summary }: { summary: BiliSummary }): React.JSX.Element {
           <div key={label}>
             <p className="mb-1 font-medium text-foreground/70 text-xs">{label}</p>
             <ul className="list-disc pl-4 text-foreground/80">
-              {items.map((item) => (
-                <li key={item}>{item}</li>
+              {items.map((item, i) => (
+                <li key={`${label}-${i}`}>{item}</li>
               ))}
             </ul>
           </div>

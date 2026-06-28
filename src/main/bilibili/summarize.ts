@@ -60,13 +60,13 @@ function chatUrl(inj: ProviderInjection): { url: string; style: 'anthropic' | 'o
 
 export async function summarize(
   inj: ProviderInjection,
-  input: { title: string; author: string; text: string }
+  input: { bvid: string; title: string; author: string; text: string }
 ): Promise<BiliSummary> {
   // NOTE: ProviderInjection uses `model` (single string), not `models[]`.
   const model = inj.model
   const { url, style } = chatUrl(inj)
   const prompt = buildPrompt(input)
-  log.info({ msg: 'summarize request', model, chars: input.text.length })
+  log.info({ msg: 'summarize request', bvid: input.bvid, model, chars: input.text.length })
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   let body: string
@@ -92,7 +92,6 @@ export async function summarize(
   const content =
     style === 'anthropic'
       ? ((json.content as { text?: string }[] | undefined)?.[0]?.text ?? '')
-      : (((json.choices as { message?: { content?: string } }[] | undefined)?.[0]?.message
-          ?.content) ?? '')
+      : ((json.choices as { message?: { content?: string } }[] | undefined)?.[0]?.message?.content ?? '')
   return parseSummary(content)
 }
