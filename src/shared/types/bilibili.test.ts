@@ -3,7 +3,7 @@ import { BilibiliConfigOnDisk, defaultBilibiliConfigOnDisk } from './bilibili'
 
 describe('BilibiliConfigOnDisk', () => {
   it('defaults to null credentials', () => {
-    expect(defaultBilibiliConfigOnDisk()).toEqual({ credentials: null, obsidian: null })
+    expect(defaultBilibiliConfigOnDisk()).toEqual({ credentials: null, obsidian: null, transcription: null })
   })
 
   it('accepts a valid credentials object', () => {

@@ -1,5 +1,5 @@
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
-import type { BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, ObsidianConfig, BiliVideo, BiliSummary } from '@shared/types/bilibili'
+import type { BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '@shared/types/bilibili'
 import type { MemoryView } from '@shared/types/memory'
 import type { Attachment, Task, TaskOptions } from '@shared/types/task'
 import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
@@ -59,6 +59,14 @@ export const swarmApi = {
   bilibiliPickVault: (): Promise<string | null> => window.swarm.bilibili.pickVault(),
   bilibiliSave: (video: BiliVideo, summary: BiliSummary): Promise<BiliSaveResult> =>
     window.swarm.bilibili.save(video, summary),
+  bilibiliGetTranscribeConfig: (): Promise<TranscriptionConfig | null> =>
+    window.swarm.bilibili.getTranscribeConfig(),
+  bilibiliSetTranscribeConfig: (cfg: TranscriptionConfig): Promise<void> =>
+    window.swarm.bilibili.setTranscribeConfig(cfg),
+  bilibiliPickModelDir: (): Promise<string | null> => window.swarm.bilibili.pickModelDir(),
+  bilibiliTranscribe: (bvid: string): Promise<BiliTranscribeResult> => window.swarm.bilibili.transcribe(bvid),
+  bilibiliOnTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void): (() => void) =>
+    window.swarm.bilibili.onTranscribeProgress(cb),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
   listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),

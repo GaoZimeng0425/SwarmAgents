@@ -2,7 +2,10 @@
 //
 // Wires the Bilibili subsystem to Electron IPC: login/logout/status, an aggregated list
 // endpoint, video processing/open, and Obsidian config/save. buildList is exported for unit testing.
+import { promises as fs } from 'node:fs'
+import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
+import { TranscriptionConfigSchema } from '@shared/types/bilibili'
 import type {
   BiliCredentials,
   BiliFavFolder,
@@ -10,22 +13,32 @@ import type {
   BiliProcessResult,
   BiliSaveResult,
   BiliSummary,
+  BiliTranscribeProgress,
+  BiliTranscribeResult,
   BiliVideo,
   ObsidianConfig,
+  TranscriptionConfig,
 } from '@shared/types/bilibili'
 import type { ProviderInjection } from '@shared/types/provider'
-import { dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import { writeNote } from './obsidian'
 
 import { getFavFolders, getFavResources, getWatchLater } from './api'
+import { defaultAudioDeps, extractWav } from './audio'
 import type { Auth } from './auth'
 import { processVideo } from './pipeline'
+import { defaultPlayUrlDeps, getDashAudioUrl } from './playurl'
 import type { Store } from './store'
 import { defaultSubtitleDeps, getSubtitleText } from './subtitle'
 import { summarize } from './summarize'
+import { transcribeWav } from './transcribe'
+import { createTranscribeQueue } from './transcribe-queue'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-ipc' })
+
+// Broadcast channel for transcription stage updates (main -> all renderers).
+export const TRANSCRIBE_PROGRESS_CHANNEL = 'bilibili:transcribe:progress'
 
 // Opens a video in the local Bilibili desktop app via its `bilipc:` URL scheme,
 // falling back to the web page in the browser when the app isn't installed (the
@@ -87,6 +100,30 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
 
   // Populated when bilibili:list resolves so pipeline can look up title/author without refetch.
   const metaIndex = new Map<string, { title: string; author: string }>()
+
+  // Transcription work directory + serial queue. Progress is broadcast to all
+  // renderer windows so the detail panel can show the current stage.
+  const workDir = join(app.getPath('temp'), 'swarm-bili-asr')
+
+  const broadcast = (p: BiliTranscribeProgress): void => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send(TRANSCRIBE_PROGRESS_CHANNEL, p)
+    }
+  }
+
+  const queue = createTranscribeQueue({
+    getCredentials: async () => (await store.load()).credentials,
+    getConfig: async () => (await store.load()).transcription,
+    getInjection: opts.getInjection,
+    getMeta: (id) => metaIndex.get(id) ?? null,
+    getDashAudioUrl: (c, id) => getDashAudioUrl(defaultPlayUrlDeps, c, id),
+    extractWav: (a) => extractWav(defaultAudioDeps, a),
+    transcribeWav,
+    summarize,
+    workDir,
+    cleanup: (wav) => fs.rm(wav, { force: true }),
+  })
+  queue.onProgress(broadcast)
 
   ipcMain.handle('bilibili:status', () => auth.status())
   ipcMain.handle('bilibili:login', () => auth.login())
@@ -178,9 +215,39 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
     return writeNote(cfg, video, summary, new Date().toISOString().slice(0, 10))
   })
 
+  ipcMain.handle('bilibili:getTranscribeConfig', async (): Promise<TranscriptionConfig | null> => {
+    return (await store.load()).transcription ?? null
+  })
+
+  ipcMain.handle('bilibili:setTranscribeConfig', async (_e, cfg: TranscriptionConfig): Promise<void> => {
+    // Validate the renderer-supplied shape before persisting; ffmpegPath later
+    // reaches child_process.spawn, so it must not be trusted blindly.
+    const checked = TranscriptionConfigSchema.parse(cfg)
+    const current = await store.load()
+    await store.save({ ...current, transcription: checked })
+    log.info({ msg: 'transcribe config saved', ffmpegPath: checked.ffmpegPath, modelDir: checked.modelDir })
+  })
+
+  ipcMain.handle('bilibili:pickModelDir', async (): Promise<string | null> => {
+    const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0]
+  })
+
+  ipcMain.handle('bilibili:transcribe', async (_e, bvid: string): Promise<BiliTranscribeResult> => {
+    try {
+      await fs.mkdir(workDir, { recursive: true })
+    } catch (err) {
+      log.error({ msg: 'transcribe workdir create failed', bvid, err: err instanceof Error ? err.message : String(err) })
+      return { ok: false, code: 'unknown', message: '无法创建临时目录。' }
+    }
+    log.info({ msg: 'transcribe requested', bvid })
+    return queue.enqueue(bvid)
+  })
+
   log.info({ msg: 'bilibili IPC wired' })
   return {
     dispose(): void {
+      queue.dispose()
       for (const ch of [
         'bilibili:status',
         'bilibili:login',
@@ -192,6 +259,10 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
         'bilibili:setObsidianConfig',
         'bilibili:pickVault',
         'bilibili:save',
+        'bilibili:getTranscribeConfig',
+        'bilibili:setTranscribeConfig',
+        'bilibili:pickModelDir',
+        'bilibili:transcribe',
       ]) {
         ipcMain.removeHandler(ch)
       }

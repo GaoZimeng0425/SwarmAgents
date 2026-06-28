@@ -4,10 +4,16 @@ import type React from 'react'
 import type { BiliListResult } from '@shared/types/bilibili'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { swarmApi } from '@/lib/api'
 import { BilibiliView, buildRows } from './bilibili-view'
+
+// The always-mounted detail sheet subscribes to transcription progress on render;
+// stub it by default so tests that don't care don't hit the (absent) preload bridge.
+beforeEach(() => {
+  vi.spyOn(swarmApi, 'bilibiliOnTranscribeProgress').mockReturnValue(() => {})
+})
 
 function wrap(node: React.ReactElement): React.ReactElement {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -119,6 +125,28 @@ describe('BilibiliView', () => {
     fireEvent.click(await screen.findByText('视频甲'))
     fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
     expect(await screen.findByText(/没有字幕/)).toBeInTheDocument()
+  })
+
+  it('offers local transcription when the video has no subtitle and shows the summary', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
+      ok: false,
+      code: 'no_subtitle',
+      message: '该视频没有字幕。',
+    })
+    vi.spyOn(swarmApi, 'bilibiliOnTranscribeProgress').mockReturnValue(() => {})
+    const transcribe = vi.spyOn(swarmApi, 'bilibiliTranscribe').mockResolvedValue({
+      ok: true,
+      summary: { gist: '转写主旨', points: ['转写要点'], experience: [], pitfalls: [], steps: [] },
+    })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByText('视频甲'))
+    fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /本地转写/ }))
+    expect(await screen.findByText('转写主旨')).toBeInTheDocument()
+    expect(screen.getByText('转写要点')).toBeInTheDocument()
+    expect(transcribe).toHaveBeenCalledWith('BV1')
   })
 
   it('opens the video via the watch button with the clicked bvid', async () => {

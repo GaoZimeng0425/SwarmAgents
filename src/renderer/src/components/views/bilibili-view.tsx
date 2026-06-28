@@ -129,17 +129,37 @@ function SummaryView({ summary }: { summary: BiliSummary }): React.JSX.Element {
 
 function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose: () => void }): React.JSX.Element {
   const mutation = useMutation({ mutationFn: (bvid: string) => swarmApi.bilibiliProcess(bvid) })
+  const transcribeMutation = useMutation({ mutationFn: (bvid: string) => swarmApi.bilibiliTranscribe(bvid) })
   const saveMutation = useMutation({
     mutationFn: (args: { video: BiliVideo; summary: BiliSummary }) => swarmApi.bilibiliSave(args.video, args.summary),
   })
+  const [stage, setStage] = useState<string | null>(null)
 
-  // Reset both mutations when the user switches to a different video card.
+  // Reset mutations and stage when the user switches to a different video card.
   useEffect(() => {
     mutation.reset()
+    transcribeMutation.reset()
     saveMutation.reset()
+    setStage(null)
     // We intentionally omit the mutation objects from deps — we only want to reset on bvid change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.bvid])
+
+  // Subscribe to transcription progress only while this sheet is mounted; show the
+  // current stage on the in-flight button.
+  useEffect(() => {
+    const off = swarmApi.bilibiliOnTranscribeProgress((p) => {
+      if (p.bvid === video?.bvid) setStage(p.stage)
+    })
+    return off
+  }, [video?.bvid])
+
+  // Summary can come from the subtitle path or the local-transcription path.
+  const summary = mutation.data?.ok
+    ? mutation.data.summary
+    : transcribeMutation.data?.ok
+      ? transcribeMutation.data.summary
+      : null
 
   return (
     <Sheet onOpenChange={(open) => !open && onClose()} open={video !== null}>
@@ -176,16 +196,14 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
                   观看
                 </Button>
               </div>
-              {mutation.data?.ok ? (
+              {summary ? (
                 <>
-                  <SummaryView summary={mutation.data.summary} />
+                  <SummaryView summary={summary} />
                   <div className="flex flex-col gap-1">
                     <Button
                       className="w-fit"
                       disabled={saveMutation.isPending}
-                      onClick={() =>
-                        video && mutation.data?.ok && saveMutation.mutate({ video, summary: mutation.data.summary })
-                      }
+                      onClick={() => video && saveMutation.mutate({ video, summary })}
                       variant="outline"
                     >
                       {saveMutation.isPending ? '保存中…' : '保存到 Obsidian'}
@@ -199,7 +217,26 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
                   </div>
                 </>
               ) : null}
-              {mutation.data && !mutation.data.ok ? (
+              {/* No subtitle: offer local transcription instead of a dead-end error. */}
+              {!summary && mutation.data && !mutation.data.ok && mutation.data.code === 'no_subtitle' ? (
+                <div className="flex flex-col gap-1">
+                  <Button
+                    className="w-fit"
+                    disabled={transcribeMutation.isPending}
+                    onClick={() => video && transcribeMutation.mutate(video.bvid)}
+                    variant="outline"
+                  >
+                    {transcribeMutation.isPending ? `转写中…${stage ? ` (${stage})` : ''}` : '本地转写'}
+                  </Button>
+                  <span className="text-muted-foreground text-xs">
+                    该视频没有字幕，可下载音轨本地转写（需在设置中配置 ffmpeg 与模型）。
+                  </span>
+                  {transcribeMutation.data && !transcribeMutation.data.ok ? (
+                    <span className="text-destructive text-xs">{transcribeMutation.data.message}</span>
+                  ) : null}
+                </div>
+              ) : null}
+              {!summary && mutation.data && !mutation.data.ok && mutation.data.code !== 'no_subtitle' ? (
                 <p className="text-destructive text-sm">{mutation.data.message}</p>
               ) : null}
             </div>
