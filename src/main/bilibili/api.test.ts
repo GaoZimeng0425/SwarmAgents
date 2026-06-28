@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cookieHeader, getFavFolders, getNav, getWatchLater } from './api'
+import { cookieHeader, getFavFolders, getNav, getWatchLater, toHttpsUrl } from './api'
 
 const creds = { sessdata: 's', biliJct: 'j', dedeUserId: '42' }
 
@@ -68,12 +68,23 @@ describe('getWatchLater', () => {
       {
         bvid: 'BV1',
         title: 'T',
-        cover: 'http://img',
+        cover: 'https://img',
         author: 'up',
         durationSec: 600,
         intro: 'hello',
         source: '稍后再看',
       },
     ])
+  })
+})
+
+describe('toHttpsUrl', () => {
+  it('upgrades http URLs to https', () => {
+    expect(toHttpsUrl('http://i2.hdslb.com/bfs/a.jpg')).toBe('https://i2.hdslb.com/bfs/a.jpg')
+  })
+
+  it('leaves https and other URLs unchanged', () => {
+    expect(toHttpsUrl('https://i0.hdslb.com/x.jpg')).toBe('https://i0.hdslb.com/x.jpg')
+    expect(toHttpsUrl('')).toBe('')
   })
 })
