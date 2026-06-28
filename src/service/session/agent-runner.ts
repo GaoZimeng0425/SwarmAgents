@@ -16,12 +16,14 @@ import {
 } from '@shared/types/provider'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import {
+  type AcceptanceCriterion,
   type ConsumedResources,
   emptyUsed,
   type PermissionMode,
   type Task,
   type TaskEvent,
   type TaskResult,
+  type VerificationRound,
 } from '@shared/types/task'
 
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
@@ -29,6 +31,7 @@ import { encodeActorState } from '../actor/state'
 import type { AgentMutationResult } from '../agents/store'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from '../tools/registry'
 import type { PermissionRegistry } from './permission-registry'
+import { type Judge, parseVerdict, type Verdict, verifyTask } from './verify'
 
 const log = createLogger({
   process: 'service',
@@ -230,6 +233,24 @@ export type AgentRunnerDeps = {
    * Main from the provider's fallbackProviderIds); set explicitly to override.
    */
   fallbackProviders?: ProviderInjection[]
+  /** Capture the agent's derived acceptance criteria (Phase A). Wired by createAgentRunner.run. */
+  onAcceptanceCriteria?(criteria: AcceptanceCriterion[]): void
+  /**
+   * Independently verify a completed turn. Default = hard checks + an LLM judge
+   * sub-run; tests inject a stub. `judgeUsed` (when present) is folded into the
+   * run's reported `used`.
+   */
+  verifyCompletion?(input: {
+    criteria: AcceptanceCriterion[]
+    summary: string
+    cwd?: string
+  }): Promise<Verdict & { judgeUsed?: ConsumedResources }>
+  /**
+   * Max execute→verify→rework rounds for a 'goal' task. Default 3. `0` disables
+   * the verify loop entirely (legacy single-shot) — used by the verifier sub-run
+   * to avoid recursion.
+   */
+  maxVerifyRounds?: number
 }
 
 export type AgentRunner = {
@@ -291,6 +312,7 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
     analyzeImage: buildAnalyzeImage(deps),
     writeAgent: deps.writeAgent,
     writeSkill: deps.writeSkill,
+    setAcceptanceCriteria: deps.onAcceptanceCriteria,
   }
 }
 
@@ -1115,22 +1137,229 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   }
 }
 
+const DEFAULT_MAX_VERIFY_ROUNDS = 3
+
+const VERIFIER_SYSTEM_PROMPT =
+  'You are an independent verifier. You are given a task goal, its acceptance criteria, and the ' +
+  "executor's final summary. Judge ONLY whether the criteria are met by the summary. Be strict and " +
+  'skeptical; do not assume work that is not evidenced. Respond with ONLY a JSON object: ' +
+  '{"pass": boolean, "gaps": [string]}. "gaps" lists concrete unmet items (empty when pass is true).'
+
+const deriveCriteriaPrompt = (goal: string): string =>
+  'Before doing the task, define how it will be judged complete. Call set_acceptance_criteria with a ' +
+  'concise list of checkable done-conditions. Attach a `check` (command or file_exists) to any ' +
+  'criterion a command can verify deterministically (e.g. tests pass, a file exists); leave the rest ' +
+  `for judgment. Do NOT start the task yet.\n\nGoal: ${goal}`
+
+const reworkPrompt = (gaps: string[]): string =>
+  'Your work did not yet meet all acceptance criteria. Address these gaps, then stop:\n' +
+  gaps.map((g) => `- ${g}`).join('\n')
+
+const buildJudgePrompt = (goal: string, soft: AcceptanceCriterion[], summary: string): string =>
+  `Goal:\n${goal}\n\nAcceptance criteria to judge:\n${
+    soft.length ? soft.map((c) => `- ${c.description}`).join('\n') : '(none — judge overall goal completion)'
+  }\n\nExecutor summary:\n${summary}`
+
+const addUsed = (a: ConsumedResources, b: ConsumedResources): ConsumedResources => ({
+  tokens: a.tokens + b.tokens,
+  calls: a.calls + b.calls,
+  wallMs: a.wallMs + b.wallMs,
+  usdCents: a.usdCents + b.usdCents,
+  cacheRead: a.cacheRead + b.cacheRead,
+  cacheWrite: a.cacheWrite + b.cacheWrite,
+})
+
+// Default verification: deterministic hard checks plus an independent LLM judge
+// sub-run on the same provider. The sub-run sets maxVerifyRounds: 0 so it never
+// recurses into another verify loop.
+function defaultVerifyCompletion(deps: AgentRunnerDeps): NonNullable<AgentRunnerDeps['verifyCompletion']> {
+  return async ({ criteria, summary, cwd }) => {
+    let judgeUsed: ConsumedResources | undefined
+    const judge: Judge = async (soft, sum) => {
+      const verifierTask: Task = {
+        ...deps.task,
+        id: `${deps.task.id}:verify`,
+        goal: buildJudgePrompt(deps.task.goal, soft, sum),
+        attachments: [],
+        toolAllowlist: [],
+        acceptanceCriteria: undefined,
+        verifications: undefined,
+        executionMode: 'goal',
+      }
+      const runner = createAgentRunner({
+        task: verifierTask,
+        provider: deps.provider,
+        agentDefinition: {
+          id: 'verifier',
+          name: 'Verifier',
+          description: 'Independent completion verifier.',
+          systemPrompt: VERIFIER_SYSTEM_PROMPT,
+          toolScope: 'all',
+          maxIterations: 2,
+        },
+        sessionId: deps.sessionId,
+        emit: () => undefined,
+        permissionRegistry: deps.permissionRegistry,
+        toolRegistry: deps.toolRegistry,
+        initialMessages: [],
+        spawnChild: deps.spawnChild,
+        signal: deps.signal,
+        fallbackProviders: deps.fallbackProviders,
+        maxVerifyRounds: 0, // never recurse
+      })
+      const r = await runner.run()
+      judgeUsed = r.used
+      const parsed = parseVerdict(r.summary)
+      if (!parsed) {
+        log.warn({ msg: 'verifier output unparseable; treating as fail', taskId: deps.task.id })
+        return { pass: false, gaps: ['verifier produced no parseable verdict'] }
+      }
+      return parsed
+    }
+    // Model-authored command checks bypass the shell permission gate, so only
+    // run them as hard checks when the session is in 'full' permission mode;
+    // otherwise verifyTask demotes them to the LLM judge.
+    const allowCommands = (deps.getPermissionMode?.() ?? deps.task.permissionMode ?? 'ask') === 'full'
+    const verdict = await verifyTask({ criteria, summary, cwd, judge, allowCommands })
+    return { ...verdict, judgeUsed }
+  }
+}
+
+// The execute→verify→rework loop for a 'goal' task. Exported for unit testing
+// with a fake session and an injected verify; createAgentRunner.run wires the
+// real session + verify.
+export async function runGoalVerifyLoop(args: {
+  session: AgentSession
+  goal: string
+  images?: ImageContent[]
+  criteriaRef: { current: AcceptanceCriterion[] }
+  verify: NonNullable<AgentRunnerDeps['verifyCompletion']>
+  maxRounds: number
+  cwd?: string
+  emit: EmitFn
+  taskId: string
+}): Promise<{
+  status: 'completed' | 'failed' | 'cancelled'
+  summary: string
+  messages: AgentMessage[]
+  used: ConsumedResources
+}> {
+  const { session, goal, images, criteriaRef, verify, maxRounds, cwd, emit, taskId } = args
+  const taskLog = log.child({ taskId })
+  let extraUsed: ConsumedResources = emptyUsed()
+  let lastGaps: string[] = []
+
+  for (let round = 0; round <= maxRounds; round++) {
+    const r =
+      round === 0
+        ? await session.promptOnce(goal, images && images.length > 0 ? images : undefined)
+        : await session.promptOnce(reworkPrompt(lastGaps))
+    if (r.status !== 'completed') {
+      return {
+        status: r.status,
+        summary: r.summary,
+        messages: session.agent.state.messages,
+        used: addUsed(session.getUsed(), extraUsed),
+      }
+    }
+    taskLog.info({ msg: 'verify round start', round, criteria: criteriaRef.current.length })
+    const verdict = await verify({ criteria: criteriaRef.current, summary: r.summary, cwd })
+    if (verdict.judgeUsed) extraUsed = addUsed(extraUsed, verdict.judgeUsed)
+    const vr: VerificationRound = {
+      round,
+      verdict: verdict.verdict,
+      results: verdict.results,
+      gaps: verdict.gaps,
+      ts: Date.now(),
+    }
+    emit('task.verification', { taskId, round: vr, ts: Date.now() })
+    taskLog.info({ msg: 'verify verdict', round, verdict: verdict.verdict, gaps: verdict.gaps.length })
+
+    if (verdict.verdict === 'pass') {
+      return {
+        status: 'completed',
+        summary: r.summary,
+        messages: session.agent.state.messages,
+        used: addUsed(session.getUsed(), extraUsed),
+      }
+    }
+    lastGaps = verdict.gaps
+    if (round === maxRounds) {
+      taskLog.warn({ msg: 'verification exhausted rounds; marking failed', rounds: maxRounds })
+      const summary = `${r.summary}\n\nUnmet acceptance criteria after ${maxRounds + 1} verify round(s):\n${verdict.gaps
+        .map((g) => `- ${g}`)
+        .join('\n')}`
+      return {
+        status: 'failed',
+        summary,
+        messages: session.agent.state.messages,
+        used: addUsed(session.getUsed(), extraUsed),
+      }
+    }
+  }
+  // Unreachable — the loop always returns within the bounded rounds.
+  return {
+    status: 'failed',
+    summary: '',
+    messages: session.agent.state.messages,
+    used: addUsed(session.getUsed(), extraUsed),
+  }
+}
+
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
     async run() {
-      const session = buildAgentSession(deps)
       const images: ImageContent[] = deps.task.attachments.map((a) => ({
         type: 'image',
         data: a.data,
         mimeType: a.mimeType,
       }))
-      const r = await session.promptOnce(deps.task.goal, images.length > 0 ? images : undefined)
-      return {
-        status: r.status,
-        summary: r.summary,
-        messages: session.agent.state.messages,
-        used: session.getUsed(),
+      const maxRounds = deps.maxVerifyRounds ?? DEFAULT_MAX_VERIFY_ROUNDS
+      const taskLog = log.child({ taskId: deps.task.id })
+
+      // Legacy single-shot: plan mode, or verification disabled (e.g. the
+      // verifier sub-run). No criteria derivation, no verify gate.
+      if (deps.task.executionMode === 'plan' || maxRounds === 0) {
+        const session = buildAgentSession(deps)
+        const r = await session.promptOnce(deps.task.goal, images.length > 0 ? images : undefined)
+        return { status: r.status, summary: r.summary, messages: session.agent.state.messages, used: session.getUsed() }
       }
+
+      // Goal mode: define → execute → verify → rework.
+      const criteriaRef: { current: AcceptanceCriterion[] } = { current: deps.task.acceptanceCriteria ?? [] }
+      const wrappedDeps: AgentRunnerDeps = {
+        ...deps,
+        onAcceptanceCriteria: (c) => {
+          criteriaRef.current = c
+          deps.emit('task.criteria', { taskId: deps.task.id, criteria: c, ts: Date.now() })
+          deps.onAcceptanceCriteria?.(c)
+        },
+      }
+      const session = buildAgentSession(wrappedDeps)
+      const verify = deps.verifyCompletion ?? defaultVerifyCompletion(deps)
+
+      // Phase A — derive criteria unless the caller supplied them.
+      if (criteriaRef.current.length === 0) {
+        taskLog.info({ msg: 'deriving acceptance criteria' })
+        await session.promptOnce(deriveCriteriaPrompt(deps.task.goal))
+        if (criteriaRef.current.length === 0) {
+          taskLog.warn({ msg: 'agent derived no criteria; using goal as a single soft criterion' })
+          criteriaRef.current = [{ id: 'c1', description: deps.task.goal }]
+        }
+      }
+
+      // Phase B + C.
+      return runGoalVerifyLoop({
+        session,
+        goal: deps.task.goal,
+        images,
+        criteriaRef,
+        verify,
+        maxRounds,
+        cwd: deps.task.cwd,
+        emit: deps.emit,
+        taskId: deps.task.id,
+      })
     },
   }
 }

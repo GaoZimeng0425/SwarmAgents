@@ -138,6 +138,9 @@ describe('AgentRunner', () => {
       spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
       initialMessages: seed,
       toolRegistry: createToolRegistry(),
+      // Single-shot plumbing test (initialMessages seeding + final messages):
+      // opt out of the verify loop so it issues exactly one promptOnce.
+      maxVerifyRounds: 0,
     })
 
     const out = await runner.run()
@@ -212,6 +215,10 @@ describe('AgentRunner', () => {
     spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
     initialMessages: [],
     toolRegistry: createToolRegistry(),
+    // These tests exercise single-turn plumbing (budget/permission/usage/context)
+    // via one mocked prompt; the verify loop's extra Phase-A turn + verifier
+    // sub-run would change the prompt the test drives. Keep the legacy single-shot.
+    maxVerifyRounds: 0,
   })
 
   it('blocks the tool call and aborts the run when the call budget is exhausted', async () => {

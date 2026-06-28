@@ -3,7 +3,7 @@ import { createLogger } from '@shared/logger'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { Outbound } from '@shared/types/ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import type { TaskResult } from '@shared/types/task'
+import type { AcceptanceCriterion, TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
 
 import type { AgentMutationResult } from '../agents/store'
@@ -62,6 +62,12 @@ export interface ToolRunContext {
    * tool tests.
    */
   reportExternalUsage?(usage: { costUsd?: number; inputTokens?: number; outputTokens?: number }): void
+  /**
+   * Record the task's acceptance criteria (set_acceptance_criteria tool). Wired
+   * in agent-runner's Phase A; absent in standalone tool tests and contexts that
+   * do not verify.
+   */
+  setAcceptanceCriteria?(criteria: AcceptanceCriterion[]): void
 }
 
 export interface ToolSpec {

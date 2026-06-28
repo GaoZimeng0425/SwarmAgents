@@ -56,6 +56,59 @@ export type PermissionMode = z.infer<typeof PermissionModeSchema>
 export const ExecutionModeSchema = z.enum(['goal', 'plan'])
 export type ExecutionMode = z.infer<typeof ExecutionModeSchema>
 
+export const planStatusValues = ['pending', 'in_progress', 'completed'] as const
+export const PlanTodoSchema = z.object({
+  content: z.string(),
+  status: z.enum(planStatusValues),
+})
+export type PlanTodo = z.infer<typeof PlanTodoSchema>
+export type PlanStatus = (typeof planStatusValues)[number]
+
+// A single machine-checkable "done" condition for an acceptance criterion.
+//   command     — passes when the shell command exits with expectExitCode
+//                  (default 0) and, when set, stdout contains expectStdout.
+//   file_exists  — passes when the path exists (relative to the task cwd).
+export const ExecutableCheckSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('command'),
+    command: z.string().min(1),
+    cwd: z.string().optional(),
+    expectExitCode: z.number().int().optional(),
+    expectStdout: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('file_exists'),
+    path: z.string().min(1),
+  }),
+])
+export type ExecutableCheck = z.infer<typeof ExecutableCheckSchema>
+
+// One acceptance criterion. A `check` present ⇒ verified deterministically;
+// absent ⇒ judged by the LLM verifier against the task summary.
+export const AcceptanceCriterionSchema = z.object({
+  id: z.string().min(1),
+  description: z.string().min(1),
+  check: ExecutableCheckSchema.optional(),
+})
+export type AcceptanceCriterion = z.infer<typeof AcceptanceCriterionSchema>
+
+export const VerificationResultSchema = z.object({
+  criterionId: z.string(),
+  pass: z.boolean(),
+  detail: z.string(),
+})
+export type VerificationResult = z.infer<typeof VerificationResultSchema>
+
+// One verify round's outcome — persisted as an audit trail and surfaced to the UI.
+export const VerificationRoundSchema = z.object({
+  round: z.number().int().nonnegative(),
+  verdict: z.enum(['pass', 'fail']),
+  results: z.array(VerificationResultSchema),
+  gaps: z.array(z.string()),
+  ts: z.number().int(),
+})
+export type VerificationRound = z.infer<typeof VerificationRoundSchema>
+
 // Composer-supplied options threaded from the renderer to session-manager.
 export const TaskOptionsSchema = z.object({
   cwd: z.string().optional(),
@@ -64,16 +117,11 @@ export const TaskOptionsSchema = z.object({
   // Agent type id (from the agent store) to use for this top-level task.
   // Resolved in session-manager; unknown ids fall back to DEFAULT_AGENT_DEF.
   agentType: z.string().optional(),
+  // Caller-supplied acceptance criteria; when present the agent skips Phase A
+  // (criteria derivation) and the verify gate uses these directly.
+  acceptanceCriteria: z.array(AcceptanceCriterionSchema).optional(),
 })
 export type TaskOptions = z.infer<typeof TaskOptionsSchema>
-
-export const planStatusValues = ['pending', 'in_progress', 'completed'] as const
-export const PlanTodoSchema = z.object({
-  content: z.string(),
-  status: z.enum(planStatusValues),
-})
-export type PlanTodo = z.infer<typeof PlanTodoSchema>
-export type PlanStatus = (typeof planStatusValues)[number]
 
 export const TaskEventSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -170,5 +218,10 @@ export const TaskSchema = z.object({
   // consumers default to 'ask' / 'goal'.
   permissionMode: PermissionModeSchema.optional(),
   executionMode: ExecutionModeSchema.optional(),
+  // Checkable done-conditions for this task. Derived by the agent in Phase A or
+  // supplied by the caller; drives the verify gate.
+  acceptanceCriteria: z.array(AcceptanceCriterionSchema).optional(),
+  // Per-round verify audit trail (UI + logs).
+  verifications: z.array(VerificationRoundSchema).optional(),
 })
 export type Task = z.infer<typeof TaskSchema>
