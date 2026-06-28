@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import { TranscriptionConfigSchema } from '@shared/types/bilibili'
 import type {
+  BiliAnalysis,
   BiliCredentials,
   BiliFavFolder,
   BiliListResult,
@@ -24,6 +25,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import { writeNote } from './obsidian'
 
+import type { AnalysisStore } from './analysis-store'
 import { getFavFolders, getFavResources, getWatchLater } from './api'
 import { defaultAudioDeps, extractWav } from './audio'
 import type { Auth } from './auth'
@@ -92,10 +94,15 @@ export async function buildList(c: BiliCredentials, mid: number, deps: ListDeps)
   return { folders: withVideos, watchLater }
 }
 
-export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: () => ProviderInjection | null }): {
+export function wireBilibiliIpc(opts: {
+  auth: Auth
+  store: Store
+  analysisStore: AnalysisStore
+  getInjection: () => ProviderInjection | null
+}): {
   dispose: () => void
 } {
-  const { auth, store } = opts
+  const { auth, store, analysisStore } = opts
   const deps: ListDeps = { getFavFolders, getFavResources, getWatchLater }
 
   // Populated when bilibili:list resolves so pipeline can look up title/author without refetch.
@@ -124,6 +131,22 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
     cleanup: (wav) => fs.rm(wav, { force: true }),
   })
   queue.onProgress(broadcast)
+
+  // Cache a successful analysis (summary + full text) so the list can badge it and
+  // the detail panel can show it instantly on reopen. A write failure must not change
+  // the user-facing result, so it is logged and swallowed.
+  const persistAnalysis = async (
+    bvid: string,
+    summary: BiliSummary,
+    text: string,
+    source: BiliAnalysis['source']
+  ): Promise<void> => {
+    try {
+      await analysisStore.put({ bvid, summary, text, source, analyzedAt: new Date().toISOString() })
+    } catch (err) {
+      log.warn({ msg: 'analysis cache write failed', bvid, err: err instanceof Error ? err.message : String(err) })
+    }
+  }
 
   ipcMain.handle('bilibili:status', () => auth.status())
   ipcMain.handle('bilibili:login', () => auth.login())
@@ -174,7 +197,7 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
       const st = await auth.status()
       const cfg = await store.load()
       if (!st.loggedIn || !cfg.credentials) return { ok: false, code: 'unknown', message: '未登录' }
-      return processVideo(
+      const result = await processVideo(
         {
           getInjection: opts.getInjection,
           getMeta: (id) => metaIndex.get(id) ?? null,
@@ -184,6 +207,8 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
         cfg.credentials,
         bvid
       )
+      if (result.ok) await persistAnalysis(bvid, result.summary, result.text, result.source)
+      return result
     })()
     inflight.set(bvid, run)
     try {
@@ -241,8 +266,14 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
       return { ok: false, code: 'unknown', message: '无法创建临时目录。' }
     }
     log.info({ msg: 'transcribe requested', bvid })
-    return queue.enqueue(bvid)
+    const result = await queue.enqueue(bvid)
+    if (result.ok) await persistAnalysis(bvid, result.summary, result.text, result.source)
+    return result
   })
+
+  ipcMain.handle('bilibili:analyzedBvids', (): string[] => analysisStore.bvids())
+
+  ipcMain.handle('bilibili:getAnalysis', (_e, bvid: string): BiliAnalysis | null => analysisStore.get(bvid))
 
   log.info({ msg: 'bilibili IPC wired' })
   return {
@@ -263,6 +294,8 @@ export function wireBilibiliIpc(opts: { auth: Auth; store: Store; getInjection: 
         'bilibili:setTranscribeConfig',
         'bilibili:pickModelDir',
         'bilibili:transcribe',
+        'bilibili:analyzedBvids',
+        'bilibili:getAnalysis',
       ]) {
         ipcMain.removeHandler(ch)
       }

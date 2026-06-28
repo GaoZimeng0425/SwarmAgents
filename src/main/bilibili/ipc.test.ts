@@ -1,8 +1,23 @@
+import type { BiliAnalysis } from '@shared/types/bilibili'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { AnalysisStore } from './analysis-store'
 import type { Auth } from './auth'
 import { buildList, openVideo, wireBilibiliIpc } from './ipc'
 import type { Store } from './store'
+
+// In-memory analysis store for IPC tests.
+function fakeAnalysisStore(): AnalysisStore & { _map: Map<string, BiliAnalysis> } {
+  const m = new Map<string, BiliAnalysis>()
+  return {
+    get: (b) => m.get(b) ?? null,
+    put: async (a) => {
+      m.set(a.bvid, a)
+    },
+    bvids: () => [...m.keys()],
+    _map: m,
+  }
+}
 
 // ipcMain mock: capture registered handlers by channel name.
 vi.mock('electron', () => {
@@ -56,13 +71,40 @@ describe('wireBilibiliIpc / bilibili:process', () => {
       load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
       save: vi.fn(async () => undefined),
     }
-    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, getInjection: () => null })
+    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, analysisStore: fakeAnalysisStore(), getInjection: () => null })
 
     // Act
     const result = await invokeHandler('bilibili:process', 'BV1test')
 
     // Assert
     expect(result).toMatchObject({ ok: false, code: 'no_provider' })
+  })
+})
+
+describe('wireBilibiliIpc / analysis cache queries', () => {
+  it('exposes seeded analyses via analyzedBvids and getAnalysis', async () => {
+    const fakeAuth: Auth = {
+      status: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      login: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      logout: vi.fn(async () => undefined),
+    }
+    const fakeStore: Store = {
+      load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
+      save: vi.fn(async () => undefined),
+    }
+    const analysisStore = fakeAnalysisStore()
+    analysisStore._map.set('BV1', {
+      bvid: 'BV1',
+      summary: { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] },
+      text: '全文',
+      source: 'subtitle',
+      analyzedAt: '2026-06-28T00:00:00.000Z',
+    })
+    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, analysisStore, getInjection: () => null })
+
+    expect(await invokeHandler('bilibili:analyzedBvids')).toEqual(['BV1'])
+    expect(await invokeHandler('bilibili:getAnalysis', 'BV1')).toMatchObject({ bvid: 'BV1', source: 'subtitle' })
+    expect(await invokeHandler('bilibili:getAnalysis', 'BVx')).toBeNull()
   })
 })
 
@@ -96,7 +138,7 @@ describe('wireBilibiliIpc / bilibili:save', () => {
       load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
       save: vi.fn(async () => undefined),
     }
-    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, getInjection: () => null })
+    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, analysisStore: fakeAnalysisStore(), getInjection: () => null })
     const video = vid('BV1', 'CS')
     const summary = { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] }
     const result = await invokeHandler('bilibili:save', video, summary)
