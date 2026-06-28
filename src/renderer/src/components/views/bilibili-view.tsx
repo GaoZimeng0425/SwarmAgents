@@ -1,7 +1,7 @@
 // Shows the user's Bilibili favorites folders and watch-later list. Prompts for
 // login when logged out. Clicking a video is a no-op until milestone C wires the
 // summarize -> Obsidian pipeline.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { BiliVideo } from '@shared/types/bilibili'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -88,17 +88,19 @@ export function BilibiliView(): React.JSX.Element {
   })
 
   // Track the content width so the grid can be chunked into fixed-column rows
-  // that match a responsive `auto-fill` layout.
-  const widthRef = useRef<HTMLDivElement>(null)
+  // that match a responsive `auto-fill` layout. A callback ref (not an effect)
+  // wires the observer: the measured node only mounts once data loads, after a
+  // mount-time effect would already have run against a null ref and left the
+  // column count stuck at 1 (rendering the grid as a single column).
+  const observerRef = useRef<ResizeObserver | null>(null)
   const [columns, setColumns] = useState(1)
-  useEffect(() => {
-    const el = widthRef.current
-    if (!el) return
-    const update = (): void => setColumns(columnsForWidth(el.clientWidth))
+  const measureRef = useCallback((node: HTMLDivElement | null) => {
+    observerRef.current?.disconnect()
+    if (!node) return
+    const update = (): void => setColumns(columnsForWidth(node.clientWidth))
     update()
-    const observer = new ResizeObserver(update)
-    observer.observe(el)
-    return () => observer.disconnect()
+    observerRef.current = new ResizeObserver(update)
+    observerRef.current.observe(node)
   }, [])
 
   const rows = useMemo(() => {
@@ -146,8 +148,8 @@ export function BilibiliView(): React.JSX.Element {
       ) : listQuery.isPending ? (
         <div className="py-12 text-center text-muted-foreground">加载中…</div>
       ) : (
-        // widthRef measures the available content width to derive the column count.
-        <div className="min-h-0 flex-1" ref={widthRef}>
+        // measureRef tracks the available content width to derive the column count.
+        <div className="min-h-0 flex-1" ref={measureRef}>
           <VirtualList
             className="h-full"
             estimateSize={170}
