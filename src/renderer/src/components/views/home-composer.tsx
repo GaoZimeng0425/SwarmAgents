@@ -1,12 +1,11 @@
-import { useState } from 'react'
 import { providerViewById } from '@shared/types/provider'
-import type { ExecutionMode, PermissionMode } from '@shared/types/task'
 import { useNavigate } from '@tanstack/react-router'
 
 import { ChatInput } from '@/components/chat-input'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
 import { useSubmitGoal } from '@/hooks/use-tasks'
+import { useComposerDefaults } from '@/stores/composer-defaults'
 
 /**
  * The `/` landing screen: a centered composer. Sending the first message
@@ -18,12 +17,18 @@ export function HomeComposer(): React.JSX.Element {
   const submitGoal = useSubmitGoal()
   const { ready, state } = useProviders()
 
-  // Composer controls held locally; the first turn inherits them, and the
-  // session route owns them from then on.
-  const [cwd, setCwd] = useState<string | undefined>(undefined)
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('ask')
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>('goal')
-  const [agentType, setAgentType] = useState<string>('ceo')
+  // Composer controls persisted across launches via the composer-defaults
+  // store: a relaunch starts where the user left off. The first turn inherits
+  // them, and the session route owns its own live copy from then on. (Model and
+  // thinking level persist separately through the providers state machine.)
+  const cwd = useComposerDefaults((s) => s.cwd)
+  const setCwd = useComposerDefaults((s) => s.setCwd)
+  const permissionMode = useComposerDefaults((s) => s.permissionMode)
+  const setPermissionMode = useComposerDefaults((s) => s.setPermissionMode)
+  const executionMode = useComposerDefaults((s) => s.executionMode)
+  const setExecutionMode = useComposerDefaults((s) => s.setExecutionMode)
+  const agentType = useComposerDefaults((s) => s.agentType)
+  const setAgentType = useComposerDefaults((s) => s.setAgentType)
   const teamOptions = useTeamOptions()
 
   return (

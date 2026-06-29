@@ -26,6 +26,7 @@ import {
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
 import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
 import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'
@@ -74,6 +75,10 @@ const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
   high: 'High',
   xhigh: 'Max',
 }
+
+// Canonical low→high ordering, so the thinking slider's positions always run in
+// intensity order regardless of how a provider lists its supported levels.
+const THINKING_ORDER: ModelThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
 
 const PERMISSION_LABELS: Record<PermissionMode, string> = {
   ask: '询问权限',
@@ -323,9 +328,12 @@ export function ChatInput({
     }
   }
 
-  const thinkingLevels = activeRow?.thinkingLevels ?? []
-  // Only worth a picker when the model offers more than just 'off'.
+  // The model's supported levels, ordered low→high for the slider track.
+  const thinkingLevels = THINKING_ORDER.filter((l) => (activeRow?.thinkingLevels ?? []).includes(l))
+  // Only worth a slider when the model offers more than just 'off'.
   const showThinking = thinkingLevels.length > 1
+  // Slider position of the active level; clamp to 0 when it isn't in the list.
+  const thinkingIndex = Math.max(0, thinkingLevels.indexOf(activeRow?.thinkingLevel ?? 'off'))
 
   const onPickThinking = async (level: string): Promise<void> => {
     if (!state.active) return
@@ -460,20 +468,10 @@ export function ChatInput({
                 )}
                 {options.length > 0 && (
                   // Single select merging the model picker and the thinking-level
-                  // picker. The value tracks the model only, so base-ui highlights
-                  // the model row; picking a thinking level calls onPickThinking
-                  // and re-renders without moving the highlight.
-                  <PromptInputSelect
-                    onValueChange={(v) => {
-                      const value = String(v)
-                      if (value.startsWith('thinking::')) {
-                        void onPickThinking(value.slice('thinking::'.length))
-                        return
-                      }
-                      void onPickModel(value)
-                    }}
-                    value={currentKey}
-                  >
+                  // control. The value tracks the model only; the thinking level
+                  // is a slider rendered below the model list, which calls
+                  // onPickThinking directly without disturbing the model highlight.
+                  <PromptInputSelect onValueChange={(v) => void onPickModel(String(v))} value={currentKey}>
                     <PromptInputSelectTrigger>
                       {compact ? (
                         <Cpu className="size-4" />
@@ -500,14 +498,38 @@ export function ChatInput({
                       {showThinking && activeRow && (
                         <>
                           <SelectSeparator />
-                          <SelectGroup>
-                            <SelectLabel>思考程度</SelectLabel>
-                            {thinkingLevels.map((lvl) => (
-                              <PromptInputSelectItem key={lvl} value={`thinking::${lvl}`}>
-                                {THINKING_LABELS[lvl]}
-                              </PromptInputSelectItem>
-                            ))}
-                          </SelectGroup>
+                          {/* Thinking level as a discrete slider. It lives inside the
+                              popup but is not a select item, so it never moves the
+                              model highlight or closes the dropdown. Pointer/keyboard
+                              events are stopped so the slider drag and arrow keys don't
+                              drive base-ui Select's item navigation. */}
+                          <div
+                            className="flex flex-col gap-2 px-2 py-1.5"
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between">
+                              <SelectLabel className="px-0">思考程度</SelectLabel>
+                              <span className="font-medium text-muted-foreground text-xs">
+                                {THINKING_LABELS[activeRow.thinkingLevel]}
+                              </span>
+                            </div>
+                            <Slider
+                              max={thinkingLevels.length - 1}
+                              min={0}
+                              onValueChange={(v) => {
+                                const idx = Array.isArray(v) ? v[0] : v
+                                const level = thinkingLevels[idx]
+                                if (level && level !== activeRow.thinkingLevel) void onPickThinking(level)
+                              }}
+                              step={1}
+                              value={[thinkingIndex]}
+                            />
+                            <div className="flex justify-between text-[10px] text-muted-foreground/70">
+                              <span>{THINKING_LABELS[thinkingLevels[0]]}</span>
+                              <span>{THINKING_LABELS[thinkingLevels[thinkingLevels.length - 1]]}</span>
+                            </div>
+                          </div>
                         </>
                       )}
                     </PromptInputSelectContent>
