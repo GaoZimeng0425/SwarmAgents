@@ -7,7 +7,6 @@ import type { BiliListResult, BiliSummary, BiliVideo } from '@shared/types/bilib
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -23,6 +22,7 @@ const GAP_PX = 12
 
 // Top-level view: the favorites folders, or the watch-later list.
 type Tab = 'favorites' | 'watch-later'
+type DetailTab = 'analysis' | 'text'
 // Favorites filter: a specific folder id, or every folder.
 type FolderFilter = number | 'all'
 
@@ -47,6 +47,13 @@ function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60)
   const s = Math.floor(sec % 60)
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function splitTextBlocks(text: string): string[] {
+  return text
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
 }
 
 // Pure list builder so the tab/folder selection logic is unit-testable without
@@ -120,20 +127,46 @@ function SummaryView({ summary }: { summary: BiliSummary }): React.JSX.Element {
     { label: '可执行步骤', items: summary.steps },
   ]
   return (
-    <div className="flex flex-col gap-3 text-sm">
-      <p className="text-foreground/90">{summary.gist}</p>
+    <div className="flex flex-col gap-5">
+      <div className="rounded-md border border-border bg-muted/30 p-4">
+        <p className="mb-2 font-medium text-muted-foreground text-xs tracking-wide">一句话结论</p>
+        <p className="text-[15px] text-foreground leading-7">{summary.gist}</p>
+      </div>
       {sections
         .filter(({ items }) => items.length > 0)
         .map(({ label, items }) => (
-          <div key={label}>
-            <p className="mb-1 font-medium text-foreground/70 text-xs">{label}</p>
-            <ul className="list-disc pl-4 text-foreground/80">
+          <section className="rounded-md border border-border p-4" key={label}>
+            <p className="mb-3 font-medium text-foreground text-sm">{label}</p>
+            <ul className="flex list-disc flex-col gap-2 pl-4 text-[13px] text-foreground/85 leading-6">
               {items.map((item, i) => (
                 <li key={`${label}-${i}`}>{item}</li>
               ))}
             </ul>
-          </div>
+          </section>
         ))}
+    </div>
+  )
+}
+
+function FullTextView({ label, text }: { label: string; text: string }): React.JSX.Element {
+  const blocks = splitTextBlocks(text)
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="font-medium text-foreground text-sm">{label}</p>
+        <span className="text-muted-foreground text-xs">{text.length.toLocaleString()} 字符</span>
+      </div>
+      <div className="mx-auto flex max-w-3xl flex-col gap-4 pb-6 text-[15px] text-foreground/85 leading-7">
+        {blocks.length > 0 ? (
+          blocks.map((block, i) => (
+            <p className="whitespace-pre-wrap" key={i}>
+              {block}
+            </p>
+          ))
+        ) : (
+          <p className="whitespace-pre-wrap">{text}</p>
+        )}
+      </div>
     </div>
   )
 }
@@ -156,7 +189,7 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
     mutationFn: (args: { video: BiliVideo; summary: BiliSummary }) => swarmApi.bilibiliSave(args.video, args.summary),
   })
   const [stage, setStage] = useState<string | null>(null)
-  const [showText, setShowText] = useState(false)
+  const [detailTab, setDetailTab] = useState<DetailTab>('analysis')
 
   // Cached analysis for this video, if it has been analyzed before.
   const analysisQuery = useQuery({
@@ -171,7 +204,7 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
     transcribeMutation.reset()
     saveMutation.reset()
     setStage(null)
-    setShowText(false)
+    setDetailTab('analysis')
     // We intentionally omit the mutation objects from deps — we only want to reset on bvid change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.bvid])
@@ -201,45 +234,74 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
         ? { text: cached.text, source: cached.source }
         : null
 
+  useEffect(() => {
+    if (!summary && fullText) setDetailTab('text')
+  }, [fullText, summary])
+
+  const textLabel = fullText?.source === 'subtitle' ? '字幕原文' : '转写全文'
+
   return (
     <Sheet onOpenChange={(open) => !open && onClose()} open={video !== null}>
-      <SheetContent className="w-full gap-0 sm:max-w-md">
+      <SheetContent className="w-full gap-0 data-[side=right]:sm:max-w-5xl">
         {video ? (
-          <>
+          <div className="flex h-full flex-col">
             <SheetHeader>
-              <SheetTitle>{video.title}</SheetTitle>
+              <SheetTitle className="pr-8">{video.title}</SheetTitle>
               <SheetDescription>
                 {video.author} · {formatDuration(video.durationSec)}
               </SheetDescription>
             </SheetHeader>
-            <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">
-              {video.cover ? (
-                <img
-                  alt=""
-                  className="aspect-video w-full rounded object-cover"
-                  referrerPolicy="no-referrer"
-                  src={video.cover}
-                />
-              ) : null}
-              {video.intro ? (
-                <p className="whitespace-pre-wrap text-foreground/80 text-sm">{video.intro}</p>
-              ) : (
-                <p className="text-muted-foreground text-sm">无简介</p>
-              )}
-              <div className="text-muted-foreground text-xs">来源：{video.source}</div>
-              <div className="flex gap-2">
-                <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
-                  {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
-                </Button>
-                {/* Opens the video in the local Bilibili app (bilipc:), falling back to the browser. */}
-                <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
-                  观看
-                </Button>
-              </div>
-              {summary ? (
-                <>
-                  <SummaryView summary={summary} />
-                  <div className="flex flex-col gap-1">
+            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+              {/* Left column: video metadata + actions. */}
+              <aside className="flex shrink-0 flex-col gap-3 overflow-y-auto border-border p-4 pb-6 md:w-80 md:border-r">
+                {video.cover ? (
+                  <img
+                    alt=""
+                    className="aspect-video w-full rounded-md border border-border object-cover"
+                    referrerPolicy="no-referrer"
+                    src={video.cover}
+                  />
+                ) : null}
+                {video.intro ? (
+                  <p className="whitespace-pre-wrap text-[13px] text-foreground/80 leading-6">{video.intro}</p>
+                ) : (
+                  <p className="text-muted-foreground text-sm">无简介</p>
+                )}
+                <div className="text-muted-foreground text-xs">来源：{video.source}</div>
+                <div className="flex flex-col gap-2 pt-1">
+                  <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
+                    {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
+                  </Button>
+                  {/* Opens the video in the local Bilibili app (bilipc:), falling back to the browser. */}
+                  <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
+                    观看
+                  </Button>
+                </div>
+                {/* No subtitle: offer local transcription instead of a dead-end error. */}
+                {!summary && mutation.data && !mutation.data.ok && mutation.data.code === 'no_subtitle' ? (
+                  <div className="flex flex-col gap-2 border-border border-t pt-3">
+                    <Button
+                      className="w-fit"
+                      disabled={transcribeMutation.isPending}
+                      onClick={() => video && transcribeMutation.mutate(video.bvid)}
+                      variant="outline"
+                    >
+                      {transcribeMutation.isPending ? '转写中…' : '本地转写'}
+                    </Button>
+                    {transcribeMutation.isPending ? <TranscribeProgress stage={stage} /> : null}
+                    <span className="text-muted-foreground text-xs">
+                      该视频没有字幕，可下载音轨本地转写（需在设置中配置 ffmpeg 与模型）。
+                    </span>
+                    {transcribeMutation.data && !transcribeMutation.data.ok ? (
+                      <span className="text-destructive text-xs">{transcribeMutation.data.message}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {!summary && mutation.data && !mutation.data.ok && mutation.data.code !== 'no_subtitle' ? (
+                  <p className="text-destructive text-sm">{mutation.data.message}</p>
+                ) : null}
+                {summary ? (
+                  <div className="mt-auto flex flex-col gap-1 border-border border-t pt-3">
                     <Button
                       className="w-fit"
                       disabled={saveMutation.isPending}
@@ -255,47 +317,47 @@ function VideoDetailSheet({ video, onClose }: { video: BiliVideo | null; onClose
                       <span className="text-destructive text-xs">{saveMutation.data.message}</span>
                     ) : null}
                   </div>
-                </>
-              ) : null}
-              {/* No subtitle: offer local transcription instead of a dead-end error. */}
-              {!summary && mutation.data && !mutation.data.ok && mutation.data.code === 'no_subtitle' ? (
-                <div className="flex flex-col gap-1">
-                  <Button
-                    className="w-fit"
-                    disabled={transcribeMutation.isPending}
-                    onClick={() => video && transcribeMutation.mutate(video.bvid)}
-                    variant="outline"
-                  >
-                    {transcribeMutation.isPending ? '转写中…' : '本地转写'}
-                  </Button>
-                  {transcribeMutation.isPending ? <TranscribeProgress stage={stage} /> : null}
-                  <span className="text-muted-foreground text-xs">
-                    该视频没有字幕，可下载音轨本地转写（需在设置中配置 ffmpeg 与模型）。
-                  </span>
-                  {transcribeMutation.data && !transcribeMutation.data.ok ? (
-                    <span className="text-destructive text-xs">{transcribeMutation.data.message}</span>
-                  ) : null}
+                ) : null}
+              </aside>
+              {/* Right column: switchable reading area for the analysis and the raw text. */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                {summary || fullText ? (
+                  <div className="flex items-center gap-1 border-border border-b p-2">
+                    {summary ? (
+                      <Button
+                        data-active={detailTab === 'analysis' || undefined}
+                        onClick={() => setDetailTab('analysis')}
+                        size="sm"
+                        variant={detailTab === 'analysis' ? 'secondary' : 'ghost'}
+                      >
+                        AI 解析
+                      </Button>
+                    ) : null}
+                    {fullText ? (
+                      <Button
+                        data-active={detailTab === 'text' || undefined}
+                        onClick={() => setDetailTab('text')}
+                        size="sm"
+                        variant={detailTab === 'text' ? 'secondary' : 'ghost'}
+                      >
+                        {textLabel}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                  {/* Only one view is mounted at a time so each gets the full reading height. */}
+                  {detailTab === 'analysis' && summary ? (
+                    <SummaryView summary={summary} />
+                  ) : detailTab === 'text' && fullText ? (
+                    <FullTextView label={textLabel} text={fullText.text} />
+                  ) : (
+                    <p className="text-center text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要。</p>
+                  )}
                 </div>
-              ) : null}
-              {!summary && mutation.data && !mutation.data.ok && mutation.data.code !== 'no_subtitle' ? (
-                <p className="text-destructive text-sm">{mutation.data.message}</p>
-              ) : null}
-              {/* Full parsed text (subtitle or transcript), collapsed by default. */}
-              {fullText ? (
-                <div className="flex flex-col gap-1">
-                  <Button className="w-fit" onClick={() => setShowText((v) => !v)} variant="ghost">
-                    {showText ? '收起 ' : ''}
-                    {fullText.source === 'subtitle' ? '字幕原文' : '转写全文'}
-                  </Button>
-                  {showText ? (
-                    <ScrollArea className="h-64 rounded border p-2">
-                      <p className="whitespace-pre-wrap text-foreground/80 text-sm">{fullText.text}</p>
-                    </ScrollArea>
-                  ) : null}
-                </div>
-              ) : null}
+              </div>
             </div>
-          </>
+          </div>
         ) : null}
       </SheetContent>
     </Sheet>
