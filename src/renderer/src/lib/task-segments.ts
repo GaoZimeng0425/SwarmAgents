@@ -76,6 +76,17 @@ export function taskSegments(task: TaskRecord): Segment[] {
       const ev = e.event
       if (ev.kind === 'llm.message' && ev.role === 'assistant') {
         pushAssistant(typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content), key, e.ts)
+      } else if (ev.kind === 'llm.message' && ev.role === 'user') {
+        // A follow-up turn on the same task: render the user's message as its own
+        // bubble (the task.goal user bubble above is the original request).
+        out.push({
+          kind: 'user',
+          text: typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content),
+          attachments: [],
+          key,
+          taskId: task.id,
+          ts: e.ts,
+        })
       } else if (ev.kind === 'reasoning') {
         pushReasoning(ev.content, key, e.ts)
       } else if (ev.kind === 'tool.call') {

@@ -27,6 +27,7 @@ const FIELDS: {
 ]
 
 const sameConfig = (a: BudgetConfig, b: BudgetConfig): boolean =>
+  a.maxIterations === b.maxIterations &&
   (['main', 'sub'] as const).every((tier) =>
     (Object.keys(a[tier]) as (keyof ResourceBudget)[]).every((k) => a[tier][k] === b[tier][k])
   )
@@ -73,6 +74,31 @@ export function BudgetsView(): React.JSX.Element {
       <hr className="border-border" />
 
       <BudgetSection budget={draft.sub} onChange={(k, v) => setField('sub', k, v)} title="Sub-agent" />
+
+      <hr className="border-border" />
+
+      <div className="space-y-3">
+        <div className="font-medium text-sm">Iteration limit</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <span className="text-muted-foreground text-xs">Max iterations (override all agents)</span>
+            <Input
+              min={0}
+              onChange={(e) => {
+                const n = Math.round(Number(e.target.value) || 0)
+                setDraft((d) => ({ ...d, maxIterations: n > 0 ? n : undefined }))
+              }}
+              placeholder="per-agent default"
+              type="number"
+              value={draft.maxIterations ?? ''}
+            />
+          </div>
+        </div>
+        <p className="text-muted-foreground text-xs">
+          Caps how many turns any agent runs before stopping. When set, it overrides every agent's own limit. Leave
+          empty to use each agent's configured value.
+        </p>
+      </div>
 
       <hr className="border-border" />
 

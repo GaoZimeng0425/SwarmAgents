@@ -80,6 +80,8 @@ export type ConversationStore = {
   saveTaskVerifications(taskId: string, rounds: Task['verifications']): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
+  /** Mark a task as actively running and stamp started_at (kept if already set). */
+  markTaskRunning(taskId: string): void
   saveTaskUsage(taskId: string, used: Task['used'], contextWindow?: number): void
   getSessionTasks(sessionId: string): Task[]
   getUsageStats(rangeDays: number): UsageStats
@@ -461,6 +463,18 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const markAndGetInterrupted = db.transaction((): StoredSession[] => {
     const active = db.prepare(`SELECT * FROM sessions WHERE status = 'active'`).all() as Record<string, unknown>[]
     db.prepare(`UPDATE sessions SET status = 'interrupted' WHERE status = 'active'`).run()
+    // Any non-terminal tasks left behind by those sessions never reached a
+    // terminal updateTaskStatus (the process died mid-run). Flip them to
+    // 'interrupted' so they don't replay as 'pending' queued cards on reload.
+    const activeIds = active.map((r) => r.id as string)
+    if (activeIds.length > 0) {
+      const placeholders = activeIds.map(() => '?').join(',')
+      db.prepare(
+        `UPDATE tasks SET status = 'interrupted', ended_at = COALESCE(ended_at, ?)
+         WHERE session_id IN (${placeholders})
+           AND status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')`
+      ).run(Date.now(), ...activeIds)
+    }
     return active.map(rowToSession).map((s) => ({ ...s, status: 'interrupted' as const }))
   })
 
@@ -473,6 +487,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
+  // COALESCE keeps the first dispatch's started_at across continuation turns on
+  // the same task, so resuming doesn't reset the task's start time.
+  const stmtMarkTaskRunning = db.prepare(
+    `UPDATE tasks SET status = 'running', started_at = COALESCE(started_at, ?) WHERE id = ?`
+  )
   // COALESCE keeps a previously-stored window when this call has none, so a
   // turn that resolved no window can't wipe a good value.
   const stmtUpdateTaskUsage = db.prepare(
@@ -709,6 +728,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
       const endedAt = TERMINAL_TASK_STATUSES.has(status) ? Date.now() : null
       stmtUpdateTask.run(status, result ? JSON.stringify(result) : null, endedAt, taskId)
       if (TERMINAL_TASK_STATUSES.has(status)) taskTerminalListener?.(taskId, status)
+    },
+    markTaskRunning(taskId) {
+      stmtMarkTaskRunning.run(Date.now(), taskId)
     },
     saveTaskUsage(taskId, used, contextWindow) {
       stmtUpdateTaskUsage.run(JSON.stringify(used), contextWindow ?? null, taskId)

@@ -223,6 +223,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // and is misclassified as a queued card. workerId is vestigial in the
     // single-process model, so it is left empty.
     makeEmit(session.id)('task.dispatched', { taskId: next.taskId, workerId: '', ts: Date.now() })
+    // Persist the running state too: live events only reach connected renderers,
+    // so without this a task that is interrupted before reaching a terminal
+    // status replays from the DB as 'pending' and reappears as a queued card.
+    store.markTaskRunning(next.taskId)
     void next.runTurn().finally(() => {
       session.running = null
       pump(session)
@@ -589,6 +593,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
           // Children verify single-shot; only top-level submitGoal tasks run the verify loop.
           maxVerifyRounds: 0,
+          maxIterationsOverride: budgets().maxIterations,
         })
         try {
           const { status, summary } = await runner.run()
@@ -735,58 +740,107 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       if (!session) throw new Error(`session ${sessionId} not found`)
 
       const attachments = attachmentsArg ?? []
-      // Resolve agent definition: explicit arg wins, then options.agentType lookup,
-      // then DEFAULT_AGENT_DEF. Mirrors spawnChild's resolution logic.
+      const now = Date.now()
+      const existingTasks = store.getSessionTasks(sessionId)
+      const isFirst = existingTasks.length === 0
+
+      // Follow-up continuation: when the session is idle (no top-level turn
+      // running or queued), a new goal continues the most-recent top-level task
+      // instead of spawning a new one. A session is one conversation thread —
+      // session.messages already carries the full prior context — so a fresh root
+      // task per follow-up would clutter the transcript with sibling cards (e.g. a
+      // "继续" card). Whether the follow-up is really a continuation or a new
+      // objective is left to the agent's own judgment mid-turn (it sees the full
+      // history and can reset its acceptance criteria if it decides the request is
+      // new). While a turn IS running/queued, submissions still queue as distinct
+      // tasks so the queue/interrupt feature is preserved.
+      const busy = session.running !== null || session.pending.length > 0
+      const roots = existingTasks.filter((t) => t.parentId == null).sort((a, b) => a.createdAt - b.createdAt)
+      const lastRoot = roots[roots.length - 1]
+      const continuing = !busy && lastRoot ? lastRoot : undefined
+
+      // Resolve agent definition: a continuation keeps the original task's agent
+      // so the system prompt doesn't change mid-conversation. Otherwise explicit
+      // arg wins, then options.agentType lookup, then DEFAULT_AGENT_DEF (mirrors
+      // spawnChild's resolution logic).
       const resolvedByType = options?.agentType ? cfg.agentStore?.get(options.agentType) : undefined
       if (options?.agentType && !resolvedByType) {
         log.warn({ msg: 'agentType not found, falling back to default', agentType: options.agentType })
       }
-      const agentDef = agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF
+      const agentDef = continuing
+        ? (cfg.agentStore?.get(continuing.agentDefId) ?? agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF)
+        : (agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF)
 
-      const taskId = ulid()
-      const now = Date.now()
-      const isFirst = store.getSessionTasks(sessionId).length === 0
+      const taskId = continuing ? continuing.id : ulid()
       // Plan mode forces the read-only tool set regardless of the agent's scope,
       // so the agent can investigate but not mutate while planning.
       const toolAllowlist = options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
-      const task: Task = {
-        id: taskId,
-        parentId: null,
-        agentDefId: agentDef.id,
-        goal,
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist,
-        budget: budgets().main,
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        history: [],
-        attachments,
-        result: null,
-        createdAt: now,
-        startedAt: null,
-        endedAt: null,
-        cwd: options?.cwd,
-        permissionMode: options?.permissionMode,
-        executionMode: options?.executionMode,
-        acceptanceCriteria: options?.acceptanceCriteria,
-      }
-      store.saveTask(task, sessionId)
-      broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
-      store.updateSessionLastActive(sessionId)
-      log.info({
-        msg: 'goal submitted',
-        sessionId,
-        taskId,
-        agentDefId: agentDef.id,
-        cwd: options?.cwd ?? null,
-        permissionMode: options?.permissionMode ?? 'ask',
-        executionMode: options?.executionMode ?? 'goal',
-      })
+      // The task object the runner drives this turn. A continuation reuses the
+      // existing row's id and carries its acceptance criteria (so the runner
+      // skips Phase A and continues toward the same criteria), but prompts with
+      // the new follow-up text and gets a fresh budget envelope for the turn.
+      const task: Task = continuing
+        ? {
+            ...continuing,
+            goal,
+            attachments,
+            budget: budgets().main,
+            history: [],
+            result: null,
+            endedAt: null,
+            status: 'pending',
+          }
+        : {
+            id: taskId,
+            parentId: null,
+            agentDefId: agentDef.id,
+            goal,
+            status: 'pending',
+            assignedWorkerId: null,
+            toolAllowlist,
+            budget: budgets().main,
+            used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+            history: [],
+            attachments,
+            result: null,
+            createdAt: now,
+            startedAt: null,
+            endedAt: null,
+            cwd: options?.cwd,
+            permissionMode: options?.permissionMode,
+            executionMode: options?.executionMode,
+            acceptanceCriteria: options?.acceptanceCriteria,
+          }
 
-      if (isFirst) {
-        const title = goal.slice(0, 60)
-        store.setSessionTitle(sessionId, title)
-        broadcaster.broadcast('session.updated', { sessionId, title, lastActiveAt: now, ts: now })
+      if (continuing) {
+        // No new row: append the follow-up as a user message on the existing
+        // task so the transcript shows it (the runner feeds it to the LLM but
+        // emits no user-message event of its own), then re-open the card.
+        makeEmit(sessionId)('task.progress', {
+          taskId,
+          event: { kind: 'llm.message', role: 'user', content: goal, ts: now },
+        })
+        store.updateSessionLastActive(sessionId)
+        log.info({ msg: 'goal continues task', sessionId, taskId, goalLen: goal.length, agentDefId: task.agentDefId })
+      } else {
+        store.saveTask(task, sessionId)
+        broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
+        store.updateSessionLastActive(sessionId)
+        log.info({
+          msg: 'goal submitted',
+          sessionId,
+          taskId,
+          agentDefId: agentDef.id,
+          cwd: options?.cwd ?? null,
+          permissionMode: options?.permissionMode ?? 'ask',
+          executionMode: options?.executionMode ?? 'goal',
+        })
+
+        if (isFirst) {
+          const title = goal.slice(0, 60)
+          store.setSessionTitle(sessionId, title)
+          broadcaster.broadcast('session.updated', { sessionId, title, lastActiveAt: now, ts: now })
+        }
       }
 
       const runTurn = async (): Promise<void> => {
@@ -821,6 +875,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
           maxVerifyRounds: MAX_VERIFY_ROUNDS,
+          maxIterationsOverride: budgets().maxIterations,
         })
         try {
           const { status } = await runner.run()

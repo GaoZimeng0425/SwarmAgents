@@ -57,6 +57,19 @@ describe('taskSegments', () => {
     expect(reasoning[0]).toMatchObject({ text: 'Let me think.' })
   })
 
+  it('renders a follow-up user message (role:user) as its own user segment', () => {
+    const segs = taskSegments(
+      rec([
+        prog({ kind: 'llm.message', role: 'assistant', content: 'done', ts: 1 }),
+        prog({ kind: 'llm.message', role: 'user', content: '继续', ts: 2 }),
+      ])
+    )
+    const users = segs.filter((s) => s.kind === 'user')
+    // The original goal bubble plus the follow-up user bubble.
+    expect(users).toHaveLength(2)
+    expect(users[1]).toMatchObject({ kind: 'user', text: '继续' })
+  })
+
   it('pairs a tool.call with its tool.result into one tool segment', () => {
     const segs = taskSegments(
       rec([

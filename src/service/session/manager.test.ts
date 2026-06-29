@@ -1126,4 +1126,73 @@ describe('SessionManager', () => {
 
     store.close()
   })
+
+  it('continues the most-recent root task on an idle follow-up instead of creating a new one', async () => {
+    const goals: string[] = []
+    mockCreate.mockImplementation((deps: { task: { id: string; goal: string } }) => ({
+      run: async () => {
+        goals.push(deps.task.goal)
+        return { status: 'completed' as const, summary: 'ok', messages: [], used: {} }
+      },
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    const first = manager.submitGoal(sessionId, 'do the thing')
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    // The first turn has finished; the session is idle. A follow-up continues it.
+    const followUp = manager.submitGoal(sessionId, '继续')
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Same task is reused — no second top-level "继续" card.
+    expect(followUp.taskId).toBe(first.taskId)
+    const roots = store.getSessionTasks(sessionId).filter((t) => t.parentId === null)
+    expect(roots).toHaveLength(1)
+    // The follow-up text drove the second turn and is recorded as a user message.
+    expect(goals).toEqual(['do the thing', '继续'])
+    const history = store.getSessionTasks(sessionId)[0].history
+    expect(history).toContainEqual({ kind: 'llm.message', role: 'user', content: '继续', ts: expect.any(Number) })
+    store.close()
+  })
+
+  it('queues a distinct task when a top-level turn is already running', async () => {
+    let releaseFirst: (() => void) | null = null
+    let firstStarted = false
+    mockCreate.mockImplementation(() => ({
+      run: async () => {
+        if (!firstStarted) {
+          firstStarted = true
+          await new Promise<void>((r) => {
+            releaseFirst = r
+          })
+        }
+        return { status: 'completed' as const, summary: 'ok', messages: [], used: {} }
+      },
+    }))
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    const first = manager.submitGoal(sessionId, 'first')
+    await new Promise((r) => setTimeout(r, 0)) // let the first turn start and block
+    // Submitted while the first turn is still running → a distinct queued task.
+    const second = manager.submitGoal(sessionId, 'second')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(second.taskId).not.toBe(first.taskId)
+    expect(store.getSessionTasks(sessionId).filter((t) => t.parentId === null)).toHaveLength(2)
+
+    releaseFirst?.()
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    store.close()
+  })
 })

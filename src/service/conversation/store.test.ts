@@ -54,6 +54,74 @@ describe('ConversationStore', () => {
     store2.close()
   })
 
+  it('interrupts non-terminal tasks of interrupted sessions on restart, preserving terminal ones', () => {
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const mkTask = (id: string, status: import('@shared/types/task').Task['status']) => ({
+      id,
+      parentId: null,
+      agentDefId: 'default',
+      goal: 'g',
+      status,
+      assignedWorkerId: null,
+      toolAllowlist: [],
+      budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
+      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      history: [],
+      result: null,
+      createdAt: Date.now(),
+      startedAt: null,
+      endedAt: null,
+    })
+    const store1 = createConversationStore(dbPath)
+    store1.createSession('ses-x', provider) // left 'active' → interrupted on restart
+    store1.saveTask(mkTask('task-run', 'running'), 'ses-x')
+    store1.saveTask(mkTask('task-pend', 'pending'), 'ses-x')
+    store1.saveTask(mkTask('task-done', 'completed'), 'ses-x')
+    store1.close()
+
+    const store2 = createConversationStore(dbPath)
+    store2.getInterruptedSessions()
+    const byId = new Map(store2.getSessionTasks('ses-x').map((t) => [t.id, t.status]))
+    expect(byId.get('task-run')).toBe('interrupted')
+    expect(byId.get('task-pend')).toBe('interrupted')
+    expect(byId.get('task-done')).toBe('completed') // terminal preserved
+    store2.close()
+  })
+
+  it('markTaskRunning sets running status and stamps started_at once', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    store.createSession('ses-r', provider)
+    store.saveTask(
+      {
+        id: 'task-r',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        result: null,
+        createdAt: Date.now(),
+        startedAt: null,
+        endedAt: null,
+      },
+      'ses-r'
+    )
+    store.markTaskRunning('task-r')
+    const after = store.getSessionTasks('ses-r')[0]
+    expect(after.status).toBe('running')
+    expect(after.startedAt).toBeGreaterThan(0)
+    const firstStart = after.startedAt
+    // A second dispatch (continuation) keeps the original start time.
+    store.markTaskRunning('task-r')
+    expect(store.getSessionTasks('ses-r')[0].startedAt).toBe(firstStart)
+    store.close()
+  })
+
   it('saves and retrieves tasks', () => {
     const store = createConversationStore(dbPath)
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }

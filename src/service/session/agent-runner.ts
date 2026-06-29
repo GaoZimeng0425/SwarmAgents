@@ -251,6 +251,13 @@ export type AgentRunnerDeps = {
    * to avoid recursion.
    */
   maxVerifyRounds?: number
+  /**
+   * Global override for the agent loop's per-run iteration cap. When set (> 0)
+   * it replaces `agentDefinition.maxIterations` for the main turn loop. Does NOT
+   * affect the internal 2-turn helper sub-runs (criteria/verify). Wired by the
+   * manager from the user's BudgetConfig.
+   */
+  maxIterationsOverride?: number
 }
 
 export type AgentRunner = {
@@ -605,7 +612,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   // calls — a model stuck emitting reasoning-only turns never trips them. This
   // counter, checked in prepareNextTurn (fires every turn), is the backstop.
   let turns = 0
-  const maxTurns = agentDefinition.maxIterations ?? 25
+  const maxTurns = deps.maxIterationsOverride ?? agentDefinition.maxIterations ?? 25
 
   const snapshotUsed = (): ConsumedResources => ({
     tokens: used.tokens,

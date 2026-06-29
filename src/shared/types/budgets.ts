@@ -8,6 +8,14 @@ import { ResourceBudgetSchema } from './task'
 export const BudgetConfigSchema = z.object({
   main: ResourceBudgetSchema,
   sub: ResourceBudgetSchema,
+  /**
+   * Global override for every agent's per-run iteration cap (the agent loop's
+   * `maxTurns` safety valve). When set (> 0) it replaces each agent definition's
+   * own `maxIterations`, regardless of main vs sub. Undefined = each agent keeps
+   * its own configured value. Lets the operator raise the ceiling app-wide
+   * without editing every agent.
+   */
+  maxIterations: z.number().int().positive().optional(),
 })
 export type BudgetConfig = z.infer<typeof BudgetConfigSchema>
 
