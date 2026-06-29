@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BiliListResult, BiliSummary, BiliVideo } from '@shared/types/bilibili'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { compact } from 'es-toolkit'
+import { chunk, compact } from 'es-toolkit'
 
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -36,12 +36,6 @@ type GridRow = { kind: 'header'; key: string; title: string } | { kind: 'grid'; 
 function columnsForWidth(width: number): number {
   if (width <= 0) return 1
   return Math.max(1, Math.floor((width + GAP_PX) / (MIN_CARD_PX + GAP_PX)))
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const rows: T[][] = []
-  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size))
-  return rows
 }
 
 function formatDuration(sec: number): string {
