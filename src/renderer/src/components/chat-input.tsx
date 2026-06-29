@@ -26,9 +26,9 @@ import {
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
 import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
-import { Slider } from '@/components/ui/slider'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
+import { cn } from '@/lib/utils'
 import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'
 import { useRecentDirs } from '@/stores/recent-dirs'
 
@@ -334,6 +334,10 @@ export function ChatInput({
   const showThinking = thinkingLevels.length > 1
   // Slider position of the active level; clamp to 0 when it isn't in the list.
   const thinkingIndex = Math.max(0, thinkingLevels.indexOf(activeRow?.thinkingLevel ?? 'off'))
+  // Ref + drag flag for the bespoke thinking stepper: the track captures pointer
+  // events so a click or drag anywhere on the line snaps to the nearest step.
+  const stepTrackRef = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState(false)
 
   const onPickThinking = async (level: string): Promise<void> => {
     if (!state.active) return
@@ -509,22 +513,112 @@ export function ChatInput({
                             onPointerDown={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-between">
-                              <SelectLabel className="px-0">思考程度</SelectLabel>
+                              {/* Plain span, not SelectLabel: this label sits outside a
+                                  SelectGroup (it labels a custom slider, not select
+                                  items), and Base UI's GroupLabel requires a group
+                                  context — using it here throws "SelectGroupContext is
+                                  missing". The classes mirror SelectLabel's styling. */}
+                              <span className="px-0 py-1 text-xs text-muted-foreground">思考程度</span>
                               <span className="font-medium text-muted-foreground text-xs">
                                 {THINKING_LABELS[activeRow.thinkingLevel]}
                               </span>
                             </div>
-                            <Slider
-                              max={thinkingLevels.length - 1}
-                              min={0}
-                              onValueChange={(v) => {
-                                const idx = Array.isArray(v) ? v[0] : v
+                            {(() => {
+                              // Capsule stepper built from scratch (not Base UI's slider):
+                              // Base UI's Control lays the Thumb as a *sibling* of the
+                              // Track, so the track width and the thumb's percent-based
+                              // position use different reference widths and never line up.
+                              // A bespoke control uses a single coordinate system — step
+                              // centers, the filled segment, and click targets all derive
+                              // from the same `i/(n-1)` percentages — so the rings, the
+                              // line, and the snap point are always aligned.
+                              const count = thinkingLevels.length
+                              const last = count - 1
+                              const current = thinkingIndex
+                              // Map a click's horizontal position to the nearest step
+                              // index, then commit it. Used for both track clicks and
+                              // dragging the indicator.
+                              const pickAtClientX = (target: HTMLElement, clientX: number) => {
+                                const rect = target.getBoundingClientRect()
+                                const ratio = last <= 0 ? 0 : (clientX - rect.left) / rect.width
+                                const idx = Math.max(0, Math.min(last, Math.round(ratio * last)))
                                 const level = thinkingLevels[idx]
                                 if (level && level !== activeRow.thinkingLevel) void onPickThinking(level)
-                              }}
-                              step={1}
-                              value={[thinkingIndex]}
-                            />
+                              }
+                              return (
+                                <div
+                                  ref={stepTrackRef}
+                                  className="relative flex h-5 w-full cursor-pointer touch-none items-center select-none"
+                                  onPointerDown={(e) => {
+                                    e.stopPropagation()
+                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                    setDragging(true)
+                                    pickAtClientX(stepTrackRef.current ?? (e.currentTarget as HTMLElement), e.clientX)
+                                  }}
+                                  onPointerMove={(e) => {
+                                    if (!dragging) return
+                                    pickAtClientX(stepTrackRef.current ?? (e.currentTarget as HTMLElement), e.clientX)
+                                  }}
+                                  onPointerUp={() => setDragging(false)}
+                                  onPointerCancel={() => setDragging(false)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                                      e.preventDefault()
+                                      const next = Math.max(0, current - 1)
+                                      if (next !== current) void onPickThinking(thinkingLevels[next])
+                                    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                                      e.preventDefault()
+                                      const next = Math.min(last, current + 1)
+                                      if (next !== current) void onPickThinking(thinkingLevels[next])
+                                    }
+                                  }}
+                                  role="slider"
+                                  tabIndex={0}
+                                  aria-valuemin={0}
+                                  aria-valuemax={last}
+                                  aria-valuenow={current}
+                                  aria-label="思考程度"
+                                >
+                                  {/* Capsule line: spans the full stepper width. No
+                                      horizontal padding here — the line, its filled
+                                      segment, and the rings must all derive width from
+                                      the same coordinate space (0%→100%). Any padding
+                                      would shrink the fill's reference box and shift it
+                                      off the first/last ring centers. */}
+                                  <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-muted">
+                                    {/* Filled segment, from the left edge to the current
+                                        step's center — same percentage as the ring, so the
+                                        fill always ends exactly under the active ring. */}
+                                    <div
+                                      className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-[width] duration-150 ease-out"
+                                      style={{ width: `${(current / last) * 100}%` }}
+                                    />
+                                  </div>
+                                  {/* Step rings: one per level, centered on each step's
+                                      percentage. Reached steps are primary-filled; the
+                                      active step gets a larger ring with a white core;
+                                      future steps are hollow. */}
+                                  {thinkingLevels.map((lvl, i) => {
+                                    const reached = i <= current
+                                    const active = i === current
+                                    return (
+                                      <span
+                                        key={lvl}
+                                        style={{ left: `${(i / last) * 100}%` }}
+                                        className={cn(
+                                          'absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-all duration-150',
+                                          active
+                                            ? 'size-3.5 border-primary bg-background ring-4 ring-primary/15'
+                                            : reached
+                                              ? 'size-2.5 border-primary bg-primary'
+                                              : 'size-2.5 border-border bg-background'
+                                        )}
+                                      />
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
                             <div className="flex justify-between text-[10px] text-muted-foreground/70">
                               <span>{THINKING_LABELS[thinkingLevels[0]]}</span>
                               <span>{THINKING_LABELS[thinkingLevels[thinkingLevels.length - 1]]}</span>
