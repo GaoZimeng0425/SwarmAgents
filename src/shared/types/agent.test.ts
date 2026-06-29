@@ -21,6 +21,9 @@ describe('deriveAllowlist', () => {
   it('maps the authoring scope to the authoring group plus coordination tools', () => {
     expect(deriveAllowlist('authoring')).toEqual(['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*'])
   })
+  it('coordinate grants only the delegation and skill groups', () => {
+    expect(deriveAllowlist('coordinate')).toEqual(['agent.*', 'skill.*'])
+  })
 })
 
 describe('allowlistForAgent — claude-code is reserved for developer (code) agents', () => {

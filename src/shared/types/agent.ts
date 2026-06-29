@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { ModelThinkingLevel } from './provider'
 
-export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'authoring', 'all'])
+export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'authoring', 'coordinate', 'all'])
 export type ToolScope = z.infer<typeof ToolScopeSchema>
 
 export const AgentDefinitionSchema = z.object({
@@ -103,6 +103,12 @@ export function deriveAllowlist(scope: ToolScope): string[] {
       // so only this scope can reach write_agent/write_skill. Plus the coordination
       // tools a team head needs to delegate and read.
       return ['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*']
+    case 'coordinate':
+      // Pure delegator: the coordination tools (find_agents, send_and_wait,
+      // spawn_sub_agent, update_plan) plus use_skill — no shell, fs, web, UI or
+      // screen capture. For the CEO, planner and team heads, which only break
+      // work down and delegate; the ICs they delegate to hold the real tools.
+      return ['agent.*', 'skill.*']
   }
 }
 
