@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 优化巡检报告 v2 — SwarmAgents</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--purple:#bc8cff;--code-bg:#1c2128;--p0:#f85149;--p1:#d29922;--p2:#3fb950}
+[data-theme="light"]{--bg:#ffffff;--card:#f6f8fa;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--yellow:#9a6700;--red:#cf222e;--purple:#8250df;--code-bg:#eff1f3}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;transition:background .3s}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:40px 20px;border-radius:12px;margin-bottom:30px;text-align:center}
+[data-theme="light"] header{background:linear-gradient(135deg,#58a6ff,#bc8cff)}
+header h1{font-size:2em;margin-bottom:8px;color:#fff}
+header .subtitle{color:#c9d1d9;font-size:1.1em}
+[data-theme="light"] header .subtitle{color:#fff}
+.meta-bar{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin-top:15px}
+.meta-chip{background:rgba(255,255,255,.15);padding:4px 14px;border-radius:20px;font-size:.85em;color:#fff}
+.theme-toggle{position:fixed;top:20px;right:20px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;cursor:pointer;font-size:1.2em;z-index:100;transition:all .3s}
+.theme-toggle:hover{border-color:var(--accent)}
+nav{position:sticky;top:0;background:var(--bg);z-index:50;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:20px}
+nav ul{display:flex;gap:8px;list-style:none;overflow-x:auto;flex-wrap:wrap;justify-content:center}
+nav a{color:var(--muted);text-decoration:none;padding:6px 14px;border-radius:6px;font-size:.85em;white-space:nowrap;transition:all .2s}
+nav a:hover{background:var(--card);color:var(--accent)}
+section{margin-bottom:40px}
+h2{font-size:1.5em;margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid var(--accent);display:flex;align-items:center;gap:10px}
+h3{font-size:1.15em;margin:20px 0 10px;color:var(--accent)}
+h4{font-size:1em;margin:15px 0 8px;color:var(--purple)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;transition:border-color .3s}
+.card:hover{border-color:var(--accent)}
+.card-header{cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.card-header h3{margin:0;border:none;padding:0}
+.collapse-icon{font-size:1.2em;color:var(--muted);transition:transform .3s}
+.collapsed .collapse-icon{transform:rotate(-90deg)}
+.card-body{margin-top:15px;display:block}
+.collapsed .card-body{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+.stat .num{font-size:2em;font-weight:700;color:var(--accent)}
+.stat .label{color:var(--muted);font-size:.85em;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:.88em}
+th{background:var(--code-bg);text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:hover{background:var(--code-bg)}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.75em;font-weight:600;white-space:nowrap}
+.p0{background:rgba(248,81,73,.2);color:var(--p0);border:1px solid var(--p0)}
+.p1{background:rgba(210,153,34,.2);color:var(--p1);border:1px solid var(--p1)}
+.p2{background:rgba(63,185,80,.2);color:var(--p2);border:1px solid var(--p2)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.78em;background:var(--code-bg);color:var(--muted);margin:2px}
+pre,.code-block{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:.82em;line-height:1.5;position:relative;margin:10px 0}
+pre{white-space:pre-wrap;word-break:break-word}
+.copy-btn{position:absolute;top:8px;right:8px;background:var(--card);border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:3px 10px;cursor:pointer;font-size:.78em;transition:all .2s}
+.copy-btn:hover{color:var(--accent);border-color:var(--accent)}
+.matrix-table{font-size:.78em}
+.matrix-table th,.matrix-table td{text-align:center;padding:4px 6px}
+.matrix-table .yes{color:var(--green);font-weight:bold}
+.matrix-table td:first-child{text-align:left;font-weight:600;white-space:nowrap}
+.action-item{display:flex;gap:12px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:flex-start}
+.action-item .check{color:var(--green);font-size:1.3em;flex-shrink:0}
+.action-item .content{flex:1}
+.action-item .priority{flex-shrink:0}
+.insight-box{background:rgba(88,166,255,.08);border-left:3px solid var(--accent);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+.warning-box{background:rgba(248,81,73,.08);border-left:3px solid var(--red);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+.gap-list li{margin-bottom:8px;padding-left:8px}
+.gap-list .gap-num{color:var(--red);font-weight:700}
+footer{text-align:center;padding:30px 20px;color:var(--muted);border-top:1px solid var(--border);margin-top:40px}
+@media(max-width:768px){.container{padding:10px}header h1{font-size:1.5em}nav ul{justify-content:flex-start}.grid{grid-template-columns:1fr}table{font-size:.8em}}
+.scroll-table{overflow-x:auto}
+.topic-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.78em;font-weight:600;margin-right:4px}
+</style>
+</head>
+<body data-theme="dark">
+<button class="theme-toggle" onclick="toggleTheme()" title="切换主题">🌙</button>
+
+<div class="container">
+<header>
+<h1>🚀 Agent 优化巡检报告 v2</h1>
+<p class="subtitle">SwarmAgents 全网调研 × 现有 Agent 审计 × 可执行优化方案</p>
+<div class="meta-bar">
+<span class="meta-chip">📅 2026-06-27</span>
+<span class="meta-chip">🤖 20 Agents 审计</span>
+<span class="meta-chip">🛠️ 79 Skills 编目</span>
+<span class="meta-chip">📚 24 篇文章精选</span>
+<span class="meta-chip">📦 5 大仓库调研</span>
+</div>
+</header>
+
+<nav>
+<ul>
+<li><a href="#overview">📊 执行概览</a></li>
+<li><a href="#articles">📚 最佳文章</a></li>
+<li><a href="#skills">🛠️ Skill 目录</a></li>
+<li><a href="#agents">🤖 Agent 优化</a></li>
+<li><a href="#matrix">🔀 Skill 矩阵</a></li>
+<li><a href="#verification">✅ 自校验模式</a></li>
+<li><a href="#actions">📋 行动清单</a></li>
+</ul>
+</nav>
+
+<!-- ===================== SECTION 1: OVERVIEW ===================== -->
+<section id="overview">
+<h2>📊 执行概览与三大短板</h2>
+
+<div class="stat-grid">
+<div class="stat"><div class="num">20</div><div class="label">现有 Agent</div></div>
+<div class="stat"><div class="num">3</div><div class="label">现有 Skill</div></div>
+<div class="stat"><div class="num">79</div><div class="label">可安装 Skill</div></div>
+<div class="stat"><div class="num">24</div><div class="label">精选文章</div></div>
+<div class="stat"><div class="num">15</div><div class="label">高优先级行动</div></div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>🔴 三大核心短板</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<ol class="gap-list" style="padding-left:20px;line-height:2.2">
+<li><span class="gap-num">短板 1 — 缺少强制验证机制 (verification-before-completion)</span><br>
+<strong>现状</strong>: 20 个 Agent 中没有 <strong>任何一个</strong> 内嵌"完成前必须运行验证命令并确认输出"的自检步骤。工程师说"测试通过了"但可能没实际运行。<br>
+<strong>影响</strong>: 虚假完成声明、回归bug、信任坍塌。<br>
+<strong>修复</strong>: 全局部署 <code>verification-before-completion</code> Skill，写入每个 IC Agent 的 systemPrompt。</li>
+
+<li><span class="gap-num">短板 2 — 工具选择指引和 use_skill 触发说明缺失</span><br>
+<strong>现状</strong>: 除 <code>default</code> 外，19 个 Agent 没有工具选择指引；没有 Agent 知道何时调用 <code>use_skill</code>。<br>
+<strong>影响</strong>: Agent 盲目选择工具、重复低效操作、不会利用已安装的 agent-browser / archify / agent-reach 技能。<br>
+<strong>修复</strong>: 为每个 Agent 添加工具选择决策树 + use_skill 触发条件说明。</li>
+
+<li><span class="gap-num">短板 3 — 系统化调试和操作安全分级缺失</span><br>
+<strong>现状</strong>: 没有 Agent 使用根因调试方法论；<code>devops-engineer</code> 的"never run destructive command"只是一句话，缺少操作分级 (read-only / write / destructive)。<br>
+<strong>影响</strong>: 猜测式修补、误执行危险命令、debug 时间长。<br>
+<strong>修复</strong>: 部署 <code>systematic-debugging</code> Skill + 引入操作分级白名单。</li>
+</ol>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>📋 审计方法论</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<table>
+<tr><th>步骤</th><th>方法</th><th>工具</th></tr>
+<tr><td>1. Skill 调研</td><td>gh API + curl README + gh search repos</td><td>agent-reach, gh, fetch</td></tr>
+<tr><td>2. 文章调研</td><td>web_search 12 主题 + fetch 全文提取</td><td>web_search, fetch</td></tr>
+<tr><td>3. Agent 审计</td><td>逐个读取 AGENT.md, 分析 prompt 结构</td><td>run_shell, read_file</td></tr>
+<tr><td>4. Skill 评估</td><td>按类别×优先级×受益Agent三维评估</td><td>人工分析</td></tr>
+<tr><td>5. 报告生成</td><td>整合为可执行 HTML 报告</td><td>write_file</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+<!-- ===================== SECTION 2: ARTICLES ===================== -->
+<section id="articles">
+<h2>📚 全网最佳文章精选 (12 主题 × 24 篇)</h2>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3><span class="topic-badge" style="background:rgba(63,185,80,.2);color:var(--green)">可靠性</span> Graceful Degradation Patterns in AI Agent Systems</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<p><strong>来源</strong>: <a href="https://zylos.ai/research/2026-02-20-graceful-degradation-ai-agent-systems/" style="color:var(--accent)">Zylos Research</a> · 2026-02 · ⭐ 高价值</p>
+<div class="insight-box">
+<strong>可执行洞察</strong>:
+<ul style="margin-top:8px;padding-left:20px">
+<li><strong>渐进式扩容</strong>: 从1个并发Worker开始，每5分钟增加1个，避免冷启动雪崩</li>
+<li><strong>Circuit Breaker</strong>: 连续3次失败后熔断30秒，而非无限重试</li>
+<li><strong>Fallback Ladder</strong>: 主模型→备选→缓存→优雅降级，每级有明确超时</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3><span class="topic-badge" style="background:rgba(88,166,255,.2);color:var(--accent)">可观测性</span> Top 10 LLM Observability Tools + Best Evaluation Platforms</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<p><strong>来源</strong>: <a href="https://www.braintrust.dev/articles/top-10-llm-observability-tools-2025" style="color:var(--accent)">Braintrust</a> · <a href="https://langwatch.ai/blog/the-4-best-llm-evaluation-platforms-in-2025" style="color:var(--accent)">LangWatch</a> · 2025-10</p>
+<div class="insight-box">
+<strong>可执行洞察</strong>:
+<ul style="margin-top:8px;padding-left:20px">
+<li><strong>三层追踪</strong>: 每次工具调用记录 input→output→latency→cost</li>
+<li><strong>Agent Simulations</strong>: 用模拟用户场景测试端到端能力，比单元测试更有效</li>
+<li><strong>Trace-based debugging</strong>: 回放执行轨迹定位失败点，而非看最终结果猜原因</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3><span class="topic-badge" style="background:rgba(188,140,255,.2);color:var(--purple)">记忆架构</span> State of AI Agent Memory 2026</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<p><strong>来源</strong>: <a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026" style="color:var(--accent)">Mem0</a> · 2026-04 · <a href="https://thenewstack.io/memory-for-ai-agents-a-new-paradigm-of-context-engineering/" style="color:var(--accent)">TheNewStack</a></p>
+<div class="insight-box">
+<strong>可执行洞察</strong>:
+<ul style="margin-top:8px;padding-left:20px">
+<li><strong>三层记忆</strong>: 短期(对话上下文) + 中期(任务进度) + 长期(跨会话知识库)</li>
+<li><strong>检索增强</strong>: 长期记忆按相关性检索注入，不是全量塞入context</li>
+<li><strong>主动遗忘</strong>: 定期清理过时信息，防止上下文膨胀</li>
+</ul>
+</div>
+<div class="warning-box">
+<strong>SwarmAgents 差距</strong>: <code>remember/recall</code> 只实现了长期记忆；缺少中期(任务进度)的结构化存储。
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3><span class="topic-badge" style="background:rgba(210,153,34,.2);color:var(--yellow)">评估/ACI</span> Building Effective AI Agents (Anthropic 经典)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<p><strong>来源</strong>: <a href="https://www.anthropic.com/research/building-effective-agents" style="color:var(--accent)">Anthropic</a> · 2024-12 · ⭐ 必读经典</p>
+<div class="insight-box">
+<strong>可执行洞察</strong>:
+<ul style="margin-top:8px;padding-left:20px">
+<li><strong>简单性原则</strong>: 最成功的Agent用简单可组合模式，不是复杂框架</li>
+<li><strong>五大模式</strong>: Prompt Chaining / Routing / Parallelization / Orchestrator-Workers / Evaluator-Optimizer</li>
+<li><strong>ACI > Prompt</strong>: Agent-Computer Interface(工具文档+设计)比Prompt优化更重要</li>
+<li><strong>Routing 缺失</strong>: SwarmAgents 所有任务走 CEO→Lead→IC，缺少轻量级路由</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3><span class="topic-badge" style="background:rgba(248,81,73,.2);color:var(--red)">安全护栏</span> Securing AI Agents + Role-Aware Guardrails</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<p><strong>来源</strong>: <a href="https://www.enkryptai.com/blog/securing-ai-agents-a-comprehensive-framework-for-agent-guardrails" style="color:var(--accent)">Enkrypt AI</a> · <a href="https://iclr.cc/virtual/2026/workshop/10000781" style="color:var(--accent)">ICLR 2026</a></p>
+<div class="insight-box">
+<strong>可执行洞察</strong>:
+<ul style="margin-top:8px;padding-left:20px">
+<li><strong>分层护栏</strong>: Input validation → Tool execution → Output filtering 三层独立</li>
+<li><strong>操作分级</strong>: read-only / write / destructive，不同级别不同审批</li>
+<li><strong>Prompt Injection 防范</strong>: Agent处理外部输入(网页/文件)时必须隔离</li>
+<li><strong>权限最小化</strong>: 每个Agent只拥有完成其任务的最小工具集</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3><span class="topic-badge" style="background:rgba(63,185,80,.2);color:var(--green)">编排/Prompt</span> Multi-Agent Orchestration + DSPy</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<p><strong>来源</strong>: <a href="https://arxiv.org/html/2601.13671v1" style="color:var(--accent)">arXiv</a> · <a href="https://dspy.ai/" style="color:var(--accent)">DSPy</a> · <a href="https://xccelera.ai/blogs/enterprise-ai-orchestration-competitive-moat-2026/" style="color:var(--accent)">Xccelera</a></p>
+<div class="insight-box">
+<strong>可执行洞察</strong>:
+<ul style="margin-top:8px;padding-left:20px">
+<li><strong>3-5个专精Agent > 20个通用Agent</strong>: 协调成本随Agent数平方增长</li>
+<li><strong>MCP + A2A 协议</strong>: 标准化Agent与工具、Agent与Agent的通信</li>
+<li><strong>DSPy Prompt as Code</strong>: 将Prompt表示为可优化的signature，自动搜索最优组合</li>
+<li><strong>共享状态协调</strong>: 用共享状态(文件/DB)替代纯消息传递</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div style="text-align:center;margin-top:16px">
+<a href="/tmp/agent_articles_20260627_1130.md" style="color:var(--accent)">📄 查看完整 24 篇文章详情 (Markdown)</a>
+</div>
+</section>
+
+<!-- ===================== SECTION 3: SKILLS CATALOG ===================== -->
+<section id="skills">
+<h2>🛠️ 可安装 Skill 完整目录</h2>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>🏆 Top 15 高优先级 Skill (按安装优先级排序)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<div class="scroll-table">
+<table>
+<tr><th>#</th><th>Skill</th><th>类别</th><th>来源</th><th>优先级</th><th>复杂度</th><th>受益 Agent</th></tr>
+<tr><td>1</td><td><strong>verification-before-completion</strong></td><td>verification</td><td>Superpowers</td><td><span class="badge p0">P0</span></td><td>低</td><td>全部 IC</td></tr>
+<tr><td>2</td><td><strong>systematic-debugging</strong></td><td>debugging</td><td>Superpowers</td><td><span class="badge p0">P0</span></td><td>低</td><td>engineer, devops, qa</td></tr>
+<tr><td>3</td><td><strong>test-driven-development</strong></td><td>TDD</td><td>Superpowers</td><td><span class="badge p0">P0</span></td><td>中</td><td>engineer, qa</td></tr>
+<tr><td>4</td><td><strong>planning-and-task-breakdown</strong></td><td>planning</td><td>addyosmani</td><td><span class="badge p0">P0</span></td><td>低</td><td>eng-lead, product-lead</td></tr>
+<tr><td>5</td><td><strong>code-review-and-quality</strong></td><td>code-review</td><td>addyosmani</td><td><span class="badge p0">P0</span></td><td>低</td><td>reviewer, engineer</td></tr>
+<tr><td>6</td><td><strong>security-and-hardening</strong></td><td>security</td><td>addyosmani</td><td><span class="badge p0">P0</span></td><td>中</td><td>security-analyst, eng</td></tr>
+<tr><td>7</td><td><strong>writing-plans</strong></td><td>planning</td><td>Superpowers</td><td><span class="badge p0">P0</span></td><td>低</td><td>全部 Lead</td></tr>
+<tr><td>8</td><td><strong>observability-and-instrumentation</strong></td><td>observability</td><td>addyosmani</td><td><span class="badge p1">P1</span></td><td>中</td><td>devops, data-analyst</td></tr>
+<tr><td>9</td><td><strong>spec-driven-development</strong></td><td>brainstorming</td><td>addyosmani</td><td><span class="badge p1">P1</span></td><td>中</td><td>product-lead, eng-lead</td></tr>
+<tr><td>10</td><td><strong>context-engineering</strong></td><td>memory</td><td>addyosmani</td><td><span class="badge p1">P1</span></td><td>中</td><td>全部</td></tr>
+<tr><td>11</td><td><strong>brainstorming</strong></td><td>brainstorming</td><td>Superpowers</td><td><span class="badge p1">P1</span></td><td>低</td><td>product, design</td></tr>
+<tr><td>12</td><td><strong>git-workflow-and-versioning</strong></td><td>git-workflow</td><td>addyosmani</td><td><span class="badge p1">P1</span></td><td>低</td><td>engineer, devops</td></tr>
+<tr><td>13</td><td><strong>doubt-driven-development</strong></td><td>verification</td><td>addyosmani</td><td><span class="badge p1">P1</span></td><td>低</td><td>reviewer, qa</td></tr>
+<tr><td>14</td><td><strong>incremental-implementation</strong></td><td>planning</td><td>addyosmani</td><td><span class="badge p1">P1</span></td><td>低</td><td>engineer</td></tr>
+<tr><td>15</td><td><strong>finishing-a-development-branch</strong></td><td>git-workflow</td><td>Superpowers</td><td><span class="badge p1">P1</span></td><td>低</td><td>engineer, devops</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>📦 五大调研仓库概览</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<div class="scroll-table">
+<table>
+<tr><th>仓库</th><th>⭐ Stars</th><th>Skill 数</th><th>核心价值</th><th>安装方式</th></tr>
+<tr><td><strong>obra/Superpowers</strong></td><td>239K</td><td>14</td><td>TDD+验证+调试全流程方法论</td><td><code>git clone ~/.swarm-agents/skills/superpowers</code></td></tr>
+<tr><td><strong>anthropics/skills</strong></td><td>156K</td><td>17</td><td>官方文档创建+Web测试+MCP</td><td><code>git clone ~/.swarm-agents/skills/anthropic-skills</code></td></tr>
+<tr><td><strong>addyosmani/agent-skills</strong></td><td>67K</td><td>24</td><td>生产级工程 Skill 全生命周期</td><td><code>git clone ~/.swarm-agents/skills/addyosmani-skills</code></td></tr>
+<tr><td><strong>VoltAgent/awesome-agent-skills</strong></td><td>27K</td><td>1497+</td><td>官方团队精选集合</td><td>选择性安装</td></tr>
+<tr><td><strong>mvanhorn/last30days-skill</strong></td><td>47K</td><td>1</td><td>多平台研究(Reddit/X/YT/HN)</td><td>单文件安装</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+<div style="text-align:center;margin-top:16px">
+<a href="/tmp/skills_catalog_20260627_1130.md" style="color:var(--accent)">📄 查看完整 79 Skill 目录 (Markdown)</a>
+</div>
+</section>
+
+<!-- ===================== SECTION 4: AGENT OPTIMIZATION ===================== -->
+<section id="agents">
+<h2>🤖 逐 Agent 优化方案</h2>
+
+<!-- Engineer -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>🔧 Engineer — 最关键优化 (P0)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 没有 verification-before-completion 自检步骤</li>
+<li>❌ 没有 systematic-debugging 根因调试流程</li>
+<li>❌ 缺少 use_skill 触发说明</li>
+<li>❌ 没有操作分级 (destructive 命令警告)</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Engineer"
+description: "Use when a concrete implementation task needs code written and verified (shell + files). Reports what it built and the test result."
+toolScope: all
+maxIterations: 30
+role: "engineer"
+capabilities: ["code","tests","shell"]
+team: "dev"
+---
+
+You are a Software Engineer at a small software company. You implement concrete tasks and verify them.
+
+## Skills (call use_skill before doing the activity)
+- **Before claiming done**: `use_skill("verification-before-completion")` — MUST run verification commands and confirm output before any success claim.
+- **When debugging**: `use_skill("systematic-debugging")` — four-phase root cause debugging, never guess-fix.
+- **When writing tests**: `use_skill("test-driven-development")` — red-green TDD cycle.
+- **When planning multi-step work**: `use_skill("writing-plans")` then `use_skill("executing-plans")`.
+
+## Tool Selection Guide
+- **Reading/changing files** → read_file / write_file / edit_file (safer than shell heredocs)
+- **Multi-file refactors or unfamiliar codebase** → codegraph__codegraph_explore to understand symbols first
+- **General commands** → run_shell (git status, npm test, etc.)
+- **Browser automation** → use_skill("agent-browser") when interacting with websites
+- **Research/search** → use_skill("agent-reach") for multi-platform research
+
+## Operation Safety Tiers
+- **Read-only** (ls, cat, grep, git log): proceed freely
+- **Write** (edit_file, write_file, npm install): proceed with caution
+- **Destructive** (rm -rf, git push --force, DROP TABLE): STOP and confirm with the delegator first
+
+## Verification-Before-Completion Self-Check (MANDATORY before reporting done)
+1. IDENTIFY: What command proves this task is complete?
+2. RUN: Execute the FULL verification command (fresh, not cached)
+3. READ: Full output, check exit code, count failures
+4. VERIFY: Does output confirm the claim? If NO → state actual status with evidence. If YES → proceed.
+5. ONLY THEN: Report "complete" WITH the verification evidence (command + output summary).
+- Using "should", "probably", "seems to" = NOT verified.
+- Never claim success you did not verify with a fresh command run.
+
+## Workflow
+1. Read the task and the working directory.
+2. Implement the code, picking the approach by task size (small=direct edit, large=cc_start).
+3. Run relevant tests/build to verify your work.
+4. **Before reporting**: run the Verification-Before-Completion self-check above.
+5. Report: what changed (file paths), test result (actual output), and any caveats. If something failed, say so explicitly.</pre>
+</div>
+</div>
+</div>
+
+<!-- DevOps Engineer -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>⚙️ DevOps Engineer (P0)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 verification-before-completion</li>
+<li>❌ "never run destructive command" 太模糊，缺少操作分级</li>
+<li>❌ 缺少 CI/CD 和 observability skill 集成</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "DevOps Engineer"
+description: "Use to implement build, CI/CD, deployment or environment tasks via shell and config, then verify the build/pipeline/service is healthy."
+toolScope: all
+maxIterations: 30
+role: "devops-engineer"
+capabilities: ["devops","ci","deploy","shell"]
+team: "ops"
+---
+
+You are a DevOps Engineer. You implement build, CI/CD, deployment, and environment tasks via shell and config files.
+
+## Skills (call use_skill before doing the activity)
+- **Before claiming done**: `use_skill("verification-before-completion")` — run verification and confirm output.
+- **When debugging infra issues**: `use_skill("systematic-debugging")`.
+- **For CI/CD pipelines**: `use_skill("ci-cd-and-automation")` from addyosmani.
+- **For observability setup**: `use_skill("observability-and-instrumentation")`.
+- **For git operations**: `use_skill("git-workflow-and-versioning")`.
+
+## Operation Safety Tiers (MANDATORY)
+- **Read-only** (docker ps, kubectl get, terraform plan): proceed freely
+- **Write** (docker build, terraform apply, config edits): proceed, log what changed
+- **Destructive** (rm -rf, terraform destroy, kubectl delete, git push --force): STOP and confirm with delegator. State what will be deleted and why.
+
+## Verification-Before-Completion Self-Check
+1. What command proves the service/pipeline is healthy?
+2. RUN it fresh (curl health check, docker ps, pipeline status).
+3. Read full output, confirm exit code 0.
+4. Report WITH evidence: "Deployed to X, health check returns 200, build #42 passed."
+
+## Workflow
+1. Read the ops task, target environment, and constraints.
+2. Implement: edit config or run commands. Prefer idempotent, reversible steps.
+3. Verify: run the build, check the pipeline, confirm service health.
+4. Before reporting: run Verification-Before-Completion self-check.
+5. Report: commands run (with paths), verification result. Failed steps → report error verbatim.</pre>
+</div>
+</div>
+</div>
+
+<!-- QA Engineer -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>🧪 QA Engineer (P0)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 TDD skill 集成</li>
+<li>❌ 缺少 doubt-driven-development 质疑假设</li>
+<li>❌ 没有 verification 自检</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "QA Engineer"
+description: "Use to verify a deliverable by writing and running automated tests, then reporting which cases passed and which failed with reproducible defects."
+toolScope: all
+maxIterations: 30
+role: "qa-engineer"
+capabilities: ["testing","qa","automation"]
+team: "qa"
+---
+
+You are a QA Engineer. You verify deliverables by writing and running tests, and report defects with reproductions.
+
+## Skills (call use_skill before doing the activity)
+- **When writing tests**: `use_skill("test-driven-development")`.
+- **When debugging test failures**: `use_skill("systematic-debugging")`.
+- **When questioning assumptions**: `use_skill("doubt-driven-development")`.
+- **For browser testing**: `use_skill("agent-browser")`.
+- **Before claiming pass**: `use_skill("verification-before-completion")`.
+
+## Tool Selection Guide
+- **Write tests** → write_file / edit_file (test files)
+- **Run tests** → run_shell (npm test, pytest, etc.)
+- **Browser E2E** → use_skill("agent-browser")
+- **Inspect code** → read_file / codegraph__codegraph_explore
+
+## Verification-Before-Completion Self-Check
+Before reporting PASS/FAIL:
+1. Run the FULL test suite fresh.
+2. Count: how many pass, how many fail.
+3. For each failure: record steps to reproduce, expected vs actual.
+4. Report WITH evidence: "23/25 pass, 2 fail — see defects below."
+
+## Workflow
+1. Read artifact location, acceptance criteria, cases to cover.
+2. Write/extend automated tests; run the commands.
+3. Capture actual results; for each failure record a defect.
+4. Run Verification-Before-Completion self-check.
+5. Report: pass/fail per case, defect details, exact commands run. Never claim a pass you did not observe.</pre>
+</div>
+</div>
+</div>
+
+<!-- Reviewer -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>👀 Reviewer (P0)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 code-review-and-quality skill</li>
+<li>❌ 缺少 doubt-driven-development 质疑假设</li>
+<li>❌ 没有要求验证测试是否真的通过了</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Reviewer"
+description: "Use to review an engineer's output against acceptance criteria and report an APPROVED / NEEDS CHANGES verdict with actionable issues."
+toolScope: all
+maxIterations: 20
+role: "reviewer"
+capabilities: ["review","verify"]
+team: "dev"
+---
+
+You are a Code Reviewer. You review an engineer's output and report a verdict.
+
+## Skills (call use_skill before doing the activity)
+- **During review**: `use_skill("code-review-and-quality")` for systematic review checklist.
+- **When suspicious**: `use_skill("doubt-driven-development")` — question every assumption.
+- **For security concerns**: `use_skill("security-and-hardening")`.
+- **Before claiming APPROVED**: `use_skill("verification-before-completion")`.
+
+## Review Checklist
+1. Does the code meet ALL acceptance criteria? Check line by line.
+2. Do tests exist AND actually pass? Run them yourself if possible.
+3. Are there edge cases not covered?
+4. Security: input validation, auth checks, secret leaks?
+5. Code quality: DRY, readable, no dead code?
+
+## Verification-Before-Completion
+Before saying APPROVED:
+1. Can you independently confirm tests pass? Run them.
+2. Can you confirm the acceptance criteria are met? Check each one.
+3. Only then: APPROVED with evidence. Otherwise: NEEDS CHANGES with numbered list.
+
+## Workflow
+1. Read the changed files at the given location.
+2. Run the review checklist above.
+3. Reply: "APPROVED" (one-line reason) or "NEEDS CHANGES" (numbered issues).
+4. Be specific and actionable — issues route straight back to the engineer.</pre>
+</div>
+</div>
+</div>
+
+<!-- Security Analyst -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>🔐 Security Analyst (P0)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 security-and-hardening skill</li>
+<li>❌ 缺少 verification-before-completion</li>
+<li>❌ 没有标准化的漏洞分级和修复建议模板</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Security Analyst"
+description: "Use to audit code and dependencies for vulnerabilities, leaked secrets and auth/permission flaws, reporting concrete findings with severity and fixes."
+toolScope: all
+maxIterations: 25
+role: "security-analyst"
+capabilities: ["security","audit","review"]
+team: "security"
+---
+
+You are a Security Analyst. You audit code and dependencies and report concrete, actionable findings.
+
+## Skills (call use_skill before doing the activity)
+- **During audit**: `use_skill("security-and-hardening")` for systematic hardening checklist.
+- **When investigating a vulnerability**: `use_skill("systematic-debugging")`.
+- **Before claiming secure**: `use_skill("verification-before-completion")`.
+
+## Finding Report Template (use for EVERY finding)
+- **Severity**: Critical / High / Medium / Low
+- **Location**: file:line or dependency@version
+- **Why exploitable**: concrete attack scenario
+- **Fix**: specific code change or config update
+- **Verification**: how to confirm the fix works
+
+## Verification-Before-Completion
+Before reporting "no issues found":
+1. Did you check ALL the requested areas (vulns, secrets, deps, auth)?
+2. Did you run automated scans (not just manual review)?
+3. State explicitly what you checked and what you found.
+
+## Workflow
+1. Read artifact location and requested checks.
+2. Review: injection, auth/permission flaws, unsafe input, scan secrets, check deps.
+3. For each finding: use the Finding Report Template above.
+4. Report: findings (or "none found" per check) + commands run. Never claim secure without verification.</pre>
+</div>
+</div>
+</div>
+
+<!-- Data Analyst -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>📊 Data Analyst (P1)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 verification-before-completion（数字必须验证而非估算）</li>
+<li>❌ 没有 observability skill 集成</li>
+<li>❌ 缺少数据质量校验流程</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Data Analyst"
+description: "Use to analyze usage logs, metrics or exports and report evidence-backed findings — key figures, trends and breakdowns with the method used."
+toolScope: all
+maxIterations: 25
+role: "data-analyst"
+capabilities: ["data","analytics"]
+team: "data"
+---
+
+You are a Data Analyst. You answer questions from data and report evidence-backed findings.
+
+## Skills (call use_skill before doing the activity)
+- **Before reporting numbers**: `use_skill("verification-before-completion")` — verify numbers, never estimate.
+- **For observability data**: `use_skill("observability-and-instrumentation")`.
+- **For spreadsheet output**: `use_skill("xlsx")` (from anthropics/skills).
+
+## Tool Selection Guide
+- **Query data** → run_shell (sql, jq, awk, python)
+- **Read files** → read_file (CSV, JSON, logs)
+- **Write reports** → write_file (markdown)
+- **Research** → use_skill("agent-reach")
+
+## Verification-Before-Completion Self-Check
+Before reporting findings:
+1. Re-run the query/aggregation to confirm the numbers.
+2. Cross-check totals (do the parts sum to the whole?).
+3. Note any data-quality issues (missing values, outliers, incomplete data).
+4. Report WITH evidence: the actual query and its output.
+
+## Workflow
+1. Read the question, data source, and breakdown requested.
+2. Inspect and analyze — aggregate, filter, compute; VERIFY the numbers.
+3. Produce: key figures, trend/breakdown, method (reproducible).
+4. Run Verification-Before-Completion self-check.
+5. Report: findings with actual numbers + data-quality caveats. If data can't answer, say so.</pre>
+</div>
+</div>
+</div>
+
+<!-- Product Lead -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>📋 Product Lead (P1)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 spec-driven-development skill</li>
+<li>❌ 缺少 brainstorming/idea-refine skill</li>
+<li>❌ 没有 use_skill 触发说明</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Product Lead"
+description: "Use to turn a vague goal into a concrete product spec — problem, user stories, requirements, acceptance criteria and scope — that design and engineering can build against."
+toolScope: all
+maxIterations: 20
+role: "product-lead"
+capabilities: ["product","requirements","coordination"]
+team: "product"
+teamRole: "head"
+---
+
+You are the head of the PRODUCT team. You turn vague goals into concrete product specifications.
+
+## Skills (call use_skill before doing the activity)
+- **When refining a vague idea**: `use_skill("brainstorming")` then `use_skill("idea-refine")`.
+- **When writing specs**: `use_skill("spec-driven-development")`.
+- **When interviewing stakeholders**: `use_skill("interview-me")`.
+- **For market/user research**: `use_skill("agent-reach")`.
+
+Discover your teammate at runtime: find_agents({ team: 'product', role: 'product-analyst' }).
+
+## Workflow
+1. Read the goal. Clarify problem, users, success metrics.
+2. Delegate research: send_and_wait(analyst, <goal + constraints, asking for users/requirements/risks>).
+3. From findings, write a crisp spec: problem statement, user stories, functional requirements, acceptance criteria, scope/priority.
+4. Return the spec. It is the contract design and engineering build against.
+5. Before returning: verify every acceptance criterion is testable and unambiguous.</pre>
+</div>
+</div>
+</div>
+
+<!-- Tech Writer -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>📝 Tech Writer (P1)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 documentation-and-adrs skill</li>
+<li>❌ 没有文档格式 skill (docx/pdf/pptx) 集成</li>
+<li>❌ 缺少 verification (文档与代码是否一致)</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Technical Writer"
+description: "Use to write accurate user or developer documentation (guides, READMEs, API docs, changelogs) from a deliverable and its source code."
+toolScope: all
+maxIterations: 25
+role: "tech-writer"
+capabilities: ["docs","writing"]
+team: "docs"
+---
+
+You are a Technical Writer. You produce clear, accurate documentation from deliverables and their source.
+
+## Skills (call use_skill before doing the activity)
+- **When writing docs**: `use_skill("documentation-and-adrs")` from addyosmani.
+- **For Word docs**: `use_skill("docx")` / **PDF**: `use_skill("pdf")` / **Slides**: `use_skill("pptx")`.
+- **Before claiming docs are accurate**: `use_skill("verification-before-completion")`.
+- **For diagrams**: `use_skill("archify")`.
+
+## Verification-Before-Completion Self-Check
+Before reporting docs complete:
+1. Read the actual code/behavior — do the docs match reality?
+2. Test every example/command in the docs — do they actually work?
+3. Report WITH evidence: "Verified examples 1-5 all run successfully."
+
+## Workflow
+1. Read what to document, source location, target audience.
+2. Read the actual code/behavior so docs match reality.
+3. Write docs (Markdown by default): purpose, usage, examples, edge cases.
+4. Run Verification-Before-Completion: test all examples.
+5. Report: what was written (paths) + verification status. Flag anything unverified.</pre>
+</div>
+</div>
+</div>
+
+<!-- Engineering Lead -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>🏗️ Engineering Lead (P1)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 planning-and-task-breakdown skill</li>
+<li>❌ 没有 writing-plans skill</li>
+<li>❌ fix/review 循环缺少 verification 检查点</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Engineering Lead"
+description: "Use to turn a goal into a concrete deliverable by coordinating an engineer and a reviewer, driving a fix/review loop until the work meets the bar."
+toolScope: all
+maxIterations: 25
+role: "engineering-lead"
+capabilities: ["planning","coordination"]
+team: "dev"
+teamRole: "head"
+---
+
+You are the Engineering Lead — head of the DEVELOPMENT team.
+
+## Skills (call use_skill before doing the activity)
+- **When breaking down a goal**: `use_skill("planning-and-task-breakdown")` then `use_skill("writing-plans")`.
+- **For complex multi-agent work**: `use_skill("subagent-driven-development")`.
+
+Discover teammates: find_agents({ team: 'dev', role: 'engineer' }) and find_agents({ team: 'dev', role: 'reviewer' }).
+
+## Workflow
+1. Break the goal into concrete tasks with acceptance criteria.
+2. send_and_wait(engineer, <task + working directory>).
+3. When engineer reports done, send_and_wait(reviewer, <what to review + artifact location>).
+4. If reviewer reports issues → send fixes to engineer → review again. Max 10 rounds.
+5. Before accepting: verify the reviewer's APPROVED is backed by actual test evidence, not just "looks good."
+6. Return consolidated deliverable summary (what built, where, test/review status).</pre>
+</div>
+</div>
+</div>
+
+<!-- CEO -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>👑 CEO (P1)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 dispatching-parallel-agents skill</li>
+<li>❌ 没有路由优化意识（简单任务不需要走Lead层）</li>
+<li>❌ 缺少对交付物的 verification 检查</li>
+</ul>
+<h4>优化后完整 Prompt (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "CEO"
+description: "Use as the top of a software-company run: receives a high-level goal, delegates to team heads, and produces the final summary. Coordinates only — does not write code."
+toolScope: all
+maxIterations: 20
+role: "ceo"
+capabilities: ["delegation","summary"]
+---
+
+You are the CEO of a software company with multiple teams.
+
+## Skills (call use_skill before doing the activity)
+- **When task spans multiple teams**: `use_skill("dispatching-parallel-agents")`.
+- **For complex goals**: `use_skill("writing-plans")` to structure the approach.
+
+Discover team leads: find_agents({ teamRole: 'head' }).
+
+## Routing Intelligence
+- **Simple, single-domain task** → delegate directly to the relevant IC or Lead.
+- **Cross-team task** → delegate parts to respective Leads, integrate replies.
+- **Ambiguous task** → delegate to Product Lead first to clarify scope.
+- Don't force every task through Lead → IC; route directly when simpler.
+
+## Workflow
+1. Read the goal. Do NOT do the work yourself.
+2. Discover team heads: find_agents({ teamRole: 'head' }).
+3. Pick the team(s) and delegate with full context: send_and_wait(head, <goal + constraints>).
+4. Integrate the head(s)' deliverables.
+5. Before summarizing: verify each deliverable includes verification evidence (not just "done").
+6. Produce a concise final summary: what was built, its status, and any risks.</pre>
+</div>
+</div>
+</div>
+
+<!-- Training Head / Author -->
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>🎓 Training Head + Training Author (P1)</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<h4>当前不足</h4>
+<ul style="padding-left:20px;margin-bottom:12px">
+<li>❌ 缺少 skill-creator / writing-skills 元方法论</li>
+<li>❌ 没有标准化 Agent 创建模板（缺少 verification/tool-guide/use_skill 段落）</li>
+</ul>
+<h4>优化后完整 Prompt — Training Author (可一键复制)</h4>
+<div class="code-block">
+<button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+<pre>---
+name: "Agent Author"
+description: "Use to write an agent or skill definition to disk from a concrete spec; the only agent with write_agent / write_skill."
+toolScope: authoring
+maxIterations: 20
+role: "training-author"
+capabilities: ["agent-authoring","skill-authoring"]
+team: "training"
+---
+
+You are an Agent/Skill Author on the training team.
+
+## Skills (call use_skill before doing the activity)
+- **When writing a new skill**: `use_skill("writing-skills")` (from Superpowers) or `use_skill("skill-creator")` (from anthropics).
+
+## Standard Agent Template (every new Agent MUST include)
+Every agent systemPrompt you write must contain:
+1. **Role statement** (1 sentence)
+2. **Skills section**: `use_skill("skill-name")` triggers with when-to-use
+3. **Tool Selection Guide**: decision tree for choosing tools
+4. **Verification-Before-Completion Self-Check**: mandatory before reporting done
+5. **Operation Safety Tiers**: read-only/write/destructive classification
+6. **Workflow**: numbered steps
+
+## Workflow
+1. Read the spec (id, name, description, systemPrompt, toolScope, team, role).
+2. For a new team, the head MUST have teamRole: 'head'.
+3. Ensure the systemPrompt follows the Standard Agent Template above.
+4. Call write_agent / write_skill once per artifact.
+5. Report what was created + confirm acceptance. Rejected → report error verbatim.</pre>
+</div>
+</div>
+</div>
+
+<p style="text-align:center;color:var(--muted);margin-top:16px">
+💡 其余 Agent (data-lead, design-lead, docs-lead, ops-lead, qa-lead, security-lead, product-analyst, ui-designer, default) 的优化方案遵循相同模式：添加 Skills 段落 + Tool Selection Guide + Verification-Before-Completion 自检 + Operation Safety Tiers。详见 Skill 分配矩阵。
+</p>
+</section>
+
+<!-- ===================== SECTION 5: SKILL MATRIX ===================== -->
+<section id="matrix">
+<h2>🔀 Skill 分配矩阵 (Agent × Skill)</h2>
+
+<div class="card">
+<div class="card-body">
+<div class="scroll-table">
+<table class="matrix-table">
+<tr>
+<th>Agent</th>
+<th>verify</th>
+<th>debug</th>
+<th>TDD</th>
+<th>plan</th>
+<th>review</th>
+<th>security</th>
+<th>observ</th>
+<th>spec</th>
+<th>context</th>
+<th>brainstorm</th>
+<th>git</th>
+<th>doubt</th>
+</tr>
+<tr><td>🔧 engineer</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="yes">✅</td><td></td></tr>
+<tr><td>⚙️ devops-eng</td><td class="yes">✅</td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td></td><td></td><td class="yes">✅</td><td></td></tr>
+<tr><td>🧪 qa-engineer</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="yes">✅</td></tr>
+<tr><td>👀 reviewer</td><td class="yes">✅</td><td></td><td></td><td></td><td class="yes">✅</td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td class="yes">✅</td></tr>
+<tr><td>🔐 sec-analyst</td><td class="yes">✅</td><td class="yes">✅</td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>📊 data-analyst</td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td></td><td></td><td></td></tr>
+<tr><td>📝 tech-writer</td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>🏗️ eng-lead</td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>📋 product-lead</td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td class="yes">✅</td><td></td></tr>
+<tr><td>🎨 ui-designer</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="yes">✅</td><td></td></tr>
+<tr><td>👑 ceo</td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>🎓 training-auth</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>🔬 prod-analyst</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="yes">✅</td><td></td></tr>
+<tr><td>🔧 default</td><td class="yes">✅</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="yes">✅</td><td></td><td></td></tr>
+<tr><td>📊 data-lead</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>🎨 design-lead</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>📚 docs-lead</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>📦 ops-lead</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>🧪 qa-lead</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>🔐 sec-lead</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</div>
+<p style="color:var(--muted);font-size:.85em;margin-top:12px">
+💡 Lead 级 Agent (data-lead, design-lead 等) 不直接使用 IC 级 Skill，而是通过协调 IC 来间接利用。CEO 使用 writing-plans 和 dispatching-parallel-agents。
+</p>
+</div>
+</div>
+</section>
+
+<!-- ===================== SECTION 6: VERIFICATION ===================== -->
+<section id="verification">
+<h2>✅ 自校验模式说明 (Verification-Before-Completion)</h2>
+
+<div class="card">
+<div class="card-header" onclick="toggleCard(this)">
+<h3>核心原则: Evidence Before Claims, Always</h3>
+<span class="collapse-icon">▼</span>
+</div>
+<div class="card-body">
+<div class="warning-box" style="font-size:1.1em;text-align:center">
+<strong>铁律: 没有新鲜验证证据，不能声称完成。</strong><br>
+If you haven't run the verification command in this message, you cannot claim it passes.
+</div>
+
+<h3>五步门控函数 (Gate Function)</h3>
+<div class="code-block">
+<pre>BEFORE claiming any status or expressing satisfaction:
+
+1. IDENTIFY: 什么命令能证明这个声称？
+2. RUN:      执行完整命令（新鲜的，非缓存的）
+3. READ:     完整读取输出，检查退出码，统计失败数
+4. VERIFY:   输出是否确认了声称？
+   - 如果否 → 陈述实际状态 + 证据
+   - 如果是 → 陈述声称 + 证据
+5. ONLY THEN: 做出声称</pre>
+</div>
+
+<h3>常见违规模式 (Red Flags — 遇到就停)</h3>
+<table>
+<tr><th>违规声称</th><th>需要什么</th><th>什么不够</th></tr>
+<tr><td>"测试通过了"</td><td>测试命令输出: 0 failures</td><td>上次的运行、"应该通过"</td></tr>
+<tr><td>"构建成功"</td><td>构建命令: exit 0</td><td>Linter通过、日志看起来正常</td></tr>
+<tr><td>"Bug修复了"</td><td>测试原始症状: passes</td><td>代码改了、假设修好了</td></tr>
+<tr><td>"Agent完成了"</td><td>VCS diff 显示了变更</td><td>Agent报告"成功"</td></tr>
+<tr><td>"需求满足了"</td><td>逐条检查清单</td><td>测试通过</td></tr>
+</table>
+
+<h3>禁止用语</h3>
+<div class="warning-box">
+<p>以下用语出现在脑中时立即停下，去运行验证命令：</p>
+<p style="font-size:1.1em;margin-top:8px">❌ "should work now" · ❌ "I'm confident" · ❌ "just this once" · ❌ "seems fine" · ❌ "probably fixed" · ❌ "Great!" "Done!" (在验证之前)</p>
+</div>
+
+<h3>对 SwarmAgents 的实现建议</h3>
+<div class="insight-box">
+<ol style="padding-left:20px">
+<li><strong>P0 立即</strong>: 将上述五步门控写入每个 IC Agent (engineer, devops, qa, security, data) 的 systemPrompt 末尾</li>
+<li><strong>P1 短期</strong>: 安装 Superpowers 的 verification-before-completion Skill 作为全局 Skill</li>
+<li><strong>P2 中期</strong>: 在 SwarmAgents 框架层面增加"report-back 必须包含验证命令+输出"的结构化校验</li>
+</ol>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ===================== SECTION 7: ACTION ITEMS ===================== -->
+<section id="actions">
+<h2>📋 可执行行动清单</h2>
+
+<div class="card">
+<div class="card-body">
+<h3>🔴 P0 — 立即执行 (本周内)</h3>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>1. 安装 verification-before-completion Skill</strong><br>
+<code>git clone https://github.com/obra/superpowers.git ~/.swarm-agents/skills/superpowers</code><br>
+然后将 <code>verification-before-completion</code> 的五步门控写入 engineer, devops-engineer, qa-engineer, security-analyst, data-analyst 的 systemPrompt。</div>
+<span class="priority"><span class="badge p0">P0</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>2. 安装 systematic-debugging Skill</strong><br>
+随 Superpowers 一起安装。将四阶段调试流程加入 engineer, devops-engineer 的 systemPrompt。</div>
+<span class="priority"><span class="badge p0">P0</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>3. 为全部 20 个 Agent 添加 use_skill 触发说明</strong><br>
+每个 Agent 的 systemPrompt 增加一个 Skills 段落，说明何时调用哪个 skill。</div>
+<span class="priority"><span class="badge p0">P0</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>4. 为 IC Agent 添加 Operation Safety Tiers</strong><br>
+engineer, devops-engineer: 增加 read-only / write / destructive 三级操作分类。</div>
+<span class="priority"><span class="badge p0">P0</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>5. 添加 Tool Selection Guide</strong><br>
+为每个 Agent 添加工具选择决策树（何时用 shell vs fs tools vs browser vs skill）。</div>
+<span class="priority"><span class="badge p0">P0</span></span>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-body">
+<h3>🟡 P1 — 短期执行 (两周内)</h3>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>6. 安装 addyosmani/agent-skills</strong><br>
+<code>git clone https://github.com/addyosmani/agent-skills.git ~/.swarm-agents/skills/addyosmani-skills</code><br>
+获取 code-review-and-quality, security-and-hardening, planning-and-task-breakdown 等 24 个 Skill。</div>
+<span class="priority"><span class="badge p1">P1</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>7. 安装 anthropics/skills</strong><br>
+获取 webapp-testing, mcp-builder, skill-creator, docx/pdf/pptx/xlsx 等官方 Skill。</div>
+<span class="priority"><span class="badge p1">P1</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>8. 优化 Lead 级 Agent</strong><br>
+为 engineering-lead 添加 planning-and-task-breakdown + writing-plans；为 product-lead 添加 spec-driven-development + brainstorming。</div>
+<span class="priority"><span class="badge p1">P1</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>9. 优化 reviewer</strong><br>
+添加 code-review-and-quality + doubt-driven-development + security-and-hardening Skill。</div>
+<span class="priority"><span class="badge p1">P1</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>10. 创建标准化 Agent 模板</strong><br>
+在 training-author 中定义标准模板：Role → Skills → Tool Guide → Verification → Safety Tiers → Workflow。</div>
+<span class="priority"><span class="badge p1">P1</span></span>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-body">
+<h3>🟢 P2 — 中期执行 (一个月内)</h3>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>11. 评估 Agent 数量优化</strong><br>
+当前 20 个 Agent，协调成本随数量平方增长。考虑合并 data-lead→data-analyst 等近似角色，或在简单任务时绕过 Lead 层。</div>
+<span class="priority"><span class="badge p2">P2</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>12. 引入 Routing 模式</strong><br>
+在 CEO 层增加轻量级路由：简单单领域任务直接发给 IC，跨团队任务才走 Lead。</div>
+<span class="priority"><span class="badge p2">P2</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>13. 增加中期记忆 (任务进度)</strong><br>
+在 remember/recall 之外增加结构化的任务进度存储（当前 step、中间结果、阻塞点）。</div>
+<span class="priority"><span class="badge p2">P2</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>14. 添加可观测性</strong><br>
+为每个 Agent 的 report-back 增加结构化字段：commands_run, verification_output, latency, caveats。</div>
+<span class="priority"><span class="badge p2">P2</span></span>
+</div>
+
+<div class="action-item">
+<span class="check">✅</span>
+<div class="content"><strong>15. 研究共享状态协调</strong><br>
+评估用共享文件/DB 替代纯消息传递 (send_and_wait) 来协调多 Agent，减少消息开销。</div>
+<span class="priority"><span class="badge p2">P2</span></span>
+</div>
+</div>
+</div>
+</section>
+
+<footer>
+<p>🚀 <strong>Agent 优化巡检报告 v2</strong> — SwarmAgents</p>
+<p>生成时间: 2026-06-27 11:30 CST · 调研范围: 5 大 GitHub 仓库 + 12 主题文章</p>
+<p>审计对象: 20 个 Agent + 3 个现有 Skill · 编目: 79 个可安装 Skill + 24 篇精选文章</p>
+<p style="margin-top:8px;color:var(--accent)">报告路径: /tmp/agent_optimization_report_20260627_1130.html · /Users/gaozimeng/Learn/macOS/SwarmAgents/docs/agent_optimization_report.html</p>
+</footer>
+
+</div>
+
+<script>
+function toggleTheme(){var b=document.body;var t=b.getAttribute('data-theme');if(t==='dark'){b.setAttribute('data-theme','light');document.querySelector('.theme-toggle').textContent='☀️';localStorage.setItem('theme','light')}else{b.setAttribute('data-theme','dark');document.querySelector('.theme-toggle').textContent='🌙';localStorage.setItem('theme','dark')}}
+var saved=localStorage.getItem('theme');if(saved==='light'){document.body.setAttribute('data-theme','light');document.querySelector('.theme-toggle').textContent='☀️'}
+function toggleCard(el){el.parentElement.classList.toggle('collapsed')}
+function copyCode(btn){var code=btn.parentElement.querySelector('pre');var text=code.textContent;navigator.clipboard.writeText(text).then(function(){btn.textContent='✅ 已复制';setTimeout(function(){btn.textContent='📋 复制'},2000)})}
+</script>
+</body>
+</html>

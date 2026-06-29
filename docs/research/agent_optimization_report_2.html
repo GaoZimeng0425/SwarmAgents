@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SwarmAgents Agent 优化报告</title>
+<style>
+  /* ===================== Reset & Base ===================== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117;
+    --bg-soft: #161b22;
+    --bg-card: #1c2128;
+    --bg-hover: #22272e;
+    --border: #30363d;
+    --border-soft: #21262d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --text-dim: #6e7681;
+    --cyan: #58a6ff;
+    --green: #3fb950;
+    --purple: #bc8cff;
+    --orange: #f0883e;
+    --red: #f85149;
+    --yellow: #d29922;
+    --pink: #f778ba;
+    --shadow: 0 3px 12px rgba(1,4,9,0.4);
+    --shadow-lg: 0 8px 28px rgba(1,4,9,0.55);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  html { scroll-behavior: smooth; scroll-padding-top: 88px; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre, .mono { font-family: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+  a { color: var(--cyan); text-decoration: none; transition: color .15s; }
+  a:hover { color: #79b8ff; text-decoration: underline; }
+
+  /* ===================== Scrollbar ===================== */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+  /* ===================== Top Nav ===================== */
+  .topnav {
+    position: fixed; top: 0; left: 0; right: 0; height: 64px; z-index: 100;
+    background: rgba(13,17,23,0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 24px;
+  }
+  .topnav .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; white-space: nowrap; }
+  .topnav .brand .logo {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    display: grid; place-items: center; font-size: 18px; flex-shrink: 0;
+  }
+  .topnav .brand .sub { color: var(--text-muted); font-weight: 500; font-size: 13px; }
+  .topnav nav { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  .topnav nav a {
+    color: var(--text-muted); font-size: 13px; padding: 6px 12px; border-radius: 8px;
+    transition: all .15s; white-space: nowrap;
+  }
+  .topnav nav a:hover { background: var(--bg-hover); color: var(--text); text-decoration: none; }
+
+  /* ===================== Layout ===================== */
+  .layout { display: flex; max-width: 1500px; margin: 0 auto; padding-top: 64px; }
+  .sidebar {
+    position: sticky; top: 64px; width: 248px; height: calc(100vh - 64px);
+    overflow-y: auto; flex-shrink: 0;
+    padding: 28px 16px 28px 24px;
+    border-right: 1px solid var(--border-soft);
+  }
+  .sidebar h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); margin: 18px 0 10px; }
+  .sidebar h4:first-child { margin-top: 0; }
+  .sidebar ul { list-style: none; }
+  .sidebar li a {
+    display: block; padding: 6px 12px; border-radius: 7px; font-size: 13.5px;
+    color: var(--text-muted); border-left: 2px solid transparent; transition: all .15s;
+  }
+  .sidebar li a:hover { background: var(--bg-soft); color: var(--text); text-decoration: none; }
+  .sidebar li a.active { color: var(--cyan); background: rgba(88,166,255,0.08); border-left-color: var(--cyan); }
+  .sidebar li.sub a { padding-left: 26px; font-size: 12.5px; color: var(--text-dim); }
+
+  .main { flex: 1; min-width: 0; padding: 40px 48px 120px; max-width: 1252px; }
+
+  /* ===================== Hero ===================== */
+  .hero {
+    background: radial-gradient(1200px 300px at 20% -10%, rgba(88,166,255,0.10), transparent),
+                radial-gradient(900px 280px at 90% 10%, rgba(188,140,255,0.10), transparent),
+                var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 40px 42px; margin-bottom: 40px;
+  }
+  .hero .eyebrow { color: var(--cyan); font-size: 13px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; }
+  .hero h1 { font-size: 34px; line-height: 1.2; margin: 10px 0 6px; font-weight: 800; letter-spacing: -0.5px; }
+  .hero .lede { color: var(--text-muted); font-size: 16px; max-width: 760px; }
+  .hero .stats { display: flex; gap: 14px; margin-top: 26px; flex-wrap: wrap; }
+  .hero .stat {
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border-soft);
+    border-radius: 12px; padding: 14px 18px; min-width: 116px;
+  }
+  .hero .stat .n { font-size: 26px; font-weight: 800; line-height: 1; }
+  .hero .stat .l { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; }
+  .c-cyan { color: var(--cyan); } .c-green { color: var(--green); } .c-purple { color: var(--purple); }
+  .c-orange { color: var(--orange); } .c-red { color: var(--red); } .c-yellow { color: var(--yellow); }
+
+  /* ===================== Section ===================== */
+  section.report { margin-bottom: 56px; scroll-margin-top: 88px; }
+  .sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .sec-head .ic { font-size: 26px; }
+  .sec-head h2 { font-size: 25px; font-weight: 750; letter-spacing: -0.3px; }
+  .sec-head .num {
+    font-size: 12px; font-weight: 700; color: var(--text-dim);
+    background: var(--bg-soft); border: 1px solid var(--border); padding: 3px 9px; border-radius: 20px;
+  }
+  .sec-sub { color: var(--text-muted); font-size: 14.5px; margin: 0 0 26px 38px; max-width: 820px; }
+  .rule { height: 1px; background: linear-gradient(90deg, var(--border), transparent); margin: 0 0 26px; }
+
+  /* ===================== Summary callout ===================== */
+  .callout {
+    background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--cyan);
+    border-radius: var(--radius); padding: 20px 24px; margin-bottom: 24px;
+  }
+  .callout p { color: var(--text); }
+  .callout .pill { display:inline-block; background: rgba(88,166,255,0.12); color: var(--cyan); font-size:12px; font-weight:600; padding:2px 10px; border-radius:20px; margin-right:8px;}
+
+  /* ===================== Team groups ===================== */
+  .team-block { margin-bottom: 30px; }
+  .team-bar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border-soft);
+  }
+  .team-bar .tname { font-size: 18px; font-weight: 700; }
+  .team-bar .tdesc { color: var(--text-muted); font-size: 13px; }
+  .team-bar .tag-team {
+    font-size: 11.5px; font-weight: 600; color: var(--text-dim);
+    border: 1px solid var(--border); padding: 2px 10px; border-radius: 20px;
+  }
+
+  /* ===================== Agent cards ===================== */
+  .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px 20px 18px; transition: transform .18s, border-color .18s, box-shadow .18s;
+    display: flex; flex-direction: column;
+  }
+  .card:hover { transform: translateY(-3px); border-color: #3d444d; box-shadow: var(--shadow-lg); }
+  .agent-card .ac-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+  .agent-card .ac-idx {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--bg);
+  }
+  .agent-card .ac-title { font-size: 16px; font-weight: 700; line-height: 1.3; }
+  .agent-card .ac-id { font-size: 12.5px; color: var(--text-dim); }
+  .agent-card .ac-role { color: var(--text-muted); font-size: 13.5px; margin: 10px 0 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-soft); }
+  .agent-card .ac-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .kv { font-size: 11.5px; color: var(--text-muted); background: var(--bg-soft); border: 1px solid var(--border-soft); border-radius: 6px; padding: 2px 8px; }
+  .kv b { color: var(--text); font-weight: 600; }
+  .cap { font-size: 11.5px; color: var(--green); background: rgba(63,185,80,0.10); border: 1px solid rgba(63,185,80,0.25); border-radius: 6px; padding: 2px 8px; }
+
+  /* recommendation bullets inside agent card */
+  .rec { margin-top: 10px; }
+  .rec .rec-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  .rec .rec-label.good { color: var(--green); } .rec .rec-label.opt { color: var(--orange); }
+  .rec ul { list-style: none; padding-left: 2px; }
+  .rec li { font-size: 13px; color: var(--text-muted); padding: 3px 0 3px 16px; position: relative; }
+  .rec li::before { content: "▸"; position: absolute; left: 0; color: var(--text-dim); }
+  .rec li.opt::before { color: var(--orange); }
+  .head-badge {
+    font-size: 10px; font-weight: 700; color: var(--purple); background: rgba(188,140,255,0.12);
+    border: 1px solid rgba(188,140,255,0.3); border-radius: 5px; padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+  }
+
+  /* ===================== Implemented status (banner / badges) ===================== */
+  .status-banner {
+    background: linear-gradient(135deg, rgba(63,185,80,0.18), rgba(46,229,157,0.08));
+    border: 1px solid rgba(63,185,80,0.45); border-left: 4px solid var(--green);
+    border-radius: var(--radius); padding: 18px 26px; margin-bottom: 40px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .status-banner .sb-ic { font-size: 28px; flex-shrink: 0; }
+  .status-banner .sb-txt { font-size: 15.5px; color: var(--text); line-height: 1.55; }
+  .status-banner .sb-txt b { color: var(--green); }
+  .impl-badge {
+    font-size: 10.5px; font-weight: 700; color: var(--green); background: rgba(63,185,80,0.14);
+    border: 1px solid rgba(63,185,80,0.38); border-radius: 5px; padding: 1px 7px; margin-left: 8px;
+    vertical-align: middle; white-space: nowrap;
+  }
+  .skills-note {
+    background: linear-gradient(135deg, rgba(63,185,80,0.12), rgba(63,185,80,0.05));
+    border: 1px solid rgba(63,185,80,0.4); border-left: 4px solid var(--green);
+    border-radius: var(--radius); padding: 14px 20px; margin-bottom: 18px; font-size: 14px; color: var(--text);
+  }
+  .kc-status { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 20px; margin-left: 6px; white-space: nowrap; }
+  .kc-status.done { color: var(--green); background: rgba(63,185,80,0.16); border: 1px solid rgba(63,185,80,0.38); }
+  .kc-status.plan { color: var(--text-muted); background: rgba(139,148,158,0.12); border: 1px solid rgba(139,148,158,0.3); }
+
+  /* ===================== Resource cards ===================== */
+  .res-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+  .res-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; display: flex; flex-direction: column; transition: transform .18s, border-color .18s, box-shadow .18s;
+  }
+  .res-card:hover { transform: translateY(-3px); border-color: #3d444d; box-shadow: var(--shadow-lg); }
+  .res-card .rc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .cat-tag { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; }
+  .cat-arch { color: var(--cyan); background: rgba(88,166,255,0.12); }
+  .cat-prompt { color: var(--green); background: rgba(63,185,80,0.12); }
+  .cat-verify { color: var(--purple); background: rgba(188,140,255,0.12); }
+  .cat-multi { color: var(--orange); background: rgba(240,136,62,0.12); }
+  .cat-frame { color: var(--pink); background: rgba(247,120,186,0.12); }
+  .mustread { font-size: 11px; font-weight: 700; color: var(--yellow); background: rgba(210,153,34,0.12); border: 1px solid rgba(210,153,34,0.3); padding: 2px 8px; border-radius: 20px; }
+  .res-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .res-card .src { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+  .res-card .pt { font-size: 13px; color: var(--text-muted); flex: 1; }
+  .res-card .link {
+    margin-top: 12px; font-size: 12px; color: var(--cyan); word-break: break-all;
+    border-top: 1px dashed var(--border-soft); padding-top: 10px;
+  }
+  .res-card .link a { font-family: "SF Mono", ui-monospace, monospace; font-size: 11.5px; }
+
+  /* ===================== Table ===================== */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th {
+    background: var(--bg-soft); color: var(--text); font-weight: 700; text-align: left;
+    padding: 13px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0;
+  }
+  tbody td { padding: 12px 16px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+  tbody tr:hover { background: rgba(88,166,255,0.04); }
+  tbody tr:last-child td { border-bottom: none; }
+  td .skill-chip { display: inline-block; font-size: 11.5px; color: var(--cyan); background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.2); border-radius: 5px; padding: 1px 7px; margin: 2px 3px 2px 0; }
+  .skill-list-title { margin: 22px 0 14px; }
+  .skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 14px; margin-bottom: 28px; }
+  .skill-card { background: var(--bg-soft); border: 1px solid var(--border-soft); border-radius: 10px; padding: 14px 16px; }
+  .skill-card .sn { font-weight: 700; color: var(--green); font-size: 13.5px; }
+  .skill-card .sd { color: var(--text-muted); font-size: 12.5px; margin-top: 4px; }
+
+  /* ===================== Verify architecture ===================== */
+  .verify-flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px,1fr)); gap: 16px; margin-bottom: 30px; }
+  .vf-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; position: relative; overflow: hidden; }
+  .vf-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .vf-hard::before { background: var(--green); }
+  .vf-soft::before { background: var(--purple); }
+  .vf-loop::before { background: var(--orange); }
+  .vf-card .vt { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15.5px; margin-bottom: 4px; }
+  .vf-card .vbadge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .vf-hard .vbadge { color: var(--green); background: rgba(63,185,80,0.12); }
+  .vf-soft .vbadge { color: var(--purple); background: rgba(188,140,255,0.12); }
+  .vf-loop .vbadge { color: var(--orange); background: rgba(240,136,62,0.12); }
+  .vf-card p { color: var(--text-muted); font-size: 13.5px; margin-top: 6px; }
+  .vf-card ul { list-style: none; margin-top: 10px; }
+  .vf-card li { font-size: 13px; color: var(--text-muted); padding: 4px 0 4px 16px; position: relative; }
+  .vf-card li::before { content: "▪"; position: absolute; left: 0; color: var(--text-dim); }
+
+  .rec-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .rec-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 18px; display: flex; gap: 14px; }
+  .rec-item .ri-num { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: var(--bg); }
+  .rec-item .ri-body h5 { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+  .rec-item .ri-body .src-ref { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .rec-item .ri-body p { font-size: 13.5px; color: var(--text-muted); }
+  .ri-star { color: var(--yellow); }
+  .ri-warn { color: var(--orange); }
+
+  /* ===================== Action plan (kanban) ===================== */
+  .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .kb-col { background: var(--bg-soft); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 14px; min-height: 120px; }
+  .kb-col h4 { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-soft); }
+  .kb-p0 .badge { background: var(--red); } .kb-p1 .badge { background: var(--orange); }
+  .kb-p2 .badge { background: var(--yellow); } .kb-p3 .badge { background: var(--cyan); }
+  .badge { color: var(--bg); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 20px; }
+  .kb-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; margin-bottom: 10px; transition: border-color .15s; }
+  .kb-card:hover { border-color: #3d444d; }
+  .kb-card .kc-id { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+  .kb-card .kc-txt { font-size: 13px; color: var(--text); margin-top: 3px; }
+
+  /* ===================== code block ===================== */
+  .code-block {
+    background: #010409; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 14px 16px; margin: 14px 0; overflow-x: auto; font-size: 13px; line-height: 1.6;
+  }
+  .code-block .ck { color: var(--text-dim); }
+  .code-block .ck b { color: var(--cyan); }
+
+  /* legend */
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: -8px 0 22px 38px; }
+  .legend span { font-size: 12.5px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* footer */
+  .footer { text-align: center; color: var(--text-dim); font-size: 13px; padding: 30px 0 10px; border-top: 1px solid var(--border-soft); margin-top: 30px; }
+
+  /* responsive */
+  @media (max-width: 1100px) {
+    .kanban { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 860px) {
+    .sidebar { display: none; }
+    .main { padding: 30px 20px 100px; }
+    .topnav nav { display: none; }
+    .hero { padding: 28px 22px; }
+    .hero h1 { font-size: 26px; }
+    .kanban { grid-template-columns: 1fr; }
+    .sec-sub { margin-left: 0; }
+    .legend { margin-left: 0; }
+  }
+
+  /* team color accents for index badges */
+  .idx-mgmt { background: var(--purple); }
+  .idx-dev { background: var(--cyan); }
+  .idx-train { background: var(--green); }
+  .idx-prod { background: var(--orange); }
+  .idx-design { background: var(--pink); }
+  .idx-qa { background: var(--yellow); }
+  .idx-ops { background: #56d4dd; }
+  .idx-docs { background: #a5d6ff; color: #0d1117; }
+  .idx-sec { background: var(--red); }
+  .idx-data { background: #2ee59d; color:#0d1117; }
+  .idx-std { background: #8b949e; }
+
+</style>
+</head>
+<body>
+
+<!-- ===================== TOP NAV ===================== -->
+<header class="topnav">
+  <div class="brand">
+    <div class="logo">🐝</div>
+    <span>SwarmAgents</span>
+    <span class="sub">· Agent 优化报告</span>
+  </div>
+  <nav>
+    <a href="#sec1">概述</a>
+    <a href="#sec2">Agent 全览</a>
+    <a href="#sec3">参考资料</a>
+    <a href="#sec4">Prompt 优化</a>
+    <a href="#sec5">Skills 映射</a>
+    <a href="#sec6">自校验架构</a>
+    <a href="#sec7">行动计划</a>
+  </nav>
+</header>
+
+<div class="layout">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <h4>章节导航</h4>
+    <ul>
+      <li><a href="#sec1">📋 系统概述</a></li>
+      <li><a href="#sec2">👥 Agent 全览</a></li>
+      <li class="sub"><a href="#team-mgmt">管理层</a></li>
+      <li class="sub"><a href="#team-dev">开发团队</a></li>
+      <li class="sub"><a href="#team-training">Agent 训练</a></li>
+      <li class="sub"><a href="#team-product">产品团队</a></li>
+      <li class="sub"><a href="#team-design">设计团队</a></li>
+      <li class="sub"><a href="#team-qa">测试团队</a></li>
+      <li class="sub"><a href="#team-ops">运维团队</a></li>
+      <li class="sub"><a href="#team-docs">文档团队</a></li>
+      <li class="sub"><a href="#team-security">安全团队</a></li>
+      <li class="sub"><a href="#team-data">数据团队</a></li>
+      <li class="sub"><a href="#team-standalone">通用工具</a></li>
+      <li><a href="#sec3">📚 参考文章</a></li>
+      <li><a href="#sec4">⚡ Prompt 优化建议</a></li>
+      <li><a href="#sec5">🧩 Skills 映射</a></li>
+      <li><a href="#sec6">🛡️ 自校验架构</a></li>
+      <li><a href="#sec7">🎯 行动计划</a></li>
+    </ul>
+    <h4>图例</h4>
+    <ul>
+      <li><a href="#" onclick="return false"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--cyan);margin-right:6px;"></span>架构模式</a></li>
+      <li><a href="#" onclick="return false"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:6px;"></span>Prompt 工程</a></li>
+      <li><a href="#" onclick="return false"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--purple);margin-right:6px;"></span>自校验</a></li>
+      <li><a href="#" onclick="return false"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--orange);margin-right:6px;"></span>多 Agent</a></li>
+    </ul>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="main">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="eyebrow">Agent Optimization Report · 2025</div>
+      <h1>SwarmAgents 系统优化报告</h1>
+      <p class="lede">基于全网最优秀的 Agent 实现文章研究，为 <b>24 个预定义 Agent</b> 提供 Prompt 优化建议、Skills 映射方案与自校验增强指南。涵盖双层验证架构改进、Reflexion 反思模式引入与分层置信度评分体系。</p>
+      <div class="stats">
+        <div class="stat"><div class="n c-cyan">24</div><div class="l">预定义 Agent</div></div>
+        <div class="stat"><div class="n c-purple">9</div><div class="l">团队</div></div>
+        <div class="stat"><div class="n c-green">7</div><div class="l">可用 Skills</div></div>
+        <div class="stat"><div class="n c-orange">21</div><div class="l">参考来源</div></div>
+        <div class="stat"><div class="n c-yellow">12</div><div class="l">行动计划项</div></div>
+      </div>
+    </div>
+
+    <!-- STATUS BANNER: optimizations implemented -->
+    <div class="status-banner">
+      <div class="sb-ic">✅</div>
+      <div class="sb-txt"><b>P0-P2 优化已实现</b> — 所有 24 个 Agent 的 Prompt 已优化，Skills 已映射，类型定义已更新。15/15 测试通过，TypeScript 编译零错误。</div>
+    </div>
+
+    <!-- ===================== SECTION 1 ===================== -->
+    <section class="report" id="sec1">
+      <div class="sec-head">
+        <span class="ic">📋</span>
+        <span class="num">01</span>
+        <h2>系统概述（Executive Summary）</h2>
+      </div>
+      <div class="rule"></div>
+      <div class="callout">
+        <p><span class="pill">概览</span>SwarmAgents 是一个基于 Electron 的多 Agent 协作桌面应用，内置 <b>24 个预定义 Agent</b>，分布在 <b>9 个团队</b>中。系统已具备自我校验机制（<b>硬检查 + LLM 软判决双循环验证</b>）。本报告基于全网最优秀的 Agent 实现文章研究，为每个 Agent 提供 Prompt 优化建议、Skills 映射方案和自校验增强指南。</p>
+      </div>
+      <div class="verify-flow">
+        <div class="vf-card">
+          <div class="vt">🏗️ 多 Agent 架构<span class="vbadge" style="color:var(--cyan);background:rgba(88,166,255,.12)">核心</span></div>
+          <p>24 个 Agent 分布在 9 个职能团队，支持委派、协调、并行执行与跨团队集成。</p>
+        </div>
+        <div class="vf-card">
+          <div class="vt">🛡️ 双层自校验<span class="vbadge" style="color:var(--green);background:rgba(63,185,80,.12)">已实现</span></div>
+          <p>硬检查（确定性）+ 软检查（LLM 判官）双循环验证，支持 gap 反馈与重新提示。</p>
+        </div>
+        <div class="vf-card">
+          <div class="vt">🧩 Skill 体系<span class="vbadge" style="color:var(--purple);background:rgba(188,140,255,.12)">7 Skills</span></div>
+          <p>内置 7 个 Skill（浏览器、调研、架构图、MCP 管理等），可按 Agent 角色映射加载。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SECTION 2: AGENT INVENTORY ===================== -->
+    <section class="report" id="sec2">
+      <div class="sec-head">
+        <span class="ic">👥</span>
+        <span class="num">02</span>
+        <h2>Agent 全览（Agent Inventory）</h2>
+      </div>
+      <p class="sec-sub">24 个 Agent · 9 个团队。每张卡片展示角色、工具范围、最大迭代次数与能力标签。<span class="head-badge">团队负责人</span> 标记表示该 Agent 是对应团队的入口节点。</p>
+      <div class="rule"></div>
+
+      <!-- 管理层 -->
+      <div class="team-block" id="team-mgmt">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(188,140,255,.4)">管理层</span><span class="tname">Management</span><span class="tdesc">— 高层目标协调</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-mgmt">1</div><div><div class="ac-title">CEO<span class="head-badge">顶层协调</span></div><div class="ac-id">id: <span class="mono">ceo</span></div></div></div>
+            <div class="ac-role">CEO，高层目标协调者，不写代码，只委派。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">delegation</span><span class="cap">summary</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 开发团队 -->
+      <div class="team-block" id="team-dev">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(88,166,255,.4)">开发团队</span><span class="tname">dev</span><span class="tdesc">— 设计、实现与审查</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-dev">2</div><div><div class="ac-title">Engineering Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">engineering-lead</span></div></div></div>
+            <div class="ac-role">开发团队负责人，协调 engineer + reviewer。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>25</b></span></div>
+            <div class="ac-meta"><span class="cap">planning</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-dev">3</div><div><div class="ac-title">Engineer</div><div class="ac-id">id: <span class="mono">engineer</span></div></div></div>
+            <div class="ac-role">软件工程师，实现具体编码任务。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>30</b></span></div>
+            <div class="ac-meta"><span class="cap">code</span><span class="cap">tests</span><span class="cap">shell</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-dev">4</div><div><div class="ac-title">Reviewer</div><div class="ac-id">id: <span class="mono">reviewer</span></div></div></div>
+            <div class="ac-role">代码审查员，输出 APPROVED / NEEDS CHANGES 判决。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">review</span><span class="cap">verify</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent 训练团队 -->
+      <div class="team-block" id="team-training">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(63,185,80,.4)">Agent 训练团队</span><span class="tname">training</span><span class="tdesc">— 设计与编写 Agent/Skill</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-train">5</div><div><div class="ac-title">Training Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">training-head</span></div></div></div>
+            <div class="ac-role">负责设计和编写 Agent/Skill 定义。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>authoring</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">agent-design</span><span class="cap">team-design</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-train">6</div><div><div class="ac-title">Agent Author</div><div class="ac-id">id: <span class="mono">training-author</span></div></div></div>
+            <div class="ac-role">唯一拥有 write_agent/write_skill 工具的 Agent。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>authoring</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">agent-authoring</span><span class="cap">skill-authoring</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 产品团队 -->
+      <div class="team-block" id="team-product">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(240,136,62,.4)">产品团队</span><span class="tname">product</span><span class="tdesc">— 需求与规格</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-prod">7</div><div><div class="ac-title">Product Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">product-lead</span></div></div></div>
+            <div class="ac-role">将模糊目标转化为产品规格。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">product</span><span class="cap">requirements</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-prod">8</div><div><div class="ac-title">Product Analyst</div><div class="ac-id">id: <span class="mono">product-analyst</span></div></div></div>
+            <div class="ac-role">研究问题空间，起草需求。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">research</span><span class="cap">requirements</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 设计团队 -->
+      <div class="team-block" id="team-design">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(247,120,186,.4)">设计团队</span><span class="tname">design</span><span class="tdesc">— UI/UX 交付</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-design">9</div><div><div class="ac-title">Design Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">design-lead</span></div></div></div>
+            <div class="ac-role">将产品规格转化为设计交付物。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">design</span><span class="cap">ux</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-design">10</div><div><div class="ac-title">UI Designer</div><div class="ac-id">id: <span class="mono">ui-designer</span></div></div></div>
+            <div class="ac-role">产出具体的 UI/UX 设计和原型。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>25</b></span></div>
+            <div class="ac-meta"><span class="cap">design</span><span class="cap">ux</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 测试团队 -->
+      <div class="team-block" id="team-qa">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(210,153,34,.4)">测试团队</span><span class="tname">qa</span><span class="tdesc">— 质量保障</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-qa">11</div><div><div class="ac-title">QA Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">qa-lead</span></div></div></div>
+            <div class="ac-role">质量负责人，决定测试策略。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">qa</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-qa">12</div><div><div class="ac-title">QA Engineer</div><div class="ac-id">id: <span class="mono">qa-engineer</span></div></div></div>
+            <div class="ac-role">编写和运行自动化测试。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>30</b></span></div>
+            <div class="ac-meta"><span class="cap">testing</span><span class="cap">qa</span><span class="cap">automation</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 运维团队 -->
+      <div class="team-block" id="team-ops">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(86,212,221,.4)">运维团队</span><span class="tname">ops</span><span class="tdesc">— 构建/发布/基础设施</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-ops">13</div><div><div class="ac-title">DevOps Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">ops-lead</span></div></div></div>
+            <div class="ac-role">构建/发布/基础设施负责人。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">devops</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-ops">14</div><div><div class="ac-title">DevOps Engineer</div><div class="ac-id">id: <span class="mono">devops-engineer</span></div></div></div>
+            <div class="ac-role">实现 CI/CD、部署、环境配置。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>30</b></span></div>
+            <div class="ac-meta"><span class="cap">devops</span><span class="cap">ci</span><span class="cap">deploy</span><span class="cap">shell</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 文档团队 -->
+      <div class="team-block" id="team-docs">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(165,214,255,.4)">文档团队</span><span class="tname">docs</span><span class="tdesc">— 文档撰写</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-docs">15</div><div><div class="ac-title">Docs Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">docs-lead</span></div></div></div>
+            <div class="ac-role">文档负责人。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">docs</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-docs">16</div><div><div class="ac-title">Technical Writer</div><div class="ac-id">id: <span class="mono">tech-writer</span></div></div></div>
+            <div class="ac-role">编写用户/开发者文档。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>25</b></span></div>
+            <div class="ac-meta"><span class="cap">docs</span><span class="cap">writing</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 安全团队 -->
+      <div class="team-block" id="team-security">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(248,81,73,.4)">安全团队</span><span class="tname">security</span><span class="tdesc">— 安全审查</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-sec">17</div><div><div class="ac-title">Security Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">security-lead</span></div></div></div>
+            <div class="ac-role">安全审查负责人。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">security</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-sec">18</div><div><div class="ac-title">Security Analyst</div><div class="ac-id">id: <span class="mono">security-analyst</span></div></div></div>
+            <div class="ac-role">审计代码和依赖的漏洞。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>25</b></span></div>
+            <div class="ac-meta"><span class="cap">security</span><span class="cap">audit</span><span class="cap">review</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据团队 -->
+      <div class="team-block" id="team-data">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(46,229,157,.4)">数据团队</span><span class="tname">data</span><span class="tdesc">— 数据分析</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-data">19</div><div><div class="ac-title">Data Lead<span class="head-badge">team head</span></div><div class="ac-id">id: <span class="mono">data-lead</span></div></div></div>
+            <div class="ac-role">数据分析负责人。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>20</b></span></div>
+            <div class="ac-meta"><span class="cap">data</span><span class="cap">coordination</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-data">20</div><div><div class="ac-title">Data Analyst</div><div class="ac-id">id: <span class="mono">data-analyst</span></div></div></div>
+            <div class="ac-role">分析使用日志、指标数据。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>25</b></span></div>
+            <div class="ac-meta"><span class="cap">data</span><span class="cap">analytics</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 通用工具 -->
+      <div class="team-block" id="team-standalone">
+        <div class="team-bar"><span class="tag-team" style="border-color:rgba(139,148,158,.4)">通用工具</span><span class="tname">standalone</span><span class="tdesc">— 跨团队通用执行器</span></div>
+        <div class="agent-grid">
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-std">21</div><div><div class="ac-title">Default Agent</div><div class="ac-id">id: <span class="mono">default</span></div></div></div>
+            <div class="ac-role">通用后备，全工具访问。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>25</b></span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-std">22</div><div><div class="ac-title">Planner</div><div class="ac-id">id: <span class="mono">planner</span> · <span class="mono c-purple">thinkingLevel: xhigh</span></div></div></div>
+            <div class="ac-role">复杂目标的分解者，深度推理。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>30</b></span></div>
+            <div class="ac-meta"><span class="cap">planning</span><span class="cap">decomposition</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-std">23</div><div><div class="ac-title">Fast Worker</div><div class="ac-id">id: <span class="mono">worker-fast</span> · <span class="mono c-orange">thinkingLevel: off</span></div></div></div>
+            <div class="ac-role">快速机械任务执行者。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>15</b></span></div>
+            <div class="ac-meta"><span class="cap">execute</span><span class="cap">fast</span></div>
+          </div>
+          <div class="card agent-card">
+            <div class="ac-head"><div class="ac-idx idx-std">24</div><div><div class="ac-title">Strong Worker</div><div class="ac-id">id: <span class="mono">worker-strong</span> · <span class="mono c-cyan">thinkingLevel: high</span></div></div></div>
+            <div class="ac-role">深度推理任务执行者。</div>
+            <div class="ac-meta"><span class="kv">toolScope: <b>all</b></span><span class="kv">maxIter: <b>25</b></span></div>
+            <div class="ac-meta"><span class="cap">execute</span><span class="cap">reasoning</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SECTION 3: RESOURCES ===================== -->
+    <section class="report" id="sec3">
+      <div class="sec-head">
+        <span class="ic">📚</span>
+        <span class="num">03</span>
+        <h2>全网最优秀 Agent 实现文章（21 Sources）</h2>
+      </div>
+      <p class="sec-sub">按 5 大类别整理的 21 篇权威来源，涵盖架构模式、Prompt/上下文工程、自校验机制、多 Agent 协作与框架工具集成。<b style="color:var(--yellow)">⭐ 必读</b> 标记为最高优先级参考资料。</p>
+      <div class="rule"></div>
+
+      <div class="res-grid">
+        <!-- 1 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-arch">架构模式</span><span class="mustread">⭐ 必读</span></div>
+          <h4>1. Building Effective Agents</h4>
+          <div class="src">Anthropic · 2024</div>
+          <p class="pt">定义了 Workflow vs Agent，总结了 5 大核心模式（Prompt Chaining、Routing、Parallelization、Orchestrator-Workers、Evaluator-Optimizer）。最重要原则：从简单开始，只在能证明效果时才增加复杂度。</p>
+          <div class="link">🔗 <a href="https://www.anthropic.com/research/building-effective-agents" target="_blank" rel="noopener">anthropic.com/research/building-effective-agents</a></div>
+        </div>
+        <!-- 2 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-arch">架构模式</span></div>
+          <h4>2. ReAct: Synergizing Reasoning and Acting</h4>
+          <div class="src">Princeton NLP · ICLR 2023</div>
+          <p class="pt">交替推理（Thought）和行动（Act），推理指导行动规划，行动提供外部证据。几乎所有现代 Agent 框架的基础。</p>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noopener">arxiv.org/abs/2210.03629</a></div>
+        </div>
+        <!-- 3 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-arch">架构模式</span></div>
+          <h4>3. Reflexion: Language Agents with Verbal RL</h4>
+          <div class="src">NeurIPS 2023</div>
+          <p class="pt">Agent 在任务失败后生成自我反思，存储在记忆缓冲区，用于后续改进。无需权重更新。</p>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2303.11366" target="_blank" rel="noopener">arxiv.org/abs/2303.11366</a></div>
+        </div>
+        <!-- 4 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-arch">架构模式</span></div>
+          <h4>4. Tree of Thoughts</h4>
+          <div class="src">Princeton NLP · NeurIPS 2023</div>
+          <p class="pt">将思维链推广为树搜索，允许探索多条推理路径、回溯和评估中间状态。</p>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2305.10601" target="_blank" rel="noopener">arxiv.org/abs/2305.10601</a></div>
+        </div>
+        <!-- 5 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-arch">架构模式</span></div>
+          <h4>5. LLM Powered Autonomous Agents</h4>
+          <div class="src">Lilian Weng · 2023</div>
+          <p class="pt">Agent 4 组件分解：Planning（规划）、Memory（记忆）、Tool Use（工具使用）、Action（行动）。经典框架。</p>
+          <div class="link">🔗 <a href="https://lilianweng.github.io/posts/2023-06-23-agent/" target="_blank" rel="noopener">lilianweng.github.io/posts/2023-06-23-agent</a></div>
+        </div>
+        <!-- 6 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-arch">架构模式</span></div>
+          <h4>6. Google "Agents" 白皮书</h4>
+          <div class="src">Google · 2024</div>
+          <p class="pt">Agent = Model + Tools + Orchestration Layer，覆盖认知架构、扩展功能和数据存储。</p>
+          <div class="link">🔗 <a href="https://www.kaggle.com/whitepapers/agents" target="_blank" rel="noopener">kaggle.com/whitepapers/agents</a></div>
+        </div>
+        <!-- 7 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-prompt">Prompt 工程</span><span class="mustread">⭐ 必读</span></div>
+          <h4>7. Effective Context Engineering for AI Agents</h4>
+          <div class="src">Anthropic · 2025</div>
+          <p class="pt">Context Engineering 是 Prompt Engineering 的继任者——精心策划 LLM 推理时可用的最优 token 集。涵盖上下文压缩、即时检索、结构化笔记。</p>
+          <div class="link">🔗 <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">anthropic.com/engineering/effective-context-engineering</a></div>
+        </div>
+        <!-- 8 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-prompt">Prompt 工程</span></div>
+          <h4>8. Writing Effective Tools for AI Agents</h4>
+          <div class="src">Anthropic · 2025</div>
+          <p class="pt">Agent-Computer Interface (ACI) 设计指南——好的工具设计比 Prompt 调整对 Agent 性能影响更大。</p>
+          <div class="link">🔗 <a href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank" rel="noopener">anthropic.com/engineering/writing-tools-for-agents</a></div>
+        </div>
+        <!-- 9 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-prompt">Prompt 工程</span></div>
+          <h4>9. Prompt Engineering Guide</h4>
+          <div class="src">DAIR.AI</div>
+          <p class="pt">最全面的免费 Prompt 工程参考，涵盖基础到高级方法。</p>
+          <div class="link">🔗 <a href="https://www.promptingguide.ai/" target="_blank" rel="noopener">promptingguide.ai</a></div>
+        </div>
+        <!-- 10 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-verify">自校验</span><span class="mustread">⭐ 必读</span></div>
+          <h4>10. Self-Refine</h4>
+          <div class="src">CMU · NeurIPS 2023</div>
+          <p class="pt">LLM 生成→自我反馈→改进的循环，无需额外训练数据。7 项任务上提升 5-40%。<b style="color:var(--purple)">自校验核心</b>。</p>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2303.17651" target="_blank" rel="noopener">arxiv.org/abs/2303.17651</a></div>
+        </div>
+        <!-- 11 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-verify">自校验</span><span class="mustread">⭐ 必读</span></div>
+          <h4>11. The Self-Critique Paradox</h4>
+          <div class="src">Snorkel AI · 2025</div>
+          <p class="pt">重要反论——自我改进循环在简单任务上反而降低性能。理解自校验的局限性。</p>
+          <div class="link">🔗 <a href="https://snorkel.ai/blog/the-self-critique-paradox-why-ai-verification-fails-where-its-needed-most/" target="_blank" rel="noopener">snorkel.ai/blog/the-self-critique-paradox</a></div>
+        </div>
+        <!-- 12 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-verify">自校验</span></div>
+          <h4>12. Self-Evaluation in AI Agents</h4>
+          <div class="src">Galileo AI · 2025</div>
+          <p class="pt">实现 Agent 自评估的工程指南，覆盖反思模式、置信度评分、思维链验证。</p>
+          <div class="link">🔗 <a href="https://galileo.ai/blog/self-evaluation-ai-agents-performance-reasoning-reflection" target="_blank" rel="noopener">galileo.ai/blog/self-evaluation-ai-agents</a></div>
+        </div>
+        <!-- 13 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-multi">多 Agent</span></div>
+          <h4>13. How and When to Build Multi-Agent Systems</h4>
+          <div class="src">LangChain · 2025</div>
+          <p class="pt">何时使用多 Agent 架构（以及何时单 Agent 更好）。Supervisor vs Swarm 拓扑对比。</p>
+          <div class="link">🔗 <a href="https://www.langchain.com/blog/how-and-when-to-build-multi-agent-systems" target="_blank" rel="noopener">langchain.com/blog/how-and-when-to-build-multi-agent-systems</a></div>
+        </div>
+        <!-- 14 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-multi">多 Agent</span></div>
+          <h4>14. OpenAI Swarm</h4>
+          <div class="src">OpenAI · 2024</div>
+          <p class="pt">轻量级多 Agent 编排框架，两个核心原语：Routines 和 Handoffs。</p>
+          <div class="link">🔗 <a href="https://github.com/openai/swarm" target="_blank" rel="noopener">github.com/openai/swarm</a></div>
+        </div>
+        <!-- 15 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-multi">多 Agent</span></div>
+          <h4>15. Microsoft AutoGen</h4>
+          <div class="src">Microsoft · 2024-2025</div>
+          <p class="pt">将 Agent 协作建模为可配置 Agent 之间的对话，v0.4 引入事件驱动架构。</p>
+          <div class="link">🔗 <a href="https://github.com/microsoft/autogen" target="_blank" rel="noopener">github.com/microsoft/autogen</a></div>
+        </div>
+        <!-- 16 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-multi">多 Agent</span></div>
+          <h4>16. CrewAI</h4>
+          <div class="src">CrewAI Inc · 2024-2025</div>
+          <p class="pt">基于角色的多 Agent 编排框架，定义 Agent（角色、目标、背景故事）和 Task。</p>
+          <div class="link">🔗 <a href="https://github.com/crewAIInc/crewAI" target="_blank" rel="noopener">github.com/crewAIInc/crewAI</a></div>
+        </div>
+        <!-- 17 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-frame">框架集成</span></div>
+          <h4>17. A Practical Guide to Building Agents</h4>
+          <div class="src">OpenAI · 2025</div>
+          <p class="pt">OpenAI 的 Agent 开发全流程指南：用例识别、模型选择、工具定义、编排、部署。</p>
+          <div class="link">🔗 <a href="https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf" target="_blank" rel="noopener">cdn.openai.com/.../a-practical-guide-to-building-agents.pdf</a></div>
+        </div>
+        <!-- 18 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-frame">框架集成</span></div>
+          <h4>18. Model Context Protocol (MCP)</h4>
+          <div class="src">Anthropic · 2024</div>
+          <p class="pt">连接 AI 模型与外部数据源和工具的开放标准，已被 OpenAI、Google、Microsoft 采用。</p>
+          <div class="link">🔗 <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">modelcontextprotocol.io</a></div>
+        </div>
+        <!-- 19 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-frame">框架集成</span></div>
+          <h4>19. SWE-agent</h4>
+          <div class="src">Princeton NLP · NeurIPS 2024</div>
+          <p class="pt">Agent-Computer Interface (ACI) 概念——界面设计（不仅仅是 Prompt）驱动 Agent 能力。</p>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2405.15793" target="_blank" rel="noopener">arxiv.org/abs/2405.15793</a></div>
+        </div>
+        <!-- 20 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-frame">框架集成</span></div>
+          <h4>20. LangGraph</h4>
+          <div class="src">LangChain · 2024-2025</div>
+          <p class="pt">将 Agent 工作流建模为状态机/有向图，提供显式路由、并行分支、人机回路检查点。</p>
+          <div class="link">🔗 <a href="https://docs.langchain.com/oss/python/langgraph/overview" target="_blank" rel="noopener">docs.langchain.com/.../langgraph/overview</a></div>
+        </div>
+        <!-- 21 -->
+        <div class="res-card">
+          <div class="rc-top"><span class="cat-tag cat-frame">框架集成</span></div>
+          <h4>21. Awesome LLM-Powered Agent</h4>
+          <div class="src">社区维护</div>
+          <p class="pt">最全面的 LLM Agent 论文、框架、资源索引。</p>
+          <div class="link">🔗 <a href="https://github.com/hyp1231/awesome-llm-powered-agent" target="_blank" rel="noopener">github.com/hyp1231/awesome-llm-powered-agent</a></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SECTION 4: PROMPT RECOMMENDATIONS ===================== -->
+    <section class="report" id="sec4">
+      <div class="sec-head">
+        <span class="ic">⚡</span>
+        <span class="num">04</span>
+        <h2>每个 Agent 的 Prompt 优化建议</h2>
+      </div>
+      <p class="sec-sub">对 24 个 Agent 逐一分析当前 Prompt 优势，并给出具体的优化建议。每张卡片包含 <b style="color:var(--green)">当前优势</b> 与 <b style="color:var(--orange)">优化建议</b> 两部分。</p>
+      <div class="rule"></div>
+
+      <div class="agent-grid">
+
+        <!-- CEO -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-mgmt">1</div><div><div class="ac-title">CEO<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">ceo</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>完整的委派协议、冲突处理、跨团队集成逻辑</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加目标预验证步骤——委派前先检查目标是否明确，如不明确则在消息中说明假设</li>
+              <li class="opt">增加验证触发——在最终汇总前要求关键交付物通过验证检查</li>
+              <li class="opt">增加 set_acceptance_criteria 提示——引导为每个委派设定可检查的完成条件</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Engineering Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-dev">2</div><div><div class="ac-title">Engineering Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">engineering-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>清晰的 fix/review 循环（最多 10 次）</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">在 engineer 任务中要求附带 acceptance criteria，使 reviewer 有明确标准</li>
+              <li class="opt">增加代码覆盖率要求——要求 engineer 报告测试覆盖率</li>
+              <li class="opt">引入"烟雾测试"概念——review 前先运行快速验证</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Engineer -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-dev">3</div><div><div class="ac-title">Engineer<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">engineer</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>区分小改动（直接编辑）和大型工作（Claude Code 会话），有完整的验证工作流</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加 TDD（测试驱动开发）提示——先写测试再实现</li>
+              <li class="opt">增加错误日志规范——遵循 CLAUDE.md 的日志要求</li>
+              <li class="opt">增加自检清单——提交前检查：测试通过？文件路径正确？无未清理的临时文件？</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Reviewer -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-dev">4</div><div><div class="ac-title">Reviewer<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">reviewer</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>明确的 APPROVED / NEEDS CHANGES 判决格式</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加安全审查清单——检查注入、硬编码密钥、权限问题</li>
+              <li class="opt">增加性能审查——N+1 查询、内存泄漏</li>
+              <li class="opt">要求 reviewer 运行测试而非仅看代码</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Training Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-train">5</div><div><div class="ac-title">Training Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">training-head</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>强制使用 design-agent-team skill，有完整的发现流程</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加验证步骤——新 Agent 创建后用 dry-run 验证</li>
+              <li class="opt">增加技能冲突检测——确保新 Agent 的技能不与现有 Agent 重叠</li>
+              <li class="opt">增加"最小可用"原则——避免过度设计 Agent</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Training Author -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-train">6</div><div><div class="ac-title">Training Author<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">training-author</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>唯一拥有 write_agent/write_skill 的 Agent，有静态验证</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加 trigger-first description 验证——确保描述以"Use when…"开头</li>
+              <li class="opt">增加 toolScope 安全检查——确保非 authoring Agent 不能访问 write_agent</li>
+              <li class="opt">增加 dry-run 自动验证</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Product Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-prod">7</div><div><div class="ac-title">Product Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">product-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>清晰的产品规格输出格式</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加"成功指标"量化——要求为每个需求定义可测量的成功标准</li>
+              <li class="opt">增加"最小可行范围"——明确 MVP vs 完整版</li>
+              <li class="opt">增加用户旅程映射</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Product Analyst -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-prod">8</div><div><div class="ac-title">Product Analyst<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">product-analyst</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>覆盖用户、需求、风险和验收标准</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加竞品分析——使用 web_search 研究同类产品</li>
+              <li class="opt">增加数据驱动需求——从使用日志提取需求</li>
+              <li class="opt">增加技术可行性评估</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Design Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-design">9</div><div><div class="ac-title">Design Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">design-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>清晰的迭代审查流程</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加设计系统一致性检查</li>
+              <li class="opt">增加可访问性（Accessibility）审查</li>
+              <li class="opt">增加响应式设计验证</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- UI Designer -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-design">10</div><div><div class="ac-title">UI Designer<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">ui-designer</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>支持 .pen 文档和结构化设计输出</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加组件库复用检查——优先使用现有组件</li>
+              <li class="opt">增加交互状态完整性——hover / active / disabled / error</li>
+              <li class="opt">增加设计标注——间距、字体、颜色</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- QA Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-qa">11</div><div><div class="ac-title">QA Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">qa-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>清晰的测试策略制定流程</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加测试覆盖率目标——定义最低覆盖率</li>
+              <li class="opt">增加回归测试策略</li>
+              <li class="opt">增加性能测试指导</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- QA Engineer -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-qa">12</div><div><div class="ac-title">QA Engineer<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">qa-engineer</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>完整的缺陷报告格式（步骤、预期 vs 实际）</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加 BDD/TDD 测试风格</li>
+              <li class="opt">增加边界值测试清单</li>
+              <li class="opt">增加自动化 CI 集成</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- DevOps Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-ops">13</div><div><div class="ac-title">DevOps Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">ops-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>明确的步骤排序和安全意识</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加回滚策略要求</li>
+              <li class="opt">增加零停机部署检查</li>
+              <li class="opt">增加 IaC（基础设施即代码）优先原则</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- DevOps Engineer -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-ops">14</div><div><div class="ac-title">DevOps Engineer<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">devops-engineer</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>强调幂等和可逆步骤</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加部署后健康检查自动化</li>
+              <li class="opt">增加配置漂移检测</li>
+              <li class="opt">增加蓝绿部署 / 金丝雀发布指导</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Docs Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-docs">15</div><div><div class="ac-title">Docs Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">docs-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>覆盖多种文档类型和目标读者</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加文档版本控制要求</li>
+              <li class="opt">增加 API 文档自动生成指导</li>
+              <li class="opt">增加"文档即代码"原则</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Technical Writer -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-docs">16</div><div><div class="ac-title">Technical Writer<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">tech-writer</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>强调读取实际代码行为</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加代码示例验证——确保示例可运行</li>
+              <li class="opt">增加文档搜索优化</li>
+              <li class="opt">增加"最小完整示例"原则</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Security Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-sec">17</div><div><div class="ac-title">Security Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">security-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>清晰的威胁范围定义</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加 OWASP Top 10 检查清单</li>
+              <li class="opt">增加依赖漏洞扫描自动化</li>
+              <li class="opt">增加安全合规框架映射</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Security Analyst -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-sec">18</div><div><div class="ac-title">Security Analyst<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">security-analyst</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>具体到文件/行的漏洞报告</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加 CVE 数据库查询</li>
+              <li class="opt">增加攻击向量分析</li>
+              <li class="opt">增加修复验证步骤</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Data Lead -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-data">19</div><div><div class="ac-title">Data Lead<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">data-lead</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>健全性检查分析师结果</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加数据质量评估标准</li>
+              <li class="opt">增加统计显著性检查</li>
+              <li class="opt">增加可视化建议</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Data Analyst -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-data">20</div><div><div class="ac-title">Data Analyst<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">data-analyst</span></div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>强调验证数字而非估算</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加数据清洗步骤</li>
+              <li class="opt">增加异常值检测</li>
+              <li class="opt">增加可复现性要求</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Planner -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-std">22</div><div><div class="ac-title">Planner<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">planner</span> · xhigh</div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>深度推理 (xhigh)，worker-fast/strong 分层委派</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加计划验证——分解后检查是否有遗漏步骤</li>
+              <li class="opt">增加风险评估——为每步标注风险等级</li>
+              <li class="opt">增加并行优化——识别可并行执行的步骤</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Fast Worker -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-std">23</div><div><div class="ac-title">Fast Worker<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">worker-fast</span> · off</div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>速度优先，thinkingLevel: off</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加结果格式化——标准化输出格式</li>
+              <li class="opt">增加快速自检——完成后 10 秒检查</li>
+              <li class="opt">增加"不做范围外"强化</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Strong Worker -->
+        <div class="card agent-card">
+          <div class="ac-head"><div class="ac-idx idx-std">24</div><div><div class="ac-title">Strong Worker<span class="impl-badge">✅ 已实现</span></div><div class="ac-id"><span class="mono">worker-strong</span> · high</div></div></div>
+          <div class="rec">
+            <div class="rec-label good">当前优势</div>
+            <ul><li>深度推理，权衡备选方案</li></ul>
+            <div class="rec-label opt">优化建议</div>
+            <ul>
+              <li class="opt">增加推理链记录——保存决策过程</li>
+              <li class="opt">增加边界情况清单</li>
+              <li class="opt">增加交叉验证步骤</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===================== SECTION 5: SKILLS MAPPING ===================== -->
+    <section class="report" id="sec5">
+      <div class="sec-head">
+        <span class="ic">🧩</span>
+        <span class="num">05</span>
+        <h2>Skills 映射方案（Skills-to-Agent Mapping）</h2>
+      </div>
+      <p class="sec-sub">系统内置 7 个 Skill，下表为每个 Agent 推荐最适合的 Skill 组合及选用理由。</p>
+      <div class="rule"></div>
+
+      <h4 class="skill-list-title">📋 系统可用 Skills</h4>
+      <div class="skills-grid">
+        <div class="skill-card"><div class="sn">swarmagent-operations</div><div class="sd">MCP 服务器管理（添加、编辑、移除）</div></div>
+        <div class="skill-card"><div class="sn">design-agent-team</div><div class="sd">设计、编写、验证 Agent/Skill 定义</div></div>
+        <div class="skill-card"><div class="sn">agent-browser</div><div class="sd">浏览器自动化（网页交互、表单填写、截图、数据提取）</div></div>
+        <div class="skill-card"><div class="sn">agent-reach</div><div class="sd">全网调研搜索（13 个平台，多后端路由）</div></div>
+        <div class="skill-card"><div class="sn">archify</div><div class="sd">架构图生成（HTML + SVG，支持暗色/亮色切换，一键导出）</div></div>
+        <div class="skill-card"><div class="sn">native-feel</div><div class="sd">跨平台原生桌面应用架构</div></div>
+        <div class="skill-card"><div class="sn">run-desktop</div><div class="sd">构建、运行、驱动 SwarmAgents Electron 应用</div></div>
+      </div>
+
+      <div class="skills-note">✅ Skills 字段已添加到 <span class="mono">AgentDefinitionSchema</span> 类型，所有 24 个 Agent 已配置各自的 <span class="mono">skills</span> 数组。</div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:170px">Agent</th><th style="width:290px">推荐 Skills</th><th>理由</th></tr></thead>
+          <tbody>
+            <tr><td><b>CEO</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">ceo</span></td><td><span class="skill-chip">agent-reach</span><span class="skill-chip">archify</span></td><td>需要调研优先级，绘制组织架构图</td></tr>
+            <tr><td><b>Engineering Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">engineering-lead</span></td><td><span class="skill-chip">archify</span><span class="skill-chip">run-desktop</span></td><td>需要绘制系统架构图，运行验证桌面应用</td></tr>
+            <tr><td><b>Engineer</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">engineer</span></td><td><span class="skill-chip">run-desktop</span><span class="skill-chip">agent-browser</span></td><td>需要构建运行应用，浏览器自动化测试</td></tr>
+            <tr><td><b>Reviewer</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">reviewer</span></td><td><span class="skill-chip">run-desktop</span></td><td>运行验证应用行为是否正确</td></tr>
+            <tr><td><b>Training Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">training-head</span></td><td><span class="skill-chip">design-agent-team</span><span class="skill-chip">agent-reach</span></td><td>核心 Skill，调研最佳 Agent 设计实践</td></tr>
+            <tr><td><b>Training Author</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">training-author</span></td><td><span class="skill-chip">design-agent-team</span></td><td>唯一 Skill——编写 Agent/Skill 定义</td></tr>
+            <tr><td><b>Product Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">product-lead</span></td><td><span class="skill-chip">agent-reach</span><span class="skill-chip">archify</span></td><td>调研竞品和用户需求，绘制产品流程图</td></tr>
+            <tr><td><b>Product Analyst</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">product-analyst</span></td><td><span class="skill-chip">agent-reach</span></td><td>全网调研用户、需求、竞品</td></tr>
+            <tr><td><b>Design Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">design-lead</span></td><td><span class="skill-chip">archify</span><span class="skill-chip">agent-browser</span></td><td>绘制用户流程图，浏览器预览设计</td></tr>
+            <tr><td><b>UI Designer</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">ui-designer</span></td><td><span class="skill-chip">archify</span><span class="skill-chip">agent-browser</span></td><td>绘制组件架构，浏览器测试 UI</td></tr>
+            <tr><td><b>QA Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">qa-lead</span></td><td><span class="skill-chip">run-desktop</span><span class="skill-chip">agent-browser</span></td><td>运行应用做集成测试，浏览器自动化 E2E</td></tr>
+            <tr><td><b>QA Engineer</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">qa-engineer</span></td><td><span class="skill-chip">run-desktop</span><span class="skill-chip">agent-browser</span></td><td>运行自动化测试，浏览器驱动</td></tr>
+            <tr><td><b>DevOps Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">ops-lead</span></td><td><span class="skill-chip">agent-reach</span></td><td>调研最佳 CI/CD 实践和工具</td></tr>
+            <tr><td><b>DevOps Engineer</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">devops-engineer</span></td><td><span class="skill-chip">run-desktop</span></td><td>需要构建和部署应用</td></tr>
+            <tr><td><b>Docs Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">docs-lead</span></td><td><span class="skill-chip">agent-reach</span><span class="skill-chip">archify</span></td><td>调研文档最佳实践，生成架构图</td></tr>
+            <tr><td><b>Technical Writer</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">tech-writer</span></td><td><span class="skill-chip">agent-browser</span><span class="skill-chip">archify</span></td><td>验证文档中的步骤，生成文档配图</td></tr>
+            <tr><td><b>Security Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">security-lead</span></td><td><span class="skill-chip">agent-reach</span></td><td>调研最新安全漏洞和防护方案</td></tr>
+            <tr><td><b>Security Analyst</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">security-analyst</span></td><td><span class="skill-chip">agent-browser</span><span class="skill-chip">agent-reach</span></td><td>测试 Web 安全，查询漏洞数据库</td></tr>
+            <tr><td><b>Data Lead</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">data-lead</span></td><td><span class="skill-chip">agent-reach</span></td><td>调研数据分析最佳实践</td></tr>
+            <tr><td><b>Data Analyst</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">data-analyst</span></td><td><span class="skill-chip">agent-reach</span></td><td>搜索行业基准数据对比</td></tr>
+            <tr><td><b>Planner</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">planner</span></td><td><span class="skill-chip">agent-reach</span></td><td>调研以制定更准确的计划</td></tr>
+            <tr><td><b>Fast Worker</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">worker-fast</span></td><td><span class="skill-chip" style="color:var(--text-dim);background:rgba(139,148,158,.1);border-color:rgba(139,148,158,.25)">(none — keep minimal)</span></td><td>速度优先，不加载额外 Skill</td></tr>
+            <tr><td><b>Strong Worker</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">worker-strong</span></td><td><span class="skill-chip">agent-reach</span></td><td>可能需要深度调研来做出推理决策</td></tr>
+            <tr><td><b>Default Agent</b><br><span class="mono" style="color:var(--text-dim);font-size:12px">default</span></td><td><span class="skill-chip">agent-reach</span><span class="skill-chip">agent-browser</span><span class="skill-chip">archify</span></td><td>全能后备——需要最广泛的工具集</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== SECTION 6: SELF-VERIFICATION ===================== -->
+    <section class="report" id="sec6">
+      <div class="sec-head">
+        <span class="ic">🛡️</span>
+        <span class="num">06</span>
+        <h2>自校验架构（Self-Verification Architecture）</h2>
+      </div>
+      <p class="sec-sub">系统已在 <span class="mono">verify.ts</span> 中实现双层自校验机制。本节分析现有架构并提出 5 项增强建议。</p>
+      <div class="rule"></div>
+
+      <h4 style="font-size:17px;margin-bottom:18px;color:var(--green)">✅ 当前机制（已实现）</h4>
+      <div class="verify-flow">
+        <div class="vf-card vf-hard">
+          <div class="vt">1. 硬检查（Hard Checks）<span class="vbadge">确定性</span></div>
+          <p>完全确定性验证，无 LLM 参与，可信度最高。</p>
+          <ul>
+            <li><b style="color:var(--text)">command</b> 类型：运行 shell 命令，检查退出码和 stdout</li>
+            <li><b style="color:var(--text)">file_exists</b> 类型：检查文件是否存在</li>
+          </ul>
+        </div>
+        <div class="vf-card vf-soft">
+          <div class="vt">2. 软检查（Soft Checks）<span class="vbadge">LLM 判官</span></div>
+          <p>对没有可执行检查的条件，使用 LLM 作为裁判。</p>
+          <ul>
+            <li>解析 LLM 输出中的 <span class="mono">{pass: boolean, gaps: string[]}</span> JSON</li>
+            <li>灵活但非确定性，适合判断性条件</li>
+          </ul>
+        </div>
+        <div class="vf-card vf-loop">
+          <div class="vt">3. 验证循环（Verify Loop）<span class="vbadge">迭代改进</span></div>
+          <p><span class="mono">runGoalVerifyLoop</span>：验证→如有 gap 则重新提示→再次验证。</p>
+          <ul>
+            <li>最多 <span class="mono">maxRounds</span> 轮（默认从 acceptance criteria 数量推导）</li>
+            <li>支持 budget 短路（turn 失败/取消则直接失败）</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="code-block">
+<span class="ck">// 验证循环简化示意（verify.ts）</span><br>
+<span style="color:var(--purple)">while</span> (round &lt; maxRounds) {<br>
+&nbsp;&nbsp;<span style="color:var(--cyan)">const</span> result = <span style="color:var(--green)">runVerification</span>(criteria);&nbsp;&nbsp;<span class="ck">// 硬检查 + 软检查</span><br>
+&nbsp;&nbsp;<span style="color:var(--purple)">if</span> (result.allPass) <span style="color:var(--purple)">return</span> <span style="color:var(--green)">SUCCESS</span>;<br>
+&nbsp;&nbsp;<span style="color:var(--cyan)">const</span> reworkGoal = <span style="color:var(--orange)">buildReworkGoal</span>(result.gaps);&nbsp;&nbsp;<span class="ck">// 注入 gap 反馈</span><br>
+&nbsp;&nbsp;<span style="color:var(--green)">delegate</span>(reworkGoal);&nbsp;&nbsp;<span class="ck">// 重新提示 Agent 修复</span><br>
+&nbsp;&nbsp;round++;<br>
+}<br>
+<span style="color:var(--purple)">return</span> <span style="color:var(--red)">FAIL</span>;&nbsp;&nbsp;<span class="ck">// 超过轮次上限</span>
+      </div>
+
+      <h4 style="font-size:17px;margin:26px 0 18px;color:var(--orange)">⚡ 优化建议</h4>
+      <div class="rec-list">
+        <div class="rec-item">
+          <div class="ri-num" style="background:var(--yellow)">1</div>
+          <div class="ri-body">
+            <h5><span class="ri-star">⭐</span> 引入 Reflexion 模式</h5>
+            <div class="src-ref">来源：Reflexion 论文 (NeurIPS 2023)</div>
+            <p>在验证失败后，Agent 应生成结构化的"反思"而非简单重试。存储反思到记忆缓冲区（<span class="mono">remember</span> / <span class="mono">recall</span>），避免重复错误。实现方式：在 verify loop 的 rework goal 中注入上一轮的 gaps 和反思建议。</p>
+          </div>
+        </div>
+        <div class="rec-item">
+          <div class="ri-num" style="background:var(--green)">2</div>
+          <div class="ri-body">
+            <h5><span class="ri-star">⭐</span> 添加分层置信度评分</h5>
+            <div class="src-ref">来源：Galileo Self-Evaluation</div>
+            <p>硬检查 = 高置信度（确定性通过）；软检查 = 中置信度（LLM 判定通过）；无检查条件 = 低置信度（纯判断）。在最终报告中显示置信度等级。</p>
+          </div>
+        </div>
+        <div class="rec-item">
+          <div class="ri-num" style="background:var(--orange)">3</div>
+          <div class="ri-body">
+            <h5><span class="ri-warn">⚠️</span> 警惕 Self-Critique Paradox</h5>
+            <div class="src-ref">来源：Snorkel AI</div>
+            <p>对于简单任务（高基线成功率），自校验循环反而可能降低性能。<b>建议：</b>为简单任务设置 <span class="mono">maxRounds=1</span>（仅验证一次）；为复杂任务设置 <span class="mono">maxRounds=3-5</span>（允许多次改进）。</p>
+          </div>
+        </div>
+        <div class="rec-item">
+          <div class="ri-num" style="background:var(--cyan)">4</div>
+          <div class="ri-body">
+            <h5>增加 Pre-Verification（提交前自检）</h5>
+            <div class="src-ref">来源：SWE-agent ACI 概念</div>
+            <p>在 Agent 完成工作但提交前，添加一个"烟雾测试"步骤——让 Agent 自己运行快速验证。例如：工程师 Agent 在报告前先运行 typecheck + lint + 快速测试。</p>
+          </div>
+        </div>
+        <div class="rec-item">
+          <div class="ri-num" style="background:var(--purple)">5</div>
+          <div class="ri-body">
+            <h5>增加 Acceptance Criteria 自动生成</h5>
+            <div class="src-ref">来源：本报告行动项</div>
+            <p>CEO 在委派时自动为每个团队 head 生成 acceptance criteria，使用 <span class="mono">set_acceptance_criteria</span> 将目标转化为可检查条件。这使验证循环从一开始就有明确的通过/失败标准。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SECTION 7: ACTION PLAN ===================== -->
+    <section class="report" id="sec7">
+      <div class="sec-head">
+        <span class="ic">🎯</span>
+        <span class="num">07</span>
+        <h2>行动计划（Action Plan）</h2>
+      </div>
+      <p class="sec-sub">按优先级排列的 12 个行动项，从 P0（立即执行）到 P3（长期优化）。</p>
+      <div class="rule"></div>
+
+      <div class="kanban">
+        <div class="kb-col kb-p0">
+          <h4><span class="badge">P0</span> ✅ 已实现</h4>
+          <div class="kb-card"><div class="kc-id">#1 · Prompt <span class="kc-status done">✅ 已实现</span></div><div class="kc-txt">为 CEO Prompt 添加 <span class="mono">set_acceptance_criteria</span> 引导——使每次委派都有可检查标准</div></div>
+          <div class="kb-card"><div class="kc-id">#2 · Prompt <span class="kc-status done">✅ 已实现</span></div><div class="kc-txt">为 Engineer Prompt 添加 TDD 和提交前自检步骤</div></div>
+          <div class="kb-card"><div class="kc-id">#3 · Prompt <span class="kc-status done">✅ 已实现</span></div><div class="kc-txt">为 Reviewer Prompt 增加安全审查清单</div></div>
+        </div>
+        <div class="kb-col kb-p1">
+          <h4><span class="badge">P1</span> ✅ 已实现</h4>
+          <div class="kb-card"><div class="kc-id">#4 · 架构 <span class="kc-status done">✅ 已实现</span></div><div class="kc-txt">实现 Reflexion 模式——在 verify loop 的 rework 中注入结构化反思</div></div>
+          <div class="kb-card"><div class="kc-id">#5 · 训练 <span class="kc-status done">✅ 已实现</span></div><div class="kc-txt">为 Training Lead 增加新 Agent 创建后的 dry-run 验证步骤</div></div>
+          <div class="kb-card"><div class="kc-id">#6 · 架构 <span class="kc-status done">✅ 已实现</span></div><div class="kc-txt">实现 Skills 自动映射——在 Agent 定义中增加 <span class="mono">skills</span> 字段</div></div>
+        </div>
+        <div class="kb-col kb-p2">
+          <h4><span class="badge">P2</span> 📋 计划中</h4>
+          <div class="kb-card"><div class="kc-id">#7 · 校验 <span class="kc-status plan">📋 计划中</span></div><div class="kc-txt">添加置信度评分系统——在验证结果中显示高/中/低置信度</div></div>
+          <div class="kb-card"><div class="kc-id">#8 · Prompt <span class="kc-status plan">📋 计划中</span></div><div class="kc-txt">为 Planner 增加计划验证步骤——分解后检查完整性</div></div>
+          <div class="kb-card"><div class="kc-id">#9 · 校验 <span class="kc-status plan">📋 计划中</span></div><div class="kc-txt">增加 maxRounds 自适应——简单任务减少轮次，复杂任务增加轮次</div></div>
+        </div>
+        <div class="kb-col kb-p3">
+          <h4><span class="badge">P3</span> 长期优化</h4>
+          <div class="kb-card"><div class="kc-id">#10 · 学习</div><div class="kc-txt">实现基于 agent-reach 的持续学习——定期调研最新 Agent 实践并更新 Prompt</div></div>
+          <div class="kb-card"><div class="kc-id">#11 · 训练</div><div class="kc-txt">建立技能冲突检测——确保每个 Agent 的 Skills 不重叠</div></div>
+          <div class="kb-card"><div class="kc-id">#12 · 评估</div><div class="kc-txt">实现 ACI 设计评估——定期审查工具定义对 Agent 性能的影响</div></div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>🐝 <b>SwarmAgents Agent 优化报告</b> · 基于 21 篇全网最优秀 Agent 实现文章研究 · 2025</p>
+      <p style="margin-top:6px;font-size:12px">本报告为自包含 HTML 文档 · 所有内容离线可用 · 数据来源详见第 03 章</p>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  // Active sidebar link highlighting on scroll
+  (function(){
+    var links = document.querySelectorAll('.sidebar a[href^="#sec"], .sidebar a[href^="#team"]');
+    var tops = document.querySelectorAll('section.report, .team-block');
+    function onScroll(){
+      var pos = window.scrollY + 120;
+      var current = null;
+      tops.forEach(function(el){
+        if (el.offsetTop <= pos) current = el;
+      });
+      if(!current) return;
+      links.forEach(function(a){
+        a.classList.toggle('active', a.getAttribute('href') === '#' + current.id);
+      });
+    }
+    window.addEventListener('scroll', onScroll, {passive:true});
+    onScroll();
+  })();
+</script>
+
+</body>
+</html>
