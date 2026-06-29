@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useDebouncer } from "@tanstack/react-pacer"
 import { createPluginRegistration, refreshPages } from "@embedpdf/core"
 import { EmbedPDF, useRegistry } from "@embedpdf/core/react"
 import type {
@@ -806,15 +807,19 @@ function PDFViewerSearchControl({
     )
   }, [])
 
+  // TanStack Pacer debouncer: a stable instance whose cancel() drops a pending
+  // search when the draft changes (parity with the old clearTimeout cleanup).
+  const searchDebouncer = useDebouncer(runSearch, {
+    wait: PDF_SEARCH_DEBOUNCE_MS,
+  })
+
   React.useEffect(() => {
     if (!searchDraft.trim()) return
 
-    const timeoutId = window.setTimeout(() => {
-      runSearch(searchDraft)
-    }, PDF_SEARCH_DEBOUNCE_MS)
+    searchDebouncer.maybeExecute(searchDraft)
 
-    return () => window.clearTimeout(timeoutId)
-  }, [runSearch, searchDraft])
+    return () => searchDebouncer.cancel()
+  }, [searchDebouncer, runSearch, searchDraft])
 
   const handleSearchDraftChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {

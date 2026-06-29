@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
 import type { PlanTodo } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { XIcon, ZapIcon } from 'lucide-react'
 
 import { PermissionCard } from '@/components/permission-card'
@@ -40,17 +40,15 @@ export function ComposerOverlay({
 }: Props): React.JSX.Element | null {
   const top = prompts[0]
 
-  // One Escape listener for the whole stack: skip the top-most prompt.
-  useEffect(() => {
-    if (!top) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onDecide(top.actionId, 'skip')
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [top, onDecide])
+  // One Escape hotkey for the whole stack: skip the top-most prompt. Kept
+  // registered but disabled when nothing is pinned (still visible in devtools).
+  // Don't prevent/stop the event so any nested Escape handlers still react, as
+  // the previous window listener did.
+  useHotkey('Escape', () => top && onDecide(top.actionId, 'skip'), {
+    enabled: Boolean(top),
+    preventDefault: false,
+    stopPropagation: false,
+  })
 
   // Nothing to pin unless there's a prompt, a queued turn, or a live plan with
   // still-unfinished steps (a fully-completed plan hides — see PlanStatusBar).

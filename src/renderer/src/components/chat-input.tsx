@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@shared/types/provider'
 import type { Attachment, ExecutionMode, PermissionMode } from '@shared/types/task'
+import { useRanger } from '@tanstack/react-ranger'
 import { Check, Cpu, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, Users, X } from 'lucide-react'
 
 import {
@@ -28,8 +29,8 @@ import { ContextRing } from '@/components/context-ring'
 import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
-import { cn } from '@/lib/utils'
 import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'
+import { cn } from '@/lib/utils'
 import { useRecentDirs } from '@/stores/recent-dirs'
 
 type Props = {
@@ -334,15 +335,38 @@ export function ChatInput({
   const showThinking = thinkingLevels.length > 1
   // Slider position of the active level; clamp to 0 when it isn't in the list.
   const thinkingIndex = Math.max(0, thinkingLevels.indexOf(activeRow?.thinkingLevel ?? 'off'))
-  // Ref + drag flag for the bespoke thinking stepper: the track captures pointer
-  // events so a click or drag anywhere on the line snaps to the nearest step.
+  const thinkingLast = Math.max(0, thinkingLevels.length - 1)
+  // The track element TanStack Ranger measures for client-x → value mapping.
   const stepTrackRef = useRef<HTMLDivElement>(null)
-  const [dragging, setDragging] = useState(false)
 
   const onPickThinking = async (level: string): Promise<void> => {
     if (!state.active) return
     await window.swarm.providers.setThinkingLevel(state.active, level as ModelThinkingLevel)
   }
+
+  // Commit a step index (clamped) to the active provider's thinking level.
+  const commitThinkingIndex = (idx: number): void => {
+    const clamped = Math.max(0, Math.min(thinkingLast, idx))
+    const level = thinkingLevels[clamped]
+    if (level && level !== activeRow?.thinkingLevel) void onPickThinking(level)
+  }
+
+  // TanStack Ranger drives the discrete "思考程度" stepper: a single handle over
+  // the level indices [0..thinkingLast]. The ranger owns the drag wiring
+  // (document mouse/touch listeners), the client-x → value interpolation, and
+  // the step rounding that the old bespoke control hand-rolled. The level is
+  // external state (synced over IPC), so the ranger is fully controlled by
+  // `thinkingIndex` and every drag/keyboard change commits straight through
+  // commitThinkingIndex — there is no local position state to drift out of sync.
+  const thinkingRanger = useRanger<HTMLDivElement>({
+    getRangerElement: () => stepTrackRef.current,
+    values: [thinkingIndex],
+    min: 0,
+    max: thinkingLast,
+    stepSize: 1,
+    onChange: (instance) => commitThinkingIndex(Math.round(instance.sortedValues[0] ?? 0)),
+    onDrag: (instance) => commitThinkingIndex(Math.round(instance.sortedValues[0] ?? 0)),
+  })
 
   // Self-measuring footer: collapse the control labels to icons only when the
   // toolbar can't fit them. We compare the width the two control groups actually
@@ -518,66 +542,47 @@ export function ChatInput({
                                   items), and Base UI's GroupLabel requires a group
                                   context — using it here throws "SelectGroupContext is
                                   missing". The classes mirror SelectLabel's styling. */}
-                              <span className="px-0 py-1 text-xs text-muted-foreground">思考程度</span>
+                              <span className="px-0 py-1 text-muted-foreground text-xs">思考程度</span>
                               <span className="font-medium text-muted-foreground text-xs">
                                 {THINKING_LABELS[activeRow.thinkingLevel]}
                               </span>
                             </div>
                             {(() => {
-                              // Capsule stepper built from scratch (not Base UI's slider):
-                              // Base UI's Control lays the Thumb as a *sibling* of the
-                              // Track, so the track width and the thumb's percent-based
-                              // position use different reference widths and never line up.
-                              // A bespoke control uses a single coordinate system — step
-                              // centers, the filled segment, and click targets all derive
-                              // from the same `i/(n-1)` percentages — so the rings, the
-                              // line, and the snap point are always aligned.
-                              const count = thinkingLevels.length
-                              const last = count - 1
+                              // Discrete capsule stepper driven by TanStack Ranger. The
+                              // single coordinate system is preserved on purpose: step
+                              // centers, the filled segment, and the press target all
+                              // derive from the same `i/last` percentages, so the rings,
+                              // the line, and the snap point stay aligned. Ranger supplies
+                              // the client-x → value mapping, step rounding, and the
+                              // document-level drag listeners; pressing the track jumps to
+                              // the nearest step and hands off to the ranger handle so a
+                              // continued drag keeps updating the level live.
+                              const last = thinkingLast
                               const current = thinkingIndex
-                              // Map a click's horizontal position to the nearest step
-                              // index, then commit it. Used for both track clicks and
-                              // dragging the indicator.
-                              const pickAtClientX = (target: HTMLElement, clientX: number) => {
-                                const rect = target.getBoundingClientRect()
-                                const ratio = last <= 0 ? 0 : (clientX - rect.left) / rect.width
-                                const idx = Math.max(0, Math.min(last, Math.round(ratio * last)))
-                                const level = thinkingLevels[idx]
-                                if (level && level !== activeRow.thinkingLevel) void onPickThinking(level)
-                              }
                               return (
                                 <div
-                                  ref={stepTrackRef}
-                                  className="relative flex h-5 w-full cursor-pointer touch-none items-center select-none"
-                                  onPointerDown={(e) => {
-                                    e.stopPropagation()
-                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-                                    setDragging(true)
-                                    pickAtClientX(stepTrackRef.current ?? (e.currentTarget as HTMLElement), e.clientX)
-                                  }}
-                                  onPointerMove={(e) => {
-                                    if (!dragging) return
-                                    pickAtClientX(stepTrackRef.current ?? (e.currentTarget as HTMLElement), e.clientX)
-                                  }}
-                                  onPointerUp={() => setDragging(false)}
-                                  onPointerCancel={() => setDragging(false)}
+                                  aria-label="思考程度"
+                                  aria-valuemax={last}
+                                  aria-valuemin={0}
+                                  aria-valuenow={current}
+                                  className="relative flex h-5 w-full cursor-pointer touch-none select-none items-center"
                                   onKeyDown={(e) => {
                                     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
                                       e.preventDefault()
-                                      const next = Math.max(0, current - 1)
-                                      if (next !== current) void onPickThinking(thinkingLevels[next])
+                                      commitThinkingIndex(current - 1)
                                     } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
                                       e.preventDefault()
-                                      const next = Math.min(last, current + 1)
-                                      if (next !== current) void onPickThinking(thinkingLevels[next])
+                                      commitThinkingIndex(current + 1)
                                     }
                                   }}
+                                  onPointerDown={(e) => {
+                                    e.stopPropagation()
+                                    commitThinkingIndex(Math.round(thinkingRanger.getValueForClientX(e.clientX)))
+                                    thinkingRanger.handles()[0]?.onMouseDownHandler(e as unknown as MouseEvent)
+                                  }}
+                                  ref={stepTrackRef}
                                   role="slider"
                                   tabIndex={0}
-                                  aria-valuemin={0}
-                                  aria-valuemax={last}
-                                  aria-valuenow={current}
-                                  aria-label="思考程度"
                                 >
                                   {/* Capsule line: spans the full stepper width. No
                                       horizontal padding here — the line, its filled
@@ -603,8 +608,6 @@ export function ChatInput({
                                     const active = i === current
                                     return (
                                       <span
-                                        key={lvl}
-                                        style={{ left: `${(i / last) * 100}%` }}
                                         className={cn(
                                           'absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-all duration-150',
                                           active
@@ -613,6 +616,8 @@ export function ChatInput({
                                               ? 'size-2.5 border-primary bg-primary'
                                               : 'size-2.5 border-border bg-background'
                                         )}
+                                        key={lvl}
+                                        style={{ left: `${(i / last) * 100}%` }}
                                       />
                                     )
                                   })}

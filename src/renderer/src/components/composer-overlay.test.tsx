@@ -37,7 +37,8 @@ describe('ComposerOverlay', () => {
   it('Escape skips the top-most prompt', () => {
     const onDecide = vi.fn()
     render(<ComposerOverlay onDecide={onDecide} prompts={[prompt('a'), prompt('b')]} running={false} todos={[]} />)
-    fireEvent.keyDown(window, { key: 'Escape' })
+    // react-hotkeys registers on `document`, where real Escape keystrokes bubble.
+    fireEvent.keyDown(document, { key: 'Escape' })
     expect(onDecide).toHaveBeenCalledWith('a', 'skip')
   })
 

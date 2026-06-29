@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { useNavigate } from '@tanstack/react-router'
 import { CalendarClock, MessageSquare } from 'lucide-react'
 
@@ -24,16 +24,9 @@ export function SessionSearchDialog(): React.JSX.Element {
   const navigate = useNavigate()
 
   // Global ⌘K / Ctrl+K toggles the palette. ⌘B (sidebar) is handled elsewhere.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        toggle()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [toggle])
+  // `Mod` resolves to ⌘ on macOS and Ctrl elsewhere; for Meta/Ctrl combos
+  // react-hotkeys fires even while a text field is focused (ignoreInputs=false).
+  useHotkey('Mod+K', () => toggle(), { stopPropagation: false })
 
   const select = (id: string): void => {
     close()

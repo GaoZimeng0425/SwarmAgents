@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useDebouncer } from "@tanstack/react-pacer"
 import {
   useXlsxViewer,
   useXlsxViewerController,
@@ -679,21 +680,27 @@ function WorkbookSearchPopover({
       })
   }, [])
 
+  // TanStack Pacer debouncer: a stable instance whose cancel() lets us drop a
+  // pending search the moment the draft changes or clears (parity with the old
+  // clearTimeout-on-cleanup behavior).
+  const searchDebouncer = useDebouncer(runSearch, {
+    wait: XLSX_SEARCH_DEBOUNCE_MS,
+  })
+
   React.useEffect(() => {
     const trimmedDraft = searchDraft.trim()
 
     if (!trimmedDraft) {
+      searchDebouncer.cancel()
       runSearch("")
       return
     }
 
     setIsSearching(true)
-    const timeoutId = window.setTimeout(() => {
-      runSearch(searchDraft)
-    }, XLSX_SEARCH_DEBOUNCE_MS)
+    searchDebouncer.maybeExecute(searchDraft)
 
-    return () => window.clearTimeout(timeoutId)
-  }, [runSearch, searchDraft])
+    return () => searchDebouncer.cancel()
+  }, [searchDebouncer, runSearch, searchDraft])
 
   const clearSearch = React.useCallback(() => {
     searchRequestIdRef.current += 1
