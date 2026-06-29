@@ -1,4 +1,5 @@
 import type { MemoryView } from '@shared/types/memory'
+import { orderBy } from 'es-toolkit'
 import { Brain } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,7 +18,7 @@ export function groupByCategory(entries: MemoryView[]): MemoryGroup[] {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([category, list]) => ({
       category,
-      entries: [...list].sort((a, b) => b.timestamp - a.timestamp),
+      entries: orderBy(list, ['timestamp'], ['desc']),
     }))
 }
 

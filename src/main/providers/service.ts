@@ -20,6 +20,7 @@ import {
   type ProvidersStateOnDisk,
   type ProvidersStateView,
 } from '@shared/types/provider'
+import { uniq } from 'es-toolkit'
 
 import { toView } from './redact'
 import type { Store } from './store'
@@ -297,7 +298,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
 
     async setFallbackProviderIds(id, ids) {
       const known = new Set(state.providers.map((pr) => pr.id))
-      const cleaned = [...new Set(ids)].filter((fid) => fid !== id && known.has(fid))
+      const cleaned = uniq(ids).filter((fid) => fid !== id && known.has(fid))
       return patch(id, (p) => {
         if (cleaned.length === 0) {
           const { fallbackProviderIds: _drop, ...rest } = p
@@ -343,7 +344,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       if (keyErr) return { ok: false, code: 'invalid', message: keyErr }
       if (input.apiStyle !== 'anthropic' && input.apiStyle !== 'openai')
         return { ok: false, code: 'invalid', message: `unknown apiStyle: ${input.apiStyle}` }
-      const models = [...new Set(input.models.map((m) => m.trim()).filter((m) => m.length > 0))].slice(0, MAX_MODELS)
+      const models = uniq(input.models.map((m) => m.trim()).filter((m) => m.length > 0)).slice(0, MAX_MODELS)
       if (models.length === 0) return { ok: false, code: 'invalid', message: 'add at least one model' }
       for (const m of models) {
         const me = validateModel(m)

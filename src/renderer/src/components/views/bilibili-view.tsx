@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BiliListResult, BiliSummary, BiliVideo } from '@shared/types/bilibili'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { compact } from 'es-toolkit'
 
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -50,10 +51,7 @@ function formatDuration(sec: number): string {
 }
 
 function splitTextBlocks(text: string): string[] {
-  return text
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean)
+  return compact(text.split(/\n{2,}/).map((block) => block.trim()))
 }
 
 // Pure list builder so the tab/folder selection logic is unit-testable without

@@ -1,4 +1,5 @@
 import type { CronRun } from '@shared/types/ui'
+import { orderBy } from 'es-toolkit'
 
 import type { TaskRecord, TaskStatus } from './apply-event'
 
@@ -28,7 +29,7 @@ export function buildScheduledRows(
   const runByTaskId = new Map<string, CronRun>()
   for (const r of runs) if (r.taskId) runByTaskId.set(r.taskId, r)
 
-  return tasks
+  const rows = tasks
     .filter((t) => !t.parentTaskId)
     .map((t) => {
       const run = runByTaskId.get(t.id)
@@ -43,7 +44,7 @@ export function buildScheduledRows(
         error: run?.error ?? null,
       }
     })
-    .sort((a, b) => b.startedAt - a.startedAt)
+  return orderBy(rows, ['startedAt'], ['desc'])
 }
 
 // A run's full task set: the root plus every spawned sub-agent descendant

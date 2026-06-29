@@ -1,6 +1,7 @@
 import { providerViewById } from '@shared/types/provider'
 import type { ExecutionMode, PermissionMode } from '@shared/types/task'
 import type { SessionSettings } from '@shared/types/ui'
+import { sortBy } from 'es-toolkit'
 
 import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
@@ -41,23 +42,23 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // a group, ordered oldest-first so the panel reads top-to-bottom as the run
   // order. The agent replaces its plan per turn, but every turn persists its own
   // copy, so grouping by task preserves the whole history.
-  const planGroups = sessionTasks
-    .filter((t) => !t.parentTaskId && t.plan && t.plan.length > 0)
-    .sort((a, b) => a.startedAt - b.startedAt)
-    .map((t) => ({ taskId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
+  const planGroups = sortBy(
+    sessionTasks.filter((t) => !t.parentTaskId && t.plan && t.plan.length > 0),
+    ['startedAt']
+  ).map((t) => ({ taskId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
   // Per top-level task that defined acceptance criteria: its criteria + the
   // latest verify verdict, oldest-first to match the plan history order.
-  const verifyGroups = sessionTasks
-    .filter((t) => !t.parentTaskId && t.acceptanceCriteria && t.acceptanceCriteria.length > 0)
-    .sort((a, b) => a.startedAt - b.startedAt)
-    .map((t) => ({
-      taskId: t.id,
-      goal: t.goal,
-      criteria: t.acceptanceCriteria ?? [],
-      latest: t.verifications && t.verifications.length > 0 ? t.verifications[t.verifications.length - 1] : null,
-      status: t.status,
-      startedAt: t.startedAt,
-    }))
+  const verifyGroups = sortBy(
+    sessionTasks.filter((t) => !t.parentTaskId && t.acceptanceCriteria && t.acceptanceCriteria.length > 0),
+    ['startedAt']
+  ).map((t) => ({
+    taskId: t.id,
+    goal: t.goal,
+    criteria: t.acceptanceCriteria ?? [],
+    latest: t.verifications && t.verifications.length > 0 ? t.verifications[t.verifications.length - 1] : null,
+    status: t.status,
+    startedAt: t.startedAt,
+  }))
   // The composer's inline todo strip shows only the in-flight turn's plan
   // (the latest group) — a live "what's happening now" strip, not history.
   const activePlan = planGroups[planGroups.length - 1]?.plan

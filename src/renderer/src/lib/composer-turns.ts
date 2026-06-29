@@ -1,3 +1,5 @@
+import { sortBy } from 'es-toolkit'
+
 import type { TaskRecord } from './apply-event'
 
 export type ComposerTurns = {
@@ -34,7 +36,10 @@ export type ComposerTurns = {
 export function classifyComposerTurns(sessionTasks: TaskRecord[]): ComposerTurns {
   const topLevel = sessionTasks.filter((t) => !t.parentTaskId)
   const running = topLevel.find((t) => t.status === 'running' || t.status === 'awaiting_user')
-  const pending = topLevel.filter((t) => t.status === 'pending').sort((a, b) => a.startedAt - b.startedAt)
+  const pending = sortBy(
+    topLevel.filter((t) => t.status === 'pending'),
+    ['startedAt']
+  )
   const startingTask = running ? undefined : pending[0]
   const queuedTasks = startingTask ? pending.slice(1) : pending
   const queuedIds = new Set(queuedTasks.map((t) => t.id))

@@ -1,4 +1,5 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider"
+import { range } from "es-toolkit"
 
 import { cn } from "@/lib/utils"
 
@@ -37,7 +38,7 @@ function Slider({
             className="bg-primary select-none data-horizontal:h-full data-vertical:w-full"
           />
         </SliderPrimitive.Track>
-        {Array.from({ length: _values.length }, (_, index) => (
+        {range(_values.length).map((index) => (
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}

@@ -1,5 +1,6 @@
 import type { Task } from '@shared/types/task'
 import type { UIEvent } from '@shared/types/ui'
+import { orderBy } from 'es-toolkit'
 
 import type { TaskRecord, TaskStatus } from './apply-event'
 
@@ -69,6 +70,5 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       events,
     }
   })
-  records.sort((a, b) => b.startedAt - a.startedAt)
-  return records
+  return orderBy(records, ['startedAt'], ['desc'])
 }

@@ -1,12 +1,13 @@
 import type { Actor } from '@shared/types/actor'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
+import { compact, sumBy } from 'es-toolkit'
 
 export type AgentDirectory = {
   /** Live peers in `sessionId` matching `q`, ranked best-first, excluding `selfAddress`. */
   find(sessionId: string, q: PeerQuery, selfAddress?: string): Peer[]
 }
 
-const tokens = (s: string): string[] => s.toLowerCase().split(/\s+/).filter(Boolean)
+const tokens = (s: string): string[] => compact(s.toLowerCase().split(/\s+/))
 
 /**
  * The actor "receptionist": a pure projection over existing state (actors table,
@@ -36,7 +37,7 @@ export function createAgentDirectory(deps: {
     const q = tokens(query)
     if (q.length === 0) return 0
     const hay = new Set(tokens(`${p.role} ${p.name ?? ''} ${p.capabilities.join(' ')} ${p.description}`))
-    let score = q.reduce((n, t) => n + (hay.has(t) ? 1 : 0), 0)
+    let score = sumBy(q, (t) => (hay.has(t) ? 1 : 0))
     // A query that names a role exactly outranks an agent that merely mentions
     // the word in prose ("find a reviewer" → the reviewer, not a code agent
     // whose description says "review").

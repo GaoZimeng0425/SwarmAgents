@@ -7,6 +7,7 @@ import {
   type TrendingRepo,
 } from '@shared/types/trending'
 import { useQuery } from '@tanstack/react-query'
+import { range } from 'es-toolkit'
 import { ExternalLink, GitFork, GitPullRequest, Loader2, Sparkles, Star } from 'lucide-react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -161,7 +162,7 @@ export function TrendingView(): React.JSX.Element {
         </div>
       ) : isPending ? (
         <ol className="flex flex-col gap-2">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {range(8).map((i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows
             <SkeletonRow key={i} />
           ))}

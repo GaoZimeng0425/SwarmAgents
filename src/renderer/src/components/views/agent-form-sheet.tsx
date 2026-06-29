@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-
 import type { AgentDefinition, ToolScope } from '@shared/types/agent'
+import { compact } from 'es-toolkit'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -66,10 +67,7 @@ export function AgentFormSheet({
   const idReadOnly = mode === 'edit'
 
   const submit = (): void => {
-    const caps = capabilities
-      .split(',')
-      .map((c) => c.trim())
-      .filter(Boolean)
+    const caps = compact(capabilities.split(',').map((c) => c.trim()))
     const def: AgentDefinition = {
       id: id.trim(),
       name: name.trim(),
@@ -99,13 +97,13 @@ export function AgentFormSheet({
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
           {error && <p className="rounded bg-destructive/10 px-3 py-2 text-destructive text-sm">{error}</p>}
 
-          <Field label="id" htmlFor="agent-id">
+          <Field htmlFor="agent-id" label="id">
             <Input id="agent-id" onChange={(e) => setId(e.target.value)} readOnly={idReadOnly} value={id} />
           </Field>
-          <Field label="name" htmlFor="agent-name">
+          <Field htmlFor="agent-name" label="name">
             <Input id="agent-name" onChange={(e) => setName(e.target.value)} value={name} />
           </Field>
-          <Field label="description" htmlFor="agent-description">
+          <Field htmlFor="agent-description" label="description">
             <Textarea
               id="agent-description"
               onChange={(e) => setDescription(e.target.value)}
@@ -113,7 +111,7 @@ export function AgentFormSheet({
               value={description}
             />
           </Field>
-          <Field label="system prompt" htmlFor="agent-systemPrompt">
+          <Field htmlFor="agent-systemPrompt" label="system prompt">
             <Textarea
               id="agent-systemPrompt"
               onChange={(e) => setSystemPrompt(e.target.value)}
@@ -121,8 +119,12 @@ export function AgentFormSheet({
               value={systemPrompt}
             />
           </Field>
-          <Field label="tool scope" htmlFor="agent-toolScope">
-            <NativeSelect id="agent-toolScope" onChange={(e) => setToolScope(e.target.value as ToolScope)} value={toolScope}>
+          <Field htmlFor="agent-toolScope" label="tool scope">
+            <NativeSelect
+              id="agent-toolScope"
+              onChange={(e) => setToolScope(e.target.value as ToolScope)}
+              value={toolScope}
+            >
               {SCOPES.map((s) => (
                 <NativeSelectOption key={s} value={s}>
                   {s}
@@ -130,7 +132,7 @@ export function AgentFormSheet({
               ))}
             </NativeSelect>
           </Field>
-          <Field label="parent" htmlFor="agent-parent">
+          <Field htmlFor="agent-parent" label="parent">
             <NativeSelect id="agent-parent" onChange={(e) => setParentId(e.target.value)} value={parentId}>
               <NativeSelectOption value="">(none)</NativeSelectOption>
               {agents
@@ -142,17 +144,17 @@ export function AgentFormSheet({
                 ))}
             </NativeSelect>
           </Field>
-          <Field label="team" htmlFor="agent-team">
+          <Field htmlFor="agent-team" label="team">
             <Input id="agent-team" onChange={(e) => setTeam(e.target.value)} value={team} />
           </Field>
           <div className="flex items-center gap-2">
             <Switch aria-label="Team head" checked={teamHead} id="agent-teamHead" onCheckedChange={setTeamHead} />
             <Label htmlFor="agent-teamHead">Team head</Label>
           </div>
-          <Field label="role" htmlFor="agent-role">
+          <Field htmlFor="agent-role" label="role">
             <Input id="agent-role" onChange={(e) => setRole(e.target.value)} value={role} />
           </Field>
-          <Field label="capabilities" htmlFor="agent-capabilities">
+          <Field htmlFor="agent-capabilities" label="capabilities">
             <Input
               id="agent-capabilities"
               onChange={(e) => setCapabilities(e.target.value)}
@@ -160,10 +162,10 @@ export function AgentFormSheet({
               value={capabilities}
             />
           </Field>
-          <Field label="model" htmlFor="agent-model">
+          <Field htmlFor="agent-model" label="model">
             <Input id="agent-model" onChange={(e) => setModel(e.target.value)} value={model} />
           </Field>
-          <Field label="max iterations" htmlFor="agent-maxIterations">
+          <Field htmlFor="agent-maxIterations" label="max iterations">
             <Input
               id="agent-maxIterations"
               onChange={(e) => setMaxIterations(e.target.value)}

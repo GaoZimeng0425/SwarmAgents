@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { sortBy } from 'es-toolkit'
 import { MessagesSquare } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -27,7 +28,7 @@ type Props = {
 
 export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React.JSX.Element {
   const qc = useQueryClient()
-  const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
+  const ordered = sortBy(tasks, ['startedAt'])
 
   // Deep-link: once the target task's turn is in the DOM, scroll it into view
   // and flash a highlight ring. Re-runs as tasks hydrate so it lands after the

@@ -1,3 +1,4 @@
+import { uniq } from 'es-toolkit'
 import { z } from 'zod'
 
 // The two providers pi-ai has a built-in model catalog for. A provider whose
@@ -190,7 +191,7 @@ function rowToProvider(
   apiStyle: ApiStyle,
   row: z.infer<typeof ProviderRowOnDiskV2>
 ): ProviderV3 {
-  const models = [...new Set([row.model, ...(row.customModels ?? [])])].slice(0, MAX_MODELS)
+  const models = uniq([row.model, ...(row.customModels ?? [])]).slice(0, MAX_MODELS)
   return {
     id,
     name,

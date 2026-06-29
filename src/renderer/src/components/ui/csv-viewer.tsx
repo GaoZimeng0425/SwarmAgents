@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useDebouncer } from "@tanstack/react-pacer"
+import { range } from "es-toolkit"
 import type * as GlideDataGrid from "@glideapps/glide-data-grid"
 import type {
   DataEditorRef,
@@ -709,7 +710,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
 
   const columns = React.useMemo<GridColumn[]>(
     () =>
-      Array.from({ length: columnCount }, (_, index) => ({
+      range(columnCount).map((index) => ({
         id: `column-${index}`,
         title: parsed.headers[index] ?? `Column ${index + 1}`,
         width: scale(index === 0 ? 180 : 160),

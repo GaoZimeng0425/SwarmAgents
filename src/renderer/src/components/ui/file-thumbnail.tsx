@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { compact } from "es-toolkit"
 
 export type ThumbnailFile = {
   name: string
@@ -19,7 +20,7 @@ export type FileThumbnailProps = {
 }
 
 function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ")
+  return compact(classes).join(" ")
 }
 
 // Preview URLs that have completed a reveal this session. View/tab switches

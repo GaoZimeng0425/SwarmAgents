@@ -13,6 +13,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
+import { sortBy } from 'es-toolkit'
 import { CalendarClock, Check, ChevronLeft, ChevronRight, Loader2, PanelRightClose, Trash2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -81,7 +82,7 @@ export function ScheduledCalendarView(): React.JSX.Element {
         push(at, { kind: 'projection', at, task })
       }
     }
-    for (const list of map.values()) list.sort((a, b) => a.at.getTime() - b.at.getTime())
+    for (const [key, list] of map) map.set(key, sortBy(list, [(i) => i.at.getTime()]))
     return map
   }, [tasks, runs, gridStart, gridEnd])
 

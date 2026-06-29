@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { sortBy, uniq } from 'es-toolkit'
 import {
   Bot,
   Brain,
@@ -160,7 +161,7 @@ function ToolGroupBlock({
     wasRunning.current = running
   }, [running])
 
-  const names = Array.from(new Set(segs.map((s) => (s.kind === 'tool' ? s.tool : ''))))
+  const names = uniq(segs.map((s) => (s.kind === 'tool' ? s.tool : '')))
 
   return (
     <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
@@ -340,7 +341,7 @@ export function TaskTimeline({
   onDelete,
   showDayDividers = true,
 }: TaskTimelineProps): React.JSX.Element {
-  const ordered = [...tasks].sort((a, b) => a.startedAt - b.startedAt)
+  const ordered = sortBy(tasks, ['startedAt'])
   const renderSegment = createSegmentRenderer({ busy, onSend, onCopy, onDelete })
 
   const taskSegs = ordered.map((t) => ({ t, segs: taskSegments(t) }))
@@ -355,7 +356,7 @@ export function TaskTimeline({
     }
   }
 
-  const items: Array<{ ts: number; order: number; node: React.JSX.Element }> = []
+  let items: Array<{ ts: number; order: number; node: React.JSX.Element }> = []
   let order = 0
   for (const { t, segs } of taskSegs) {
     if (t.parentTaskId) {
@@ -380,7 +381,7 @@ export function TaskTimeline({
       }
     }
   }
-  items.sort((a, b) => a.ts - b.ts || a.order - b.order)
+  items = sortBy(items, ['ts', 'order'])
 
   if (!showDayDividers) {
     return <>{items.map((it) => it.node)}</>

@@ -16,6 +16,7 @@ import type {
 } from 'react'
 import { Children, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { BaseUIEvent } from '@base-ui/react/types'
+import { compact } from 'es-toolkit'
 import { CornerDownLeftIcon, ImageIcon, Monitor, PlusIcon, SquareIcon, XIcon } from 'lucide-react'
 import { nanoid } from 'nanoid'
 
@@ -474,10 +475,7 @@ export const PromptInput = ({
         return true
       }
 
-      const patterns = accept
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+      const patterns = compact(accept.split(',').map((s) => s.trim()))
 
       return patterns.some((pattern) => {
         if (pattern.endsWith('/*')) {
