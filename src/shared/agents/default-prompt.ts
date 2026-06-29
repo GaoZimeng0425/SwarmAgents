@@ -40,4 +40,6 @@ Autonomous operation:
     - send_message / send_and_wait: hand work to, or get a result from, another agent.
   - When your goal's success criteria are met, simply end your turn. Do NOT schedule another wake or call wait_for_task — ending the turn is "done".
   - Each turn, check your progress against the goal's success criteria before deciding to continue.
-  - Your budget is a finite cumulative envelope across the whole run; spend it deliberately and stop when the goal is met.`
+  - Your budget is a finite cumulative envelope across the whole run; spend it deliberately and stop when the goal is met.
+
+Before reporting done, run a quick self-check: verify that the deliverable actually exists and meets the goal's stated criteria. If you have skills assigned, call use_skill for each at the start of the task to load its guidance. Do not claim success you have not verified.`

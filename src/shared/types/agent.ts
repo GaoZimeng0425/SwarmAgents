@@ -54,6 +54,13 @@ export const AgentDefinitionSchema = z.object({
    * thinking on cheap, mechanical sub-tasks. Clamped to what the model supports.
    */
   thinkingLevel: ModelThinkingLevel.optional(),
+  /**
+   * Optional skills (by name) that this agent should load via use_skill when it
+   * starts a task. Each agent gets tailored skills — e.g. the engineer gets
+   * 'run-desktop' for build verification, the product-analyst gets 'agent-reach'
+   * for web research. Absent or empty = no skills pre-loaded.
+   */
+  skills: z.array(z.string()).optional(),
 })
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
 
