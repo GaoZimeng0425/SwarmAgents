@@ -23,6 +23,7 @@ import type {
   TranscriptionConfig,
 } from './bilibili'
 import type { BudgetConfig } from './budgets'
+import type { GmailClientCreds, GmailConfigView } from './gmail'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
@@ -231,6 +232,18 @@ export type BilibiliBridge = {
   getAnalysis: (bvid: string) => Promise<BiliAnalysis | null>
 }
 
+export type GmailSetResult = { ok: true } | { ok: false; code: string; message: string }
+
+export type GmailBridge = {
+  getStatus(): Promise<GmailConfigView>
+  setClientCreds(creds: GmailClientCreds): Promise<GmailSetResult>
+  clearClientCreds(): Promise<unknown>
+  linkAccount(): Promise<GmailSetResult>
+  unlinkAccount(): Promise<unknown>
+  syncNow(): Promise<void>
+  onStateChanged(cb: (view: GmailConfigView) => void): () => void
+}
+
 export type ProvidersBridge = {
   get(): Promise<ProvidersStateView>
   /** id is a builtin id ('anthropic'|'openai') or a custom provider id. */
@@ -404,6 +417,7 @@ export type SwarmBridge = {
   memory: MemoryBridge
   agents: AgentBridge
   bilibili: BilibiliBridge
+  gmail: GmailBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.

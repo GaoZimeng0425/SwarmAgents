@@ -16,6 +16,7 @@ import type {
   TranscriptionConfig,
 } from '../shared/types/bilibili'
 import type { BudgetConfig } from '../shared/types/budgets'
+import type { GmailClientCreds, GmailConfigView } from '../shared/types/gmail'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
 import type { Skill, SkillMutationResult } from '../shared/types/skill'
@@ -26,6 +27,8 @@ import type {
   BilibiliBridge,
   BudgetsBridge,
   BudgetsSetResult,
+  GmailBridge,
+  GmailSetResult,
   MacPermissions,
   McpBridge,
   MemoryBridge,
@@ -215,6 +218,23 @@ const bilibili: BilibiliBridge = {
   getAnalysis: (bvid: string) => ipcRenderer.invoke('bilibili:getAnalysis', bvid) as Promise<BiliAnalysis | null>,
 }
 
+const gmail: GmailBridge = {
+  getStatus: () => ipcRenderer.invoke('gmail:getStatus') as Promise<GmailConfigView>,
+  setClientCreds: (creds: GmailClientCreds) =>
+    ipcRenderer.invoke('gmail:setClientCreds', creds) as Promise<GmailSetResult>,
+  clearClientCreds: () => ipcRenderer.invoke('gmail:clearClientCreds') as Promise<unknown>,
+  linkAccount: () => ipcRenderer.invoke('gmail:linkAccount') as Promise<GmailSetResult>,
+  unlinkAccount: () => ipcRenderer.invoke('gmail:unlinkAccount') as Promise<unknown>,
+  syncNow: () => ipcRenderer.invoke('gmail:syncNow') as Promise<void>,
+  onStateChanged: (cb: (view: GmailConfigView) => void) => {
+    const listener = (_e: unknown, view: GmailConfigView): void => cb(view)
+    ipcRenderer.on('gmail:stateChanged', listener)
+    return () => {
+      ipcRenderer.removeListener('gmail:stateChanged', listener)
+    }
+  },
+}
+
 const swarm: SwarmBridge = {
   submitGoal: (sessionId, goal, attachments, options) =>
     ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
@@ -305,6 +325,7 @@ const swarm: SwarmBridge = {
   memory,
   agents,
   bilibili,
+  gmail,
 }
 
 if (process.contextIsolated) {
