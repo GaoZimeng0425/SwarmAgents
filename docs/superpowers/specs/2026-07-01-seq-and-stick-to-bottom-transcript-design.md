@@ -70,9 +70,13 @@
 
 ### 5.1 seq 基础层
 
-**`UIEvent` 加 `seq: number`**(`shared/types/ui.ts`)。所有 variant 加 `seq`,与 `ts` 并列。
+**`TaskEvent` 加 `seq?: number`**(`shared/types/task.ts`,`TaskEventSchema` 各 variant)。**optional**——旧会话历史无 seq 也能 parse。`TaskEvent` 持久化在 `Task.history`(经 `store.appendTaskEvent`),是 seq 落盘的真正载体。
 
-> 关键:`TaskRecord.events` 的元素类型就是 `UIEvent`(`task-segments.ts` 已按 `UIEvent` 遍历、`e.kind === 'task.progress'` 等判断)。所以 **seq 随 `TaskRecord.events` 自然落盘**,无需单独 schema 字段或 migration 脚本。
+**`UIEvent` 加 `seq: number`**(必填,`shared/types/ui.ts` 各 variant)——供 live 广播 + 渲染排序;到达 renderer 时(makeEmit 广播 / replay 重建)必有。
+
+> **持久化路径(读真实代码后修正):** service 持久化的是 `Task.history: TaskEvent[]`,**不是** renderer 的 `TaskRecord.events`(后者是 replay 重建、不落盘)。所以 seq 必须在 `TaskEvent` 上,UIEvent 也要带。
+>
+> **旧会话策略:不管。** 旧会话的 TaskEvent 无 seq → replay 时 `seq` fall back 到 `ts`(= 现状、不更差);不写 backfill pass、不做精确交错还原。只有新会话(seq 已持久化)精确、live==replay。
 
 **`makeEmit` 统一赋 `seq` + `ts`**(`src/service/session/manager.ts:243`):
 
@@ -89,22 +93,24 @@ const makeEmit =
   (sessionId: string) =>
   (event: string, data: unknown): void => {
     const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
-    // Inject seq + ts centrally; callers no longer pass ts: Date.now() themselves.
-    const payload = obj
-      ? { sessionId, seq: nextSeq(sessionId), ts: Date.now(), ...obj }
-      : data
-    // ... (taskId extraction, broadcast, persist unchanged)
+    const seq = nextSeq(sessionId)
+    const ts = Date.now()
+    // Stamp seq on the persisted TaskEvent BEFORE appendTaskEvent (makeEmit persists obj.event):
+    if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
+    // Broadcast UIEvent carries seq + ts; callers no longer pass ts: Date.now() themselves.
+    const payload = obj ? { sessionId, seq, ts, ...obj } : data
+    // ... (taskId extraction, appendTaskEvent, broadcast unchanged)
   }
 ```
 
 > 注意:`{ sessionId, seq, ts, ...obj }` 中 `obj` 不含 `seq`/`ts`,故不会被覆盖。同时**收拢散落 8 处的 `ts: Date.now()`**(去重):各 call site 改为不传 `ts`。session 加载时 `seqCounters` 初始化为该 session 已持久化事件的 `max(seq)+1`,跨重启续号。
 
 **`replay.ts`**(`src/renderer/src/lib/replay.ts`):
-- 重建 UIEvent 时**读回已持久化的 `seq`**(新数据)。
-- **旧会话 backfill**:事件无 `seq` 时,按 task `startedAt` 序 + 事件数组下标确定性推导一个稳定 `seq`(同一 session 每次回放一致)。新事件有真 seq,live==replay。
-- 用 `seq` 替换现有 `orderBy(ts)`。
+- `task.progress` 的 UIEvent:`seq: ev.seq ?? ev.ts`(新数据用持久化 seq;旧数据 fall back 到 ts)。
+- 合成的 `task.created`/`task.complete`:`seq` 取其 `ts`(`createdAt`/`endedAt`)。
+- 排序键改 `seq`(替 `orderBy(ts)`)。旧会话因 fall back 到 ts,行为≈现状。
 
-**`taskSegments`**(`src/renderer/src/lib/task-segments.ts`):Segment 类型各 variant 加 `seq`;直接读 `e.seq`。权威 backfill 在 replay.ts(旧数据)/ makeEmit(新数据),二者都保证 UIEvent 到达 taskSegments 时已有 `seq`;taskSegments 不做回退推导(若 `seq` 缺失视为数据 bug,类型上为必填)。
+**`taskSegments`**(`src/renderer/src/lib/task-segments.ts`):Segment 各 variant 加 `seq`(必填);goal(用户首条)段 `seq = task.events[0]?.seq ?? task.startedAt`(`events[0]` 即 `task.created`);其余段读 `e.seq`。UIEvent 到达时已有 seq(makeEmit 或 replay 已赋)。
 
 ### 5.2 `buildTimelineItems()` + `Item`
 
@@ -202,8 +208,8 @@ service makeEmit  ──assign seq+ts──►  UIEvent  ──broadcast──�
 
 ## 7. 边界与已知限制
 
-- ✅ **live==replay**:seq 持久化,回放读回;新事件处处一致。
-- ✅ **旧会话**:backfill 确定性推导,顺序稳定(可能与当年 live 的精细交错略有差异——子 agent 块落在 task 位置而非精确 spawn 点——但确定性、不再 NaN)。
+- ✅ **live==replay(新会话)**:seq 持久化在 `TaskEvent`,replay 读回;新事件处处一致。
+- ⚠️ **旧会话(不管)**:历史 TaskEvent 无 seq → replay fall back 到 `ts`,行为≈现状(可能 NaN/粗排),不写 backfill、不做精确交错还原。新会话不受影响。
 - ✅ **`focusTaskId` 深链**:`scrollToKey` 经 `scrollToIndex` 即使未渲染也能滚到。
 - ⚠️ **`ConversationMinimap`**:读 tasks、预期不受影响,实现期核实其不依赖 `ts` 排序或被删导出。
 - ⚠️ **service 持久化路径**:实现期确认 `TaskRecord.events` 的落盘确实带上 makeEmit 注入的 seq(预期是同一对象引用,但要核实 broadcast 与 persist 是否同源)。
