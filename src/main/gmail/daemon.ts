@@ -9,6 +9,8 @@ import { createLogger } from '@shared/logger'
 import type { GmailApi } from './api'
 import type { Cache } from './cache'
 
+import type { GmailMessage, GmailThread } from '@shared/types/gmail'
+
 const log = createLogger({ process: 'main' }).child({ component: 'gmail-daemon' })
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000
@@ -41,8 +43,8 @@ export function createDaemon(deps: DaemonDeps): Daemon {
     const ts = Date.now()
     try {
       const { threadIds } = await deps.api.listThreads({ max: 200 })
-      const threads = []
-      const messages = []
+      const threads: GmailThread[] = []
+      const messages: GmailMessage[] = []
       for (const id of threadIds) {
         const full = await deps.api.fetchThread(id)
         threads.push(full.thread)
