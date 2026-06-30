@@ -4,7 +4,7 @@ import type { BudgetConfig } from '@shared/types/budgets'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { MemoryView } from '@shared/types/memory'
 import type { ProviderInjection } from '@shared/types/provider'
-import type { ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
+import type { MainMethod, MainRequest, ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import type { ToolGroupInfo, ToolToggles } from '@shared/types/tool-toggles'
 import type { PermissionDecision } from '@shared/types/ui'
@@ -67,12 +67,14 @@ export type ServiceClient = {
   listAllCronJobs(): Promise<import('@shared/types/ui').ScheduledTask[]>
   listAllCronRuns(): Promise<import('@shared/types/ui').CronRun[]>
   cancelCronJob(id: string): Promise<void>
+  registerMainRpc(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown> | unknown): void
 }
 
 export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
   const { transport, onEvent } = cfg
   let nextId = 1
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>()
+  const mainRpcHandlers = new Map<MainMethod, (...args: unknown[]) => Promise<unknown> | unknown>()
   let listener: ((message: unknown) => void) | null = null
 
   const handle = (message: unknown): void => {
@@ -88,6 +90,24 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
       else p.reject(new Error(msg.error))
     } else if (msg.kind === 'event') {
       if (onEvent) onEvent(msg.event, msg.data)
+    } else if (msg.kind === 'mainRequest') {
+      const req = msg as MainRequest
+      const handler = mainRpcHandlers.get(req.method)
+      if (!handler) {
+        log.warn({ msg: 'no main-rpc handler', method: req.method, id: req.id })
+        transport.postMessage({ kind: 'mainResponse', id: req.id, ok: false, error: `no handler for ${req.method}` })
+        return
+      }
+      Promise.resolve()
+        .then(() => handler(...req.args))
+        .then(
+          (result) => transport.postMessage({ kind: 'mainResponse', id: req.id, ok: true, result }),
+          (err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err)
+            log.error({ msg: 'main-rpc handler threw', method: req.method, id: req.id, err: message })
+            transport.postMessage({ kind: 'mainResponse', id: req.id, ok: false, error: message })
+          },
+        )
     }
   }
 
@@ -108,6 +128,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     disconnect() {
       if (listener) transport.off('message', listener)
       listener = null
+    },
+    registerMainRpc(method, fn) {
+      mainRpcHandlers.set(method, fn)
     },
     createSession(provider) {
       return call('createSession', [provider])
