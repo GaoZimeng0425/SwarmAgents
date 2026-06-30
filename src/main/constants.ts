@@ -40,6 +40,8 @@ export const paths = {
   openrouterCatalog: () => join(app.getPath('userData'), 'openrouter-catalog.json'),
   webSearch: () => join(app.getPath('userData'), 'web-search.enc'),
   budgets: () => join(app.getPath('userData'), 'budgets.json'),
+  gmail: () => join(app.getPath('userData'), 'gmail.enc'),
+  gmailDb: () => join(app.getPath('userData'), 'gmail.db'),
 } as const
 
 /**
