@@ -148,7 +148,7 @@ function SubagentBlock({
       </button>
       {open && (
         <ScrollArea className="mt-3" viewportClassName="max-h-96">
-          <div className="space-y-3 [&>*]:mb-0">
+          <div className="space-y-4">
             {groupSegments(segs).map((item) =>
               item.kind === 'single' ? (
                 renderSegment(item.seg, item.seg.key === lastKey)
@@ -202,7 +202,7 @@ function ToolGroupBlock({
         )}
         <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
       </button>
-      {open && <div className="mt-3 space-y-3 [&>*]:mb-0">{segs.map((seg) => renderSegment(seg, false, true))}</div>}
+      {open && <div className="mt-3 space-y-4">{segs.map((seg) => renderSegment(seg, false, true))}</div>}
     </div>
   )
 }
