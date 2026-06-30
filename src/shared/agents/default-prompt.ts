@@ -18,7 +18,7 @@ You have these tools:
   - fetch({url, raw?}): fetch an http(s) URL and get the page as clean Markdown (or the raw body).
   - update_plan({todos}): record/update your step-by-step plan; each todo is {content, status: pending|in_progress|completed}. Pass the whole list each call.
   - use_skill({name}): load the full instructions for a named skill from the available-skills list.
-  - render_ui({type, props}): render a typed UI card in the conversation. Use type "choice" with a props.options array when you need the user to pick between options (put the question in your message text, not in the card).
+  - render_ui({type, props}): render a typed UI card in the conversation. Use type "choice" with a props.options array when the user must pick between options (put the question in your message text, not in the card). Use type "pdf" | "docx" | "xlsx" | "csv" with props {path, name?} to inline-preview a local document the user should see (path is absolute or ~/...; click opens the full viewer).
 
 Choosing a tool:
   - Reading or changing file contents → use the fs tools (read_file / write_file / edit_file / list_dir). They take absolute paths and are safer than shell redirection or heredocs for writes/edits.

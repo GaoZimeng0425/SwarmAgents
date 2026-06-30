@@ -7,8 +7,16 @@ import type { ToolRunContext, ToolSpec } from './registry'
 const log = createLogger({ process: 'service' }).child({ component: 'render-ui' })
 
 const RenderUiParams = Type.Object({
-  type: Type.String({ description: "UI card type, e.g. 'weather' | 'choice'. Frontend renders by this key." }),
-  props: Type.Optional(Type.Any({ description: 'Arbitrary data the chosen renderer consumes.' })),
+  type: Type.String({
+    description:
+      "UI card type. Built-in: 'choice' (interactive picker), 'weather', or a document preview 'pdf' | 'docx' | 'xlsx' | 'csv'. Frontend renders by this key.",
+  }),
+  props: Type.Optional(
+    Type.Any({
+      description:
+        'Arbitrary data the chosen renderer consumes. Document cards (pdf/docx/xlsx/csv) expect { path: string (absolute or ~/..., required), name?: string (display filename) }.',
+    })
+  ),
 })
 
 // Card types that wait on a user decision. After rendering one of these the
@@ -36,7 +44,9 @@ export function renderUiSpec(): ToolSpec {
         "Non-blocking: returns immediately. If the card is interactive, the user's click arrives " +
         'later as a new user message — do not wait on this call for an answer.' +
         ' Use type "choice" with an options array (no question — ask that in your message text) ' +
-        'when you need the user to make a decision; their click is returned to you as a new user message.',
+        'when you need the user to make a decision; their click is returned to you as a new user message.' +
+        ' Use a document type ("pdf" | "docx" | "xlsx" | "csv") with props {path, name?} to inline-preview ' +
+        'a local document; the card shows a thumbnail/icon and opens the full viewer on click. Non-interactive.',
       parameters: RenderUiParams,
       execute: async (_id: string, params: unknown) => {
         const p = params as { type?: unknown; props?: unknown }

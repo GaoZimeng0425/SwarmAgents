@@ -9,5 +9,7 @@ describe('DEFAULT_SYSTEM_PROMPT loop-aware section', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('wait_for_task')
     // Ending the turn is "done" — no busy-loop instruction.
     expect(DEFAULT_SYSTEM_PROMPT).toContain('end your turn')
+    // The render_ui tool blurb advertises the document-preview card types.
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('"pdf" | "docx" | "xlsx" | "csv"')
   })
 })
