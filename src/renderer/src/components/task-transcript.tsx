@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { sortBy, uniq } from 'es-toolkit'
 import {
   Bot,
@@ -20,7 +20,17 @@ import {
   MessageResponse,
 } from '@/components/ai-elements/message'
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
+import type { ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
+
+// Lazy-loaded so the heavy pdf/xlsx/docx viewers (pulled in by the sheet) stay
+// out of this module's static import graph — the transcript is imported widely
+// (hooks, etc.) and those consumers must not drag in @embedpdf's wasm at test
+// time. The sheet mounts only when a document card is clicked.
+const AttachmentViewerSheet = lazy(() =>
+  import('@/components/attachment-viewer-sheet').then((m) => ({ default: m.AttachmentViewerSheet }))
+)
+
 import { Spinner } from '@/components/ui/spinner'
 import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
 import type { TaskRecord } from '@/lib/apply-event'
@@ -269,8 +279,9 @@ function createSegmentRenderer(opts: {
   onSend?: (text: string) => void
   onCopy: (text: string) => void
   onDelete?: (taskId: string) => void
+  onOpenFile?: (file: ViewerFile) => void
 }): (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element {
-  const { busy, onSend, onCopy, onDelete } = opts
+  const { busy, onSend, onCopy, onDelete, onOpenFile } = opts
 
   const messageTime = (ts: number): React.JSX.Element => (
     <time
@@ -343,7 +354,7 @@ function createSegmentRenderer(opts: {
         if (Renderer) {
           return (
             <Message className="group" from="assistant" key={seg.key}>
-              <Renderer disabled={busy} onSend={onSend} props={coerceProps(spec.props)} />
+              <Renderer disabled={busy} onOpenFile={onOpenFile} onSend={onSend} props={coerceProps(spec.props)} />
             </Message>
           )
         }
@@ -419,8 +430,15 @@ export function TaskTimeline({
   onDelete,
   showDayDividers = true,
 }: TaskTimelineProps): React.JSX.Element {
+  const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
   const ordered = sortBy(tasks, ['startedAt'])
-  const renderSegment = createSegmentRenderer({ busy, onSend, onCopy, onDelete })
+  const renderSegment = createSegmentRenderer({
+    busy,
+    onCopy,
+    onDelete,
+    onOpenFile: setViewerFile,
+    onSend,
+  })
 
   const taskSegs = ordered.map((t) => ({ t, segs: taskSegments(t) }))
   let lastKey: string | undefined
@@ -462,7 +480,16 @@ export function TaskTimeline({
   items = sortBy(items, ['ts', 'order'])
 
   if (!showDayDividers) {
-    return <>{items.map((it) => it.node)}</>
+    return (
+      <>
+        {items.map((it) => it.node)}
+        {viewerFile && (
+          <Suspense fallback={null}>
+            <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
+          </Suspense>
+        )}
+      </>
+    )
   }
 
   const now = Date.now()
@@ -482,5 +509,14 @@ export function TaskTimeline({
     }
     out.push(it.node)
   }
-  return <>{out}</>
+  return (
+    <>
+      {out}
+      {viewerFile && (
+        <Suspense fallback={null}>
+          <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
+        </Suspense>
+      )}
+    </>
+  )
 }

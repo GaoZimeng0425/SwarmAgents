@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { FileText } from 'lucide-react'
 
 import type { ViewerFile } from '@/components/attachment-viewer-sheet'
-import { renderPdfThumbnailUrl } from '@/components/pdf-thumbnail-utils'
 
 // Thumbnail width (CSS px) for the PDF first-page preview.
 const THUMB_WIDTH = 160
@@ -67,12 +66,17 @@ export const DocumentCard = ({ props, onOpenFile }: DocumentCardProps): React.JS
   }, [path])
 
   // PDF first-page thumbnail (cache owned by pdf-thumbnail-utils; do not revoke).
+  // Dynamically imported so the pdfium wasm engine stays out of this module's
+  // static graph — document.tsx is pulled in widely via the ui-renderers
+  // registry, and consumers (hooks, etc.) must not drag the wasm into tests.
   useEffect(() => {
     if (!blobUrl || mediaType !== 'application/pdf') return
     let alive = true
-    void renderPdfThumbnailUrl({ url: blobUrl, pageIndex: 0, width: THUMB_WIDTH }).then((u) => {
-      if (alive && u) setThumbUrl(u)
-    })
+    void import('@/components/pdf-thumbnail-utils').then(({ renderPdfThumbnailUrl }) =>
+      renderPdfThumbnailUrl({ url: blobUrl, pageIndex: 0, width: THUMB_WIDTH }).then((u) => {
+        if (alive && u) setThumbUrl(u)
+      })
+    )
     return () => {
       alive = false
     }
