@@ -78,6 +78,7 @@ export type ConversationStore = {
   saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTaskCriteria(taskId: string, criteria: Task['acceptanceCriteria']): void
   saveTaskVerifications(taskId: string, rounds: Task['verifications']): void
+  saveTaskDelegationPlan(taskId: string, plan: Task['delegationPlan']): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
   /** Mark a task as actively running and stamp started_at (kept if already set). */
@@ -162,6 +163,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       plan                TEXT NOT NULL DEFAULT '[]',
       acceptance_criteria TEXT NOT NULL DEFAULT '[]',
       verifications       TEXT NOT NULL DEFAULT '[]',
+      delegation_plan     TEXT NOT NULL DEFAULT '[]',
       context_window      INTEGER,
       created_at          INTEGER NOT NULL,
       started_at          INTEGER,
@@ -254,6 +256,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN acceptance_criteria TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN verifications TEXT NOT NULL DEFAULT '[]'`,
+    `ALTER TABLE tasks ADD COLUMN delegation_plan TEXT NOT NULL DEFAULT '[]'`,
     'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
     'ALTER TABLE cron_jobs ADD COLUMN origin_session_id TEXT',
   ]) {
@@ -308,6 +311,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     plan: JSON.parse((row.plan as string) ?? '[]') as Task['plan'],
     acceptanceCriteria: JSON.parse((row.acceptance_criteria as string) ?? '[]') as Task['acceptanceCriteria'],
     verifications: JSON.parse((row.verifications as string) ?? '[]') as Task['verifications'],
+    delegationPlan: JSON.parse((row.delegation_plan as string) ?? '[]') as Task['delegationPlan'],
     result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
     createdAt: row.created_at as number,
     startedAt: (row.started_at as number | null) ?? null,
@@ -493,9 +497,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `INSERT OR REPLACE INTO tasks
      (id, session_id, parent_id, goal, status, result, budget, used,
       agent_def_id, assigned_worker_id, tool_allowlist, history, attachments, plan,
-      acceptance_criteria, verifications,
+      acceptance_criteria, verifications, delegation_plan,
       created_at, started_at, ended_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
   // COALESCE keeps the first dispatch's started_at across continuation turns on
@@ -587,6 +591,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtSetTaskCriteria = db.prepare('UPDATE tasks SET acceptance_criteria = ? WHERE id = ?')
   const stmtSetTaskVerifications = db.prepare('UPDATE tasks SET verifications = ? WHERE id = ?')
+  const stmtSetTaskDelegationPlan = db.prepare('UPDATE tasks SET delegation_plan = ? WHERE id = ?')
 
   const stmtInsertTaskWaiter = db.prepare(
     `INSERT INTO task_waiters (id, session_id, waiter_address, task_id, goal, created_at)
@@ -773,6 +778,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     saveTaskVerifications(taskId, rounds) {
       stmtSetTaskVerifications.run(JSON.stringify(rounds), taskId)
     },
+    saveTaskDelegationPlan(taskId, plan) {
+      stmtSetTaskDelegationPlan.run(JSON.stringify(plan), taskId)
+    },
     saveTask(task, sessionId) {
       stmtInsertTask.run(
         task.id,
@@ -791,6 +799,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         JSON.stringify(task.plan ?? []),
         JSON.stringify(task.acceptanceCriteria ?? []),
         JSON.stringify(task.verifications ?? []),
+        JSON.stringify(task.delegationPlan ?? []),
         task.createdAt,
         task.startedAt ?? null,
         task.endedAt ?? null

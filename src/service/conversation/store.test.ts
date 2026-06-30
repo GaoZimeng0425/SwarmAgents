@@ -1129,4 +1129,41 @@ describe('ConversationStore', () => {
       s2.close()
     })
   })
+
+  describe('delegation plan persistence', () => {
+    it('round-trips a delegation plan on a task', () => {
+      const store = createConversationStore(dbPath)
+      const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+      store.createSession('ses-dlp', provider)
+      const task = {
+        id: 'task-dlp',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 1, calls: 1, wallMs: 1, usdCents: 1 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
+        history: [],
+        attachments: [],
+        plan: [],
+        result: null,
+        createdAt: 1,
+        startedAt: null,
+        endedAt: null,
+      } as Task
+      store.saveTask(task, 'ses-dlp')
+
+      const plan = [
+        { id: 'd1', goal: 'build', ownerAgentType: 'engineer', dependsOn: [], acceptanceCriteria: [{ id: 'c1', description: 'tests pass' }] },
+        { id: 'd2', goal: 'review', dependsOn: ['d1'] },
+      ]
+      store.saveTaskDelegationPlan('task-dlp', plan)
+
+      const got = store.getTask('task-dlp')
+      expect(got?.delegationPlan).toEqual(plan)
+      store.close()
+    })
+  })
 })
