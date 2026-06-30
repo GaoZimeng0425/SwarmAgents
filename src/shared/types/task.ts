@@ -153,14 +153,16 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
     role: z.enum(['assistant', 'user', 'tool']),
     content: z.unknown(),
     ts: z.number(),
+    seq: z.number().optional(),
   }),
-  z.object({ kind: z.literal('reasoning'), content: z.string(), ts: z.number() }),
+  z.object({ kind: z.literal('reasoning'), content: z.string(), ts: z.number(), seq: z.number().optional() }),
   z.object({
     kind: z.literal('tool.call'),
     server: z.string(),
     tool: z.string(),
     args: z.unknown(),
     ts: z.number(),
+    seq: z.number().optional(),
     // Correlates a tool.result with its tool.call. Absent on legacy rows; the
     // segment renderer falls back to FIFO pairing in that case. Required for
     // correct pairing when several tools run in parallel (result emit order is
@@ -173,6 +175,7 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
     ok: z.boolean(),
     payload: z.unknown(),
     ts: z.number(),
+    seq: z.number().optional(),
     callId: z.string().optional(),
   }),
   z.object({
@@ -180,8 +183,9 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
     actionId: z.string(),
     decision: z.enum(['grant', 'deny', 'skip']),
     ts: z.number(),
+    seq: z.number().optional(),
   }),
-  z.object({ kind: z.literal('handoff'), childTaskId: z.string(), ts: z.number() }),
+  z.object({ kind: z.literal('handoff'), childTaskId: z.string(), ts: z.number(), seq: z.number().optional() }),
   z.object({
     kind: z.literal('error'),
     error: z.object({
@@ -190,6 +194,7 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
       tier: z.enum(['transient', 'recoverable', 'fatal', 'gave_up']),
     }),
     ts: z.number(),
+    seq: z.number().optional(),
   }),
 ])
 export type TaskEvent = z.infer<typeof TaskEventSchema>

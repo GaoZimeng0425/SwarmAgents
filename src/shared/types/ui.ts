@@ -56,9 +56,11 @@ export type UIEvent =
       /** Sub-agent definition id (e.g. 'researcher'), used to label the subagent block. */
       agentDefId?: string
       ts: number
+      /** Global per-session monotonic order, assigned at emit and read back by replay. Replaces wall-clock ts as the timeline sort key. Optional so legacy/test UIEvents (built without makeEmit) still type-check; the renderer falls back to ts when absent. */
+      seq?: number
     }
-  | { kind: 'task.dispatched'; sessionId: string; taskId: string; workerId: string; ts: number }
-  | { kind: 'task.progress'; sessionId: string; taskId: string; event: TaskEvent; ts: number }
+  | { kind: 'task.dispatched'; sessionId: string; taskId: string; workerId: string; ts: number; seq?: number }
+  | { kind: 'task.progress'; sessionId: string; taskId: string; event: TaskEvent; ts: number; seq?: number }
   | {
       kind: 'task.tool_call'
       sessionId: string
@@ -67,6 +69,7 @@ export type UIEvent =
       tool: string
       args: unknown
       ts: number
+      seq?: number
     }
   | {
       kind: 'task.permission_request'
@@ -78,9 +81,10 @@ export type UIEvent =
       summary: string
       payload: unknown
       ts: number
+      seq?: number
     }
-  | { kind: 'task.complete'; sessionId: string; taskId: string; summary: string; ts: number }
-  | { kind: 'task.error'; sessionId: string; taskId: string; error: unknown; ts: number }
+  | { kind: 'task.complete'; sessionId: string; taskId: string; summary: string; ts: number; seq?: number }
+  | { kind: 'task.error'; sessionId: string; taskId: string; error: unknown; ts: number; seq?: number }
   | {
       kind: 'task.usage'
       sessionId: string
@@ -90,12 +94,13 @@ export type UIEvent =
       contextTokens?: number
       contextWindow?: number
       ts: number
+      seq?: number
     }
-  | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number }
-  | { kind: 'task.criteria'; sessionId: string; taskId: string; criteria: AcceptanceCriterion[]; ts: number }
-  | { kind: 'task.verification'; sessionId: string; taskId: string; round: VerificationRound; ts: number }
-  | { kind: 'task.delegation_plan'; sessionId: string; taskId: string; plan: DelegationItem[]; ts: number }
-  | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number }
+  | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number; seq?: number }
+  | { kind: 'task.criteria'; sessionId: string; taskId: string; criteria: AcceptanceCriterion[]; ts: number; seq?: number }
+  | { kind: 'task.verification'; sessionId: string; taskId: string; round: VerificationRound; ts: number; seq?: number }
+  | { kind: 'task.delegation_plan'; sessionId: string; taskId: string; plan: DelegationItem[]; ts: number; seq?: number }
+  | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number; seq?: number }
   | {
       kind: 'task.handoff.completed'
       sessionId: string
@@ -103,12 +108,13 @@ export type UIEvent =
       childTaskId: string
       childSummary: string
       ts: number
+      seq?: number
     }
-  | { kind: 'session.created'; sessionId: string; title: string | null; ts: number }
-  | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number }
-  | { kind: 'memory.changed'; ts: number }
-  | { kind: 'skills.changed'; ts: number }
-  | { kind: 'agents.changed'; ts: number }
+  | { kind: 'session.created'; sessionId: string; title: string | null; ts: number; seq?: number }
+  | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number; seq?: number }
+  | { kind: 'memory.changed'; ts: number; seq?: number }
+  | { kind: 'skills.changed'; ts: number; seq?: number }
+  | { kind: 'agents.changed'; ts: number; seq?: number }
 
 export type SessionSummary = {
   id: string

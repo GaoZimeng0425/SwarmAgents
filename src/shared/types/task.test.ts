@@ -5,6 +5,7 @@ import {
   DelegationItemSchema,
   ExecutableCheckSchema,
   emptyBudget,
+  TaskEventSchema,
   TaskSchema,
   taskStatusValues,
   VerificationRoundSchema,
@@ -186,5 +187,18 @@ describe('delegation plan schemas', () => {
 
   it('accepts a task without delegationPlan (backward compatible)', () => {
     expect(TaskSchema.parse(baseTask).delegationPlan).toBeUndefined()
+  })
+})
+
+describe('TaskEvent.seq', () => {
+  it('parses a legacy event without seq', () => {
+    const legacy = { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 }
+    expect(() => TaskEventSchema.parse(legacy)).not.toThrow()
+    expect(TaskEventSchema.parse(legacy).seq).toBeUndefined()
+  })
+
+  it('parses a new event with seq', () => {
+    const ev = { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1, seq: 42 }
+    expect(TaskEventSchema.parse(ev).seq).toBe(42)
   })
 })
