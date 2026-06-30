@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useRef } from 'react'
 
-import { useStickToBottom } from './stick-to-bottom-list'
+import {
+  StickToBottomList,
+  useStickToBottom,
+  useStickToBottomList,
+} from './stick-to-bottom-list'
 
 afterEach(() => {
   cleanup()
@@ -105,5 +109,43 @@ describe('useStickToBottom', () => {
 
     rerender(<Harness totalSize={900} />) // content grew while stuck
     expect(state.scrollTop).toBe(1000) // pinned to scrollHeight (=1000)
+  })
+})
+
+// A consumer that reads the context, like a "scroll to latest" button would.
+function ContextProbe() {
+  const { isAtBottom } = useStickToBottomList()
+  return <div data-at-bottom={isAtBottom ? '1' : '0'} data-testid="probe" />
+}
+
+// useStickToBottomList must throw when called outside the provider.
+function ThrowingConsumer() {
+  useStickToBottomList()
+  return null
+}
+
+describe('StickToBottomList', () => {
+  it('renders the ScrollArea, its items, and exposes context to children', () => {
+    render(
+      <StickToBottomList
+        className="h-[600px]"
+        getKey={(s) => s}
+        items={['one', 'two']}
+        renderItem={(s) => <div>{s}</div>}
+      >
+        <ContextProbe />
+      </StickToBottomList>,
+    )
+    expect(document.querySelector('[data-slot="scroll-area"]')).not.toBeNull()
+    expect(screen.getByText('one')).toBeInTheDocument()
+    // Initial state is stuck at the bottom.
+    expect(screen.getByTestId('probe').getAttribute('data-at-bottom')).toBe('1')
+  })
+
+  it('throws when useStickToBottomList is called outside the provider', () => {
+    // Suppress the expected console.error from React for the thrown render.
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(() => render(<ThrowingConsumer />)).toThrow(/useStickToBottomList/)
+    spy.mockRestore()
   })
 })
