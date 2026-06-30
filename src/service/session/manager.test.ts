@@ -535,7 +535,7 @@ describe('SessionManager', () => {
     expect(events.every((e) => typeof e.data.sessionId === 'string')).toBe(true)
     expect(events.find((e) => e.name === 'task.created')?.data.sessionId).toBe(sessionId)
     const history = store.getSessionTasks(sessionId).find((t) => t.id === taskId)?.history
-    expect(history).toEqual([{ kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 }])
+    expect(history).toEqual([{ kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1, seq: expect.any(Number) }])
     store.close()
   })
 
@@ -1230,7 +1230,7 @@ describe('SessionManager', () => {
     // The follow-up text drove the second turn and is recorded as a user message.
     expect(goals).toEqual(['do the thing', '继续'])
     const history = store.getSessionTasks(sessionId)[0].history
-    expect(history).toContainEqual({ kind: 'llm.message', role: 'user', content: '继续', ts: expect.any(Number) })
+    expect(history).toContainEqual({ kind: 'llm.message', role: 'user', content: '继续', ts: expect.any(Number), seq: expect.any(Number) })
     store.close()
   })
 

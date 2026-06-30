@@ -26,6 +26,7 @@ import { createToolRegistry, type ToolRegistry } from '../tools/registry'
 import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
 import { createReplyRegistry } from './reply-registry'
+import { createSeqCounter } from './seq-counter'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
@@ -240,12 +241,18 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(s.id, 'interrupted')
   }
 
+  const seqCounter = createSeqCounter((sid: string) => store.getSessionTasks(sid))
+
   const makeEmit =
     (sessionId: string) =>
     (event: string, data: unknown): void => {
       const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
-      const payload = obj ? { sessionId, ...obj } : data
+      const seq = seqCounter.nextSeq(sessionId)
+      const ts = Date.now()
+      // Persist seq on the TaskEvent that appendTaskEvent stores in Task.history:
+      if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
       const taskId = obj?.taskId as string | undefined
+      const payload = obj ? { ...obj, sessionId, seq, ts } : data
 
       if (event === 'task.progress' && taskId && obj?.event) {
         store.appendTaskEvent(taskId, obj.event as TaskEvent)
@@ -254,7 +261,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         store.appendTaskEvent(taskId, {
           kind: 'error',
           error: obj.error as Extract<TaskEvent, { kind: 'error' }>['error'],
-          ts: Date.now(),
+          ts,
+          seq,
         })
       }
       if (event === 'task.plan' && taskId && Array.isArray(obj?.todos)) {
