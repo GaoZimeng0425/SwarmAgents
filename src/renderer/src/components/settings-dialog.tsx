@@ -1,4 +1,4 @@
-import { Bot, Boxes, DollarSign, Info, Lock, Search, Settings as SettingsIcon, Sparkles, Tv, Users } from 'lucide-react'
+import { Bot, Boxes, DollarSign, Info, Lock, Mail, Search, Settings as SettingsIcon, Sparkles, Tv, Users } from 'lucide-react'
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -7,6 +7,7 @@ import { AgentsView } from '@/components/views/agents-view'
 import { BilibiliSettingsView } from '@/components/views/bilibili-settings-view'
 import { BudgetsView } from '@/components/views/budgets-view'
 import { GeneralView } from '@/components/views/general-view'
+import { GmailSettingsView } from '@/components/views/gmail-view'
 import { McpServersView } from '@/components/views/mcp-servers-view'
 import { PermissionsView } from '@/components/views/permissions-view'
 import { ProvidersView } from '@/components/views/providers-view'
@@ -20,6 +21,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: typeof SettingsIcon
   { key: 'providers', label: 'Providers', icon: Bot, View: ProvidersView },
   { key: 'mcp', label: 'MCP Servers', icon: Boxes, View: McpServersView },
   { key: 'web-search', label: 'Web Search', icon: Search, View: WebSearchView },
+  { key: 'gmail', label: 'Gmail', icon: Mail, View: GmailSettingsView },
   { key: 'skills', label: 'Skills', icon: Sparkles, View: SkillsView },
   { key: 'agents', label: 'Agents', icon: Users, View: AgentsView },
   { key: 'bilibili', label: 'Bilibili', icon: Tv, View: BilibiliSettingsView },
