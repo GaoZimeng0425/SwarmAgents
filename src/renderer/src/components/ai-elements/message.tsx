@@ -3,18 +3,19 @@
 import type { ComponentProps, HTMLAttributes, ReactElement } from 'react'
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { cjk } from '@streamdown/cjk'
-import { code } from '@streamdown/code'
 import { math } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
-import type { UIMessage } from './types'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import type { BundledTheme } from 'shiki'
 import { type Components, defaultRemarkPlugins, defaultUrlTransform, Streamdown, type UrlTransform } from 'streamdown'
 
 import { Button } from '@/components/ui/button'
 import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { FILE_LINK_SCHEME, remarkFilePaths } from '@/lib/remark-file-paths'
+import { streamdownCodePlugin } from '@/lib/streamdown-code-plugin'
 import { cn } from '@/lib/utils'
+import type { UIMessage } from './types'
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage['role']
@@ -258,7 +259,15 @@ export const MessageBranchPage = ({ className, ...props }: MessageBranchPageProp
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>
 
-const streamdownPlugins = { cjk, code, math, mermaid }
+// Use the WASM-engine code plugin (see streamdown-code-plugin.ts); @streamdown/code's
+// JS regex engine never resolves in this renderer, leaving prose code unhighlighted.
+const streamdownPlugins = { cjk, code: streamdownCodePlugin, math, mermaid }
+
+// Streamdown's provider overrides its default shikiTheme with the prop value, and
+// the code plugin's highlight() receives `themes` from that context — so leaving
+// shikiTheme unset passes undefined themes and the plugin can't colour. Match
+// CodeBlock's themes (code-block.tsx).
+const DEFAULT_SHIKI_THEME: [BundledTheme, BundledTheme] = ['github-light', 'github-dark']
 
 // Linkify bare file paths in model prose; keep the markdown defaults (gfm, …).
 const messageRemarkPlugins = [...Object.values(defaultRemarkPlugins), remarkFilePaths]
@@ -292,12 +301,13 @@ const messageComponents: Components = {
 }
 
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
+  ({ className, shikiTheme = DEFAULT_SHIKI_THEME, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn('size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0', className)}
       components={messageComponents}
       plugins={streamdownPlugins}
       remarkPlugins={messageRemarkPlugins}
+      shikiTheme={shikiTheme}
       urlTransform={messageUrlTransform}
       {...props}
     />
