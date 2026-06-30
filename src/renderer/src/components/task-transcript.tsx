@@ -37,7 +37,7 @@ import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
 import { groupSegments } from '@/lib/group-segments'
 import { type Segment, taskSegments } from '@/lib/task-segments'
-import { dayKey, formatDayLabel, formatMessageTime } from '@/lib/timeline'
+import { dayKey, formatDayLabel, formatMessageTime, safeTs } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
 
 // ToolHeader needs an AI-SDK-shaped tool type + state; derive both from our segment.
@@ -286,7 +286,7 @@ function createSegmentRenderer(opts: {
   const messageTime = (ts: number): React.JSX.Element => (
     <time
       className="px-1 text-[10px] text-muted-foreground/50 tabular-nums group-[.is-user]:text-right"
-      dateTime={new Date(ts).toISOString()}
+      dateTime={new Date(safeTs(ts)).toISOString()}
     >
       {formatMessageTime(ts)}
     </time>

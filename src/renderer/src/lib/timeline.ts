@@ -5,7 +5,9 @@ import { differenceInCalendarDays, format } from 'date-fns'
 // date-fns `format` throws "Invalid time value" on such input, which would crash
 // the entire ConversationThread. Coerce to epoch 0 so a single bad value
 // degrades to a harmless row instead of taking down the whole view.
-function safeTs(ts: number): number {
+// Exported so render-layer call sites that build a Date themselves (e.g.
+// <time dateTime={...}>) route through the same guard as the formatters below.
+export function safeTs(ts: number): number {
   return Number.isFinite(ts) ? ts : 0
 }
 
