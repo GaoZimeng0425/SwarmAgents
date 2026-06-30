@@ -114,4 +114,43 @@ describe('runGoalVerifyLoop', () => {
     })
     expect(r.used.tokens).toBe(110) // 10 session + 100 judge
   })
+
+  it('fails fast when two consecutive rounds report identical gaps', async () => {
+    const sameGaps = ['fix tests']
+    const verify = vi.fn().mockResolvedValue(verdict('fail', sameGaps))
+    const session = fakeSession(['completed', 'completed', 'completed'])
+    const r = await runGoalVerifyLoop({
+      session,
+      goal: 'do it',
+      criteriaRef: { current: [{ id: 'c1', description: 'x' }] },
+      verify,
+      maxRounds: 5,
+      emit: vi.fn(),
+      taskId: 't1',
+    })
+    expect(r.status).toBe('failed')
+    expect(r.summary).toContain('not progressing')
+    // round 0 fails (gaps set) → round 1 fails with the SAME gaps → stall → stop.
+    // So verify is called exactly twice, not maxRounds+1 (6).
+    expect(verify).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps looping when gaps change between rounds', async () => {
+    const verify = vi
+      .fn()
+      .mockResolvedValueOnce(verdict('fail', ['a']))
+      .mockResolvedValueOnce(verdict('fail', ['b']))
+      .mockResolvedValueOnce(verdict('pass'))
+    const r = await runGoalVerifyLoop({
+      session: fakeSession(['completed', 'completed', 'completed']),
+      goal: 'do it',
+      criteriaRef: { current: [{ id: 'c1', description: 'x' }] },
+      verify,
+      maxRounds: 5,
+      emit: vi.fn(),
+      taskId: 't1',
+    })
+    expect(r.status).toBe('completed')
+    expect(verify).toHaveBeenCalledTimes(3)
+  })
 })

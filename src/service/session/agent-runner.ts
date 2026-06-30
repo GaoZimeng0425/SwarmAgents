@@ -1182,6 +1182,14 @@ const addUsed = (a: ConsumedResources, b: ConsumedResources): ConsumedResources 
   cacheWrite: a.cacheWrite + b.cacheWrite,
 })
 
+// Order-insensitive equality of two gap lists, so a re-ordered but identical set
+// still counts as "no progress". Used by the stall guard in runGoalVerifyLoop.
+const sameGaps = (a: string[], b: string[]): boolean => {
+  if (a.length !== b.length) return false
+  const seen = new Set(a)
+  return b.every((g) => seen.has(g))
+}
+
 // Default verification: deterministic hard checks plus an independent LLM judge
 // sub-run on the same provider. The sub-run sets maxVerifyRounds: 0 so it never
 // recurses into another verify loop.
@@ -1296,10 +1304,23 @@ export async function runGoalVerifyLoop(args: {
         used: addUsed(session.getUsed(), extraUsed),
       }
     }
+    const stalled = round > 0 && sameGaps(verdict.gaps, lastGaps)
     lastGaps = verdict.gaps
     if (round === maxRounds) {
       taskLog.warn({ msg: 'verification exhausted rounds; marking failed', rounds: maxRounds })
       const summary = `${r.summary}\n\nUnmet acceptance criteria after ${maxRounds + 1} verify round(s):\n${verdict.gaps
+        .map((g) => `- ${g}`)
+        .join('\n')}`
+      return {
+        status: 'failed',
+        summary,
+        messages: session.agent.state.messages,
+        used: addUsed(session.getUsed(), extraUsed),
+      }
+    }
+    if (stalled) {
+      taskLog.warn({ msg: 'verify gaps not progressing since last round; marking failed', round })
+      const summary = `${r.summary}\n\nStopped: acceptance criteria not progressing (same gaps repeated):\n${verdict.gaps
         .map((g) => `- ${g}`)
         .join('\n')}`
       return {
