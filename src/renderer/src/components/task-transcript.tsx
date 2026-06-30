@@ -126,7 +126,7 @@ function SubagentBlock({
   }, [running])
 
   return (
-    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+    <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
       <button
         className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
         onClick={() => setOpen((v) => !v)}
