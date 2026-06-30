@@ -26,6 +26,17 @@ const IMAGE_MIME: Record<string, string> = {
 // Guard against turning a huge file into an even larger base64 string.
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024
 
+// The document extensions render_ui can inline-preview (mirrors renderer fileKind).
+const DOCUMENT_MIME: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.csv': 'text/csv',
+}
+// Documents can be larger than images; cap so a huge PDF doesn't become a giant
+// base64 string crossing the IPC bridge.
+const MAX_DOCUMENT_BYTES = 50 * 1024 * 1024
+
 // Agents often report paths with a leading ~; Node's fs/shell don't expand it.
 function expandHome(p: string): string {
   return p === '~' || p.startsWith('~/') ? homedir() + p.slice(1) : p
@@ -265,6 +276,24 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:readImageFile', readImageFile)
 
+  const readDocumentFile = async (
+    _e: Electron.IpcMainInvokeEvent,
+    path: unknown
+  ): Promise<{ mediaType: string; data: string } | null> => {
+    if (typeof path !== 'string') return null
+    const mediaType = DOCUMENT_MIME[extname(path).toLowerCase()]
+    if (!mediaType) return null
+    try {
+      const buf = await readFile(expandHome(path))
+      if (buf.byteLength > MAX_DOCUMENT_BYTES) return null
+      return { mediaType, data: buf.toString('base64') }
+    } catch (err) {
+      log.warn({ msg: 'readDocumentFile failed', path, err: String(err) })
+      return null
+    }
+  }
+  ipcMain.handle('system:readDocumentFile', readDocumentFile)
+
   const openPath = async (_e: Electron.IpcMainInvokeEvent, path: unknown): Promise<void> => {
     if (typeof path !== 'string') return
     const err = await shell.openPath(expandHome(path))
@@ -322,6 +351,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:openPrivacySettings')
       ipcMain.removeHandler('system:getMacPermissions')
       ipcMain.removeHandler('system:readImageFile')
+      ipcMain.removeHandler('system:readDocumentFile')
       ipcMain.removeHandler('system:openPath')
       ipcMain.removeHandler('system:openUserDataDir')
       ipcMain.removeHandler('system:pickPath')

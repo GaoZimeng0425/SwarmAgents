@@ -9,7 +9,19 @@
  */
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
-import type { BiliAnalysis, BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from './bilibili'
+import type {
+  BiliAnalysis,
+  BiliListResult,
+  BiliLoginStatus,
+  BiliProcessResult,
+  BiliSaveResult,
+  BiliSummary,
+  BiliTranscribeProgress,
+  BiliTranscribeResult,
+  BiliVideo,
+  ObsidianConfig,
+  TranscriptionConfig,
+} from './bilibili'
 import type { BudgetConfig } from './budgets'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
@@ -365,6 +377,8 @@ export type SwarmBridge = {
   openPrivacySettings(pane: 'screen' | 'accessibility'): Promise<void>
   /** Read a local image file as base64 for inline preview. Returns null if missing or not an image. */
   readImageFile(path: string): Promise<{ mimeType: string; data: string } | null>
+  /** Read a local document file (pdf/docx/xlsx/csv) as base64 for inline preview. Returns null if missing, too large, or unsupported. */
+  readDocumentFile(path: string): Promise<{ mediaType: string; data: string } | null>
   /** Open a local file with the OS default application. */
   openPath(path: string): Promise<void>
   /** Reveal the app's userData folder (where skills/, mcp-servers.json, etc. live). */

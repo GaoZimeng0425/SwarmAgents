@@ -2,7 +2,19 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from '../shared/types/agent'
-import type { BiliAnalysis, BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '../shared/types/bilibili'
+import type {
+  BiliAnalysis,
+  BiliListResult,
+  BiliLoginStatus,
+  BiliProcessResult,
+  BiliSaveResult,
+  BiliSummary,
+  BiliTranscribeProgress,
+  BiliTranscribeResult,
+  BiliVideo,
+  ObsidianConfig,
+  TranscriptionConfig,
+} from '../shared/types/bilibili'
 import type { BudgetConfig } from '../shared/types/budgets'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
@@ -187,8 +199,7 @@ const bilibili: BilibiliBridge = {
   pickVault: () => ipcRenderer.invoke('bilibili:pickVault') as Promise<string | null>,
   save: (video: BiliVideo, summary: BiliSummary) =>
     ipcRenderer.invoke('bilibili:save', video, summary) as Promise<BiliSaveResult>,
-  getTranscribeConfig: () =>
-    ipcRenderer.invoke('bilibili:getTranscribeConfig') as Promise<TranscriptionConfig | null>,
+  getTranscribeConfig: () => ipcRenderer.invoke('bilibili:getTranscribeConfig') as Promise<TranscriptionConfig | null>,
   setTranscribeConfig: (cfg: TranscriptionConfig) =>
     ipcRenderer.invoke('bilibili:setTranscribeConfig', cfg) as Promise<void>,
   pickModelDir: () => ipcRenderer.invoke('bilibili:pickModelDir') as Promise<string | null>,
@@ -279,6 +290,8 @@ const swarm: SwarmBridge = {
   openPrivacySettings: (pane) => ipcRenderer.invoke('system:openPrivacySettings', pane) as Promise<void>,
   readImageFile: (path: string) =>
     ipcRenderer.invoke('system:readImageFile', path) as Promise<{ mimeType: string; data: string } | null>,
+  readDocumentFile: (path: string) =>
+    ipcRenderer.invoke('system:readDocumentFile', path) as Promise<{ mediaType: string; data: string } | null>,
   openPath: (path: string) => ipcRenderer.invoke('system:openPath', path) as Promise<void>,
   openUserDataDir: () => ipcRenderer.invoke('system:openUserDataDir') as Promise<void>,
   pickDirectory: () => ipcRenderer.invoke('system:pickPath', 'directory') as Promise<string | null>,
