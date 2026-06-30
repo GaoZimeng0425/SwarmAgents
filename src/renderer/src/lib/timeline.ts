@@ -3,12 +3,12 @@ import { differenceInCalendarDays, format } from 'date-fns'
 // Persisted history events are JSON-parsed without zod re-validation, so a
 // legacy or corrupt event can reach the renderer with a non-finite timestamp.
 // date-fns `format` throws "Invalid time value" on such input, which would crash
-// the entire ConversationThread. Coerce to epoch 0 so a single bad value
-// degrades to a harmless row instead of taking down the whole view.
-// Exported so render-layer call sites that build a Date themselves (e.g.
-// <time dateTime={...}>) route through the same guard as the formatters below.
+// the entire ConversationThread. Fall back to the wall-clock now so a single bad
+// value degrades to a harmless "today / current time" row instead of 1970 (epoch
+// 0) or a crash. Exported so render-layer call sites that build a Date themselves
+// (e.g. <time dateTime={...}>) route through the same guard as the formatters below.
 export function safeTs(ts: number): number {
-  return Number.isFinite(ts) ? ts : 0
+  return Number.isFinite(ts) ? ts : Date.now()
 }
 
 /** Wall-clock time of a message, e.g. "09:05" (24h, local timezone). */

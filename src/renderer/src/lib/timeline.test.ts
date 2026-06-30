@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { dayKey, formatDayLabel, formatMessageTime } from './timeline'
+import { dayKey, formatDayLabel, formatMessageTime, safeTs } from './timeline'
 
 describe('timeline helpers', () => {
   it('formatMessageTime renders 24h HH:mm', () => {
@@ -32,5 +32,19 @@ describe('timeline helpers', () => {
       expect(() => formatMessageTime(bad)).not.toThrow()
       expect(() => formatDayLabel(bad, Date.now())).not.toThrow()
     }
+  })
+
+  // A bad timestamp should degrade to the current time (grouped under "Today"),
+  // not to epoch 0 — otherwise the row flashes "1970" / "Jan 1, 1970".
+  it('safeTs falls back to ~now, not epoch 0, for non-finite input', () => {
+    const before = Date.now()
+    const got = safeTs(Number.NaN)
+    const after = Date.now()
+    expect(got).toBeGreaterThanOrEqual(before)
+    expect(got).toBeLessThanOrEqual(after)
+  })
+
+  it('safeTs passes a finite timestamp through unchanged', () => {
+    expect(safeTs(1_700_000_000_000)).toBe(1_700_000_000_000)
   })
 })
