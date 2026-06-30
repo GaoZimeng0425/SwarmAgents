@@ -101,3 +101,29 @@ describe('tasksToRecords', () => {
     expect(records[0].contextWindow).toBe(200_000)
   })
 })
+
+describe('tasksToRecords seq', () => {
+  it('uses persisted seq when present', () => {
+    const records = tasksToRecords('ses-1', [
+      baseTask({ history: [{ kind: 'llm.message', role: 'assistant', content: 'hi', ts: 5, seq: 77 }] }),
+    ])
+    const progress = records[0].events.find((e) => e.kind === 'task.progress')
+    expect(progress?.seq).toBe(77)
+  })
+
+  it('falls back to ts for legacy events without seq', () => {
+    const records = tasksToRecords('ses-1', [
+      baseTask({ history: [{ kind: 'llm.message', role: 'assistant', content: 'hi', ts: 9 }] }),
+    ])
+    const progress = records[0].events.find((e) => e.kind === 'task.progress')
+    expect(progress?.seq).toBe(9)
+  })
+
+  it('gives every rebuilt UIEvent a finite seq', () => {
+    const records = tasksToRecords('ses-1', [
+      baseTask({ createdAt: 100, history: [{ kind: 'llm.message', role: 'assistant', content: 'x', ts: 3 }] }),
+    ])
+    expect(records[0].events.every((e) => Number.isFinite(e.seq))).toBe(true)
+    expect(records[0].events[0]).toMatchObject({ kind: 'task.created' })
+  })
+})

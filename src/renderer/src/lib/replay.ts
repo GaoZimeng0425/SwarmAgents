@@ -32,6 +32,7 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
         parentTaskId: t.parentId ?? undefined,
         agentDefId: t.agentDefId,
         ts: t.createdAt,
+        seq: t.createdAt,
       },
     ]
     for (const ev of t.history) {
@@ -39,7 +40,7 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       // legacy/corrupt event may lack a finite ts. Anchor it to the task's
       // createdAt (always present) rather than emit an invalid timestamp.
       const ts = Number.isFinite(ev.ts) ? ev.ts : t.createdAt
-      events.push({ kind: 'task.progress', sessionId, taskId: t.id, event: ev, ts })
+      events.push({ kind: 'task.progress', sessionId, taskId: t.id, event: ev, ts, seq: ev.seq ?? ts })
     }
     if (t.result) {
       events.push({
@@ -48,6 +49,7 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
         taskId: t.id,
         summary: t.result.summary,
         ts: t.endedAt ?? t.createdAt,
+        seq: t.endedAt ?? t.createdAt,
       })
     }
     return {
