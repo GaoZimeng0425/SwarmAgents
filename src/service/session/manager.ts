@@ -275,6 +275,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         store.saveTaskVerifications(taskId, [...existing, round])
         log.info({ msg: 'verification round persisted', taskId, round: round.round, verdict: round.verdict })
       }
+      if (event === 'task.delegation_plan' && taskId && Array.isArray(obj?.plan)) {
+        const plan = obj.plan as import('@shared/types/task').DelegationItem[]
+        store.saveTaskDelegationPlan(taskId, plan)
+        log.info({ msg: 'delegation plan persisted', taskId, items: plan.length })
+      }
       broadcaster.broadcast(event, payload)
     }
 

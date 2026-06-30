@@ -32,6 +32,7 @@ import type {
   AcceptanceCriterion,
   Attachment,
   ConsumedResources,
+  DelegationItem,
   ExecutionMode,
   PermissionMode,
   PlanTodo,
@@ -93,6 +94,7 @@ export type UIEvent =
   | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number }
   | { kind: 'task.criteria'; sessionId: string; taskId: string; criteria: AcceptanceCriterion[]; ts: number }
   | { kind: 'task.verification'; sessionId: string; taskId: string; round: VerificationRound; ts: number }
+  | { kind: 'task.delegation_plan'; sessionId: string; taskId: string; plan: DelegationItem[]; ts: number }
   | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number }
   | {
       kind: 'task.handoff.completed'

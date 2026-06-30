@@ -1169,6 +1169,37 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('persists task.delegation_plan emits via the emit handler', async () => {
+    let capturedEmit: ((event: string, data: unknown) => void) | null = null
+    mockCreate.mockImplementation((deps: { emit: (event: string, data: unknown) => void }) => {
+      capturedEmit = deps.emit
+      return { run: () => new Promise<never>(() => {}) }
+    })
+
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession({
+      id: 'anthropic' as const,
+      registry: 'anthropic' as const,
+      apiStyle: 'anthropic' as const,
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'k',
+    })
+    const { taskId } = manager.submitGoal(sessionId, 'solve it')
+    await new Promise((r) => setTimeout(r, 0))
+
+    const emit = capturedEmit!
+    const spy = vi.spyOn(store, 'saveTaskDelegationPlan')
+    const plan = [
+      { id: 'd1', goal: 'build', ownerAgentType: 'engineer', dependsOn: [], acceptanceCriteria: [{ id: 'c1', description: 'ships' }] },
+      { id: 'd2', goal: 'review', dependsOn: ['d1'] },
+    ]
+    emit('task.delegation_plan', { taskId, plan, ts: Date.now() })
+    expect(spy).toHaveBeenCalledWith(taskId, plan)
+    store.close()
+  })
+
   it('continues the most-recent root task on an idle follow-up instead of creating a new one', async () => {
     const goals: string[] = []
     mockCreate.mockImplementation((deps: { task: { id: string; goal: string } }) => ({

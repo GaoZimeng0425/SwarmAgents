@@ -1347,6 +1347,10 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
           deps.emit('task.criteria', { taskId: deps.task.id, criteria: c, ts: Date.now() })
           deps.onAcceptanceCriteria?.(c)
         },
+        onDelegationPlan: (plan) => {
+          deps.emit('task.delegation_plan', { taskId: deps.task.id, plan, ts: Date.now() })
+          deps.onDelegationPlan?.(plan)
+        },
       }
       const session = buildAgentSession(wrappedDeps)
       const verify = deps.verifyCompletion ?? defaultVerifyCompletion(deps)
