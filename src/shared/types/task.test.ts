@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   AcceptanceCriterionSchema,
+  DelegationItemSchema,
   ExecutableCheckSchema,
   emptyBudget,
   TaskSchema,
@@ -151,5 +152,39 @@ describe('acceptance criteria schemas', () => {
 
   it('accepts a task without criteria (backward compatible)', () => {
     expect(TaskSchema.parse(baseTask).acceptanceCriteria).toBeUndefined()
+  })
+})
+
+describe('delegation plan schemas', () => {
+  it('parses a minimal item and defaults dependsOn to []', () => {
+    const item = DelegationItemSchema.parse({ id: 'd1', goal: 'do X' })
+    expect(item.dependsOn).toEqual([])
+    expect(item.ownerAgentType).toBeUndefined()
+    expect(item.acceptanceCriteria).toBeUndefined()
+  })
+
+  it('parses a full item with owner, dependsOn, and item criteria', () => {
+    const item = DelegationItemSchema.parse({
+      id: 'd2',
+      goal: 'do Y',
+      ownerAgentType: 'engineer',
+      dependsOn: ['d1'],
+      acceptanceCriteria: [{ id: 'c1', description: 'X shipped' }],
+    })
+    expect(item.dependsOn).toEqual(['d1'])
+    expect(item.acceptanceCriteria).toHaveLength(1)
+  })
+
+  it('round-trips a task carrying a delegationPlan', () => {
+    const t = TaskSchema.parse({
+      ...baseTask,
+      delegationPlan: [{ id: 'd1', goal: 'g', ownerAgentType: 'engineer' }],
+    })
+    expect(t.delegationPlan).toHaveLength(1)
+    expect(t.delegationPlan?.[0].ownerAgentType).toBe('engineer')
+  })
+
+  it('accepts a task without delegationPlan (backward compatible)', () => {
+    expect(TaskSchema.parse(baseTask).delegationPlan).toBeUndefined()
   })
 })

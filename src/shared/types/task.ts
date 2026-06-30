@@ -109,6 +109,22 @@ export const VerificationRoundSchema = z.object({
 })
 export type VerificationRound = z.infer<typeof VerificationRoundSchema>
 
+// One item in a Leader's delegation plan. The Leader declares this DAG via the
+// set_delegation_plan tool; dispatch is prompt-driven (parallel within a wave,
+// waves ordered by dependsOn). Recorded for audit + UI, not mechanically enforced.
+export const DelegationItemSchema = z.object({
+  id: z.string().min(1),
+  goal: z.string().min(1),
+  // Which sub-agent type to spawn for this item; omitted → default agent.
+  ownerAgentType: z.string().optional(),
+  // Sibling item ids that must finish before this item is unblocked. Empty (= no
+  // deps) marks a first-wave item. Drives wave dispatch in the Leader's prompt.
+  dependsOn: z.array(z.string().min(1)).default([]),
+  // Per-item done-conditions; passed down to the spawned sub-agent as its contract.
+  acceptanceCriteria: z.array(AcceptanceCriterionSchema).optional(),
+})
+export type DelegationItem = z.infer<typeof DelegationItemSchema>
+
 // Composer-supplied options threaded from the renderer to session-manager.
 export const TaskOptionsSchema = z.object({
   cwd: z.string().optional(),
@@ -223,5 +239,7 @@ export const TaskSchema = z.object({
   acceptanceCriteria: z.array(AcceptanceCriterionSchema).optional(),
   // Per-round verify audit trail (UI + logs).
   verifications: z.array(VerificationRoundSchema).optional(),
+  // Leader-authored delegation DAG (set_delegation_plan tool). Audit + UI only.
+  delegationPlan: z.array(DelegationItemSchema).optional(),
 })
 export type Task = z.infer<typeof TaskSchema>
