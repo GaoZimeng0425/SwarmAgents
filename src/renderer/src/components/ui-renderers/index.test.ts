@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// document.tsx imports the heavy pdf-thumbnail-utils; stub it so loading the
+// registry doesn't pull in the pdfium wasm + worker engine.
+vi.mock('@/components/pdf-thumbnail-utils', () => ({
+  renderPdfThumbnailUrl: vi.fn(),
+}))
 
 import { coerceProps, getUiRenderer } from './index'
 
@@ -6,6 +12,12 @@ describe('getUiRenderer', () => {
   it('returns a component for known types', () => {
     expect(typeof getUiRenderer('choice')).toBe('function')
     expect(typeof getUiRenderer('weather')).toBe('function')
+  })
+
+  it('returns a component for each document type', () => {
+    for (const type of ['pdf', 'docx', 'xlsx', 'csv']) {
+      expect(typeof getUiRenderer(type)).toBe('function')
+    }
   })
 
   it('returns undefined for unknown types', () => {

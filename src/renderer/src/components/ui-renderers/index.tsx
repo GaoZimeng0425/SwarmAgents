@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { CheckIcon } from 'lucide-react'
 
+import type { ViewerFile } from '@/components/attachment-viewer-sheet'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { DocumentCard } from './document'
 
 export type UiRendererProps = {
   props: unknown
@@ -10,6 +12,8 @@ export type UiRendererProps = {
   onSend?: (text: string) => void
   /** Disabled while a run is in flight to avoid double submits. */
   disabled?: boolean
+  /** Document cards call this to open the file in the attachment viewer sheet. */
+  onOpenFile?: (file: ViewerFile) => void
 }
 
 export type UiRenderer = React.FC<UiRendererProps>
@@ -70,13 +74,7 @@ const ChoiceCard: UiRenderer = ({ props, onSend, disabled }) => {
         const v = optionValue(o)
         const checked = selected.has(v)
         return (
-          <button
-            className={optionRow(checked)}
-            disabled={disabled}
-            key={v}
-            onClick={() => toggle(v)}
-            type="button"
-          >
+          <button className={optionRow(checked)} disabled={disabled} key={v} onClick={() => toggle(v)} type="button">
             <span
               className={cn(
                 'flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors',
@@ -117,6 +115,10 @@ const WeatherCard: UiRenderer = ({ props }) => {
 const REGISTRY: Record<string, UiRenderer> = {
   choice: ChoiceCard,
   weather: WeatherCard,
+  pdf: DocumentCard,
+  docx: DocumentCard,
+  xlsx: DocumentCard,
+  csv: DocumentCard,
 }
 
 export function getUiRenderer(type: string): UiRenderer | undefined {
