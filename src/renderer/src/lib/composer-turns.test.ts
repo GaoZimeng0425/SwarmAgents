@@ -90,4 +90,17 @@ describe('classifyComposerTurns', () => {
     // Children belong in the transcript; only the top-level queued turn is excluded.
     expect(transcriptTasks.map((t) => t.id).sort()).toEqual(['c', 'r'])
   })
+
+  it('renders pending turns as transcript (not queued cards) for a non-active session', () => {
+    // An interrupted/ended session can't resume any turn, so its pending turns
+    // are zombies — they must not be painted as staging cards.
+    const a = rec({ id: 'a', status: 'pending', startedAt: 100 })
+    const b = rec({ id: 'b', status: 'pending', startedAt: 200 })
+    for (const status of ['interrupted', 'ended'] as const) {
+      const { activeTask, queuedTasks, transcriptTasks } = classifyComposerTurns([a, b], status)
+      expect(activeTask).toBeUndefined()
+      expect(queuedTasks).toEqual([])
+      expect(transcriptTasks.map((t) => t.id).sort()).toEqual(['a', 'b'])
+    }
+  })
 })

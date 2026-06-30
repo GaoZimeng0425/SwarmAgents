@@ -33,7 +33,16 @@ export type ComposerTurns = {
  * active (about-to-start) turn — not a queued one. Only top-level turns count;
  * sub-agent children belong in the transcript, not the composer queue.
  */
-export function classifyComposerTurns(sessionTasks: TaskRecord[]): ComposerTurns {
+export function classifyComposerTurns(
+  sessionTasks: TaskRecord[],
+  // Mirrors SessionSummary['status']. A non-active (interrupted/ended) session
+  // can't resume any turn, so its pending turns are stale zombies — render them
+  // in the transcript instead of as phantom queued cards.
+  sessionStatus: 'active' | 'interrupted' | 'ended' = 'active'
+): ComposerTurns {
+  if (sessionStatus !== 'active') {
+    return { activeTask: undefined, queuedTasks: [], transcriptTasks: sessionTasks }
+  }
   const topLevel = sessionTasks.filter((t) => !t.parentTaskId)
   const running = topLevel.find((t) => t.status === 'running' || t.status === 'awaiting_user')
   const pending = sortBy(

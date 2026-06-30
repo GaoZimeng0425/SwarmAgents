@@ -964,6 +964,21 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         log.info({ msg: 'queued task cancelled', sessionId, taskId })
         return
       }
+      // No in-memory session (e.g. an interrupted session reopened in the UI
+      // but never re-dispatched). A non-terminal task here is a zombie — mark
+      // it cancelled and emit so the UI drops the phantom queued card. Terminal
+      // tasks are left alone.
+      const task = store.getTask(taskId)
+      if (task && !['completed', 'failed', 'cancelled', 'interrupted'].includes(task.status)) {
+        store.updateTaskStatus(taskId, 'cancelled')
+        makeEmit(sessionId)('task.error', {
+          taskId,
+          error: { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' },
+          ts: Date.now(),
+        })
+        log.info({ msg: 'zombie task cancelled (no in-memory session)', sessionId, taskId })
+        return
+      }
       log.warn({ msg: 'cancelTask: unknown or already-finished task', sessionId, taskId })
     },
 

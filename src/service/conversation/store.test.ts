@@ -88,6 +88,40 @@ describe('ConversationStore', () => {
     store2.close()
   })
 
+  it('interrupts zombie tasks under already-interrupted sessions on restart', () => {
+    // A previous restart already flipped the session to 'interrupted' but its
+    // tasks slipped through the old active-only cleanup. A second restart must
+    // still clean those zombies — the cleanup is global, not keyed to sessions
+    // flipped active→interrupted this run.
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const mkTask = (id: string, status: import('@shared/types/task').Task['status']) => ({
+      id,
+      parentId: null,
+      agentDefId: 'default',
+      goal: 'g',
+      status,
+      assignedWorkerId: null,
+      toolAllowlist: [],
+      budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
+      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      history: [],
+      result: null,
+      createdAt: Date.now(),
+      startedAt: null,
+      endedAt: null,
+    })
+    const store1 = createConversationStore(dbPath)
+    store1.createSession('ses-prev', provider)
+    store1.updateSessionStatus('ses-prev', 'interrupted') // simulate a prior restart
+    store1.saveTask(mkTask('task-zombie', 'pending'), 'ses-prev')
+    store1.close()
+
+    const store2 = createConversationStore(dbPath)
+    store2.getInterruptedSessions()
+    expect(store2.getSessionTasks('ses-prev').find((t) => t.id === 'task-zombie')?.status).toBe('interrupted')
+    store2.close()
+  })
+
   it('markTaskRunning sets running status and stamps started_at once', () => {
     const store = createConversationStore(dbPath)
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }

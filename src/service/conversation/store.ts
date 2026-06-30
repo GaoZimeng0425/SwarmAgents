@@ -463,18 +463,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const markAndGetInterrupted = db.transaction((): StoredSession[] => {
     const active = db.prepare(`SELECT * FROM sessions WHERE status = 'active'`).all() as Record<string, unknown>[]
     db.prepare(`UPDATE sessions SET status = 'interrupted' WHERE status = 'active'`).run()
-    // Any non-terminal tasks left behind by those sessions never reached a
-    // terminal updateTaskStatus (the process died mid-run). Flip them to
-    // 'interrupted' so they don't replay as 'pending' queued cards on reload.
-    const activeIds = active.map((r) => r.id as string)
-    if (activeIds.length > 0) {
-      const placeholders = activeIds.map(() => '?').join(',')
-      db.prepare(
-        `UPDATE tasks SET status = 'interrupted', ended_at = COALESCE(ended_at, ?)
-         WHERE session_id IN (${placeholders})
-           AND status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')`
-      ).run(Date.now(), ...activeIds)
-    }
+    // The process restarted, so every non-terminal task is a zombie — no worker
+    // will ever resume it. Flip ALL of them to 'interrupted', not just those
+    // under sessions flipped active→interrupted this run: a session already left
+    // 'interrupted' by a *previous* restart still drags pending tasks that would
+    // otherwise replay forever as phantom queued cards, since the active-only
+    // `WHERE status='active'` filter never matches them again.
+    db.prepare(
+      `UPDATE tasks SET status = 'interrupted', ended_at = COALESCE(ended_at, ?)
+       WHERE status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')`
+    ).run(Date.now())
     return active.map(rowToSession).map((s) => ({ ...s, status: 'interrupted' as const }))
   })
 

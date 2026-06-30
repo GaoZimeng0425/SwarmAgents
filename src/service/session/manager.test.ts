@@ -771,6 +771,48 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('cancelTask marks a zombie task cancelled when its session is not in memory', () => {
+    // An interrupted session reopened in the UI is never re-dispatched, so it is
+    // absent from the in-memory sessions Map. Cancelling its phantom queued task
+    // must still flip it to 'cancelled' and emit so the UI drops the card.
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const broadcastSpy = vi.spyOn(broadcaster, 'broadcast')
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
+
+    // Seed a session + pending task directly in the store, bypassing
+    // manager.createSession so the session never enters the in-memory Map.
+    store.createSession('ses-ghost', providerA)
+    store.updateSessionStatus('ses-ghost', 'interrupted')
+    store.saveTask(
+      {
+        id: 'task-ghost',
+        parentId: null,
+        agentDefId: 'default',
+        goal: 'g',
+        status: 'pending',
+        assignedWorkerId: null,
+        toolAllowlist: [],
+        budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        history: [],
+        result: null,
+        createdAt: Date.now(),
+        startedAt: null,
+        endedAt: null,
+      },
+      'ses-ghost'
+    )
+
+    manager.cancelTask('ses-ghost', 'task-ghost')
+    expect(store.getTask('task-ghost')?.status).toBe('cancelled')
+    expect(broadcastSpy).toHaveBeenCalledWith(
+      'task.error',
+      expect.objectContaining({ taskId: 'task-ghost', error: expect.objectContaining({ code: 'cancelled' }) })
+    )
+    store.close()
+  })
+
   it('invokes onComplete with failed + message when the run throws', async () => {
     mockCreate.mockImplementation(() => ({
       run: vi.fn().mockRejectedValue(new Error('boom')),
