@@ -15,6 +15,7 @@ import { handleDeepLink, registerDeepLinkIpc } from './system/deep-link'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initBilibili } from './bilibili'
+import { initGmail } from './gmail'
 import { initTrending } from './trending'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
@@ -68,6 +69,9 @@ app.whenReady().then(async () => {
   const bilibili = initBilibili({ getInjection: () => providers.service.getInjection() })
   log.info({ msg: 'bilibili IPC initialised' })
 
+  const gmail = await initGmail()
+  log.info({ msg: 'gmail sidecar initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
     mcpServers.dispose()
@@ -75,6 +79,7 @@ app.whenReady().then(async () => {
     budgets.dispose()
     trending.dispose()
     bilibili.dispose()
+    gmail.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')
@@ -122,6 +127,7 @@ app.whenReady().then(async () => {
       },
     })
     await serviceClient.connect()
+    gmail.registerMainRpc(serviceClient)
 
     wireSwarmIpc({
       serviceClient,
