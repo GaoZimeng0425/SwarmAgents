@@ -311,6 +311,25 @@ const COORDINATION_PROTOCOL = `Coordination protocol (applies whenever you deleg
 const CEO_COORDINATION_ADDENDUM = `- The goal may be under-specified. Do not stall: state the assumptions you are delegating under in your message to each head, so their work is anchored.
 - For goals spanning multiple teams, integrate the heads' deliverables into one coherent result — reconcile overlaps and contradictions explicitly rather than concatenating.`
 
+// CEO-only: drive the verified delegation pipeline (derive top-level criteria,
+// delegate to heads with verify on, aggregate, then judge at the top level).
+const CEO_VERIFIED_DELEGATION_ADDENDUM = `- For a substantive goal, run a VERIFIED DELEGATION pipeline:
+  1. Call set_acceptance_criteria with checkable top-level done-conditions for the whole goal.
+  2. find_agents({ teamRole: 'head' }) to discover team Leaders.
+  3. Slice the goal and the relevant criteria per Leader; in ONE turn call spawn_sub_agent once per Leader with that Leader's goal, its acceptanceCriteria, and verify=true (Leaders must self-verify).
+  4. When all Leaders return, write a summary reporting each Leader's outcome against its criteria.
+  5. Your own verify gate then judges the top-level criteria; on gaps, re-dispatch the affected Leader(s) with the specific gaps.`
+
+// Every team head: act as a Leader — declare a delegation DAG and dispatch it in
+// dependency waves, then self-verify the aggregated result.
+const LEADER_DELEGATION_ADDENDUM = `- When your team must produce work, delegate via a VERIFIED pipeline:
+  1. Call set_delegation_plan with a DAG of items — each with a sub-goal, an ownerAgentType (the IC that should do it), dependsOn (sibling item ids that must finish first; omit for first-wave items), and acceptanceCriteria for that item.
+  2. Dispatch in WAVES: in one turn, call spawn_sub_agent in parallel for every item whose dependsOn are all complete (pass the item's goal + its acceptanceCriteria; do NOT set verify — leaves are single-shot and you verify them).
+  3. When a wave returns, dispatch the next wave (items whose deps just cleared).
+  4. After all items finish, summarize each sub-agent's outcome against its item criteria.
+  5. Your own verify gate judges your team's criteria; on gaps, re-dispatch the affected item(s).
+- Use spawn_sub_agent for delegation (not send_and_wait) so the work enters the verifying task tree.`
+
 /**
  * Append the coordination protocol to every agent that delegates: the CEO, any
  * team head (teamRole 'head'), and the standalone planner. The CEO additionally
@@ -321,8 +340,9 @@ const CEO_COORDINATION_ADDENDUM = `- The goal may be under-specified. Do not sta
 function applyCoordinationProtocol(def: AgentDefinition): AgentDefinition {
   const isCoordinator = def.id === 'ceo' || def.teamRole === 'head' || def.id === 'planner'
   if (!isCoordinator) return def
-  const addendum = def.id === 'ceo' ? `\n${CEO_COORDINATION_ADDENDUM}` : ''
-  return { ...def, systemPrompt: `${def.systemPrompt}\n\n${COORDINATION_PROTOCOL}${addendum}` }
+  const ceoExtra = def.id === 'ceo' ? `\n${CEO_COORDINATION_ADDENDUM}\n${CEO_VERIFIED_DELEGATION_ADDENDUM}` : ''
+  const leaderExtra = def.teamRole === 'head' ? `\n${LEADER_DELEGATION_ADDENDUM}` : ''
+  return { ...def, systemPrompt: `${def.systemPrompt}\n\n${COORDINATION_PROTOCOL}${ceoExtra}${leaderExtra}` }
 }
 
 const baseAgents: AgentDefinition[] = [

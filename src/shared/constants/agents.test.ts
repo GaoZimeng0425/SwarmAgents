@@ -92,4 +92,23 @@ describe('builtin roster', () => {
   it('the CEO description no longer references the renamed PM role', () => {
     expect(byId.ceo.description).not.toContain('PM')
   })
+
+  it('CEO prompt drives the verified delegation pipeline', () => {
+    const p = byId.ceo.systemPrompt
+    expect(p).toMatch(/set_acceptance_criteria/)
+    expect(p).toMatch(/spawn_sub_agent/)
+    expect(p).toMatch(/verify=true/)
+  })
+
+  it('team heads drive delegation-plan + parallel wave dispatch', () => {
+    const p = byId['engineering-lead'].systemPrompt
+    expect(p).toMatch(/set_delegation_plan/)
+    expect(p).toMatch(/in parallel/)
+    // Every head is a potential Leader, not just dev.
+    for (const a of defaultAgents) {
+      if (a.teamRole === 'head') {
+        expect(a.systemPrompt, `head ${a.id} missing delegation plan guidance`).toMatch(/set_delegation_plan/)
+      }
+    }
+  })
 })
