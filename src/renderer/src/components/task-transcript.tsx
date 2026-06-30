@@ -244,7 +244,7 @@ function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): 
         </span>
       </button>
       {open && (
-        <div className="mt-3 space-y-3 [&>*]:mb-0">
+        <div className="mt-3 space-y-4">
           <ToolInput input={seg.input} />
           {seg.imagePath && <ToolImage path={seg.imagePath} />}
           <ToolOutput

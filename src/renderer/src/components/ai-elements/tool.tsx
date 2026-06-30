@@ -4,6 +4,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { isValidElement } from 'react'
 import { CheckCircleIcon, ChevronDownIcon, CircleIcon, ClockIcon, XCircleIcon } from 'lucide-react'
 
+import { Markdown } from '@/components/markdown'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -112,12 +113,25 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
     return null
   }
 
-  let Output = <div>{output as ReactNode}</div>
-
-  if (typeof output === 'object' && !isValidElement(output)) {
-    Output = <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
+  // String results are model/tool prose → render as markdown (not a code block).
+  // Object results stay a JSON code block; errors stay a destructive-tinted block.
+  let body: ReactNode
+  if (errorText) {
+    body = (
+      <ScrollArea className="rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+        <div>{errorText}</div>
+      </ScrollArea>
+    )
   } else if (typeof output === 'string') {
-    Output = <CodeBlock code={output} language="json" />
+    body = <Markdown>{output}</Markdown>
+  } else if (typeof output === 'object' && !isValidElement(output)) {
+    body = (
+      <ScrollArea className="rounded-md bg-muted/50 text-xs [&_table]:w-full">
+        <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
+      </ScrollArea>
+    )
+  } else {
+    body = <div>{output as ReactNode}</div>
   }
 
   return (
@@ -125,15 +139,7 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
         {errorText ? 'Error' : 'Result'}
       </h4>
-      <ScrollArea
-        className={cn(
-          'rounded-md text-xs [&_table]:w-full',
-          errorText ? 'bg-destructive/10 text-destructive' : 'bg-muted/50 text-foreground'
-        )}
-      >
-        {errorText && <div>{errorText}</div>}
-        {Output}
-      </ScrollArea>
+      {body}
     </div>
   )
 }
