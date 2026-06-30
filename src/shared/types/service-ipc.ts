@@ -57,5 +57,21 @@ export type ServiceEvent = {
 
 export type ServiceReady = { kind: 'ready' }
 
-export type MainToService = ServiceRequest
-export type ServiceToMain = ServiceResponse | ServiceEvent | ServiceReady
+// Service→Main request/reply: symmetric reverse direction. Main answers a
+// MainRequest with a MainResponse matched by `id`. Used by service-side tools
+// that need data only Main holds (e.g. the gmail cache).
+export type MainMethod = 'gmail.search' | 'gmail.get_thread' | 'gmail.list_recent'
+
+export type MainRequest = {
+  kind: 'mainRequest'
+  id: number
+  method: MainMethod
+  args: unknown[]
+}
+
+export type MainResponse =
+  | { kind: 'mainResponse'; id: number; ok: true; result: unknown }
+  | { kind: 'mainResponse'; id: number; ok: false; error: string }
+
+export type MainToService = ServiceRequest | MainResponse
+export type ServiceToMain = ServiceResponse | ServiceEvent | ServiceReady | MainRequest
