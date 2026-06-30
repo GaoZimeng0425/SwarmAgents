@@ -8,6 +8,14 @@ type ScrollAreaProps = ScrollAreaPrimitive.Root.Props & {
   edgeFade?: boolean
   /** Ref to the scrolling viewport element, e.g. for `@tanstack/react-virtual`. */
   viewportRef?: Ref<HTMLDivElement>
+  /**
+   * Extra classes for the scrolling viewport. Apply a `max-h-*` here (NOT on the
+   * root) to cap a ScrollArea whose parent has no definite height: the viewport
+   * carries `overflow: scroll`, so a max-height on it makes content scroll,
+   * whereas `max-h-*` on the root only clips — the viewport's `height: 100%`
+   * can't resolve against an auto-height root, so it grows to full content.
+   */
+  viewportClassName?: string
 }
 
 function ScrollArea({
@@ -15,6 +23,7 @@ function ScrollArea({
   children,
   edgeFade = false,
   viewportRef,
+  viewportClassName,
   ...props
 }: ScrollAreaProps) {
   return (
@@ -25,7 +34,10 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        className={cn(
+          "size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1",
+          viewportClassName
+        )}
         ref={viewportRef}
       >
         {children}

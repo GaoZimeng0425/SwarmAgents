@@ -147,8 +147,16 @@ function SubagentBlock({
         </span>
       </button>
       {open && (
-        <ScrollArea className="mt-3 max-h-96">
-          <div className="space-y-3 [&>*]:mb-0">{segs.map((seg) => renderSegment(seg, seg.key === lastKey))}</div>
+        <ScrollArea className="mt-3" viewportClassName="max-h-96">
+          <div className="space-y-3 [&>*]:mb-0">
+            {groupSegments(segs).map((item) =>
+              item.kind === 'single' ? (
+                renderSegment(item.seg, item.seg.key === lastKey)
+              ) : (
+                <ToolGroupBlock key={item.segs[0].key} renderSegment={renderSegment} segs={item.segs} />
+              )
+            )}
+          </div>
         </ScrollArea>
       )}
     </div>
