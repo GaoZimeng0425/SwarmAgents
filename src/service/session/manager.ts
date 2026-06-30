@@ -512,7 +512,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     newGoal: string,
     suggestedTools?: string[],
     providerKey?: string,
-    agentType?: string
+    agentType?: string,
+    options?: import('@shared/types/task').SpawnChildOptions
   ): Promise<{ childTaskId: string; result: TaskResult }> => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
@@ -542,6 +543,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: suggestedTools ?? allowlistForAgent(def),
+      acceptanceCriteria: options?.acceptanceCriteria,
       budget: budgets().sub,
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
       history: [],
@@ -585,14 +587,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           toolRegistry,
           initialMessages: [],
           signal: abort.signal,
-          spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
+          spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
           findPeers: (q) => directory.find(sessionId, q),
           writeAgent: (def) =>
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-          // Children verify single-shot; only top-level submitGoal tasks run the verify loop.
-          maxVerifyRounds: 0,
+          // Children verify single-shot unless the caller opts in (e.g. a Leader
+          // must self-verify). 0 = leaf, no verify loop.
+          maxVerifyRounds: options?.maxVerifyRounds ?? 0,
           maxIterationsOverride: budgets().maxIterations,
         })
         try {
@@ -868,7 +871,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             store.saveTaskUsage(taskId, used, contextWindow)
           },
           signal: abort.signal,
-          spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
+          spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
           findPeers: (q) => directory.find(sessionId, q),
           writeAgent: (def) =>
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },

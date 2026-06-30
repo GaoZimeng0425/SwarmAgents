@@ -3,7 +3,7 @@ import { createLogger } from '@shared/logger'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { Outbound } from '@shared/types/ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import type { AcceptanceCriterion, DelegationItem, TaskResult } from '@shared/types/task'
+import type { AcceptanceCriterion, DelegationItem, SpawnChildOptions, TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
 
 import type { AgentMutationResult } from '../agents/store'
@@ -27,7 +27,8 @@ export interface ToolRunContext {
     goal: string,
     suggestedTools?: string[],
     providerKey?: string,
-    agentType?: string
+    agentType?: string,
+    options?: SpawnChildOptions
   ): Promise<{ childTaskId: string; result: TaskResult }>
   send: (msg: Outbound) => void
   requestPermission: (args: {

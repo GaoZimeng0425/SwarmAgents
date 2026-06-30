@@ -21,6 +21,7 @@ import {
   type DelegationItem,
   emptyUsed,
   type PermissionMode,
+  type SpawnChildOptions,
   type Task,
   type TaskEvent,
   type TaskResult,
@@ -203,7 +204,8 @@ export type AgentRunnerDeps = {
     newGoal: string,
     suggestedTools?: string[],
     providerKey?: string,
-    agentType?: string
+    agentType?: string,
+    options?: SpawnChildOptions
   ): Promise<{ childTaskId: string; result: TaskResult }>
   /** This run's actor address, when run as a resident actor. */
   selfAddress?: string
@@ -304,8 +306,8 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
     sessionId: deps.sessionId,
     taskId: deps.task?.id,
     cwd: deps.task?.cwd,
-    spawnChild: (goal, suggestedTools, providerKey, agentType) =>
-      deps.spawnChild(deps.task.id, goal, suggestedTools, providerKey, agentType),
+    spawnChild: (goal, suggestedTools, providerKey, agentType, options) =>
+      deps.spawnChild(deps.task.id, goal, suggestedTools, providerKey, agentType, options),
     send: () => undefined,
     // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
     // This stub satisfies the ToolRunContext type without creating a second gate.
@@ -1148,7 +1150,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   }
 }
 
-const DEFAULT_MAX_VERIFY_ROUNDS = 3
+export const DEFAULT_MAX_VERIFY_ROUNDS = 3
 
 const VERIFIER_SYSTEM_PROMPT =
   'You are an independent verifier. You are given a task goal, its acceptance criteria, and the ' +

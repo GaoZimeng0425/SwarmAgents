@@ -125,6 +125,14 @@ export const DelegationItemSchema = z.object({
 })
 export type DelegationItem = z.infer<typeof DelegationItemSchema>
 
+// Extra contract passed down a delegation edge via spawnChild: the child's
+// acceptance criteria (skips its Phase A when supplied) and whether it runs the
+// verify loop (0 = single-shot leaf).
+export type SpawnChildOptions = {
+  acceptanceCriteria?: AcceptanceCriterion[]
+  maxVerifyRounds?: number
+}
+
 // Composer-supplied options threaded from the renderer to session-manager.
 export const TaskOptionsSchema = z.object({
   cwd: z.string().optional(),
