@@ -3,7 +3,7 @@ import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
 import type { Actor, ActorMessage } from '@shared/types/actor'
 import type { ProviderInjection } from '@shared/types/provider'
-import type { Task } from '@shared/types/task'
+import type { Task, TaskEvent } from '@shared/types/task'
 import type { UsageStats } from '@shared/types/usage'
 import { HEATMAP_DAYS } from '@shared/types/usage'
 import Database from 'better-sqlite3'
@@ -469,10 +469,23 @@ export function createConversationStore(dbPath: string): ConversationStore {
     // 'interrupted' by a *previous* restart still drags pending tasks that would
     // otherwise replay forever as phantom queued cards, since the active-only
     // `WHERE status='active'` filter never matches them again.
+    const now = Date.now()
+    const zombieTaskIds = (
+      db
+        .prepare(`SELECT id FROM tasks WHERE status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')`)
+        .all() as { id: string }[]
+    ).map((r) => r.id)
     db.prepare(
       `UPDATE tasks SET status = 'interrupted', ended_at = COALESCE(ended_at, ?)
        WHERE status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')`
-    ).run(Date.now())
+    ).run(now)
+    // A zombie interrupted mid-tool-call (e.g. spawn_sub_agent, whose execute()
+    // blocks on the child) leaves a tool.call with no matching tool.result, so
+    // its card would spin "running" forever. Close each orphan now that the task
+    // is terminal.
+    let closedOrphans = 0
+    for (const id of zombieTaskIds) closedOrphans += closeOrphanToolCalls(id, now)
+    if (closedOrphans > 0) log.info({ msg: 'closed orphan tool calls on interrupted tasks', count: closedOrphans })
     return active.map(rowToSession).map((s) => ({ ...s, status: 'interrupted' as const }))
   })
 
@@ -510,6 +523,67 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtInsertTaskEvent = db.prepare('INSERT INTO task_events (task_id, event, ts) VALUES (?, ?, ?)')
   const stmtGetTaskEvents = db.prepare('SELECT event FROM task_events WHERE task_id = ? ORDER BY id')
   const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
+
+  // Append a synthetic ok=false tool.result for every tool.call left without a
+  // matching tool.result (e.g. spawn_sub_agent interrupted mid-run, whose
+  // blocking execute() never returned to emit one). Without it the tool card
+  // stays ok=null ("running") forever on reload. Returns the count appended.
+  //
+  // Pairing mirrors src/renderer/src/lib/task-segments.ts so the synthetic
+  // result lands on the exact call it closes: callId-keyed for parallel results
+  // (which arrive in completion order, not call order), FIFO for legacy no-callId
+  // rows. update_plan's call AND result are both dropped by the renderer, so it
+  // is kept out of pending — skipNextResult absorbs its result the same way.
+  const closeOrphanToolCalls = (taskId: string, now: number): number => {
+    const rows = stmtGetTaskEvents.all(taskId) as { event: string }[]
+    const pendingByCallId = new Map<string, true>()
+    let fifoPending = 0
+    let skipNextResult = false
+    for (const r of rows) {
+      let e: TaskEvent
+      try {
+        e = JSON.parse(r.event) as TaskEvent
+      } catch {
+        continue
+      }
+      if (e.kind === 'tool.call') {
+        if (e.tool === 'update_plan') {
+          skipNextResult = true
+          continue
+        }
+        skipNextResult = false
+        if (e.callId) pendingByCallId.set(e.callId, true)
+        else fifoPending += 1
+      } else if (e.kind === 'tool.result') {
+        if (skipNextResult) {
+          skipNextResult = false
+          continue
+        }
+        if (e.callId) pendingByCallId.delete(e.callId)
+        else if (fifoPending > 0) fifoPending -= 1
+      }
+    }
+    let inserted = 0
+    const payload = { kind: 'text', text: 'Interrupted before completion' }
+    for (const callId of pendingByCallId.keys()) {
+      stmtInsertTaskEvent.run(
+        taskId,
+        JSON.stringify({ kind: 'tool.result', ok: false, payload, callId, ts: now } satisfies TaskEvent),
+        now
+      )
+      inserted += 1
+    }
+    for (let i = 0; i < fifoPending; i++) {
+      stmtInsertTaskEvent.run(
+        taskId,
+        JSON.stringify({ kind: 'tool.result', ok: false, payload, ts: now } satisfies TaskEvent),
+        now
+      )
+      inserted += 1
+    }
+    return inserted
+  }
+
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
   const stmtSetTaskCriteria = db.prepare('UPDATE tasks SET acceptance_criteria = ? WHERE id = ?')
   const stmtSetTaskVerifications = db.prepare('UPDATE tasks SET verifications = ? WHERE id = ?')

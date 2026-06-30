@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
-import type { Task } from '@shared/types/task'
+import type { Task, TaskEvent } from '@shared/types/task'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createConversationStore } from './store'
@@ -119,6 +119,74 @@ describe('ConversationStore', () => {
     const store2 = createConversationStore(dbPath)
     store2.getInterruptedSessions()
     expect(store2.getSessionTasks('ses-prev').find((t) => t.id === 'task-zombie')?.status).toBe('interrupted')
+    store2.close()
+  })
+
+  it('closes orphan tool calls when interrupting zombie tasks on restart', () => {
+    // A spawn_sub_agent interrupted mid-run leaves a tool.call whose blocking
+    // execute() never returned, so no tool.result is ever recorded. Its card
+    // would spin "running" forever on reload. The restart cleanup must synthesize
+    // a tool.result (ok=false) for each unresolved call, while leaving already
+    // resolved calls untouched.
+    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const mkTask = (id: string, status: import('@shared/types/task').Task['status']) => ({
+      id,
+      parentId: null,
+      agentDefId: 'default',
+      goal: 'g',
+      status,
+      assignedWorkerId: null,
+      toolAllowlist: [],
+      budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
+      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      history: [],
+      result: null,
+      createdAt: Date.now(),
+      startedAt: null,
+      endedAt: null,
+    })
+    const store1 = createConversationStore(dbPath)
+    store1.createSession('ses-x', provider) // left 'active' → interrupted on restart
+    store1.saveTask(mkTask('task-zombie', 'pending'), 'ses-x')
+    // A resolved tool call (call + result) plus an orphan spawn_sub_agent (call only).
+    store1.appendTaskEvent('task-zombie', {
+      kind: 'tool.call',
+      server: 'builtin',
+      tool: 'read_file',
+      args: {},
+      ts: 1,
+      callId: 'call-resolved',
+    })
+    store1.appendTaskEvent('task-zombie', {
+      kind: 'tool.result',
+      ok: true,
+      payload: { kind: 'text', text: 'ok' },
+      ts: 2,
+      callId: 'call-resolved',
+    })
+    store1.appendTaskEvent('task-zombie', {
+      kind: 'tool.call',
+      server: 'builtin',
+      tool: 'spawn_sub_agent',
+      args: { goal: 'g' },
+      ts: 3,
+      callId: 'call-orphan',
+    })
+    store1.close()
+
+    const store2 = createConversationStore(dbPath)
+    store2.getInterruptedSessions()
+    const task = store2.getSessionTasks('ses-x').find((t) => t.id === 'task-zombie')!
+    expect(task.status).toBe('interrupted')
+    const results = task.history.filter(
+      (e): e is Extract<TaskEvent, { kind: 'tool.result' }> => e.kind === 'tool.result'
+    )
+    const orphan = results.find((r) => r.callId === 'call-orphan')
+    expect(orphan).toBeDefined()
+    expect(orphan?.ok).toBe(false)
+    // The already-resolved call is not duplicated.
+    expect(results.filter((r) => r.callId === 'call-resolved')).toHaveLength(1)
+    expect(results).toHaveLength(2)
     store2.close()
   })
 
