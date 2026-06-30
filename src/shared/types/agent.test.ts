@@ -3,26 +3,30 @@ import { describe, expect, it } from 'vitest'
 import { AgentDefinitionSchema, allowlistForAgent, deriveAllowlist } from './agent'
 
 describe('deriveAllowlist', () => {
+  // Every agent gets the full standard tool set regardless of scope; toolScope
+  // no longer restricts capabilities (a coordinator/researcher can use shell,
+  // fs, web, UI, screen capture directly, not only delegate). Only authoring
+  // adds its privileged group, which '*' excludes (see registry PRIVILEGED_GROUPS).
   it('all -> wildcard', () => {
     expect(deriveAllowlist('all')).toEqual(['*'])
   })
-  it('peekaboo -> observation tools only (no interaction)', () => {
-    expect(deriveAllowlist('peekaboo')).toEqual(['peekaboo.see_screen', 'peekaboo.list_apps'])
+  it('peekaboo -> full tool set (was observation-only)', () => {
+    expect(deriveAllowlist('peekaboo')).toEqual(['*'])
   })
-  it('web -> web + agent', () => {
-    expect(deriveAllowlist('web')).toEqual(['web.*', 'agent.*'])
+  it('web -> full tool set (was web + agent)', () => {
+    expect(deriveAllowlist('web')).toEqual(['*'])
   })
-  it('fs -> fs + agent', () => {
-    expect(deriveAllowlist('fs')).toEqual(['fs.*', 'agent.*'])
+  it('fs -> full tool set (was fs + agent)', () => {
+    expect(deriveAllowlist('fs')).toEqual(['*'])
   })
-  it('memory -> memory + agent', () => {
-    expect(deriveAllowlist('memory')).toEqual(['memory.*', 'agent.*'])
+  it('memory -> full tool set (was memory + agent)', () => {
+    expect(deriveAllowlist('memory')).toEqual(['*'])
   })
-  it('maps the authoring scope to the authoring group plus coordination tools', () => {
-    expect(deriveAllowlist('authoring')).toEqual(['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*'])
+  it('authoring -> full tool set plus the privileged authoring group', () => {
+    expect(deriveAllowlist('authoring')).toEqual(['*', 'authoring.*'])
   })
-  it('coordinate grants only the delegation and skill groups', () => {
-    expect(deriveAllowlist('coordinate')).toEqual(['agent.*', 'skill.*'])
+  it('coordinate -> full tool set (was delegation + skill only)', () => {
+    expect(deriveAllowlist('coordinate')).toEqual(['*'])
   })
 })
 

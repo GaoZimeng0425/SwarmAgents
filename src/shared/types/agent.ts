@@ -89,33 +89,27 @@ export type Peer = {
  * Default tool allowlist generated from an agent's coarse `toolScope`.
  * Used when a task is created without an explicit allowlist. `toolAllowlist`
  * remains the authoritative runtime filter; this only seeds its default.
+ *
+ * Every scope now resolves to the full standard tool set (`'*'`) — toolScope no
+ * longer restricts capabilities. A coordinator/researcher/etc. can use shell,
+ * fs, web, UI cards, and screen capture directly instead of only delegating.
+ * The lone exception is `authoring`, which adds its privileged group
+ * (write_agent/write_skill) on top — those tools are excluded from `*` (see
+ * tools/registry PRIVILEGED_GROUPS) and stay exclusive to the training team.
+ * `claude-code.*` is granted separately by `allowlistForAgent` for code-capable
+ * agents.
  */
 export function deriveAllowlist(scope: ToolScope): string[] {
   switch (scope) {
-    case 'all':
-      return ['*']
-    case 'peekaboo':
-      // Observation only — interaction tools (click/type/scroll/hotkey) live in
-      // the same group but must not leak into read-only agents. The allowlist,
-      // not the system prompt, is the capability boundary.
-      return ['peekaboo.see_screen', 'peekaboo.list_apps']
-    case 'web':
-      return ['web.*', 'agent.*']
-    case 'fs':
-      return ['fs.*', 'agent.*']
-    case 'memory':
-      return ['memory.*', 'agent.*']
     case 'authoring':
-      // Privileged: authoring.* is excluded from '*' (see tools/registry PRIVILEGED_GROUPS),
-      // so only this scope can reach write_agent/write_skill. Plus the coordination
-      // tools a team head needs to delegate and read.
-      return ['authoring.*', 'agent.*', 'fs.*', 'web.*', 'shell.*']
+      return ['*', 'authoring.*']
+    case 'all':
+    case 'peekaboo':
+    case 'web':
+    case 'fs':
+    case 'memory':
     case 'coordinate':
-      // Pure delegator: the coordination tools (find_agents, send_and_wait,
-      // spawn_sub_agent, update_plan) plus use_skill — no shell, fs, web, UI or
-      // screen capture. For the CEO, planner and team heads, which only break
-      // work down and delegate; the ICs they delegate to hold the real tools.
-      return ['agent.*', 'skill.*']
+      return ['*']
   }
 }
 
