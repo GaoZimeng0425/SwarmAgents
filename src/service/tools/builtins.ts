@@ -65,6 +65,8 @@ export function registerBuiltinTools(
     getWebSearchConfig?: () => WebSearchInjection
     /** Live predicate from the tool-toggles store; undefined → all skills enabled. */
     isSkillEnabled?: (name: string) => boolean
+    /** Service-side client for gmail.* mainRequest/mainResponse calls. */
+    gmailMainRpc?: (method: import('@shared/types/service-ipc').MainMethod, args: unknown[]) => Promise<unknown>
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)

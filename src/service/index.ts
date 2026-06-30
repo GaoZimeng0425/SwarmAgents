@@ -13,6 +13,7 @@ import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
 import { createBroadcaster } from './ipc/broadcaster'
 import { createDispatcher } from './ipc/dispatcher'
+import { createMainRpc } from './gmail/main-rpc'
 import { createMcpManager } from './mcp/manager'
 import { createMemoryStore } from './memory/store'
 import { createSessionManager } from './session/manager'
@@ -111,6 +112,21 @@ const taskWaiters = createTaskWaiterService({
 store.setTaskTerminalListener((taskId, status) => taskWaiters.onTaskTerminal(taskId, status))
 taskWaiters.start()
 
+// Service-side main-rpc client: gmail.* tools call mainRpc('gmail.search', [...]),
+// which posts a mainRequest that Main answers with a mainResponse. The client
+// resolves the pending promise for each matched id. subscribe adds a second
+// parentPort 'message' listener (the ServiceRequest handler filters by kind, so
+// there is no conflict); utilityProcess parentPort has no off(), so unsubscribe
+// is a no-op — the listener lives for the process lifetime.
+const mainRpc = createMainRpc({
+  post: (m) => parentPort.postMessage(m),
+  subscribe: (fn) => {
+    const listener = (e: { data: unknown }): void => fn(e.data)
+    parentPort.on('message', listener)
+    return () => {}
+  },
+})
+
 registerBuiltinTools(toolRegistry, {
   memoryStore,
   skillStore,
@@ -119,6 +135,7 @@ registerBuiltinTools(toolRegistry, {
   taskWaiters,
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
+  gmailMainRpc: mainRpc.mainRpc,
 })
 scheduler.start()
 
