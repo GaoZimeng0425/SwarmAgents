@@ -114,7 +114,7 @@ function SubagentBlock({
   task: TaskRecord
   segs: Segment[]
   lastKey: string | undefined
-  renderSegment: (seg: Segment, isLiveTail: boolean) => React.JSX.Element
+  renderSegment: (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element
 }): React.JSX.Element {
   const running = task.status === 'running' || task.status === 'pending'
   const failed = task.status === 'failed' || task.status === 'cancelled'
@@ -169,7 +169,7 @@ function ToolGroupBlock({
   renderSegment,
 }: {
   segs: Segment[]
-  renderSegment: (seg: Segment, isLiveTail: boolean) => React.JSX.Element
+  renderSegment: (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element
 }): React.JSX.Element {
   const running = segs.some((s) => s.kind === 'tool' && s.ok === null)
   const failed = segs.some((s) => s.kind === 'tool' && s.ok === false)
@@ -202,7 +202,57 @@ function ToolGroupBlock({
         )}
         <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
       </button>
-      {open && <div className="mt-3 space-y-3 [&>*]:mb-0">{segs.map((seg) => renderSegment(seg, false))}</div>}
+      {open && <div className="mt-3 space-y-3 [&>*]:mb-0">{segs.map((seg) => renderSegment(seg, false, true))}</div>}
+    </div>
+  )
+}
+
+// Collapsible block for a single tool call. Mirrors the ToolGroupBlock chrome so
+// a lone tool matches the Thinking / Tools rows instead of rendering as a
+// mismatched bordered card. Reuses ToolInput/ToolOutput for the expanded body.
+function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): React.JSX.Element {
+  const running = seg.ok === null
+  const failed = seg.ok === false
+  const [open, setOpen] = useState(running)
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running) setOpen(false)
+    wasRunning.current = running
+  }, [running])
+
+  const preview = seg.output ? seg.output.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+      <button
+        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
+        onClick={() => setOpen((v) => !v)}
+        type="button"
+      >
+        <Wrench className={cn('size-3.5', running && 'animate-pulse text-primary')} />
+        <span className="font-semibold uppercase tracking-wider">{seg.tool}</span>
+        {preview && !open && <span className="min-w-0 flex-1 truncate text-muted-foreground/60">{preview}</span>}
+        <span className="ml-auto flex items-center gap-2">
+          {running ? (
+            <Spinner className="size-3.5 text-primary" />
+          ) : failed ? (
+            <XCircleIcon className="size-3.5 text-red-600" />
+          ) : (
+            <CheckCircleIcon className="size-3.5 text-green-600" />
+          )}
+          <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
+        </span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3 [&>*]:mb-0">
+          <ToolInput input={seg.input} />
+          {seg.imagePath && <ToolImage path={seg.imagePath} />}
+          <ToolOutput
+            errorText={seg.ok === false ? (seg.output ?? '') : undefined}
+            output={seg.ok === false ? undefined : seg.output}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -210,12 +260,16 @@ function ToolGroupBlock({
 // Build the per-segment renderer. Closures (busy/onSend/onCopy/onDelete) are
 // passed explicitly so both the live chat thread and the read-only results card
 // share one rendering implementation. onDelete omitted → no Delete action.
+//
+// `nested` marks tool segments rendered INSIDE a ToolGroupBlock, where the old
+// bordered Tool card is kept (a muted card nested in a muted card reads badly).
+// Top-level single tools render as SingleToolBlock to match the Thinking row.
 function createSegmentRenderer(opts: {
   busy: boolean
   onSend?: (text: string) => void
   onCopy: (text: string) => void
   onDelete?: (taskId: string) => void
-}): (seg: Segment, isLiveTail: boolean) => React.JSX.Element {
+}): (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element {
   const { busy, onSend, onCopy, onDelete } = opts
 
   const messageTime = (ts: number): React.JSX.Element => (
@@ -240,7 +294,7 @@ function createSegmentRenderer(opts: {
     </MessageActions>
   )
 
-  const renderSegment = (seg: Segment, isLiveTail: boolean): React.JSX.Element => {
+  const renderSegment = (seg: Segment, isLiveTail: boolean, nested = false): React.JSX.Element => {
     if (seg.kind === 'reasoning') {
       return <ReasoningBlock key={seg.key} live={isLiveTail && busy} text={seg.text} />
     }
@@ -294,6 +348,11 @@ function createSegmentRenderer(opts: {
           )
         }
         // Unknown type → fall through to the generic Tool card below.
+      }
+      // Top-level single tool: render as a muted card matching the Thinking row.
+      // Nested (inside a ToolGroupBlock) keeps the bordered Tool card below.
+      if (!nested) {
+        return <SingleToolBlock key={seg.key} seg={seg} />
       }
       const preview = seg.output ? seg.output.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined
       return (
