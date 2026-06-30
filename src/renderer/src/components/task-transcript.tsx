@@ -117,6 +117,7 @@ function SubagentBlock({
   renderSegment: (seg: Segment, isLiveTail: boolean) => React.JSX.Element
 }): React.JSX.Element {
   const running = task.status === 'running' || task.status === 'pending'
+  const failed = task.status === 'failed' || task.status === 'cancelled'
   const [open, setOpen] = useState(running)
   const wasRunning = useRef(running)
   useEffect(() => {
@@ -125,21 +126,31 @@ function SubagentBlock({
   }, [running])
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border/60 border-l-2 border-l-primary/50 bg-muted/20 py-3 pr-3 pl-4">
+    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
       <button
-        className="flex w-full items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
+        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
-        <Bot className="size-3.5" />
-        <span className="font-medium">Subagent</span>
-        {task.agentDefId && <span className="font-mono text-muted-foreground/70">· {task.agentDefId}</span>}
-        <span className="ml-auto flex items-center gap-1.5">
-          {running && <Spinner className="size-3.5 text-primary" />}
+        <Bot className={cn('size-3.5', running && 'animate-pulse text-primary')} />
+        <span className="font-semibold uppercase tracking-wider">Subagent</span>
+        {task.agentDefId && <span className="font-mono text-muted-foreground/60">· {task.agentDefId}</span>}
+        <span className="ml-auto flex items-center gap-2">
+          {running ? (
+            <Spinner className="size-3.5 text-primary" />
+          ) : failed ? (
+            <XCircleIcon className="size-3.5 text-red-600" />
+          ) : (
+            <CheckCircleIcon className="size-3.5 text-green-600" />
+          )}
           <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
         </span>
       </button>
-      {open && segs.map((seg) => renderSegment(seg, seg.key === lastKey))}
+      {open && (
+        <ScrollArea className="mt-3 max-h-96">
+          <div className="space-y-3 [&>*]:mb-0">{segs.map((seg) => renderSegment(seg, seg.key === lastKey))}</div>
+        </ScrollArea>
+      )}
     </div>
   )
 }
