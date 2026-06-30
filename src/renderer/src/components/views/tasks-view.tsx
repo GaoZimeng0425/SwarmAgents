@@ -125,23 +125,6 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           }}
           tasks={transcriptTasks}
         />
-        <ComposerOverlay
-          onCancelQueued={(taskId) => {
-            if (selectedSessionId) cancelTask.mutate({ sessionId: selectedSessionId, taskId })
-          }}
-          onDecide={(actionId, decision) => {
-            const p = sessionPrompts.find((x) => x.actionId === actionId)
-            if (!p) return
-            decide.mutate({ sessionId: p.sessionId, actionId, decision })
-          }}
-          onInterrupt={(taskId) => {
-            if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, taskId })
-          }}
-          prompts={sessionPrompts}
-          queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}
-          running={!!runningTask}
-          todos={activePlan ?? []}
-        />
         <ChatInput
           agentType={agentType}
           cacheReadTokens={latestTask?.used?.cacheRead}
@@ -161,6 +144,25 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
             if (!ready) return
             await submitGoal.mutateAsync({ goal: g, attachments, options: taskOptions })
           }}
+          overlay={
+            <ComposerOverlay
+              onCancelQueued={(taskId) => {
+                if (selectedSessionId) cancelTask.mutate({ sessionId: selectedSessionId, taskId })
+              }}
+              onDecide={(actionId, decision) => {
+                const p = sessionPrompts.find((x) => x.actionId === actionId)
+                if (!p) return
+                decide.mutate({ sessionId: p.sessionId, actionId, decision })
+              }}
+              onInterrupt={(taskId) => {
+                if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, taskId })
+              }}
+              prompts={sessionPrompts}
+              queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}
+              running={!!runningTask}
+              todos={activePlan ?? []}
+            />
+          }
           permissionMode={permissionMode}
           running={!!runningTask}
           supportsImages={!!providerViewById(state, state.active)?.supportsImages}

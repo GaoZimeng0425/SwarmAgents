@@ -32,8 +32,7 @@ export function PermissionCard({ prompt, onDecide, autoFocusDeny = false }: Prop
     <section
       aria-label="Action requires confirmation"
       className={cn(
-        'flex max-h-[50vh] shrink-0 flex-col overflow-hidden rounded-xl border bg-popover/95 shadow-lg',
-        'fade-in-0 slide-in-from-bottom-3 animate-in duration-200',
+        'flex max-h-[50vh] shrink-0 flex-col overflow-hidden rounded-xl border bg-popover shadow-sm',
         isHigh ? 'border-destructive/50 ring-1 ring-destructive/30' : 'border-border'
       )}
       data-risk={prompt.risk}

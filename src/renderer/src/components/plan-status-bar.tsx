@@ -33,7 +33,7 @@ export function PlanStatusBar({ todos, running }: Props): React.JSX.Element | nu
   return (
     <section
       aria-label="Plan progress"
-      className="flex flex-col overflow-hidden rounded-xl border border-border bg-popover/95 shadow-sm"
+      className="flex flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-sm"
     >
       <button
         aria-expanded={open}

@@ -58,6 +58,11 @@ type Props = {
   teamOptions?: { id: string; label: string }[]
   agentType?: string
   onAgentTypeChange?: (id: string) => void
+  // Pinned items (pending permissions, plan progress, queued turns) rendered as
+  // distinct rounded cards floating ABOVE the composer box, with their own
+  // surface (bg-popover) so they layer above the translucent input field.
+  // Undefined on the home screen, where there is nothing to pin.
+  overlay?: React.ReactNode
 }
 
 type ModelOption = { providerId: string; providerName: string; modelId: string; key: string }
@@ -288,6 +293,7 @@ export function ChatInput({
   teamOptions,
   agentType,
   onAgentTypeChange,
+  overlay,
 }: Props): React.JSX.Element {
   const { state } = useProviders()
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
@@ -423,7 +429,8 @@ export function ChatInput({
 
   return (
     <div className="shrink-0 px-4 pt-2 pb-4" ref={containerRef}>
-      <div className="mx-auto max-w-3xl" ref={composerRef}>
+      <div className="mx-auto max-w-3xl [&_[data-slot=input-group]]:rounded-xl" ref={composerRef}>
+        {overlay}
         <PromptInput
           accept={supportsImages ? ATTACHMENT_ACCEPT : DOCUMENT_ACCEPT}
           maxFileSize={MAX_FILE_SIZE}
