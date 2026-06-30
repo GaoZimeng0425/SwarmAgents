@@ -36,7 +36,7 @@ describe('gmail service', () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
     const store = createStore({ filePath: join(dir, 'gmail.enc') })
     const cache = createCache({ filePath: ':memory:' })
-    const daemon = { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn() }
+    const daemon = { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn(), onSynced: () => () => {} }
     const svc = await createService({ store, cache, auth: fakeAuth(), daemon })
     const r = await svc.setClientCreds({ clientId: 'cid', clientSecret: 'sec' })
     expect(r.ok).toBe(true)
@@ -50,7 +50,7 @@ describe('gmail service', () => {
     const store = createStore({ filePath: join(dir, 'gmail.enc') })
     await store.save({ clientCreds: { clientId: 'cid', clientSecret: 'sec' }, tokens: null, accountEmail: null })
     const cache = createCache({ filePath: ':memory:' })
-    const daemon = { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn() }
+    const daemon = { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn(), onSynced: () => () => {} }
     const auth = fakeAuth({ login: async () => {} })
     const svc = await createService({ store, cache, auth, daemon })
     await svc.linkAccount()
@@ -71,7 +71,7 @@ describe('gmail service', () => {
       store,
       cache,
       auth: fakeAuth(),
-      daemon: { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn() },
+      daemon: { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn(), onSynced: () => () => {} },
     })
     expect(svc.search('invoice', 10).map((t) => t.id)).toEqual(['t1'])
     expect(svc.getThread('t1')?.thread.id).toBe('t1')

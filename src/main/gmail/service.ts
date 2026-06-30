@@ -60,6 +60,9 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
 
   // If already linked at boot (tokens present), keep the daemon running.
   if (cachedConfig.tokens) deps.daemon.start()
+  // Background daemon polls (5-min interval) must refresh the view too —
+  // otherwise only manual Sync now broadcasts gmail:stateChanged.
+  deps.daemon.onSynced(() => emit())
 
   return {
     async setClientCreds(creds) {

@@ -26,6 +26,9 @@ export type Daemon = {
   start(): void
   stop(): void
   pollOnce(): Promise<void>
+  // Register a sync listener; fired after every pollOnce (background or manual),
+  // on both success and error payloads. Returns an unsubscribe.
+  onSynced(cb: (payload: SyncedPayload) => void): () => void
 }
 
 export type DaemonDeps = {
@@ -38,6 +41,19 @@ export type DaemonDeps = {
 export function createDaemon(deps: DaemonDeps): Daemon {
   const intervalMs = deps.intervalMs ?? DEFAULT_INTERVAL_MS
   let timer: ReturnType<typeof setInterval> | null = null
+
+  // Listeners registered via onSynced(); fired alongside the constructor dep.
+  const listeners = new Set<(p: SyncedPayload) => void>()
+  const fireSynced = (payload: SyncedPayload): void => {
+    deps.onSynced?.(payload)
+    for (const cb of listeners) {
+      try {
+        cb(payload)
+      } catch (err) {
+        log.error({ msg: 'gmail onSynced listener threw', err: err instanceof Error ? err.message : String(err) })
+      }
+    }
+  }
 
   const pollOnce: Daemon['pollOnce'] = async () => {
     const ts = Date.now()
@@ -54,11 +70,11 @@ export function createDaemon(deps: DaemonDeps): Daemon {
       deps.cache.upsertMessages(messages)
       deps.cache.setStats({ messageCount: messages.length, lastSyncAt: ts })
       log.info({ msg: 'gmail synced', count: threads.length })
-      deps.onSynced?.({ count: threads.length, ts, deletionsNotTracked: true })
+      fireSynced({ count: threads.length, ts, deletionsNotTracked: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       log.error({ msg: 'gmail sync failed', err: msg })
-      deps.onSynced?.({ count: 0, ts, deletionsNotTracked: true, error: msg })
+      fireSynced({ count: 0, ts, deletionsNotTracked: true, error: msg })
     }
   }
 
@@ -75,5 +91,11 @@ export function createDaemon(deps: DaemonDeps): Daemon {
       log.info({ msg: 'gmail daemon stopped' })
     },
     pollOnce,
+    onSynced(cb) {
+      listeners.add(cb)
+      return () => {
+        listeners.delete(cb)
+      }
+    },
   }
 }
