@@ -2,14 +2,15 @@ import type { WebSearchInjection } from '@shared/types/web-search'
 
 import type { ClaudeCodeManager } from '../claude-code/manager'
 import type { CronScheduler } from '../cron/scheduler'
+import { gmailSpecs } from '../gmail/tools'
 import type { TaskWaiterService } from '../loop/task-waiters'
 import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
 import { acceptanceCriteriaSpec } from './acceptance-criteria'
-import { delegationPlanSpec } from './delegation-plan'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
 import { claudeCodeSpecs } from './claude-code'
 import { cronSpecs } from './cron'
+import { delegationPlanSpec } from './delegation-plan'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
 import { findAgentsSpec, sendAndWaitSpec, sendMessageSpec, whoamiSpec } from './messaging'
@@ -103,4 +104,6 @@ export function registerBuiltinTools(
   if (deps?.taskWaiters) for (const spec of waitForTaskSpecs(deps.taskWaiters)) registry.register(spec)
   // cc_* tools need the Claude Code manager; registered only when one is injected.
   if (deps?.claudeCode) for (const spec of claudeCodeSpecs(deps.claudeCode)) registry.register(spec)
+  // gmail.* tools need the service→main rpc to query the cache; registered only when one is injected.
+  if (deps?.gmailMainRpc) for (const spec of gmailSpecs(deps.gmailMainRpc)) registry.register(spec)
 }
