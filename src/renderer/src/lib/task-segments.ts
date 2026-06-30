@@ -3,13 +3,13 @@ import type { UIEvent } from '@shared/types/ui'
 
 import type { TaskRecord } from './apply-event'
 
-// Every segment carries the timestamp of the event that produced it so the
-// renderer can interleave segments across tasks in true causal order (a spawned
-// sub-agent's block lands at its spawn point, not appended after the parent).
+// Every segment carries a global per-session seq (the timeline sort key, so the
+// renderer can interleave segments across tasks in true causal order — a spawned
+// sub-agent's block lands at its spawn point) and the event's ts (display only).
 export type Segment =
-  | { kind: 'user'; text: string; attachments: Attachment[]; key: string; taskId: string; ts: number }
-  | { kind: 'assistant'; text: string; key: string; taskId: string; ts: number }
-  | { kind: 'reasoning'; text: string; key: string; taskId: string; ts: number }
+  | { kind: 'user'; text: string; attachments: Attachment[]; key: string; taskId: string; ts: number; seq: number }
+  | { kind: 'assistant'; text: string; key: string; taskId: string; ts: number; seq: number }
+  | { kind: 'reasoning'; text: string; key: string; taskId: string; ts: number; seq: number }
   | {
       kind: 'tool'
       tool: string
@@ -21,9 +21,10 @@ export type Segment =
       key: string
       taskId: string
       ts: number
+      seq: number
     }
-  | { kind: 'event'; label: string; detail: string; key: string; taskId: string; ts: number }
-  | { kind: 'error'; label: 'error' | 'stopped'; detail: string; key: string; taskId: string; ts: number }
+  | { kind: 'event'; label: string; detail: string; key: string; taskId: string; ts: number; seq: number }
+  | { kind: 'error'; label: 'error' | 'stopped'; detail: string; key: string; taskId: string; ts: number; seq: number }
 
 function toolDetail(payload: unknown): string {
   const p = payload as { text?: string } | undefined
@@ -45,20 +46,23 @@ export function taskSegments(task: TaskRecord): Segment[] {
       key: `${task.id}-goal`,
       taskId: task.id,
       ts: task.startedAt,
+      // The goal bubble takes task.created's seq (events[0]) so it sorts at the
+      // task's true position; fall back to startedAt when no events are present.
+      seq: task.events[0]?.seq ?? task.startedAt,
     },
   ]
 
-  // Appended chunks keep the first chunk's ts (the segment's causal position).
-  const pushAssistant = (text: string, key: string, ts: number): void => {
+  // Appended chunks keep the first chunk's ts/seq (the segment's causal position).
+  const pushAssistant = (text: string, key: string, ts: number, seq: number): void => {
     const last = out[out.length - 1]
     if (last && last.kind === 'assistant') last.text += text
-    else out.push({ kind: 'assistant', text, key, taskId: task.id, ts })
+    else out.push({ kind: 'assistant', text, key, taskId: task.id, ts, seq })
   }
 
-  const pushReasoning = (text: string, key: string, ts: number): void => {
+  const pushReasoning = (text: string, key: string, ts: number, seq: number): void => {
     const last = out[out.length - 1]
     if (last && last.kind === 'reasoning') last.text += text
-    else out.push({ kind: 'reasoning', text, key, taskId: task.id, ts })
+    else out.push({ kind: 'reasoning', text, key, taskId: task.id, ts, seq })
   }
 
   // update_plan is rendered by PlanPanel, so its call AND following result are dropped.
@@ -72,10 +76,12 @@ export function taskSegments(task: TaskRecord): Segment[] {
 
   task.events.forEach((e: UIEvent, i) => {
     const key = `${task.id}-${i}`
+    // Per-event seq for ordering (makeEmit/replay always set it; ts is a defensive fallback).
+    const seq = e.seq ?? e.ts
     if (e.kind === 'task.progress') {
       const ev = e.event
       if (ev.kind === 'llm.message' && ev.role === 'assistant') {
-        pushAssistant(typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content), key, e.ts)
+        pushAssistant(typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content), key, e.ts, seq)
       } else if (ev.kind === 'llm.message' && ev.role === 'user') {
         // A follow-up turn on the same task: render the user's message as its own
         // bubble (the task.goal user bubble above is the original request).
@@ -86,9 +92,10 @@ export function taskSegments(task: TaskRecord): Segment[] {
           key,
           taskId: task.id,
           ts: e.ts,
+          seq,
         })
       } else if (ev.kind === 'reasoning') {
-        pushReasoning(ev.content, key, e.ts)
+        pushReasoning(ev.content, key, e.ts, seq)
       } else if (ev.kind === 'tool.call') {
         if (ev.tool === 'update_plan') {
           skipNextToolResult = true
@@ -104,6 +111,7 @@ export function taskSegments(task: TaskRecord): Segment[] {
           key,
           taskId: task.id,
           ts: e.ts,
+          seq,
         } as Extract<Segment, { kind: 'tool' }>
         out.push(seg)
         if (ev.callId) pendingByCallId.set(ev.callId, seg)
@@ -130,19 +138,20 @@ export function taskSegments(task: TaskRecord): Segment[] {
             key,
             taskId: task.id,
             ts: e.ts,
+            seq,
           })
         }
       } else if (ev.kind === 'error') {
         const label = ev.error.code === 'cancelled' ? 'stopped' : 'error'
-        out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, taskId: task.id, ts: e.ts })
+        out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, taskId: task.id, ts: e.ts, seq })
       }
     } else if (e.kind === 'task.permission_request') {
-      out.push({ kind: 'event', label: `permission (${e.risk})`, detail: e.summary, key, taskId: task.id, ts: e.ts })
+      out.push({ kind: 'event', label: `permission (${e.risk})`, detail: e.summary, key, taskId: task.id, ts: e.ts, seq })
     } else if (e.kind === 'task.error') {
       const err = typeof e.error === 'object' && e.error ? (e.error as { message?: unknown; code?: unknown }) : null
       const msg = err && 'message' in err ? String(err.message) : 'error'
       const label = err?.code === 'cancelled' ? 'stopped' : 'error'
-      out.push({ kind: 'error', label, detail: msg, key, taskId: task.id, ts: e.ts })
+      out.push({ kind: 'error', label, detail: msg, key, taskId: task.id, ts: e.ts, seq })
     }
   })
 

@@ -240,3 +240,31 @@ describe('taskSegments', () => {
     expect(segs.some((s) => s.kind === 'event')).toBe(false)
   })
 })
+
+describe('taskSegments seq', () => {
+  it('carries seq from the UIEvent onto the segment', () => {
+    const segs = taskSegments(
+      rec([
+        {
+          kind: 'task.progress',
+          sessionId: 's1',
+          taskId: 't1',
+          event: { kind: 'tool.call', server: 'fs', tool: 'read_file', args: {}, ts: 5 },
+          ts: 1,
+          seq: 42,
+        } as TaskRecord['events'][number],
+      ]),
+    )
+    const tool = segs.find((s) => s.kind === 'tool') as unknown as { seq?: number }
+    expect(tool.seq).toBe(42)
+  })
+
+  it('gives the goal segment the task.created seq', () => {
+    const segs = taskSegments(
+      rec([
+        { kind: 'task.created', sessionId: 's1', taskId: 't1', goal: 'do x', ts: 10, seq: 7 } as TaskRecord['events'][number],
+      ]),
+    )
+    expect((segs[0] as unknown as { seq?: number }).seq).toBe(7)
+  })
+})
