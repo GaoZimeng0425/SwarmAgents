@@ -41,6 +41,7 @@ describe('registerBuiltinTools', () => {
       'agent.send_and_wait',
       'agent.send_message',
       'agent.set_acceptance_criteria',
+      'agent.set_delegation_plan',
       'agent.spawn_sub_agent',
       'agent.update_plan',
       'agent.whoami',

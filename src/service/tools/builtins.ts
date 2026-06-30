@@ -6,6 +6,7 @@ import type { TaskWaiterService } from '../loop/task-waiters'
 import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
 import { acceptanceCriteriaSpec } from './acceptance-criteria'
+import { delegationPlanSpec } from './delegation-plan'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
 import { claudeCodeSpecs } from './claude-code'
 import { cronSpecs } from './cron'
@@ -76,6 +77,7 @@ export function registerBuiltinTools(
   registry.register(writeSkillSpec())
   registry.register(updatePlanSpec())
   registry.register(acceptanceCriteriaSpec())
+  registry.register(delegationPlanSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(currentTimeSpec())

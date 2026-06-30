@@ -18,6 +18,7 @@ import type { Skill, SkillMutationResult } from '@shared/types/skill'
 import {
   type AcceptanceCriterion,
   type ConsumedResources,
+  type DelegationItem,
   emptyUsed,
   type PermissionMode,
   type Task,
@@ -235,6 +236,8 @@ export type AgentRunnerDeps = {
   fallbackProviders?: ProviderInjection[]
   /** Capture the agent's derived acceptance criteria (Phase A). Wired by createAgentRunner.run. */
   onAcceptanceCriteria?(criteria: AcceptanceCriterion[]): void
+  /** Capture the Leader's delegation DAG (set_delegation_plan tool). */
+  onDelegationPlan?(plan: DelegationItem[]): void
   /**
    * Independently verify a completed turn. Default = hard checks + an LLM judge
    * sub-run; tests inject a stub. `judgeUsed` (when present) is folded into the
@@ -320,6 +323,7 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
     writeAgent: deps.writeAgent,
     writeSkill: deps.writeSkill,
     setAcceptanceCriteria: deps.onAcceptanceCriteria,
+    setDelegationPlan: deps.onDelegationPlan,
   }
 }
 

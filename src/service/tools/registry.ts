@@ -3,7 +3,7 @@ import { createLogger } from '@shared/logger'
 import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
 import type { Outbound } from '@shared/types/ipc'
 import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import type { AcceptanceCriterion, TaskResult } from '@shared/types/task'
+import type { AcceptanceCriterion, DelegationItem, TaskResult } from '@shared/types/task'
 import type { PermissionDecision } from '@shared/types/ui'
 
 import type { AgentMutationResult } from '../agents/store'
@@ -68,6 +68,11 @@ export interface ToolRunContext {
    * do not verify.
    */
   setAcceptanceCriteria?(criteria: AcceptanceCriterion[]): void
+  /**
+   * Record the task's delegation DAG (set_delegation_plan tool). Wired in
+   * agent-runner; absent in standalone tool tests and non-delegating contexts.
+   */
+  setDelegationPlan?(plan: DelegationItem[]): void
 }
 
 export interface ToolSpec {
