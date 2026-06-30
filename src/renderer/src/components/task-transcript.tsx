@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { sortBy, uniq } from 'es-toolkit'
+import { uniq } from 'es-toolkit'
 import {
   Bot,
   Brain,
@@ -36,7 +36,8 @@ import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
 import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
 import { groupSegments } from '@/lib/group-segments'
-import { type Segment, taskSegments } from '@/lib/task-segments'
+import type { Segment } from '@/lib/task-segments'
+import { buildTimelineItems } from '@/lib/build-timeline-items'
 import { dayKey, formatDayLabel, formatMessageTime, safeTs } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
 
@@ -417,11 +418,13 @@ type TaskTimelineProps = {
   showDayDividers?: boolean
 }
 
-// Render a set of tasks' segments interleaved in true causal order: a top-level
-// task contributes its segments individually (sorted by ts), a spawned sub-agent
-// contributes ONE grouped block at its spawn time. Optional day dividers spine
+// Render a set of tasks' segments interleaved in true causal order (by seq): a
+// top-level task contributes its segments individually, a spawned sub-agent
+// contributes ONE grouped block at its spawn point. Optional day dividers spine
 // the timeline. The chat thread passes all session tasks with day dividers; the
-// results card passes one run's subtree, read-only, without dividers.
+// results card passes one run's subtree, read-only, without dividers. Ordering
+// lives in buildTimelineItems (shared, seq-based); this component supplies the
+// real card components as render callbacks and owns the attachment-preview sheet.
 export function TaskTimeline({
   tasks,
   busy,
@@ -431,7 +434,6 @@ export function TaskTimeline({
   showDayDividers = true,
 }: TaskTimelineProps): React.JSX.Element {
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
-  const ordered = sortBy(tasks, ['startedAt'])
   const renderSegment = createSegmentRenderer({
     busy,
     onCopy,
@@ -440,83 +442,41 @@ export function TaskTimeline({
     onSend,
   })
 
-  const taskSegs = ordered.map((t) => ({ t, segs: taskSegments(t) }))
-  let lastKey: string | undefined
-  let lastTs = Number.NEGATIVE_INFINITY
-  for (const { segs } of taskSegs) {
-    for (const s of segs) {
-      if (s.ts >= lastTs) {
-        lastTs = s.ts
-        lastKey = s.key
-      }
-    }
-  }
+  const items = buildTimelineItems(
+    tasks,
+    {
+      segment: renderSegment,
+      subagent: (t, segs, lastKey) => (
+        <SubagentBlock key={t.id} lastKey={lastKey} renderSegment={renderSegment} segs={segs} task={t} />
+      ),
+      toolGroup: (segs) => <ToolGroupBlock key={segs[0].key} renderSegment={renderSegment} segs={segs} />,
+      dayDivider: (ts) => <DayDivider key={`day-${dayKey(ts)}`} ts={ts} />,
+    },
+    { busy, showDayDividers },
+  )
 
-  let items: Array<{ ts: number; order: number; node: React.JSX.Element }> = []
-  let order = 0
-  for (const { t, segs } of taskSegs) {
-    if (t.parentTaskId) {
-      items.push({
-        ts: t.startedAt,
-        order: order++,
-        node: <SubagentBlock key={t.id} lastKey={lastKey} renderSegment={renderSegment} segs={segs} task={t} />,
-      })
-    } else {
-      for (const item of groupSegments(segs)) {
-        if (item.kind === 'single') {
-          const seg = item.seg
-          items.push({ ts: seg.ts, order: order++, node: renderSegment(seg, seg.key === lastKey) })
-        } else {
-          const first = item.segs[0]
-          items.push({
-            ts: first.ts,
-            order: order++,
-            node: <ToolGroupBlock key={first.key} renderSegment={renderSegment} segs={item.segs} />,
-          })
-        }
-      }
-    }
-  }
-  items = sortBy(items, ['ts', 'order'])
-
-  if (!showDayDividers) {
-    return (
-      <>
-        {items.map((it) => it.node)}
-        {viewerFile && (
-          <Suspense fallback={null}>
-            <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
-          </Suspense>
-        )}
-      </>
-    )
-  }
-
-  const now = Date.now()
-  const out: React.JSX.Element[] = []
-  let prevDay: string | undefined
-  for (const it of items) {
-    const d = dayKey(it.ts)
-    if (d !== prevDay) {
-      out.push(
-        <div className="flex items-center gap-3 py-2 text-[11px] text-muted-foreground/60" key={`day-${d}`}>
-          <div className="h-px flex-1 bg-border/40" />
-          <span className="font-medium uppercase tracking-wide">{formatDayLabel(it.ts, now)}</span>
-          <div className="h-px flex-1 bg-border/40" />
-        </div>
-      )
-      prevDay = d
-    }
-    out.push(it.node)
-  }
   return (
     <>
-      {out}
+      {items.map((it) => it.node)}
       {viewerFile && (
         <Suspense fallback={null}>
           <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
         </Suspense>
       )}
     </>
+  )
+}
+
+// Day divider row spliced between timeline items when the day changes. Extracted
+// from TaskTimeline so buildTimelineItems can stay pure (no JSX) and receive it
+// as a render callback.
+function DayDivider({ ts }: { ts: number }): React.JSX.Element {
+  const now = Date.now()
+  return (
+    <div className="flex items-center gap-3 py-2 text-[11px] text-muted-foreground/60">
+      <div className="h-px flex-1 bg-border/40" />
+      <span className="font-medium uppercase tracking-wide">{formatDayLabel(ts, now)}</span>
+      <div className="h-px flex-1 bg-border/40" />
+    </div>
   )
 }
