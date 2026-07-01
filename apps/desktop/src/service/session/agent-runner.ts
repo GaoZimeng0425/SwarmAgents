@@ -3,7 +3,7 @@ import { Agent, DEFAULT_COMPACTION_SETTINGS, shouldCompact } from '@earendil-wor
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { getBuiltinModel as getModel, getBuiltinModels as getModels } from '@earendil-works/pi-ai/providers/all'
-import { reasoningOverridesFor } from '@shared/constants/models'
+import { reasoningOverridesFor } from '@swarm/shared'
 import { createLogger } from '@shared/logger'
 import type { ActorMessage } from '@swarm/protocol'
 import type { AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'

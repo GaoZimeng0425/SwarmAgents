@@ -8,7 +8,7 @@
 // task.criteria / task.delegation_plan events persist. The verify-loop logic
 // itself is unit-tested in agent-runner.verify.test.ts; here it is simulated.
 
-import { defaultAgents } from '@shared/constants/agents'
+import { defaultAgents } from '@swarm/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'

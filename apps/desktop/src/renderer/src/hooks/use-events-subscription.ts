@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { SYSTEM_SESSION_ID } from '@shared/system-session'
+import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import type { UIEvent } from '@swarm/protocol'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'

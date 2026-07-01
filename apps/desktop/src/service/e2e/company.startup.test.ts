@@ -1,4 +1,4 @@
-import { defaultAgents } from '@shared/constants/agents'
+import { defaultAgents } from '@swarm/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'

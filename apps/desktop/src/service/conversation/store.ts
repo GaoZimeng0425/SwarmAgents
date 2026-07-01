@@ -1,6 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
-import { SYSTEM_SESSION_ID } from '@shared/system-session'
+import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import type { Actor, ActorMessage } from '@swarm/protocol'
 import type { ProviderInjection } from '@swarm/protocol'
 import type { Task, TaskEvent } from '@swarm/protocol'

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { buildDelegationEdges } from '@shared/agents/delegation'
-import { buildOrgForest, type OrgNode } from '@shared/agents/org-tree'
+import { buildDelegationEdges } from '@swarm/shared'
+import { buildOrgForest, type OrgNode } from '@swarm/shared'
 import type { AgentDefinition, AgentListItem } from '@swarm/protocol'
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'

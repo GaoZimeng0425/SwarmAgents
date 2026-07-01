@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SYSTEM_SESSION_ID } from '@shared/system-session'
+import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'

@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SYSTEM_SESSION_ID } from '@shared/system-session'
+import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import type { Task, TaskEvent } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 

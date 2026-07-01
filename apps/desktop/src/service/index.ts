@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { defaultAgents, retiredBuiltinIds } from '@shared/constants/agents'
+import { defaultAgents, retiredBuiltinIds } from '@swarm/shared'
 import { createLogger } from '@shared/logger'
 import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 import type { ProviderInjection } from '@swarm/protocol'

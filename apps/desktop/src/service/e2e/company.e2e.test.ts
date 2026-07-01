@@ -1,6 +1,6 @@
 // src/service/e2e/company.e2e.test.ts
 
-import { defaultAgents } from '@shared/constants/agents'
+import { defaultAgents } from '@swarm/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
