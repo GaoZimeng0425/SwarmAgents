@@ -37,7 +37,7 @@ import type { TaskRecord } from '@/lib/apply-event'
 import { extractImagePaths } from '@/lib/file-paths'
 import { groupSegments } from '@/lib/group-segments'
 import type { Segment } from '@/lib/task-segments'
-import { buildTimelineItems } from '@/lib/build-timeline-items'
+import { buildTimelineItems, type TimelineItem } from '@/lib/build-timeline-items'
 import { dayKey, formatDayLabel, formatMessageTime, safeTs } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
 
@@ -418,31 +418,34 @@ type TaskTimelineProps = {
   showDayDividers?: boolean
 }
 
-// Render a set of tasks' segments interleaved in true causal order (by seq): a
-// top-level task contributes its segments individually, a spawned sub-agent
-// contributes ONE grouped block at its spawn point. Optional day dividers spine
-// the timeline. The chat thread passes all session tasks with day dividers; the
-// results card passes one run's subtree, read-only, without dividers. Ordering
-// lives in buildTimelineItems (shared, seq-based); this component supplies the
-// real card components as render callbacks and owns the attachment-preview sheet.
-export function TaskTimeline({
-  tasks,
-  busy,
-  onSend,
-  onCopy,
-  onDelete,
-  showDayDividers = true,
-}: TaskTimelineProps): React.JSX.Element {
+// Shared renderer (createSegmentRenderer) + attachment-preview sheet. Used by
+// both TaskTimeline (read-only results card) and the StickToBottomList-based
+// chat thread so neither duplicates the viewerFile wiring.
+export function useTimelineRenderer(opts: {
+  busy: boolean
+  onSend?: (text: string) => void
+  onCopy: (text: string) => void
+  onDelete?: (taskId: string) => void
+}): { renderSegment: ReturnType<typeof createSegmentRenderer>; sheet: React.JSX.Element | null } {
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
-  const renderSegment = createSegmentRenderer({
-    busy,
-    onCopy,
-    onDelete,
-    onOpenFile: setViewerFile,
-    onSend,
-  })
+  const renderSegment = createSegmentRenderer({ ...opts, onOpenFile: setViewerFile })
+  const sheet = viewerFile ? (
+    <Suspense fallback={null}>
+      <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
+    </Suspense>
+  ) : null
+  return { renderSegment, sheet }
+}
 
-  const items = buildTimelineItems(
+// Wrap buildTimelineItems with the real card components (SubagentBlock /
+// ToolGroupBlock / DayDivider) so both TaskTimeline and the chat thread share
+// one render path. `renderSegment` comes from useTimelineRenderer.
+export function buildThreadItems(
+  tasks: TaskRecord[],
+  renderSegment: ReturnType<typeof createSegmentRenderer>,
+  opts: { busy: boolean; showDayDividers?: boolean },
+): TimelineItem[] {
+  return buildTimelineItems(
     tasks,
     {
       segment: renderSegment,
@@ -452,17 +455,29 @@ export function TaskTimeline({
       toolGroup: (segs) => <ToolGroupBlock key={segs[0].key} renderSegment={renderSegment} segs={segs} />,
       dayDivider: (ts) => <DayDivider key={`day-${dayKey(ts)}`} ts={ts} />,
     },
-    { busy, showDayDividers },
+    opts,
   )
+}
 
+// Render a set of tasks' segments interleaved in true causal order (by seq): a
+// top-level task contributes its segments individually, a spawned sub-agent
+// contributes ONE grouped block at its spawn point. Optional day dividers spine
+// the timeline. The chat thread passes all session tasks with day dividers; the
+// results card passes one run's subtree, read-only, without dividers.
+export function TaskTimeline({
+  tasks,
+  busy,
+  onSend,
+  onCopy,
+  onDelete,
+  showDayDividers = true,
+}: TaskTimelineProps): React.JSX.Element {
+  const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onDelete, onSend })
+  const items = buildThreadItems(tasks, renderSegment, { busy, showDayDividers })
   return (
     <>
       {items.map((it) => it.node)}
-      {viewerFile && (
-        <Suspense fallback={null}>
-          <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
-        </Suspense>
-      )}
+      {sheet}
     </>
   )
 }
