@@ -31,15 +31,20 @@ const runtimeDeps = Object.keys(pkg.dependencies ?? {})
 // modules, so the service's skill-folder watcher inlines them the same way.
 const ESM_ONLY_BUNDLE_INLINE = new Set(['@earendil-works/pi-agent-core', '@earendil-works/pi-ai', 'chokidar'])
 
+// @swarm/protocol and @swarm/shared are workspace source packages consumed via
+// tsconfig paths / vite aliases — they must be BUNDLED from source, not
+// externalized (externalizing would make node try to require .ts at runtime).
+const SWARM_PACKAGES = /^@swarm\//
+
 const mainExternal: Array<string | RegExp> = [
   'electron',
   /^electron\//,
   ...builtinModules,
   ...builtinModules.map((m) => `node:${m}`),
-  ...runtimeDeps.filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d)),
+  ...runtimeDeps.filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d) && !SWARM_PACKAGES.test(d)),
   // also externalize anything under a runtime dep's subpath (skip ESM-only inline set)
   ...runtimeDeps
-    .filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d))
+    .filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d) && !SWARM_PACKAGES.test(d))
     .map((d) => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`)),
 ]
 
@@ -68,6 +73,8 @@ export default defineConfig({
         '@shared': resolve('src/shared'),
         '@main': resolve('src/main'),
         '@service': resolve('src/service'),
+        '@swarm/protocol': resolve('../../packages/protocol/src'),
+        '@swarm/shared': resolve('../../packages/shared/src'),
       },
     },
   },
@@ -80,6 +87,8 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('src/shared'),
         '@': resolve('src/renderer/src'),
+        '@swarm/protocol': resolve('../../packages/protocol/src'),
+        '@swarm/shared': resolve('../../packages/shared/src'),
       },
     },
     build: {

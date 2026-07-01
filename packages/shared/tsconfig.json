@@ -1,0 +1,10 @@
+{
+  "extends": "../../tools/tsconfig/base.json",
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "paths": {
+      "@swarm/protocol": ["../protocol/src"],
+      "@swarm/protocol/*": ["../protocol/src/*"]
+    }
+  }
+}

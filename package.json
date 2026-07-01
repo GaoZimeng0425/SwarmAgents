@@ -10,7 +10,8 @@
     "lint": "turbo run lint",
     "dev": "turbo run dev",
     "format": "biome format --write .",
-    "check": "biome check --write ."
+    "check": "biome check --write .",
+    "check-boundaries": "node tools/check-boundaries.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",

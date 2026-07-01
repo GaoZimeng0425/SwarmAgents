@@ -8,7 +8,9 @@
     "paths": {
       "@shared/*": ["src/shared/*"],
       "@main/*": ["src/main/*"],
-      "@worker/*": ["src/worker/*"]
+      "@worker/*": ["src/worker/*"],
+      "@swarm/protocol": ["../../packages/protocol/src"],
+      "@swarm/shared": ["../../packages/shared/src"]
     },
     "types": ["electron-vite/node"]
   }

@@ -17,6 +17,8 @@ export default defineConfig({
       '@main': resolve(__dirname, 'src/main'),
       '@service': resolve(__dirname, 'src/service'),
       '@': resolve(__dirname, 'src/renderer/src'),
+      '@swarm/protocol': resolve(__dirname, '../../packages/protocol/src'),
+      '@swarm/shared': resolve(__dirname, '../../packages/shared/src'),
     },
   },
 })

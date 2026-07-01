@@ -115,7 +115,9 @@
     "vaul": "^1.1.2",
     "yaml": "^2.9.0",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "@swarm/protocol": "workspace:*",
+    "@swarm/shared": "workspace:*"
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",

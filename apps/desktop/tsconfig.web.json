@@ -9,7 +9,9 @@
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],
       "@/*": ["src/renderer/src/*"],
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@swarm/protocol": ["../../packages/protocol/src"],
+      "@swarm/shared": ["../../packages/shared/src"]
     }
   }
 }
