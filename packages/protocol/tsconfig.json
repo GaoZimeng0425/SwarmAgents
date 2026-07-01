@@ -1,1 +1,7 @@
-{ "extends": "../../tools/tsconfig/base.json", "include": ["src/**/*"] }
+{
+  "extends": "../../tools/tsconfig/base.json",
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "types": ["node"]
+  }
+}
