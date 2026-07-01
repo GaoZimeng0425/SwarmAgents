@@ -84,7 +84,8 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     if (msg.kind === 'response') {
       const p = pending.get(msg.id)
       if (!p) {
-        log.warn({ msg: 'response for unknown request id', id: msg.id })
+        // The desktop host bridges an external WS peer onto this same service
+        // transport; that peer's response ids are foreign to this client. Drop.
         return
       }
       pending.delete(msg.id)

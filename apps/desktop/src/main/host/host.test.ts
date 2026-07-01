@@ -28,7 +28,7 @@ function fakeServiceProcess(): ServiceTransport & { emit: (m: unknown) => void }
 function wsTransport(ws: WebSocket): ServiceTransport {
   return {
     postMessage: (m: unknown) => ws.send(JSON.stringify(m)),
-    on: (ch: 'message', fn: (m: unknown) => void) => ws.on('message', (raw) => fn(JSON.parse(raw.toString()))),
+    on: (_ch: 'message', fn: (m: unknown) => void) => ws.on('message', (raw) => fn(JSON.parse(raw.toString()))),
     off: () => {}, // ws is short-lived for the test; not needed
   }
 }
@@ -49,7 +49,7 @@ describe('startWsHost (loopback integration)', () => {
     const client = createServiceClient({ transport: wsTransport(ws) })
     await client.connect()
     const result = await client.listAgents()
-    expect((result as { agents: unknown[] }).agents).toEqual(['ceo', 'worker'])
+    expect((result as unknown as { agents: unknown[] }).agents).toEqual(['ceo', 'worker'])
     client.disconnect(); ws.close()
   })
 })

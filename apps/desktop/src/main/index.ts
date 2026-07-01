@@ -16,6 +16,7 @@ import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initBilibili } from './bilibili'
 import { initGmail } from './gmail'
+import { startWsHost } from './host'
 import { initTrending } from './trending'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
@@ -95,6 +96,7 @@ app.whenReady().then(async () => {
   })
 
   let serviceClient: ReturnType<typeof createServiceClient>
+  let wsHost: { port: number; token: string; dispose: () => void } | null = null
   try {
     serviceProcess.stderr?.on('data', (c: Buffer) => log.warn({ msg: 'service stderr', data: c.toString().trim() }))
 
@@ -127,6 +129,9 @@ app.whenReady().then(async () => {
       },
     })
     await serviceClient.connect()
+    // External clients (extension/RN) bridge to the service over a loopback WS.
+    wsHost = await startWsHost({ serviceProcess, userDataDir: app.getPath('userData'), log })
+    log.info({ msg: 'ws-host up', port: wsHost.port })
     gmail.registerMainRpc(serviceClient)
 
     wireSwarmIpc({
@@ -165,6 +170,7 @@ app.whenReady().then(async () => {
   })
 
   app.on('before-quit', () => {
+    wsHost?.dispose()
     serviceClient.disconnect()
     serviceProcess.kill()
   })
