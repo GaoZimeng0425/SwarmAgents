@@ -29,7 +29,7 @@ function ScrollToLatest() {
   if (isAtBottom) return null
   return (
     <Button
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full"
+      className="absolute left-1/2 bottom-4 -translate-x-1/2 rounded-full bg-popover/90 shadow-sm ring-1 ring-border/60 backdrop-blur hover:bg-muted dark:bg-popover/85 dark:hover:bg-muted"
       onClick={() => scrollToBottom()}
       size="icon"
       variant="outline"
