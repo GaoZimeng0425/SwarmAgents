@@ -3,6 +3,7 @@ import type { ExecutionMode, PermissionMode } from '@shared/types/task'
 import type { SessionSettings } from '@shared/types/ui'
 import { sortBy } from 'es-toolkit'
 
+import { ChatIdBadge } from '@/components/chat-id-badge'
 import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
@@ -112,7 +113,8 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   }
 
   return (
-    <div className="flex h-full min-w-0 overflow-hidden">
+    <div className="relative flex h-full min-w-0 overflow-hidden">
+      <ChatIdBadge />
       <div className="flex min-w-0 flex-1 flex-col">
         <ConversationThread
           focusTaskId={focusTaskId}
