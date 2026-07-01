@@ -124,13 +124,15 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
   return (
     <StickToBottomList
       className="min-h-0 flex-1"
-      gap={32}
       getKey={(it: TimelineItem) => it.key}
       items={items}
       renderItem={(it: TimelineItem) => (
         // user-content re-enables text selection (globals.css disables it on chrome).
-        // px-4 restores the horizontal padding the old ConversationContent (p-4) gave.
-        <div className="user-content mx-auto max-w-3xl px-4">{it.node}</div>
+        // px-4 + pb-8 restore the old ConversationContent (p-4 + gap-8) spacing, but as
+        // padding so it lives INSIDE measureElement's box — react-virtual's `gap` option
+        // interacted badly with dynamic re-measurement (overlapping rows, expand not
+        // reflowing). Padding is measured, so the virtualizer accounts for it correctly.
+        <div className="user-content mx-auto max-w-3xl px-4 pb-8">{it.node}</div>
       )}
     >
       <FocusProbe focusTaskId={focusTaskId} />
