@@ -1,13 +1,27 @@
 // src/renderer/src/components/attachment-viewer-sheet.tsx
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
-import { CsvViewer } from '@/components/ui/csv-viewer'
-import { DocxViewerPreview } from '@/components/ui/docx-viewer'
-import { PDFViewer } from '@/components/ui/pdf-viewer'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { XlsxViewerPreview } from '@/components/ui/xlsx-viewer'
 import { fileKind } from '@/lib/file-kind'
+
+// Heavy viewers (react-xlsx ~3.4MB, react-docx ~1.3MB, @embedpdf ~hundreds of KB)
+// are lazy-loaded so they land in async chunks and only download when the user
+// actually opens an attachment. Kept static previously, they inflated the shared
+// chunk to 6.6MB and crashed vite's WASM-based import-analysis during build.
+const CsvViewer = lazy(() =>
+  import('@/components/ui/csv-viewer').then((m) => ({ default: m.CsvViewer })),
+)
+const DocxViewerPreview = lazy(() =>
+  import('@/components/ui/docx-viewer').then((m) => ({ default: m.DocxViewerPreview })),
+)
+const PDFViewer = lazy(() =>
+  import('@/components/ui/pdf-viewer').then((m) => ({ default: m.PDFViewer })),
+)
+const XlsxViewerPreview = lazy(() =>
+  import('@/components/ui/xlsx-viewer').then((m) => ({ default: m.XlsxViewerPreview })),
+)
 
 export type ViewerFile = { url: string; mediaType?: string; filename?: string }
 
@@ -40,6 +54,14 @@ function useFetchedText(url: string | null): string | null {
     }
   }, [url])
   return text
+}
+
+function ViewerFallback(): React.JSX.Element {
+  return (
+    <div className="flex h-full items-center justify-center text-muted-foreground">
+      <Loader2 className="size-5 animate-spin" />
+    </div>
+  )
 }
 
 function ViewerBody({ file }: { file: ViewerFile }): React.JSX.Element {
@@ -90,7 +112,13 @@ export function AttachmentViewerSheet({ file, onOpenChange }: Props): React.JSX.
         <SheetHeader className="border-b px-4 py-3">
           <SheetTitle className="truncate">{file?.filename ?? 'Preview'}</SheetTitle>
         </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-hidden">{file !== null && <ViewerBody file={file} />}</div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {file !== null && (
+            <Suspense fallback={<ViewerFallback />}>
+              <ViewerBody file={file} />
+            </Suspense>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   )
