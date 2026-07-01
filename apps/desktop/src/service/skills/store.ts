@@ -191,7 +191,9 @@ export function createSkillStore(opts: { dir: string; builtins?: Skill[] }): Ski
       .on('unlink', onFsEvent)
       .on('addDir', onFsEvent)
       .on('unlinkDir', onFsEvent)
-      .on('error', (err) => log.error({ msg: 'skills watcher error', err: err instanceof Error ? err.message : String(err) }))
+      .on('error', (err) =>
+        log.error({ msg: 'skills watcher error', err: err instanceof Error ? err.message : String(err) })
+      )
     log.info({ msg: 'watching skills dir', dir })
     return () => {
       if (timer) clearTimeout(timer)

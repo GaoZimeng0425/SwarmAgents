@@ -1,5 +1,4 @@
-import type { Actor } from '@swarm/protocol'
-import type { AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'
+import type { Actor, AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'
 import { compact, sumBy } from 'es-toolkit'
 
 export type AgentDirectory = {

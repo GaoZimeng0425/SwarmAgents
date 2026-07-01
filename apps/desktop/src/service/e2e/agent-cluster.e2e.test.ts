@@ -1,3 +1,4 @@
+import type { ActorMessage } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
@@ -17,7 +18,7 @@ vi.mock('../session/agent-runner', () => ({
   buildAgentSession: () => ({}),
   runResident: async (_deps: any, mailbox: any, hooks: any, _idleMs: number) => {
     for (;;) {
-      let msg
+      let msg: ActorMessage
       try {
         msg = await mailbox.receive({ idleMs: 5 })
       } catch {

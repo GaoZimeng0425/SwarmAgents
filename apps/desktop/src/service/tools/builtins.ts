@@ -97,6 +97,7 @@ export function registerBuiltinTools(
   // Memory tools need a backing store; registered only when one is injected.
   if (deps?.memoryStore) for (const spec of memorySpecs(deps.memoryStore)) registry.register(spec)
   // use_skill needs the skill store; registered only when one is injected.
+  // biome-ignore lint/correctness/useHookAtTopLevel: not a React hook; factory that registers the use_skill tool spec, called conditionally is fine.
   if (deps?.skillStore) registry.register(useSkillSpec(deps.skillStore, deps.isSkillEnabled))
   // Cron tools need the scheduler; registered only when one is injected.
   if (deps?.scheduler) for (const spec of cronSpecs(deps.scheduler)) registry.register(spec)

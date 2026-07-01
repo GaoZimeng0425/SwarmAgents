@@ -1,13 +1,15 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-
 import type { DelegationItem } from '@swarm/protocol'
 import { AcceptanceCriterionSchema } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
-const ok = (text: string, details: Record<string, unknown> = {}): Result => ({ content: [{ type: 'text', text }], details })
+const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
+  content: [{ type: 'text', text }],
+  details,
+})
 const err = (message: string): Result => ok(`error: ${message}`, { error: message })
 
 const Params = Type.Object({
@@ -83,7 +85,8 @@ export function delegationPlanSpec(): ToolSpec {
           if (Array.isArray(item.dependsOn)) {
             deps = item.dependsOn.filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
             for (const d of deps) {
-              if (!knownIds.has(d)) return err(`item ${i + 1} dependsOn unknown id "${d}" (must reference an earlier item)`)
+              if (!knownIds.has(d))
+                return err(`item ${i + 1} dependsOn unknown id "${d}" (must reference an earlier item)`)
             }
           }
           let criteria: DelegationItem['acceptanceCriteria']
@@ -92,7 +95,8 @@ export function delegationPlanSpec(): ToolSpec {
             for (let j = 0; j < item.acceptanceCriteria.length; j++) {
               const c = item.acceptanceCriteria[j]
               const p = AcceptanceCriterionSchema.safeParse({ ...(c as object), id: `c${j + 1}` })
-              if (!p.success) return err(`item ${i + 1} criterion ${j + 1} invalid: ${p.error.issues[0]?.message ?? 'invalid'}`)
+              if (!p.success)
+                return err(`item ${i + 1} criterion ${j + 1} invalid: ${p.error.issues[0]?.message ?? 'invalid'}`)
               parsed.push(p.data)
             }
             if (parsed.length > 0) criteria = parsed

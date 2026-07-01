@@ -1,6 +1,6 @@
+import type { Actor, AgentDefinition } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
-import type { AgentDefinition } from '@swarm/protocol'
-import type { Actor } from '@swarm/protocol'
+
 import { createAgentDirectory } from './receptionist'
 
 const actor = (address: string, agentDefId: string, name: string | null, createdAt = 0): Actor => ({
@@ -61,10 +61,7 @@ describe('createAgentDirectory.find', () => {
   })
 
   it('ranks an exact role mention in the query above prose matches, active first', () => {
-    const dir = build(
-      [actor('a1', 'engineer', 'eng'), actor('a2', 'reviewer', 'rev')],
-      ['a1', 'a2']
-    )
+    const dir = build([actor('a1', 'engineer', 'eng'), actor('a2', 'reviewer', 'rev')], ['a1', 'a2'])
     // "reviewer" names the reviewer's role → reviewer ranks first
     const res = dir.find('s1', { query: 'need a reviewer' })
     expect(res[0].address).toBe('a2')
@@ -92,16 +89,22 @@ describe('createAgentDirectory.find', () => {
       'training-head': { ...def('training-head', 'training-head', []), team: 'training', teamRole: 'head' },
     }
     const dir = createAgentDirectory({
-      listActors: () => [
-        actor('a1', 'pm', 'pm'),
-        actor('a2', 'engineer', 'eng'),
-        actor('a3', 'training-head', 'th'),
-      ],
+      listActors: () => [actor('a1', 'pm', 'pm'), actor('a2', 'engineer', 'eng'), actor('a3', 'training-head', 'th')],
       isLive: () => true,
       getAgentDef: (id) => teamDefs[id],
     })
-    expect(dir.find('s1', { team: 'dev' }).map((p) => p.role).sort()).toEqual(['engineer', 'pm'])
-    expect(dir.find('s1', { teamRole: 'head' }).map((p) => p.role).sort()).toEqual(['pm', 'training-head'])
+    expect(
+      dir
+        .find('s1', { team: 'dev' })
+        .map((p) => p.role)
+        .sort()
+    ).toEqual(['engineer', 'pm'])
+    expect(
+      dir
+        .find('s1', { teamRole: 'head' })
+        .map((p) => p.role)
+        .sort()
+    ).toEqual(['pm', 'training-head'])
     expect(dir.find('s1', { team: 'dev', teamRole: 'head' }).map((p) => p.role)).toEqual(['pm'])
   })
 })

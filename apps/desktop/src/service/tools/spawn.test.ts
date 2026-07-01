@@ -1,10 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
-
 import type { AcceptanceCriterion, SpawnChildOptions, TaskResult } from '@swarm/protocol'
+import { describe, expect, it, vi } from 'vitest'
 
 import { spawnAgentSpec } from './spawn'
 
-const ctx = (spawnChild: ReturnType<typeof vi.fn>) => ({ sessionId: 's', spawnChild } as never)
+const ctx = (spawnChild: ReturnType<typeof vi.fn>) => ({ sessionId: 's', spawnChild }) as never
 
 describe('spawn_sub_agent', () => {
   it('delegates to ctx.spawnChild and returns the summary', async () => {

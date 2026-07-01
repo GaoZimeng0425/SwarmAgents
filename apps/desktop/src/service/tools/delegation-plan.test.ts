@@ -4,7 +4,7 @@ import { delegationPlanSpec } from './delegation-plan'
 import type { ToolRunContext } from './registry'
 
 const ctx = (_over: Partial<ToolRunContext> = {}): ToolRunContext =>
-  ({ sessionId: 's', setDelegationPlan: vi.fn(), spawnChild: vi.fn() } as unknown as ToolRunContext)
+  ({ sessionId: 's', setDelegationPlan: vi.fn(), spawnChild: vi.fn() }) as unknown as ToolRunContext
 
 describe('set_delegation_plan tool', () => {
   it('has the expected name and group', () => {
@@ -23,7 +23,13 @@ describe('set_delegation_plan tool', () => {
       ],
     })) as { details: { plan?: unknown } }
     expect(c.setDelegationPlan).toHaveBeenCalledWith([
-      { id: 'd1', goal: 'build api', ownerAgentType: 'engineer', dependsOn: [], acceptanceCriteria: [{ id: 'c1', description: 'tests pass' }] },
+      {
+        id: 'd1',
+        goal: 'build api',
+        ownerAgentType: 'engineer',
+        dependsOn: [],
+        acceptanceCriteria: [{ id: 'c1', description: 'tests pass' }],
+      },
       { id: 'd2', goal: 'review api', dependsOn: ['d1'] },
     ])
     expect((res.details.plan as unknown[]).length).toBe(2)
@@ -37,13 +43,17 @@ describe('set_delegation_plan tool', () => {
 
   it('rejects an item without a goal', async () => {
     const tool = delegationPlanSpec().build(ctx())
-    const res = (await tool.execute('id', { items: [{ ownerAgentType: 'engineer' }] })) as { details: { error?: string } }
+    const res = (await tool.execute('id', { items: [{ ownerAgentType: 'engineer' }] })) as {
+      details: { error?: string }
+    }
     expect(res.details.error).toBeTruthy()
   })
 
   it('rejects a dependsOn referencing an unknown item', async () => {
     const tool = delegationPlanSpec().build(ctx())
-    const res = (await tool.execute('id', { items: [{ goal: 'a', dependsOn: ['nope'] }] })) as { details: { error?: string } }
+    const res = (await tool.execute('id', { items: [{ goal: 'a', dependsOn: ['nope'] }] })) as {
+      details: { error?: string }
+    }
     expect(res.details.error).toMatch(/unknown id/)
   })
 })

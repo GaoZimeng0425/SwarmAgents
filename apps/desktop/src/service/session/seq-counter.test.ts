@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import type { Task } from '@swarm/protocol'
+import { describe, expect, it } from 'vitest'
 
 import { createSeqCounter } from './seq-counter'
 

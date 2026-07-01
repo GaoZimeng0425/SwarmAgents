@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { createMainRpc } from './main-rpc'
 
 describe('service main-rpc client', () => {

@@ -12,7 +12,7 @@ const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
 const err = (message: string): Result => ok(`error: ${message}`, { error: message })
 
 const WaitParams = Type.Object({
-  taskId: Type.String({ description: 'Id of the task to wait for (e.g. a child task you spawned, or a peer\'s task).' }),
+  taskId: Type.String({ description: "Id of the task to wait for (e.g. a child task you spawned, or a peer's task)." }),
   goal: Type.Optional(
     Type.String({
       description:

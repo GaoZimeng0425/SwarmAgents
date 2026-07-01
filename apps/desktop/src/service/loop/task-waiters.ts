@@ -19,12 +19,10 @@ export type TaskWaiterDeps = {
 }
 
 export type TaskWaiterService = {
-  register(input: {
-    sessionId: string
-    waiterAddress: string
-    taskId: string
-    goal: string | null
-  }): { id: string | null; firedImmediately: boolean }
+  register(input: { sessionId: string; waiterAddress: string; taskId: string; goal: string | null }): {
+    id: string | null
+    firedImmediately: boolean
+  }
   onTaskTerminal(taskId: string, status: string): void
   start(): void
 }
@@ -37,7 +35,12 @@ export function createTaskWaiterService(deps: TaskWaiterDeps): TaskWaiterService
     try {
       deliver(sessionId, address, goal)
     } catch (err) {
-      log.error({ msg: 'waiter deliver failed', sessionId, address, err: err instanceof Error ? err.message : String(err) })
+      log.error({
+        msg: 'waiter deliver failed',
+        sessionId,
+        address,
+        err: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 

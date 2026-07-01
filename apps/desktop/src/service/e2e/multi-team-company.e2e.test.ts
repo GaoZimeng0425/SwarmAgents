@@ -1,5 +1,6 @@
 // src/service/e2e/multi-team-company.e2e.test.ts
 
+import type { ActorMessage } from '@swarm/protocol'
 import { defaultAgents } from '@swarm/shared'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -25,7 +26,7 @@ vi.mock('../session/agent-runner', () => ({
   runResident: async (deps: any, mailbox: any, hooks: any) => {
     const role = deps.agentDefinition.id
     for (;;) {
-      let msg
+      let msg: ActorMessage
       try {
         msg = await mailbox.receive({ idleMs: 5 })
       } catch {

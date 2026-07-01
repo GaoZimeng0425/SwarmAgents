@@ -41,7 +41,12 @@ describe('agent-runner tool context messaging bridge', () => {
   it('exposes findPeers that delegates to deps.findPeers', async () => {
     const { buildToolContext } = await import('./agent-runner')
     const peer = {
-      name: 'pm', address: 'a1', role: 'pm', capabilities: [], description: '', status: 'active' as const,
+      name: 'pm',
+      address: 'a1',
+      role: 'pm',
+      capabilities: [],
+      description: '',
+      status: 'active' as const,
     }
     const ctx = buildToolContext({
       task: { id: 't1', goal: 'g', cwd: undefined, attachments: [] },

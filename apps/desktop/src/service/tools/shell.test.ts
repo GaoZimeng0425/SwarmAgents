@@ -17,7 +17,7 @@ const ctx: ToolRunContext = {
 const tool = () => shellSpec().build(ctx)
 
 /** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
-const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? (c.text ?? '') : '')
 
 describe('isDangerousCommand', () => {
   it('flags catastrophic commands', () => {

@@ -1,3 +1,4 @@
+import type { ActorMessage } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 // Stub runResident to simulate a resident actor: drain whatever is delivered,
@@ -11,7 +12,7 @@ vi.mock('./agent-runner', () => ({
   runResident: async (_deps: any, mailbox: any, hooks: any, _idleMs: number) => {
     // process exactly the messages already queued, then idle out
     for (;;) {
-      let msg
+      let msg: ActorMessage
       try {
         msg = await mailbox.receive({ idleMs: 5 })
       } catch {

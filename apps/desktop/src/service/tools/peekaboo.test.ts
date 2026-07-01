@@ -19,14 +19,7 @@ describe('peekaboo tools', () => {
 
   it('exposes the interaction tools alongside the read-only ones', () => {
     const tools = buildPeekabooTools({ send: () => {}, requestPermission: async () => 'grant' })
-    expect(tools.map((t) => t.name).sort()).toEqual([
-      'click',
-      'hotkey',
-      'list_apps',
-      'scroll',
-      'see_screen',
-      'type',
-    ])
+    expect(tools.map((t) => t.name).sort()).toEqual(['click', 'hotkey', 'list_apps', 'scroll', 'see_screen', 'type'])
   })
 })
 
@@ -38,13 +31,7 @@ describe('clickArgs', () => {
     expect(clickArgs({ id: 'B1', query: 'Save' })).toEqual(['click', '--on', 'B1'])
   })
   it('appends double and right flags', () => {
-    expect(clickArgs({ id: 'B1', double: true, right: true })).toEqual([
-      'click',
-      '--on',
-      'B1',
-      '--double',
-      '--right',
-    ])
+    expect(clickArgs({ id: 'B1', double: true, right: true })).toEqual(['click', '--on', 'B1', '--double', '--right'])
   })
   it('throws when no target is given', () => {
     expect(() => clickArgs({})).toThrow(/id|coords|query/i)
@@ -54,12 +41,7 @@ describe('clickArgs', () => {
 describe('typeArgs', () => {
   it('passes text positionally and maps flags', () => {
     expect(typeArgs({ text: 'hello' })).toEqual(['type', 'hello'])
-    expect(typeArgs({ text: 'hi', clear: true, pressReturn: true })).toEqual([
-      'type',
-      'hi',
-      '--clear',
-      '--return',
-    ])
+    expect(typeArgs({ text: 'hi', clear: true, pressReturn: true })).toEqual(['type', 'hi', '--clear', '--return'])
   })
   it('throws on empty text', () => {
     expect(() => typeArgs({ text: '' })).toThrow(/text/i)

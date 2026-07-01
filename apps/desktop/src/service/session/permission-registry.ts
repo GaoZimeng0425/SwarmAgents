@@ -1,7 +1,6 @@
-import type { PermissionDecision } from '@swarm/protocol'
-import type { Risk } from '@swarm/protocol'
-import { ulid } from 'ulid'
 import { createLogger } from '@shared/logger'
+import type { PermissionDecision, Risk } from '@swarm/protocol'
+import { ulid } from 'ulid'
 
 const log = createLogger({ process: 'service' }).child({ component: 'permission' })
 
@@ -19,14 +18,12 @@ export type PermissionRegistry = {
       summary: string
       payload: unknown
     },
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): Promise<PermissionDecision>
   resolve(actionId: string, decision: PermissionDecision): void
 }
 
-export function createPermissionRegistry(
-  broadcast: (event: string, data: unknown) => void,
-): PermissionRegistry {
+export function createPermissionRegistry(broadcast: (event: string, data: unknown) => void): PermissionRegistry {
   const pending = new Map<string, PendingPermission>()
 
   return {
@@ -44,7 +41,12 @@ export function createPermissionRegistry(
         }
         const onAbort = (): void => {
           if (pending.delete(actionId)) {
-            log.warn({ msg: 'permission request aborted while pending', actionId, taskId: req.taskId, toolName: req.toolName })
+            log.warn({
+              msg: 'permission request aborted while pending',
+              actionId,
+              taskId: req.taskId,
+              toolName: req.toolName,
+            })
             resolve('deny')
           }
         }

@@ -3,23 +3,26 @@ import { Agent, DEFAULT_COMPACTION_SETTINGS, shouldCompact } from '@earendil-wor
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { getBuiltinModel as getModel, getBuiltinModels as getModels } from '@earendil-works/pi-ai/providers/all'
-import { reasoningOverridesFor } from '@swarm/shared'
 import { createLogger } from '@shared/logger'
-import type { ActorMessage } from '@swarm/protocol'
-import type { AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'
-import type { ModelPricing, ProviderInjection } from '@swarm/protocol'
-import {
-  ANTHROPIC_MODEL_SUGGESTIONS,
-  type ApiStyle,
-  DEFAULT_CONTEXT_WINDOW,
-  OPENAI_MODEL_SUGGESTIONS,
+import type {
+  ActorMessage,
+  AgentDefinition,
+  ModelPricing,
+  Peer,
+  PeerQuery,
+  ProviderInjection,
+  Skill,
+  SkillMutationResult,
 } from '@swarm/protocol'
-import type { Skill, SkillMutationResult } from '@swarm/protocol'
 import {
   type AcceptanceCriterion,
+  ANTHROPIC_MODEL_SUGGESTIONS,
+  type ApiStyle,
   type ConsumedResources,
+  DEFAULT_CONTEXT_WINDOW,
   type DelegationItem,
   emptyUsed,
+  OPENAI_MODEL_SUGGESTIONS,
   type PermissionMode,
   type SpawnChildOptions,
   type Task,
@@ -27,6 +30,7 @@ import {
   type TaskResult,
   type VerificationRound,
 } from '@swarm/protocol'
+import { reasoningOverridesFor } from '@swarm/shared'
 
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
 import { encodeActorState } from '../actor/state'

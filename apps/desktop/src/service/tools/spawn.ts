@@ -1,6 +1,5 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-
 import type { AcceptanceCriterion, SpawnChildOptions } from '@swarm/protocol'
 
 import { DEFAULT_MAX_VERIFY_ROUNDS } from '../session/agent-runner'
@@ -27,7 +26,9 @@ const SpawnParams = Type.Object({
   acceptanceCriteria: Type.Optional(
     Type.Array(
       Type.Object({
-        description: Type.String({ description: "A checkable done-condition passed down as this sub-agent's contract." }),
+        description: Type.String({
+          description: "A checkable done-condition passed down as this sub-agent's contract.",
+        }),
         check: Type.Optional(
           Type.Object({
             kind: Type.String({ description: "'command' or 'file_exists'." }),
@@ -76,7 +77,13 @@ export function spawnAgentSpec(): ToolSpec {
                 ...(p.verify ? { maxVerifyRounds: DEFAULT_MAX_VERIFY_ROUNDS } : {}),
               }
             : undefined
-        const { childTaskId, result } = await ctx.spawnChild(p.goal, p.suggestedTools, p.providerKey, p.agentType, options)
+        const { childTaskId, result } = await ctx.spawnChild(
+          p.goal,
+          p.suggestedTools,
+          p.providerKey,
+          p.agentType,
+          options
+        )
         return {
           content: [{ type: 'text', text: result.summary }],
           details: { childTaskId, summary: result.summary },

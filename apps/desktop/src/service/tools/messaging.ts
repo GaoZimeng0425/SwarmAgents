@@ -1,6 +1,5 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-
 import type { PeerQuery } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
@@ -53,11 +52,19 @@ export function sendAndWaitSpec(): ToolSpec {
 }
 
 const FindParams = Type.Object({
-  role: Type.Optional(Type.String({ description: 'Filter to agents whose role exactly equals this, e.g. "engineer".' })),
+  role: Type.Optional(
+    Type.String({ description: 'Filter to agents whose role exactly equals this, e.g. "engineer".' })
+  ),
   capability: Type.Optional(Type.String({ description: 'Filter to agents advertising this capability tag.' })),
-  query: Type.Optional(Type.String({ description: 'Free text to rank matches by (matched against role, name, capabilities, description).' })),
+  query: Type.Optional(
+    Type.String({
+      description: 'Free text to rank matches by (matched against role, name, capabilities, description).',
+    })
+  ),
   team: Type.Optional(Type.String({ description: 'Filter to agents on this team, e.g. "dev" or "training".' })),
-  teamRole: Type.Optional(Type.String({ description: 'Filter to a team role; use "head" to find each team\'s entry-point agent.' })),
+  teamRole: Type.Optional(
+    Type.String({ description: 'Filter to a team role; use "head" to find each team\'s entry-point agent.' })
+  ),
 })
 
 export function findAgentsSpec(): ToolSpec {

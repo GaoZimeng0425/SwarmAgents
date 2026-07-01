@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
 import { createPermissionRegistry } from './permission-registry'
 
 describe('PermissionRegistry', () => {
@@ -53,7 +54,7 @@ describe('PermissionRegistry', () => {
 
     const promise = registry.request(
       { taskId: 'task-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
-      ac.signal,
+      ac.signal
     )
 
     ac.abort()
@@ -69,8 +70,8 @@ describe('PermissionRegistry', () => {
     await expect(
       registry.request(
         { taskId: 'task-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
-        ac.signal,
-      ),
+        ac.signal
+      )
     ).resolves.toBe('deny')
     expect(broadcast).not.toHaveBeenCalled()
   })

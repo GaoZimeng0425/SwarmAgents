@@ -3,16 +3,23 @@
 // matching that lived in the HTTP server. No transport, no I/O — trivially
 // unit-testable.
 
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@swarm/protocol'
-import type { BudgetConfig } from '@swarm/protocol'
-import type { McpServerConfig, McpServerStatus } from '@swarm/protocol'
-import type { MemoryView } from '@swarm/protocol'
-import type { ProviderInjection } from '@swarm/protocol'
-import type { ServiceMethod } from '@swarm/protocol'
-import type { Skill, SkillMutationResult } from '@swarm/protocol'
-import type { ToolGroupInfo, ToolToggles } from '@swarm/protocol'
-import type { PermissionDecision } from '@swarm/protocol'
-import type { WebSearchInjection } from '@swarm/protocol'
+import type {
+  AgentDefinition,
+  AgentListItem,
+  AgentMutationResult,
+  BudgetConfig,
+  McpServerConfig,
+  McpServerStatus,
+  MemoryView,
+  PermissionDecision,
+  ProviderInjection,
+  ServiceMethod,
+  Skill,
+  SkillMutationResult,
+  ToolGroupInfo,
+  ToolToggles,
+  WebSearchInjection,
+} from '@swarm/protocol'
 
 import type { SessionManager } from '../session/manager'
 

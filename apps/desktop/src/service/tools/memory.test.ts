@@ -24,7 +24,7 @@ let specs: ReturnType<typeof memorySpecs>
 const tool = (name: string) => specs.find((s) => s.name === name)!.build(ctx)
 
 /** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
-const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? (c.text ?? '') : '')
 
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'swarm-mem-tool-'))

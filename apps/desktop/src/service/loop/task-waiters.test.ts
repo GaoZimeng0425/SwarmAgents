@@ -71,8 +71,22 @@ describe('TaskWaiterService', () => {
   it('re-arms on start: fires for already-terminal tasks, keeps pending ones', () => {
     const store = fakeStore({ 'done-task': { status: 'completed' }, 'live-task': { status: 'running' } })
     // Seed two persisted waiters directly.
-    store.saveTaskWaiter({ id: 'w1', sessionId: 's', waiterAddress: 'a', taskId: 'done-task', goal: null, createdAt: 1 })
-    store.saveTaskWaiter({ id: 'w2', sessionId: 's', waiterAddress: 'b', taskId: 'live-task', goal: null, createdAt: 2 })
+    store.saveTaskWaiter({
+      id: 'w1',
+      sessionId: 's',
+      waiterAddress: 'a',
+      taskId: 'done-task',
+      goal: null,
+      createdAt: 1,
+    })
+    store.saveTaskWaiter({
+      id: 'w2',
+      sessionId: 's',
+      waiterAddress: 'b',
+      taskId: 'live-task',
+      goal: null,
+      createdAt: 2,
+    })
     const deliver = vi.fn()
     const svc = createTaskWaiterService({ store, deliver })
     svc.start()

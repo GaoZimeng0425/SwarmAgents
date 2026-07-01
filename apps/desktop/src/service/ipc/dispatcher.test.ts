@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createDispatcher } from './dispatcher'
 import type { SessionManager } from '../session/manager'
+import { createDispatcher } from './dispatcher'
 
 function mockManager(): SessionManager {
   return {

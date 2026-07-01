@@ -1,9 +1,7 @@
 import { spawn } from 'node:child_process'
-
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { Outbound } from '@swarm/protocol'
-import type { PermissionDecision } from '@swarm/protocol'
+import type { Outbound, PermissionDecision } from '@swarm/protocol'
 
 const PEEKABOO_BIN = process.env.PEEKABOO_BIN ?? 'peekaboo'
 
@@ -124,7 +122,13 @@ function withPermissionHint(stderr: string, fallback: string): string {
 // Pure argv builders: param → peekaboo CLI args. Kept separate from the tool
 // wiring so the mapping/validation is unit-testable without spawning the binary.
 
-export function clickArgs(p: { id?: string; coords?: string; query?: string; double?: boolean; right?: boolean }): string[] {
+export function clickArgs(p: {
+  id?: string
+  coords?: string
+  query?: string
+  double?: boolean
+  right?: boolean
+}): string[] {
   const args = ['click']
   if (p.id) args.push('--on', p.id)
   else if (p.coords) args.push('--coords', p.coords)
@@ -144,7 +148,11 @@ export function typeArgs(p: { text: string; clear?: boolean; pressReturn?: boole
 }
 
 const SCROLL_DIRECTIONS = ['up', 'down', 'left', 'right'] as const
-export function scrollArgs(p: { direction: (typeof SCROLL_DIRECTIONS)[number]; amount?: number; id?: string }): string[] {
+export function scrollArgs(p: {
+  direction: (typeof SCROLL_DIRECTIONS)[number]
+  amount?: number
+  id?: string
+}): string[] {
   if (!SCROLL_DIRECTIONS.includes(p.direction)) throw new Error(`invalid scroll direction: ${p.direction}`)
   const args = ['scroll', '--direction', p.direction, '--amount', String(p.amount ?? 3)]
   if (p.id) args.push('--on', p.id)
@@ -178,10 +186,9 @@ export function buildPeekabooTools(_deps: Deps): AgentTool[] {
       'Use this before any interaction that depends on what is on screen.',
     parameters: Type.Object({
       mode: Type.Optional(
-        Type.Union(
-          [Type.Literal('screen'), Type.Literal('frontmost'), Type.Literal('window')],
-          { description: 'Capture target. Default frontmost.' },
-        ),
+        Type.Union([Type.Literal('screen'), Type.Literal('frontmost'), Type.Literal('window')], {
+          description: 'Capture target. Default frontmost.',
+        })
       ),
     }),
     execute: async (_toolCallId, params): Promise<AgentToolResult<SeeDetails>> => {
@@ -261,7 +268,8 @@ export function buildPeekabooTools(_deps: Deps): AgentTool[] {
   const hotkey: AgentTool<ReturnType<typeof Type.Object>, ActionDetails> = {
     name: 'hotkey',
     label: 'Press Hotkey',
-    description: 'Press a keyboard shortcut, e.g. "cmd,c" to copy or "cmd,shift,t". Modifiers: cmd, shift, alt, ctrl, fn.',
+    description:
+      'Press a keyboard shortcut, e.g. "cmd,c" to copy or "cmd,shift,t". Modifiers: cmd, shift, alt, ctrl, fn.',
     parameters: Type.Object({
       keys: Type.String({ description: 'Comma/plus/space-separated keys, e.g. "cmd,c".' }),
     }),

@@ -11,7 +11,7 @@ const ctx = (over: Partial<any> = {}) =>
   }) as any
 
 /** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
-const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? (c.text ?? '') : '')
 
 describe('messaging tools', () => {
   it('send_message calls ctx.sendMessage and reports delivery', async () => {
@@ -53,8 +53,22 @@ describe('find_agents tool', () => {
       findPeers: (q) => {
         seen = q
         return [
-          { name: 'pm', address: 'a1', role: 'pm', capabilities: ['planning'], description: 'Coordinates work.', status: 'active' },
-          { name: 'eng', address: 'a2', role: 'engineer', capabilities: [], description: 'Writes code.', status: 'dormant' },
+          {
+            name: 'pm',
+            address: 'a1',
+            role: 'pm',
+            capabilities: ['planning'],
+            description: 'Coordinates work.',
+            status: 'active',
+          },
+          {
+            name: 'eng',
+            address: 'a2',
+            role: 'engineer',
+            capabilities: [],
+            description: 'Writes code.',
+            status: 'dormant',
+          },
         ]
       },
     })

@@ -2,8 +2,8 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { type AgentDefinition, emptyUsed, type ProviderInjection, type Task } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
-import { type AgentDefinition, type ProviderInjection, type Task, emptyUsed } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
@@ -586,8 +586,8 @@ describe('SessionManager', () => {
           calls: 0,
           wallMs: 0,
           usdCents: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
         })
         return runnerReturn('completed', 'b')
       })
@@ -622,9 +622,7 @@ describe('SessionManager', () => {
   })
 
   it('sets the session title from the first goal', async () => {
-    mockCreate.mockImplementation(() =>
-      runner(async () => runnerReturn('completed', ''))
-    )
+    mockCreate.mockImplementation(() => runner(async () => runnerReturn('completed', '')))
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
@@ -905,9 +903,7 @@ describe('SessionManager', () => {
   })
 
   it('lists sessions and returns a session tasks via the manager', () => {
-    mockCreate.mockImplementation(() =>
-      runner(async () => runnerReturn('completed', ''))
-    )
+    mockCreate.mockImplementation(() => runner(async () => runnerReturn('completed', '')))
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
@@ -986,14 +982,17 @@ describe('SessionManager', () => {
               // partial transcript via saveSnapshot before resolving cancelled, so
               // the promoted turn must seed from that partial output.
               deps.signal?.addEventListener('abort', () => {
-                deps.saveSnapshot?.([{ role: 'assistant', content: [{ type: 'text', text: 'partial-A' }] }] as AgentMessage[], {
-                  tokens: 0,
-                  calls: 0,
-                  wallMs: 0,
-                  usdCents: 0,
-                  cacheRead: 0,
-                  cacheWrite: 0,
-                })
+                deps.saveSnapshot?.(
+                  [{ role: 'assistant', content: [{ type: 'text', text: 'partial-A' }] }] as AgentMessage[],
+                  {
+                    tokens: 0,
+                    calls: 0,
+                    wallMs: 0,
+                    usdCents: 0,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                  }
+                )
                 resolve(runnerReturn('cancelled', ''))
               })
               return
@@ -1225,7 +1224,13 @@ describe('SessionManager', () => {
     const emit = capturedEmit!
     const spy = vi.spyOn(store, 'saveTaskDelegationPlan')
     const plan = [
-      { id: 'd1', goal: 'build', ownerAgentType: 'engineer', dependsOn: [], acceptanceCriteria: [{ id: 'c1', description: 'ships' }] },
+      {
+        id: 'd1',
+        goal: 'build',
+        ownerAgentType: 'engineer',
+        dependsOn: [],
+        acceptanceCriteria: [{ id: 'c1', description: 'ships' }],
+      },
       { id: 'd2', goal: 'review', dependsOn: ['d1'] },
     ]
     emit('task.delegation_plan', { taskId, plan, ts: Date.now() })
@@ -1263,7 +1268,13 @@ describe('SessionManager', () => {
     // The follow-up text drove the second turn and is recorded as a user message.
     expect(goals).toEqual(['do the thing', '继续'])
     const history = store.getSessionTasks(sessionId)[0].history
-    expect(history).toContainEqual({ kind: 'llm.message', role: 'user', content: '继续', ts: expect.any(Number), seq: expect.any(Number) })
+    expect(history).toContainEqual({
+      kind: 'llm.message',
+      role: 'user',
+      content: '继续',
+      ts: expect.any(Number),
+      seq: expect.any(Number),
+    })
     store.close()
   })
 

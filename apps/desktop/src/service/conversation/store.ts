@@ -1,11 +1,8 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
-import { SYSTEM_SESSION_ID } from '@swarm/shared'
-import type { Actor, ActorMessage } from '@swarm/protocol'
-import type { ProviderInjection } from '@swarm/protocol'
-import type { Task, TaskEvent } from '@swarm/protocol'
-import type { UsageStats } from '@swarm/protocol'
+import type { Actor, ActorMessage, ProviderInjection, Task, TaskEvent, UsageStats } from '@swarm/protocol'
 import { HEATMAP_DAYS } from '@swarm/protocol'
+import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import Database from 'better-sqlite3'
 
 import { currentStreak, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './usage-stats'

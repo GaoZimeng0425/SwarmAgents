@@ -25,7 +25,7 @@ function fakeManager(over: Partial<ClaudeCodeManager> = {}): ClaudeCodeManager {
 const ctx = { cwd: '/work' } as unknown as ToolRunContext
 
 /** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
-const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? (c.text ?? '') : '')
 
 function toolByName(manager: ClaudeCodeManager, name: string) {
   const spec = claudeCodeSpecs(manager).find((s) => s.name === name)

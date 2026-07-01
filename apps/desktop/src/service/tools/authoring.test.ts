@@ -35,7 +35,9 @@ describe('write_agent', () => {
   })
 
   it('reports the validation error when the store rejects the definition', async () => {
-    const tool = writeAgentSpec().build(ctxWith({ writeAgent: () => ({ ok: false, code: 'invalid', message: 'bad id' }) }))
+    const tool = writeAgentSpec().build(
+      ctxWith({ writeAgent: () => ({ ok: false, code: 'invalid', message: 'bad id' }) })
+    )
     const res = await tool.execute('1', { id: 'X', name: 'n', description: 'd', systemPrompt: 'p', toolScope: 'all' })
     expect(textOf(res)).toContain('bad id')
   })

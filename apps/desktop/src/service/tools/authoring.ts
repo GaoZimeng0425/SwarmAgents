@@ -1,8 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
-import type { AgentDefinition } from '@swarm/protocol'
-import type { Skill } from '@swarm/protocol'
+import type { AgentDefinition, Skill } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 
@@ -13,7 +12,9 @@ const WriteAgentParams = Type.Object({
   name: Type.String({ description: 'Human-readable display name.' }),
   description: Type.String({ description: 'Trigger-first one-liner ("Use when …") shown in the sub-agent catalog.' }),
   systemPrompt: Type.String({ description: "The agent's full system prompt (its job, teammates, conventions)." }),
-  toolScope: Type.String({ description: "Capability scope: 'all' | 'fs' | 'web' | 'memory' | 'peekaboo' | 'authoring'." }),
+  toolScope: Type.String({
+    description: "Capability scope: 'all' | 'fs' | 'web' | 'memory' | 'peekaboo' | 'authoring'.",
+  }),
   team: Type.Optional(Type.String({ description: 'Team tag, e.g. "dev" or "ui".' })),
   teamRole: Type.Optional(Type.String({ description: "Set to 'head' to make this the team's entry-point agent." })),
   role: Type.Optional(Type.String({ description: 'Discoverable role handle; defaults to the id when unset.' })),
@@ -44,7 +45,10 @@ export function writeAgentSpec(): ToolSpec {
           log.warn({ msg: 'write_agent rejected', id: p.id, code: res.code })
           return { content: [{ type: 'text', text: `Could not create agent: ${res.message}` }], details: {} }
         }
-        return { content: [{ type: 'text', text: `Agent "${p.id}" created. It is now discoverable via find_agents.` }], details: {} }
+        return {
+          content: [{ type: 'text', text: `Agent "${p.id}" created. It is now discoverable via find_agents.` }],
+          details: {},
+        }
       },
     }),
   }
