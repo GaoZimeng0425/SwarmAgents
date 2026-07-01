@@ -88,6 +88,8 @@ export function useStickToBottom(
 type StickToBottomListContextValue = {
   isAtBottom: boolean
   scrollToBottom: (behavior?: ScrollBehavior) => void
+  /** Scroll a specific row into view by its key (works even if not rendered). */
+  scrollToKey: (key: string, align?: 'start' | 'center' | 'end') => void
 }
 
 const StickToBottomListContext = createContext<StickToBottomListContextValue | null>(null)
@@ -136,9 +138,25 @@ export function StickToBottomList<T>({
   const totalSize = virtualizer.getTotalSize()
   const { isAtBottom, scrollToBottom } = useStickToBottom(viewportRef, totalSize, bottomTolerance)
 
+  // key → index so a consumer can deep-link to a row virtualization hasn't
+  // mounted yet; scrollToIndex scrolls it into view and react-virtual mounts it.
+  const keyToIndex = useMemo(() => {
+    const m = new Map<string, number>()
+    items.forEach((it, i) => m.set(String(getKey(it, i)), i))
+    return m
+  }, [items, getKey])
+  const scrollToKey = useCallback(
+    (key: string, align: 'start' | 'center' | 'end' = 'center') => {
+      const index = keyToIndex.get(String(key))
+      if (index === undefined) return
+      virtualizer.scrollToIndex(index, { align })
+    },
+    [keyToIndex, virtualizer],
+  )
+
   const ctx = useMemo(
-    () => ({ isAtBottom, scrollToBottom }),
-    [isAtBottom, scrollToBottom],
+    () => ({ isAtBottom, scrollToBottom, scrollToKey }),
+    [isAtBottom, scrollToBottom, scrollToKey],
   )
 
   return (

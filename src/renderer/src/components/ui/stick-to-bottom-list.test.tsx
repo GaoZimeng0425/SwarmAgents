@@ -3,7 +3,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 import {
   StickToBottomList,
@@ -147,5 +147,43 @@ describe('StickToBottomList', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<ThrowingConsumer />)).toThrow(/useStickToBottomList/)
     spy.mockRestore()
+  })
+})
+
+function ScrollToKeyProbe({ targetKey }: { targetKey: string }) {
+  const { scrollToKey } = useStickToBottomList()
+  useEffect(() => {
+    scrollToKey(targetKey)
+  }, [targetKey, scrollToKey])
+  return null
+}
+
+describe('StickToBottomList.scrollToKey', () => {
+  it('exposes scrollToKey and calling it for a known key does not throw', () => {
+    expect(() =>
+      render(
+        <StickToBottomList
+          getKey={(it: { id: string }) => it.id}
+          items={[{ id: 'a' }, { id: 'b' }, { id: 'c' }]}
+          renderItem={(it: { id: string }) => <div>{it.id}</div>}
+        >
+          <ScrollToKeyProbe targetKey="b" />
+        </StickToBottomList>,
+      ),
+    ).not.toThrow()
+  })
+
+  it('scrollToKey for an unknown key is a no-op (does not throw)', () => {
+    expect(() =>
+      render(
+        <StickToBottomList
+          getKey={(it: { id: string }) => it.id}
+          items={[{ id: 'a' }]}
+          renderItem={(it: { id: string }) => <div>{it.id}</div>}
+        >
+          <ScrollToKeyProbe targetKey="missing" />
+        </StickToBottomList>,
+      ),
+    ).not.toThrow()
   })
 })
