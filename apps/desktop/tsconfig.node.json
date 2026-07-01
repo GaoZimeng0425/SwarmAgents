@@ -3,12 +3,10 @@
   "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*", "src/service/**/*", "src/worker/**/*", "src/shared/**/*"],
   "compilerOptions": {
     "composite": true,
-    "ignoreDeprecations": "6.0",
-    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"],
-      "@main/*": ["src/main/*"],
-      "@worker/*": ["src/worker/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@main/*": ["./src/main/*"],
+      "@worker/*": ["./src/worker/*"],
       "@swarm/protocol": ["../../packages/protocol/src"],
       "@swarm/shared": ["../../packages/shared/src"]
     },
