@@ -9,12 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UsageRouteImport } from './routes/usage'
+import { Route as TrendingRouteImport } from './routes/trending'
+import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as BilibiliRouteImport } from './routes/bilibili'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
-import { Route as TrendingRouteImport } from './routes/trending'
-import { Route as UsageRouteImport } from './routes/usage'
 
 const UsageRoute = UsageRouteImport.update({
   id: '/usage',
@@ -74,10 +74,29 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bilibili' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
+  fullPaths:
+    | '/'
+    | '/bilibili'
+    | '/scheduled'
+    | '/trending'
+    | '/usage'
+    | '/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bilibili' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
-  id: '__root__' | '/' | '/bilibili' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
+  to:
+    | '/'
+    | '/bilibili'
+    | '/scheduled'
+    | '/trending'
+    | '/usage'
+    | '/session/$sessionId'
+  id:
+    | '__root__'
+    | '/'
+    | '/bilibili'
+    | '/scheduled'
+    | '/trending'
+    | '/usage'
+    | '/session/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -144,4 +163,6 @@ const rootRouteChildren: RootRouteChildren = {
   UsageRoute: UsageRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,
 }
-export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
+export const routeTree = rootRouteImport
+  ._addFileChildren(rootRouteChildren)
+  ._addFileTypes<FileRouteTypes>()
