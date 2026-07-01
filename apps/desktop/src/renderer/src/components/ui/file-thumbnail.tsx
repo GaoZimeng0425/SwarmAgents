@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { compact } from "es-toolkit"
+import * as React from 'react'
+import { compact } from 'es-toolkit'
 
 export type ThumbnailFile = {
   name: string
@@ -20,7 +20,7 @@ export type FileThumbnailProps = {
 }
 
 function cx(...classes: Array<string | false | null | undefined>) {
-  return compact(classes).join(" ")
+  return compact(classes).join(' ')
 }
 
 // Preview URLs that have completed a reveal this session. View/tab switches
@@ -30,10 +30,7 @@ const revealedPreviewImageUrls = new Set<string>()
 
 export function FileThumbnailLoadingOverlay() {
   return (
-    <div
-      aria-hidden="true"
-      className="absolute inset-0 z-10 overflow-hidden bg-muted"
-    >
+    <div aria-hidden="true" className="absolute inset-0 z-10 overflow-hidden bg-muted">
       <div className="absolute inset-0 bg-muted" />
       <div className="absolute inset-0 animate-pulse bg-background/55 motion-reduce:animate-none" />
     </div>
@@ -51,19 +48,11 @@ export function FileThumbnail({
 }: FileThumbnailProps) {
   const imageRef = React.useRef<HTMLImageElement | null>(null)
   const revealFrameRef = React.useRef<number | null>(null)
-  const [loadedPreviewImageUrl, setLoadedPreviewImageUrl] = React.useState<
-    string | null
-  >(() =>
-    previewImageUrl && revealedPreviewImageUrls.has(previewImageUrl)
-      ? previewImageUrl
-      : null
+  const [loadedPreviewImageUrl, setLoadedPreviewImageUrl] = React.useState<string | null>(() =>
+    previewImageUrl && revealedPreviewImageUrls.has(previewImageUrl) ? previewImageUrl : null
   )
-  const [failedPreviewImageUrl, setFailedPreviewImageUrl] = React.useState<
-    string | null
-  >(null)
-  const imageFailed = Boolean(
-    previewImageUrl && failedPreviewImageUrl === previewImageUrl
-  )
+  const [failedPreviewImageUrl, setFailedPreviewImageUrl] = React.useState<string | null>(null)
+  const imageFailed = Boolean(previewImageUrl && failedPreviewImageUrl === previewImageUrl)
   const isImageLoading = Boolean(
     previewImageUrl &&
       loadedPreviewImageUrl !== previewImageUrl &&
@@ -72,9 +61,7 @@ export function FileThumbnail({
   )
   const showLoading = isLoading || isImageLoading
   const hasPreviewContent = Boolean(previewContent)
-  const showFallback =
-    !showLoading &&
-    (hasError || imageFailed || (!previewImageUrl && !hasPreviewContent))
+  const showFallback = !showLoading && (hasError || imageFailed || (!previewImageUrl && !hasPreviewContent))
   const cancelImageReveal = React.useCallback(() => {
     if (revealFrameRef.current === null) return
 
@@ -119,65 +106,49 @@ export function FileThumbnail({
   }, [markImageLoaded, previewImageUrl])
 
   return (
-    <div
-      className={cx(
-        "group overflow-hidden rounded-lg border bg-background text-foreground",
-        className
-      )}
-    >
+    <div className={cx('group overflow-hidden rounded-lg border bg-background text-foreground', className)}>
       <div
-        className={cx(
-          "relative aspect-square overflow-hidden bg-muted [contain:layout_paint]",
-          previewClassName
-        )}
-        style={
-          previewAspectRatio
-            ? { aspectRatio: String(previewAspectRatio) }
-            : undefined
-        }
+        className={cx('relative aspect-square overflow-hidden bg-muted [contain:layout_paint]', previewClassName)}
+        style={previewAspectRatio ? { aspectRatio: String(previewAspectRatio) } : undefined}
       >
         {previewImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- Preview URLs can be transient object or presigned URLs outside Next image optimization.
           <img
-            ref={imageRef}
-            src={previewImageUrl}
             alt=""
+            className={cx(
+              'absolute inset-0 block size-full object-cover transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              showLoading ? 'opacity-0 blur-sm' : 'opacity-100 blur-0'
+            )}
+            decoding="async"
             draggable={false}
             loading="lazy"
-            decoding="async"
-            className={cx(
-              "absolute inset-0 block size-full object-cover transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-              showLoading ? "opacity-0 blur-sm" : "blur-0 opacity-100"
-            )}
-            onLoad={(event) => {
-              markImageLoaded(event.currentTarget, previewImageUrl)
-            }}
             onError={() => {
               if (previewImageUrl) {
                 revealedPreviewImageUrls.delete(previewImageUrl)
                 cancelImageReveal()
                 setFailedPreviewImageUrl(previewImageUrl)
-                setLoadedPreviewImageUrl((currentUrl) =>
-                  currentUrl === previewImageUrl ? null : currentUrl
-                )
+                setLoadedPreviewImageUrl((currentUrl) => (currentUrl === previewImageUrl ? null : currentUrl))
               }
             }}
+            onLoad={(event) => {
+              markImageLoaded(event.currentTarget, previewImageUrl)
+            }}
+            ref={imageRef}
+            src={previewImageUrl}
           />
         ) : null}
         {previewContent ? (
           <div
             className={cx(
-              "absolute inset-0 size-full transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-              showLoading ? "opacity-0 blur-sm" : "blur-0 opacity-100"
+              'absolute inset-0 size-full transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              showLoading ? 'opacity-0 blur-sm' : 'opacity-100 blur-0'
             )}
           >
             {previewContent}
           </div>
         ) : null}
         {showLoading ? <FileThumbnailLoadingOverlay /> : null}
-        {showFallback ? (
-          <div className="absolute inset-0 bg-muted" aria-hidden="true" />
-        ) : null}
+        {showFallback ? <div aria-hidden="true" className="absolute inset-0 bg-muted" /> : null}
       </div>
     </div>
   )

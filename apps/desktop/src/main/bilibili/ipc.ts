@@ -5,7 +5,6 @@
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { TranscriptionConfigSchema } from '@swarm/protocol'
 import type {
   BiliAnalysis,
   BiliCredentials,
@@ -18,17 +17,17 @@ import type {
   BiliTranscribeResult,
   BiliVideo,
   ObsidianConfig,
+  ProviderInjection,
   TranscriptionConfig,
 } from '@swarm/protocol'
-import type { ProviderInjection } from '@swarm/protocol'
+import { TranscriptionConfigSchema } from '@swarm/protocol'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-
-import { writeNote } from './obsidian'
 
 import type { AnalysisStore } from './analysis-store'
 import { getFavFolders, getFavResources, getWatchLater } from './api'
 import { defaultAudioDeps, extractWav } from './audio'
 import type { Auth } from './auth'
+import { writeNote } from './obsidian'
 import { processVideo } from './pipeline'
 import { defaultPlayUrlDeps, getDashAudioUrl } from './playurl'
 import type { Store } from './store'
@@ -262,7 +261,11 @@ export function wireBilibiliIpc(opts: {
     try {
       await fs.mkdir(workDir, { recursive: true })
     } catch (err) {
-      log.error({ msg: 'transcribe workdir create failed', bvid, err: err instanceof Error ? err.message : String(err) })
+      log.error({
+        msg: 'transcribe workdir create failed',
+        bvid,
+        err: err instanceof Error ? err.message : String(err),
+      })
       return { ok: false, code: 'unknown', message: '无法创建临时目录。' }
     }
     log.info({ msg: 'transcribe requested', bvid })

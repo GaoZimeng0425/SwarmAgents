@@ -1,10 +1,10 @@
-import { sortBy } from 'es-toolkit'
 import type { ReactNode } from 'react'
+import { sortBy } from 'es-toolkit'
 
 import type { TaskRecord } from './apply-event'
-import { dayKey } from './timeline'
 import { groupSegments } from './group-segments'
 import { type Segment, taskSegments } from './task-segments'
+import { dayKey } from './timeline'
 
 export type TimelineItem = {
   key: string
@@ -56,7 +56,12 @@ export function buildTimelineItems(tasks: TaskRecord[], render: Render, opts: Op
   for (const t of ordered) {
     const segs = taskSegments(t)
     if (t.parentTaskId) {
-      raw.push({ key: t.id, seq: t.events[0]?.seq ?? t.startedAt, ts: t.startedAt, node: render.subagent(t, segs, lastKey) })
+      raw.push({
+        key: t.id,
+        seq: t.events[0]?.seq ?? t.startedAt,
+        ts: t.startedAt,
+        node: render.subagent(t, segs, lastKey),
+      })
     } else {
       for (const item of groupSegments(segs)) {
         if (item.kind === 'single') {

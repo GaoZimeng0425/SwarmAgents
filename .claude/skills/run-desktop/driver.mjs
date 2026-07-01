@@ -3,10 +3,11 @@
 // REPL driver for the SwarmAgents Electron app. macOS only (no xvfb needed).
 // Designed for agents: wrap in tmux, send-keys commands, capture-pane output.
 // Resolves playwright-core from the project node_modules (devDependency).
-import { _electron as electron } from 'playwright-core'
-import * as readline from 'node:readline'
+
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import * as readline from 'node:readline'
+import { _electron as electron } from 'playwright-core'
 
 // The Electron app lives under apps/desktop in the monorepo; fall back to the
 // repo root for the legacy single-package layout.
@@ -33,9 +34,7 @@ const COMMANDS = {
       executablePath: electronBin,
       args: [
         '--no-sandbox',
-        ...(process.env.SWARM_USER_DATA_DIR
-          ? [`--user-data-dir=${process.env.SWARM_USER_DATA_DIR}`]
-          : []),
+        ...(process.env.SWARM_USER_DATA_DIR ? [`--user-data-dir=${process.env.SWARM_USER_DATA_DIR}`] : []),
         '.',
       ],
       cwd: APP_DIR,
@@ -72,7 +71,13 @@ const COMMANDS = {
   async use(urlSubstr) {
     if (!app) return console.log('ERROR: launch first')
     const w = pickWindow(urlSubstr || 'index.html')
-    if (!w) return console.log('no window matching', urlSubstr, '— have:', app.windows().map((x) => x.url()))
+    if (!w)
+      return console.log(
+        'no window matching',
+        urlSubstr,
+        '— have:',
+        app.windows().map((x) => x.url())
+      )
     page = w
     console.log('using:', w.url())
   },
@@ -143,7 +148,7 @@ const COMMANDS = {
   async text(sel) {
     if (!page) return console.log('ERROR: launch first')
     console.log(
-      await page.evaluate((s) => (s ? document.querySelector(s) : document.body)?.innerText ?? '(null)', sel || null),
+      await page.evaluate((s) => (s ? document.querySelector(s) : document.body)?.innerText ?? '(null)', sel || null)
     )
   },
 

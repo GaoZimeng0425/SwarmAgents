@@ -1,9 +1,7 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { useDebouncer } from "@tanstack/react-pacer"
-import { range } from "es-toolkit"
-import type * as GlideDataGrid from "@glideapps/glide-data-grid"
+import * as React from 'react'
+import type * as GlideDataGrid from '@glideapps/glide-data-grid'
 import type {
   DataEditorRef,
   GridCell,
@@ -12,9 +10,11 @@ import type {
   GridSelection,
   Item,
   Theme,
-} from "@glideapps/glide-data-grid"
+} from '@glideapps/glide-data-grid'
+import { useDebouncer } from '@tanstack/react-pacer'
+import { range } from 'es-toolkit'
 
-import "@glideapps/glide-data-grid/dist/index.css"
+import '@glideapps/glide-data-grid/dist/index.css'
 
 import {
   ArrowLeft01Icon,
@@ -25,39 +25,19 @@ import {
   PlusSignCircleIcon,
   Search01Icon,
   Upload01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-import Papa from "papaparse"
+} from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+import Papa from 'papaparse'
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Spinner } from "@/components/ui/spinner"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 const ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2] as const
 const CSV_SEARCH_BATCH_ROW_COUNT = 500
@@ -78,7 +58,7 @@ type CsvSearchResult = {
 }
 
 function toDisplayString(value: unknown): string {
-  return value === null || value === undefined ? "" : String(value)
+  return value === null || value === undefined ? '' : String(value)
 }
 
 function normalizeHeaderTitle(header: string, index: number): string {
@@ -88,7 +68,7 @@ function normalizeHeaderTitle(header: string, index: number): string {
 
 function columnIndexToA1(col: number) {
   let columnNumber = col + 1
-  let columnName = ""
+  let columnName = ''
 
   while (columnNumber > 0) {
     const remainder = (columnNumber - 1) % 26
@@ -107,10 +87,7 @@ function cellMatchesQuery(displayValue: string, query: string) {
   return displayValue.toLowerCase().includes(query)
 }
 
-function createSingleCellSelection(
-  glide: GlideDataGridModule,
-  cell: Item
-): GridSelection {
+function createSingleCellSelection(glide: GlideDataGridModule, cell: Item): GridSelection {
   const [col, row] = cell
 
   return {
@@ -124,11 +101,7 @@ function createSingleCellSelection(
   }
 }
 
-async function findCsvSearchResults(
-  headers: string[],
-  rows: string[][],
-  rawQuery: string
-) {
+async function findCsvSearchResults(headers: string[], rows: string[][], rawQuery: string) {
   const query = rawQuery.trim().toLowerCase()
   if (!query) return []
 
@@ -138,21 +111,14 @@ async function findCsvSearchResults(
     rows.reduce((maxCount, row) => Math.max(maxCount, row.length), 0)
   )
 
-  for (
-    let batchStartRow = 0;
-    batchStartRow < rows.length;
-    batchStartRow += CSV_SEARCH_BATCH_ROW_COUNT
-  ) {
-    const batchEndRow = Math.min(
-      batchStartRow + CSV_SEARCH_BATCH_ROW_COUNT,
-      rows.length
-    )
+  for (let batchStartRow = 0; batchStartRow < rows.length; batchStartRow += CSV_SEARCH_BATCH_ROW_COUNT) {
+    const batchEndRow = Math.min(batchStartRow + CSV_SEARCH_BATCH_ROW_COUNT, rows.length)
 
     for (let row = batchStartRow; row < batchEndRow; row += 1) {
       const rowValues = rows[row] ?? []
 
       for (let col = 0; col < columnCount; col += 1) {
-        const displayValue = rowValues[col] ?? ""
+        const displayValue = rowValues[col] ?? ''
         if (!cellMatchesQuery(displayValue, query)) continue
 
         results.push({
@@ -181,86 +147,58 @@ function parseDelimitedText(text: string): {
 } {
   const results = Papa.parse<Record<string, unknown>>(text, {
     header: true,
-    skipEmptyLines: "greedy",
+    skipEmptyLines: 'greedy',
   })
 
   const objectRows = Array.isArray(results.data)
     ? results.data.filter(
-        (row): row is Record<string, unknown> =>
-          !!row && typeof row === "object" && !Array.isArray(row)
+        (row): row is Record<string, unknown> => !!row && typeof row === 'object' && !Array.isArray(row)
       )
     : []
-  const metaFields = Array.isArray(results.meta.fields)
-    ? results.meta.fields.map((field) => String(field))
-    : []
+  const metaFields = Array.isArray(results.meta.fields) ? results.meta.fields.map((field) => String(field)) : []
   const fieldKeys =
-    metaFields.length > 0
-      ? metaFields
-      : Object.keys(objectRows[0] ?? {}).filter(
-          (key) => key !== "__parsed_extra"
-        )
+    metaFields.length > 0 ? metaFields : Object.keys(objectRows[0] ?? {}).filter((key) => key !== '__parsed_extra')
   const extraColumnCount = objectRows.reduce((maxCount, row) => {
     const extras = row.__parsed_extra
     return Array.isArray(extras) ? Math.max(maxCount, extras.length) : maxCount
   }, 0)
   const headers = [
     ...fieldKeys.map((field, index) => normalizeHeaderTitle(field, index)),
-    ...Array.from(
-      { length: extraColumnCount },
-      (_, index) => `Extra ${index + 1}`
-    ),
+    ...Array.from({ length: extraColumnCount }, (_, index) => `Extra ${index + 1}`),
   ]
 
   const rows = objectRows.map((row) => {
-    const baseValues = fieldKeys.map((fieldKey) =>
-      toDisplayString(row[fieldKey])
-    )
-    const extras = Array.isArray(row.__parsed_extra)
-      ? row.__parsed_extra.map((value) => toDisplayString(value))
-      : []
+    const baseValues = fieldKeys.map((fieldKey) => toDisplayString(row[fieldKey]))
+    const extras = Array.isArray(row.__parsed_extra) ? row.__parsed_extra.map((value) => toDisplayString(value)) : []
     const paddedExtras =
       extras.length >= extraColumnCount
         ? extras.slice(0, extraColumnCount)
-        : [
-            ...extras,
-            ...Array.from(
-              { length: extraColumnCount - extras.length },
-              () => ""
-            ),
-          ]
+        : [...extras, ...Array.from({ length: extraColumnCount - extras.length }, () => '')]
 
     return [...baseValues, ...paddedExtras]
   })
 
-  const firstError =
-    Array.isArray(results.errors) && results.errors.length > 0
-      ? results.errors[0]
-      : null
+  const firstError = Array.isArray(results.errors) && results.errors.length > 0 ? results.errors[0] : null
 
   return {
     headers,
     rows,
-    error:
-      rows.length === 0 && firstError
-        ? String(firstError.message ?? "Could not parse CSV file.")
-        : null,
+    error: rows.length === 0 && firstError ? String(firstError.message ?? 'Could not parse CSV file.') : null,
   }
 }
 
 function ensureCsvExtension(fileName: string) {
   const lowerFileName = fileName.toLowerCase()
-  return lowerFileName.endsWith(".csv") || lowerFileName.endsWith(".tsv")
-    ? fileName
-    : `${fileName}.csv`
+  return lowerFileName.endsWith('.csv') || lowerFileName.endsWith('.tsv') ? fileName : `${fileName}.csv`
 }
 
 function downloadTextFile(text: string, fileName: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }))
-  const anchor = document.createElement("a")
+  const anchor = document.createElement('a')
 
   anchor.href = url
   anchor.download = fileName
-  anchor.rel = "noopener"
+  anchor.rel = 'noopener'
   document.body.append(anchor)
   anchor.click()
   anchor.remove()
@@ -283,28 +221,18 @@ function CsvFileActionsMenu({
       {/* local-adapt: base-ui Trigger composes via `render` prop, not `asChild` */}
       <DropdownMenuTrigger
         render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Open CSV actions"
-            disabled={isPending}
-          >
-            <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
+          <Button aria-label="Open CSV actions" disabled={isPending} size="icon-sm" type="button" variant="ghost">
+            <HugeiconsIcon className="size-4" icon={MoreHorizontalIcon} />
           </Button>
         }
       />
       <DropdownMenuContent align="end" className="w-40">
         <DropdownMenuItem disabled={downloadDisabled} onClick={onDownload}>
-          <HugeiconsIcon icon={Download01Icon} className="size-4" />
+          <HugeiconsIcon className="size-4" icon={Download01Icon} />
           Download
         </DropdownMenuItem>
         <DropdownMenuItem disabled={isPending} onClick={onUploadClick}>
-          {isPending ? (
-            <Spinner className="size-4" />
-          ) : (
-            <HugeiconsIcon icon={Upload01Icon} className="size-4" />
-          )}
+          {isPending ? <Spinner className="size-4" /> : <HugeiconsIcon className="size-4" icon={Upload01Icon} />}
           Upload
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -312,13 +240,7 @@ function CsvFileActionsMenu({
   )
 }
 
-function ToolbarTooltip({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function ToolbarTooltip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Tooltip>
       {/* local-adapt: base-ui Trigger composes via `render` prop, not `asChild` */}
@@ -345,34 +267,30 @@ function CsvSearchPopover({
   controlsDisabled: boolean
   onGridSelectionChange: (selection: GridSelection | null) => void
 }) {
-  const [searchDraft, setSearchDraft] = React.useState("")
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [searchResults, setSearchResults] = React.useState<CsvSearchResult[]>(
-    []
-  )
+  const [searchDraft, setSearchDraft] = React.useState('')
+  const [searchQuery, setSearchQuery] = React.useState('')
+  const [searchResults, setSearchResults] = React.useState<CsvSearchResult[]>([])
   const [activeResultIndex, setActiveResultIndex] = React.useState(0)
   const [isSearching, setIsSearching] = React.useState(false)
   const searchRequestIdRef = React.useRef(0)
-  const appliedResultKeyRef = React.useRef("")
+  const appliedResultKeyRef = React.useRef('')
   const activeResult = searchResults[activeResultIndex] ?? null
-  const activeResultKey = activeResult
-    ? `${activeResult.row}:${activeResult.col}`
-    : ""
+  const activeResultKey = activeResult ? `${activeResult.row}:${activeResult.col}` : ''
   const hasActiveQuery = Boolean(searchQuery.trim())
   const resultLabel = isSearching
-    ? "Searching"
+    ? 'Searching'
     : !hasActiveQuery
-      ? "No search"
+      ? 'No search'
       : searchResults.length
         ? `${activeResultIndex + 1} / ${searchResults.length}`
-        : "No results"
+        : 'No results'
 
   const runSearch = React.useCallback(
     (rawQuery: string) => {
       const nextQuery = rawQuery.trim()
       const requestId = searchRequestIdRef.current + 1
       searchRequestIdRef.current = requestId
-      appliedResultKeyRef.current = ""
+      appliedResultKeyRef.current = ''
       setSearchQuery(nextQuery)
       setActiveResultIndex(0)
 
@@ -412,7 +330,7 @@ function CsvSearchPopover({
 
     if (!trimmedDraft) {
       searchDebouncer.cancel()
-      runSearch("")
+      runSearch('')
       return
     }
 
@@ -424,12 +342,12 @@ function CsvSearchPopover({
 
   const clearSearch = React.useCallback(() => {
     searchRequestIdRef.current += 1
-    setSearchDraft("")
-    setSearchQuery("")
+    setSearchDraft('')
+    setSearchQuery('')
     setSearchResults([])
     setActiveResultIndex(0)
     setIsSearching(false)
-    appliedResultKeyRef.current = ""
+    appliedResultKeyRef.current = ''
     onGridSelectionChange(null)
   }, [onGridSelectionChange])
 
@@ -438,10 +356,7 @@ function CsvSearchPopover({
       if (!searchResults.length) return
 
       setActiveResultIndex((currentIndex) => {
-        return (
-          (currentIndex + direction + searchResults.length) %
-          searchResults.length
-        )
+        return (currentIndex + direction + searchResults.length) % searchResults.length
       })
     },
     [searchResults.length]
@@ -449,12 +364,12 @@ function CsvSearchPopover({
 
   React.useEffect(() => {
     searchRequestIdRef.current += 1
-    setSearchDraft("")
-    setSearchQuery("")
+    setSearchDraft('')
+    setSearchQuery('')
     setSearchResults([])
     setActiveResultIndex(0)
     setIsSearching(false)
-    appliedResultKeyRef.current = ""
+    appliedResultKeyRef.current = ''
     onGridSelectionChange(null)
   }, [dataIdentity, onGridSelectionChange])
 
@@ -468,17 +383,10 @@ function CsvSearchPopover({
     onGridSelectionChange(createSingleCellSelection(glide, cell))
 
     const frame = window.requestAnimationFrame(() => {
-      gridRef.current?.scrollTo(
-        activeResult.col,
-        activeResult.row,
-        "both",
-        48,
-        48,
-        {
-          vAlign: "center",
-          hAlign: "center",
-        }
-      )
+      gridRef.current?.scrollTo(activeResult.col, activeResult.row, 'both', 48, 48, {
+        vAlign: 'center',
+        hAlign: 'center',
+      })
     })
 
     return () => window.cancelAnimationFrame(frame)
@@ -490,14 +398,8 @@ function CsvSearchPopover({
         {/* local-adapt: base-ui Trigger composes via `render` prop, not `asChild` */}
         <PopoverTrigger
           render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Search CSV"
-              disabled={controlsDisabled}
-            >
-              <HugeiconsIcon icon={Search01Icon} className="size-4" />
+            <Button aria-label="Search CSV" disabled={controlsDisabled} size="icon-sm" type="button" variant="ghost">
+              <HugeiconsIcon className="size-4" icon={Search01Icon} />
             </Button>
           }
         />
@@ -505,11 +407,9 @@ function CsvSearchPopover({
       <PopoverContent align="end" className="w-72">
         <div className="space-y-3">
           <Input
-            placeholder="Search CSV"
-            value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key !== "Enter") return
+              if (event.key !== 'Enter') return
 
               event.preventDefault()
               if (event.shiftKey && searchResults.length) {
@@ -520,15 +420,15 @@ function CsvSearchPopover({
                 runSearch(searchDraft)
               }
             }}
+            placeholder="Search CSV"
+            value={searchDraft}
           />
           <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 text-xs text-muted-foreground">
+            <div className="min-w-0 text-muted-foreground text-xs">
               <div className="truncate">
                 {searchResults.length ? (
                   <>
-                    <span className="text-primary">
-                      {activeResultIndex + 1}
-                    </span>
+                    <span className="text-primary">{activeResultIndex + 1}</span>
                     {` / ${searchResults.length}`}
                   </>
                 ) : (
@@ -537,41 +437,35 @@ function CsvSearchPopover({
               </div>
               {activeResult ? (
                 <div className="mt-0.5 truncate">
-                  {activeResult.columnTitle}!
-                  {cellAddressToA1(activeResult.col, activeResult.row)}
+                  {activeResult.columnTitle}!{cellAddressToA1(activeResult.col, activeResult.row)}
                 </div>
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
                 aria-label="Previous result"
                 disabled={isSearching || searchResults.length === 0}
                 onClick={() => goToRelativeResult(-1)}
-              >
-                <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
-              </Button>
-              <Button
+                size="icon-sm"
                 type="button"
                 variant="outline"
-                size="icon-sm"
+              >
+                <HugeiconsIcon className="size-4" icon={ArrowLeft01Icon} />
+              </Button>
+              <Button
                 aria-label="Next result"
                 disabled={isSearching || searchResults.length === 0}
                 onClick={() => goToRelativeResult(1)}
+                size="icon-sm"
+                type="button"
+                variant="outline"
               >
-                <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+                <HugeiconsIcon className="size-4" icon={ArrowRight01Icon} />
               </Button>
             </div>
           </div>
           <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={clearSearch}
-            >
+            <Button onClick={clearSearch} size="sm" type="button" variant="outline">
               Clear
             </Button>
           </div>
@@ -582,28 +476,25 @@ function CsvSearchPopover({
 }
 
 function readIsDarkTheme() {
-  return (
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("dark")
-  )
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 }
 
 function useIsDarkTheme() {
   const [isDark, setIsDark] = React.useState(readIsDarkTheme)
 
   React.useEffect(() => {
-    if (typeof document === "undefined") return
+    if (typeof document === 'undefined') return
 
     const updateTheme = () => setIsDark(readIsDarkTheme())
 
     updateTheme()
 
-    if (typeof MutationObserver === "undefined") return
+    if (typeof MutationObserver === 'undefined') return
 
     const observer = new MutationObserver(updateTheme)
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["class"],
+      attributeFilter: ['class'],
     })
 
     return () => observer.disconnect()
@@ -618,29 +509,22 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
   const isDark = useIsDarkTheme()
   const [glide, setGlide] = React.useState<GlideDataGridModule | null>(null)
   const [zoom, setZoom] = React.useState<(typeof ZOOM_OPTIONS)[number]>(1)
-  const [gridSelection, setGridSelection] =
-    React.useState<GridSelection | null>(null)
+  const [gridSelection, setGridSelection] = React.useState<GridSelection | null>(null)
   const [parsed, setParsed] = React.useState(() =>
     data ? parseDelimitedText(data) : { headers: [], rows: [], error: null }
   )
-  const [uploadedFileName, setUploadedFileName] = React.useState<string | null>(
-    null
-  )
+  const [uploadedFileName, setUploadedFileName] = React.useState<string | null>(null)
   const [isPending, setIsPending] = React.useState(false)
   const [dataRevision, setDataRevision] = React.useState(0)
 
   const dataIdentity = React.useMemo(
-    () =>
-      `${dataRevision}:${parsed.headers.join("\u0001")}:${parsed.rows.length}:${parsed.error ?? ""}`,
+    () => `${dataRevision}:${parsed.headers.join('\u0001')}:${parsed.rows.length}:${parsed.error ?? ''}`,
     [dataRevision, parsed.error, parsed.headers, parsed.rows.length]
   )
 
-  const handleGridSelectionChange = React.useCallback(
-    (selection: GridSelection | null) => {
-      setGridSelection(selection)
-    },
-    []
-  )
+  const handleGridSelectionChange = React.useCallback((selection: GridSelection | null) => {
+    setGridSelection(selection)
+  }, [])
 
   React.useEffect(() => {
     if (data) {
@@ -659,7 +543,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
   React.useEffect(() => {
     let mounted = true
 
-    void import("@glideapps/glide-data-grid").then((module) => {
+    void import('@glideapps/glide-data-grid').then((module) => {
       if (mounted) {
         setGlide(module)
       }
@@ -671,31 +555,27 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
   }, [])
 
   const columnCount = Math.max(1, parsed.headers.length)
-  const scale = React.useCallback(
-    (value: number) => Math.round(value * zoom),
-    [zoom]
-  )
-  const searchDisabled =
-    Boolean(parsed.error) || parsed.rows.length === 0 || isPending
+  const scale = React.useCallback((value: number) => Math.round(value * zoom), [zoom])
+  const searchDisabled = Boolean(parsed.error) || parsed.rows.length === 0 || isPending
 
   const theme = React.useMemo<Partial<Theme>>(
     () => ({
-      accentColor: isDark ? "#60a5fa" : "#2563eb",
-      accentLight: isDark ? "#1d4ed826" : "#dbeafe",
-      accentFg: "#ffffff",
-      textDark: isDark ? "#e5e5e5" : "#171717",
-      textMedium: isDark ? "#a3a3a3" : "#525252",
-      textLight: isDark ? "#737373" : "#a3a3a3",
-      textBubble: isDark ? "#f5f5f5" : "#171717",
-      textHeader: isDark ? "#f5f5f5" : "#171717",
-      textGroupHeader: isDark ? "#a3a3a3" : "#525252",
-      bgCell: isDark ? "#0a0a0a" : "#ffffff",
-      bgCellMedium: isDark ? "#171717" : "#fafafa",
-      bgHeader: isDark ? "#171717" : "#fafafa",
-      bgHeaderHasFocus: isDark ? "#262626" : "#f5f5f5",
-      bgHeaderHovered: isDark ? "#262626" : "#f5f5f5",
-      borderColor: isDark ? "#262626" : "#e5e5e5",
-      horizontalBorderColor: isDark ? "#262626" : "#e5e5e5",
+      accentColor: isDark ? '#60a5fa' : '#2563eb',
+      accentLight: isDark ? '#1d4ed826' : '#dbeafe',
+      accentFg: '#ffffff',
+      textDark: isDark ? '#e5e5e5' : '#171717',
+      textMedium: isDark ? '#a3a3a3' : '#525252',
+      textLight: isDark ? '#737373' : '#a3a3a3',
+      textBubble: isDark ? '#f5f5f5' : '#171717',
+      textHeader: isDark ? '#f5f5f5' : '#171717',
+      textGroupHeader: isDark ? '#a3a3a3' : '#525252',
+      bgCell: isDark ? '#0a0a0a' : '#ffffff',
+      bgCellMedium: isDark ? '#171717' : '#fafafa',
+      bgHeader: isDark ? '#171717' : '#fafafa',
+      bgHeaderHasFocus: isDark ? '#262626' : '#f5f5f5',
+      bgHeaderHovered: isDark ? '#262626' : '#f5f5f5',
+      borderColor: isDark ? '#262626' : '#e5e5e5',
+      horizontalBorderColor: isDark ? '#262626' : '#e5e5e5',
       cellHorizontalPadding: scale(8),
       cellVerticalPadding: Math.max(2, scale(3)),
       headerIconSize: scale(18),
@@ -720,7 +600,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
 
   const getCellContent = React.useCallback(
     ([col, row]: Item): GridCell => {
-      const value = parsed.rows[row]?.[col] ?? ""
+      const value = parsed.rows[row]?.[col] ?? ''
       const textKind = glide?.GridCellKind.Text as GridCellKind.Text
 
       return {
@@ -748,22 +628,18 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
       setParsed({
         headers: [],
         rows: [],
-        error:
-          error instanceof Error ? error.message : "Could not read CSV file.",
+        error: error instanceof Error ? error.message : 'Could not read CSV file.',
       })
       setDataRevision((revision) => revision + 1)
     } finally {
-      event.target.value = ""
+      event.target.value = ''
       setIsPending(false)
     }
   }
 
   function stepZoom(direction: -1 | 1) {
     const index = ZOOM_OPTIONS.indexOf(zoom)
-    const nextIndex = Math.min(
-      ZOOM_OPTIONS.length - 1,
-      Math.max(0, index + direction)
-    )
+    const nextIndex = Math.min(ZOOM_OPTIONS.length - 1, Math.max(0, index + direction))
     setZoom(ZOOM_OPTIONS[nextIndex])
   }
 
@@ -773,50 +649,32 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
       data: parsed.rows,
     })
 
-    downloadTextFile(
-      text,
-      ensureCsvExtension(uploadedFileName ?? "data.csv"),
-      "text/csv;charset=utf-8"
-    )
+    downloadTextFile(text, ensureCsvExtension(uploadedFileName ?? 'data.csv'), 'text/csv;charset=utf-8')
   }
 
   return (
-    <div
-      className={cn(
-        "flex h-[560px] w-full flex-col overflow-hidden bg-background",
-        className
-      )}
-    >
+    <div className={cn('flex h-[560px] w-full flex-col overflow-hidden bg-background', className)}>
       <div className="flex min-h-12 flex-wrap items-center justify-end gap-2 border-b bg-background px-3 py-2">
         <TooltipProvider>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
             <div className="flex flex-none items-center gap-1">
               <ToolbarTooltip label="Zoom out">
                 <Button
-                  variant="ghost"
-                  size="icon-sm"
                   aria-label="Zoom out"
                   disabled={zoom <= ZOOM_OPTIONS[0]}
                   onClick={() => stepZoom(-1)}
+                  size="icon-sm"
+                  variant="ghost"
                 >
-                  <HugeiconsIcon
-                    icon={MinusSignCircleIcon}
-                    className="size-4"
-                  />
+                  <HugeiconsIcon className="size-4" icon={MinusSignCircleIcon} />
                 </Button>
               </ToolbarTooltip>
               <Select
-                value={zoom.toString()}
-                onValueChange={(value) =>
-                  setZoom(Number(value) as (typeof ZOOM_OPTIONS)[number])
-                }
                 modal={false}
+                onValueChange={(value) => setZoom(Number(value) as (typeof ZOOM_OPTIONS)[number])}
+                value={zoom.toString()}
               >
-                <SelectTrigger
-                  size="sm"
-                  className="w-[84px] min-w-[84px]"
-                  aria-label="Zoom level"
-                >
+                <SelectTrigger aria-label="Zoom level" className="w-[84px] min-w-[84px]" size="sm">
                   <SelectValue>{Math.round(zoom * 100)}%</SelectValue>
                 </SelectTrigger>
                 <SelectContent align="end" alignItemWithTrigger={false}>
@@ -829,49 +687,41 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
               </Select>
               <ToolbarTooltip label="Zoom in">
                 <Button
-                  variant="ghost"
-                  size="icon-sm"
                   aria-label="Zoom in"
                   disabled={zoom >= ZOOM_OPTIONS[ZOOM_OPTIONS.length - 1]}
                   onClick={() => stepZoom(1)}
+                  size="icon-sm"
+                  variant="ghost"
                 >
-                  <HugeiconsIcon icon={PlusSignCircleIcon} className="size-4" />
+                  <HugeiconsIcon className="size-4" icon={PlusSignCircleIcon} />
                 </Button>
               </ToolbarTooltip>
             </div>
             {search ? (
               <>
-                <Separator
-                  orientation="vertical"
-                  className="mx-1 h-4 self-center"
-                />
+                <Separator className="mx-1 h-4 self-center" orientation="vertical" />
                 <CsvSearchPopover
-                  glide={glide}
-                  headers={parsed.headers}
-                  rows={parsed.rows}
-                  gridRef={gridRef}
-                  dataIdentity={dataIdentity}
                   controlsDisabled={searchDisabled}
+                  dataIdentity={dataIdentity}
+                  glide={glide}
+                  gridRef={gridRef}
+                  headers={parsed.headers}
                   onGridSelectionChange={handleGridSelectionChange}
+                  rows={parsed.rows}
                 />
               </>
             ) : null}
-            <Separator
-              orientation="vertical"
-              className="mx-1 h-4 self-center"
-            />
+            <Separator className="mx-1 h-4 self-center" orientation="vertical" />
             <input
-              ref={inputRef}
-              type="file"
               accept=".csv,.tsv,text/csv,text/tab-separated-values"
               className="hidden"
               onChange={handleUpload}
+              ref={inputRef}
+              type="file"
             />
             <CsvFileActionsMenu
               downloadDisabled={
-                Boolean(parsed.error) ||
-                isPending ||
-                (parsed.headers.length === 0 && parsed.rows.length === 0)
+                Boolean(parsed.error) || isPending || (parsed.headers.length === 0 && parsed.rows.length === 0)
               }
               isPending={isPending}
               onDownload={handleDownload}
@@ -882,7 +732,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
       </div>
       <div className="min-h-0 flex-1">
         {parsed.error ? (
-          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-destructive">
+          <div className="flex h-full items-center justify-center px-4 text-center text-destructive text-sm">
             {parsed.error}
           </div>
         ) : parsed.rows.length === 0 ? (
@@ -890,23 +740,18 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
             <div className="max-w-md rounded-lg border bg-background p-4 text-center text-sm shadow-xs">
               <p className="font-medium">Upload a CSV to preview</p>
               <p className="mt-1 text-muted-foreground">
-                Pass delimited text with the <code>data</code> prop or upload a
-                CSV file.
+                Pass delimited text with the <code>data</code> prop or upload a CSV file.
               </p>
               {/* local-adapt: local Button has no `loading` prop; emulate with disabled + inline Spinner */}
               <Button
-                type="button"
-                variant="outline"
-                size="sm"
                 className="mt-4"
                 disabled={isPending}
                 onClick={() => inputRef.current?.click()}
+                size="sm"
+                type="button"
+                variant="outline"
               >
-                {isPending ? (
-                  <Spinner className="size-4" />
-                ) : (
-                  <HugeiconsIcon icon={Upload01Icon} className="size-4" />
-                )}
+                {isPending ? <Spinner className="size-4" /> : <HugeiconsIcon className="size-4" icon={Upload01Icon} />}
                 Upload CSV
               </Button>
             </div>
@@ -917,29 +762,25 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
           </div>
         ) : (
           <glide.DataEditor
-            ref={search ? gridRef : undefined}
-            key={zoom}
             columns={columns}
-            rows={parsed.rows.length}
             getCellContent={getCellContent}
+            getCellsForSelection
+            gridSelection={search ? (gridSelection ?? glide.emptyGridSelection) : undefined}
+            headerHeight={scale(36)}
+            height="100%"
+            key={zoom}
+            keybindings={{ search: true }}
+            onGridSelectionChange={search ? handleGridSelectionChange : undefined}
+            ref={search ? gridRef : undefined}
+            rowHeight={scale(34)}
             rowMarkers="number"
             rowSelectionMode="multi"
-            gridSelection={
-              search ? (gridSelection ?? glide.emptyGridSelection) : undefined
-            }
-            onGridSelectionChange={
-              search ? handleGridSelectionChange : undefined
-            }
+            rows={parsed.rows.length}
             scrollToActiveCell={search}
-            keybindings={{ search: true }}
             smoothScrollX
             smoothScrollY
-            getCellsForSelection
-            width="100%"
-            height="100%"
             theme={theme}
-            rowHeight={scale(34)}
-            headerHeight={scale(36)}
+            width="100%"
           />
         )}
       </div>

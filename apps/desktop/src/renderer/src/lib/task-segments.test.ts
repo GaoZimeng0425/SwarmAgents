@@ -253,7 +253,7 @@ describe('taskSegments seq', () => {
           ts: 1,
           seq: 42,
         } as TaskRecord['events'][number],
-      ]),
+      ])
     )
     const tool = segs.find((s) => s.kind === 'tool') as unknown as { seq?: number }
     expect(tool.seq).toBe(42)
@@ -262,8 +262,15 @@ describe('taskSegments seq', () => {
   it('gives the goal segment the task.created seq', () => {
     const segs = taskSegments(
       rec([
-        { kind: 'task.created', sessionId: 's1', taskId: 't1', goal: 'do x', ts: 10, seq: 7 } as TaskRecord['events'][number],
-      ]),
+        {
+          kind: 'task.created',
+          sessionId: 's1',
+          taskId: 't1',
+          goal: 'do x',
+          ts: 10,
+          seq: 7,
+        } as TaskRecord['events'][number],
+      ])
     )
     expect((segs[0] as unknown as { seq?: number }).seq).toBe(7)
   })

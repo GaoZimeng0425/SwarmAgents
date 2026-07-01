@@ -23,7 +23,24 @@
     "editor.defaultFormatter": "biomejs.biome"
   },
   "biome.enabled": true,
-  "cSpell.words": [],
+  "cSpell.words": [
+    "Bili",
+    "bilibili",
+    "bilipc",
+    "bvid",
+    "bvids",
+    "ciphertext",
+    "creds",
+    "dede",
+    "earendil",
+    "fnval",
+    "onnx",
+    "onnx's",
+    "playurl",
+    "sessdata",
+    "unstub",
+    "wttr"
+  ],
   "css.format.enable": false,
   "editor.codeActionsOnSave": {
     "source.addMissingImports": "explicit",

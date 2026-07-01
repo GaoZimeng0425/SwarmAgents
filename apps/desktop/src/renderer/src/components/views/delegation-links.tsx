@@ -1,5 +1,5 @@
-import type { DelegationEdge } from '@swarm/shared'
 import type { AgentDefinition } from '@swarm/protocol'
+import type { DelegationEdge } from '@swarm/shared'
 
 type DelegationLinksProps = {
   agentId: string
@@ -35,7 +35,7 @@ export function DelegationLinks({ agentId, edges, agents, onSelect }: Delegation
 
   return (
     <div className="mt-3 space-y-1.5 border-t pt-3">
-      <p className="text-muted-foreground text-[11px] italic">
+      <p className="text-[11px] text-muted-foreground italic">
         Delegation intent parsed from prompts — not runtime calls.
       </p>
       {row('Delegates to', delegatesTo)}

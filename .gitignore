@@ -10,3 +10,7 @@ out
 screenshot_*.png
 *.tsbuildinfo
 references
+
+.tanstack
+.claire
+.turbo

@@ -41,13 +41,13 @@ export function AgentsView(): React.JSX.Element {
   return (
     <div className="space-y-4">
       <SettingsHeader
-        title="Agents"
         action={
           <Button disabled={restoring} onClick={onRestoreDefaults} size="sm" variant="outline">
             {restoring ? 'Restoring…' : 'Restore defaults'}
           </Button>
         }
         description="Specialised sub-agents the main agent can delegate to. The tree shows the org hierarchy; click an agent to view its full system prompt."
+        title="Agents"
       />
 
       {isLoading ? (

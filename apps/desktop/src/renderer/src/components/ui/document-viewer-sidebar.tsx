@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 const INLINE_THUMBNAIL_SIDEBAR_MIN_WIDTH = 768
 
@@ -44,10 +44,10 @@ export function useInlineThumbnailSidebar(width: number) {
 export function DocumentViewerThumbnailSidebar({
   children,
   className,
-  closedInlineClassName = "-ml-40",
+  closedInlineClassName = '-ml-40',
   inline,
   open,
-  widthClassName = "w-40",
+  widthClassName = 'w-40',
 }: {
   children: React.ReactNode
   className?: string
@@ -75,40 +75,34 @@ export function DocumentViewerThumbnailSidebar({
 
   return (
     <aside
-      data-document-thumbnail-sidebar=""
-      data-sidebar-mode={inline ? "inline" : "overlay"}
-      data-sidebar-open={open ? "true" : "false"}
       className={cn(
-        "absolute inset-y-0 left-0 z-30 shrink-0 overflow-hidden border-r bg-sidebar shadow-lg",
+        'absolute inset-y-0 left-0 z-30 shrink-0 overflow-hidden border-r bg-sidebar shadow-lg',
         widthClassName,
         shouldAnimateSidebar
-          ? "transition-[translate,margin-left,border-color] duration-200 ease-out"
-          : "transition-none",
-        inline && "relative z-auto translate-x-0 shadow-none",
+          ? 'transition-[translate,margin-left,border-color] duration-200 ease-out'
+          : 'transition-none',
+        inline && 'relative z-auto translate-x-0 shadow-none',
         open
-          ? "ml-0 translate-x-0"
+          ? 'ml-0 translate-x-0'
           : inline
-            ? cn("pointer-events-auto border-r-0", closedInlineClassName)
-            : "pointer-events-none -translate-x-full border-r-0",
+            ? cn('pointer-events-auto border-r-0', closedInlineClassName)
+            : 'pointer-events-none -translate-x-full border-r-0',
         className
       )}
+      data-document-thumbnail-sidebar=""
+      data-sidebar-mode={inline ? 'inline' : 'overlay'}
+      data-sidebar-open={open ? 'true' : 'false'}
     >
       {children}
     </aside>
   )
 }
 
-export function DocumentViewerSidebarSkeleton({
-  className,
-  inline,
-}: {
-  className?: string
-  inline: boolean
-}) {
+export function DocumentViewerSidebarSkeleton({ className, inline }: { className?: string; inline: boolean }) {
   if (!inline) return null
 
   return (
-    <div className={cn("w-40 shrink-0 border-r bg-sidebar p-4", className)}>
+    <div className={cn('w-40 shrink-0 border-r bg-sidebar p-4', className)}>
       <div className="mx-auto h-28 w-20 overflow-hidden rounded-md bg-background shadow-xs">
         <div className="h-full animate-pulse bg-muted" />
       </div>

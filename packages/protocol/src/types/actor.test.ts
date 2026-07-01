@@ -1,5 +1,6 @@
 // src/shared/types/actor.test.ts
 import { describe, expect, it } from 'vitest'
+
 import { MessageKindSchema } from './actor'
 
 describe('actor types', () => {

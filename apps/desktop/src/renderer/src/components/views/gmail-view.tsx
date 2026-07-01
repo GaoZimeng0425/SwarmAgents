@@ -1,6 +1,7 @@
 // src/renderer/src/components/views/gmail-view.tsx
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
 import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,19 +22,24 @@ export function GmailSettingsView(): React.JSX.Element {
   // Main pushes a fresh view whenever the daemon's state changes (link/unlink/
   // sync progress). Feed it straight into the cache so mutations and background
   // syncs both update the panel.
-  useEffect(() => window.swarm.gmail.onStateChanged((view) => {
-    void qc.setQueryData(['gmail', 'status'], view)
-  }), [qc])
+  useEffect(
+    () =>
+      window.swarm.gmail.onStateChanged((view) => {
+        void qc.setQueryData(['gmail', 'status'], view)
+      }),
+    [qc]
+  )
 
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [credsError, setCredsError] = useState<string | null>(null)
 
   const setCreds = useMutation({
-    mutationFn: () => window.swarm.gmail.setClientCreds({
-      clientId: clientId.trim(),
-      clientSecret: clientSecret.trim(),
-    }),
+    mutationFn: () =>
+      window.swarm.gmail.setClientCreds({
+        clientId: clientId.trim(),
+        clientSecret: clientSecret.trim(),
+      }),
     onSuccess: (r) => {
       if (!r.ok) {
         setCredsError(r.message)
@@ -85,9 +91,7 @@ export function GmailSettingsView(): React.JSX.Element {
         <Input
           onChange={(e) => setClientId(e.target.value)}
           placeholder={
-            status?.hasClientCreds
-              ? '•••••••• (saved) — type to replace'
-              : 'xxxxxxxx.apps.googleusercontent.com'
+            status?.hasClientCreds ? '•••••••• (saved) — type to replace' : 'xxxxxxxx.apps.googleusercontent.com'
           }
           value={clientId}
         />

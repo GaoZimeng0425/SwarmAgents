@@ -1,5 +1,6 @@
 import type { BiliCredentials } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
+
 import { processVideo } from './pipeline'
 
 const CRED: BiliCredentials = { sessdata: 's', biliJct: 'j', dedeUserId: 'u' }
@@ -35,7 +36,12 @@ describe('processVideo', () => {
 
   it('maps a summarize throw to llm_failed', async () => {
     const r = await processVideo(
-      { ...baseDeps, summarize: async () => { throw new Error('boom') } },
+      {
+        ...baseDeps,
+        summarize: async () => {
+          throw new Error('boom')
+        },
+      },
       CRED,
       'BV1'
     )

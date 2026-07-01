@@ -79,7 +79,18 @@ describe('builtin roster', () => {
   })
 
   it('pure-delegator coordinators use the least-privilege coordinate scope', () => {
-    const coordinators = ['ceo', 'planner', 'engineering-lead', 'product-lead', 'design-lead', 'qa-lead', 'ops-lead', 'docs-lead', 'security-lead', 'data-lead']
+    const coordinators = [
+      'ceo',
+      'planner',
+      'engineering-lead',
+      'product-lead',
+      'design-lead',
+      'qa-lead',
+      'ops-lead',
+      'docs-lead',
+      'security-lead',
+      'data-lead',
+    ]
     for (const id of coordinators) {
       expect(byId[id].toolScope, `${id} should be coordinate`).toBe('coordinate')
     }

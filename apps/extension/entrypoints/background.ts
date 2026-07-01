@@ -1,4 +1,5 @@
 import { createServiceClient, type ServiceClient } from '@swarm/protocol'
+
 import { createWsTransport } from '../lib/transport-ws'
 
 type HostConfig = { wsHost: string; token: string }
@@ -21,7 +22,11 @@ async function connect(): Promise<void> {
     return
   }
   if (activeWs) {
-    try { activeWs.close() } catch { /* noop */ }
+    try {
+      activeWs.close()
+    } catch {
+      /* noop */
+    }
   }
   const ws = new WebSocket(wsHost, `swarm.${token}`)
   activeWs = ws
@@ -48,8 +53,12 @@ export default defineBackground(() => {
     if (a.name === 'swarm-keepalive' && !activeWs) void connect()
   })
 
-  browser.runtime.onInstalled.addListener(() => { void connect() })
-  browser.runtime.onStartup.addListener(() => { void connect() })
+  browser.runtime.onInstalled.addListener(() => {
+    void connect()
+  })
+  browser.runtime.onStartup.addListener(() => {
+    void connect()
+  })
   browser.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && (changes.wsHost || changes.token)) void connect()
   })

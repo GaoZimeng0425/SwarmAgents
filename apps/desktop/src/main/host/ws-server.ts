@@ -1,4 +1,4 @@
-import { WebSocketServer, WebSocket } from 'ws'
+import { WebSocket, WebSocketServer } from 'ws'
 
 export type WsServerLog = { info: (m: unknown) => void; warn: (m: unknown) => void; error: (m: unknown) => void }
 
@@ -11,7 +11,9 @@ export type StartWsServer = {
 
 // Bind 127.0.0.1 only; require the token as a Sec-WebSocket-Protocol subprotocol
 // (swarm.<token>) so it never appears in URLs/logs. Allow one peer at a time.
-export async function startWsServer(cfg: StartWsServer): Promise<{ server: WebSocketServer; port: number; close: () => void }> {
+export async function startWsServer(
+  cfg: StartWsServer
+): Promise<{ server: WebSocketServer; port: number; close: () => void }> {
   let peer: WebSocket | null = null
   const server = new WebSocketServer({
     host: '127.0.0.1',

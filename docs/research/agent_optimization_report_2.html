@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta content="width=device-width, initial-scale=1.0" name="viewport" >
 <title>SwarmAgents Agent 优化报告</title>
 <style>
   /* ===================== Reset & Base ===================== */
@@ -682,7 +682,7 @@
           <h4>1. Building Effective Agents</h4>
           <div class="src">Anthropic · 2024</div>
           <p class="pt">定义了 Workflow vs Agent，总结了 5 大核心模式（Prompt Chaining、Routing、Parallelization、Orchestrator-Workers、Evaluator-Optimizer）。最重要原则：从简单开始，只在能证明效果时才增加复杂度。</p>
-          <div class="link">🔗 <a href="https://www.anthropic.com/research/building-effective-agents" target="_blank" rel="noopener">anthropic.com/research/building-effective-agents</a></div>
+          <div class="link">🔗 <a href="https://www.anthropic.com/research/building-effective-agents" rel="noopener" target="_blank" >anthropic.com/research/building-effective-agents</a></div>
         </div>
         <!-- 2 -->
         <div class="res-card">
@@ -690,7 +690,7 @@
           <h4>2. ReAct: Synergizing Reasoning and Acting</h4>
           <div class="src">Princeton NLP · ICLR 2023</div>
           <p class="pt">交替推理（Thought）和行动（Act），推理指导行动规划，行动提供外部证据。几乎所有现代 Agent 框架的基础。</p>
-          <div class="link">🔗 <a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noopener">arxiv.org/abs/2210.03629</a></div>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2210.03629" rel="noopener" target="_blank" >arxiv.org/abs/2210.03629</a></div>
         </div>
         <!-- 3 -->
         <div class="res-card">
@@ -698,7 +698,7 @@
           <h4>3. Reflexion: Language Agents with Verbal RL</h4>
           <div class="src">NeurIPS 2023</div>
           <p class="pt">Agent 在任务失败后生成自我反思，存储在记忆缓冲区，用于后续改进。无需权重更新。</p>
-          <div class="link">🔗 <a href="https://arxiv.org/abs/2303.11366" target="_blank" rel="noopener">arxiv.org/abs/2303.11366</a></div>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2303.11366" rel="noopener" target="_blank" >arxiv.org/abs/2303.11366</a></div>
         </div>
         <!-- 4 -->
         <div class="res-card">
@@ -706,7 +706,7 @@
           <h4>4. Tree of Thoughts</h4>
           <div class="src">Princeton NLP · NeurIPS 2023</div>
           <p class="pt">将思维链推广为树搜索，允许探索多条推理路径、回溯和评估中间状态。</p>
-          <div class="link">🔗 <a href="https://arxiv.org/abs/2305.10601" target="_blank" rel="noopener">arxiv.org/abs/2305.10601</a></div>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2305.10601" rel="noopener" target="_blank" >arxiv.org/abs/2305.10601</a></div>
         </div>
         <!-- 5 -->
         <div class="res-card">
@@ -714,7 +714,7 @@
           <h4>5. LLM Powered Autonomous Agents</h4>
           <div class="src">Lilian Weng · 2023</div>
           <p class="pt">Agent 4 组件分解：Planning（规划）、Memory（记忆）、Tool Use（工具使用）、Action（行动）。经典框架。</p>
-          <div class="link">🔗 <a href="https://lilianweng.github.io/posts/2023-06-23-agent/" target="_blank" rel="noopener">lilianweng.github.io/posts/2023-06-23-agent</a></div>
+          <div class="link">🔗 <a href="https://lilianweng.github.io/posts/2023-06-23-agent/" rel="noopener" target="_blank" >lilianweng.github.io/posts/2023-06-23-agent</a></div>
         </div>
         <!-- 6 -->
         <div class="res-card">
@@ -722,7 +722,7 @@
           <h4>6. Google "Agents" 白皮书</h4>
           <div class="src">Google · 2024</div>
           <p class="pt">Agent = Model + Tools + Orchestration Layer，覆盖认知架构、扩展功能和数据存储。</p>
-          <div class="link">🔗 <a href="https://www.kaggle.com/whitepapers/agents" target="_blank" rel="noopener">kaggle.com/whitepapers/agents</a></div>
+          <div class="link">🔗 <a href="https://www.kaggle.com/whitepapers/agents" rel="noopener" target="_blank" >kaggle.com/whitepapers/agents</a></div>
         </div>
         <!-- 7 -->
         <div class="res-card">
@@ -730,7 +730,7 @@
           <h4>7. Effective Context Engineering for AI Agents</h4>
           <div class="src">Anthropic · 2025</div>
           <p class="pt">Context Engineering 是 Prompt Engineering 的继任者——精心策划 LLM 推理时可用的最优 token 集。涵盖上下文压缩、即时检索、结构化笔记。</p>
-          <div class="link">🔗 <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">anthropic.com/engineering/effective-context-engineering</a></div>
+          <div class="link">🔗 <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" rel="noopener" target="_blank" >anthropic.com/engineering/effective-context-engineering</a></div>
         </div>
         <!-- 8 -->
         <div class="res-card">
@@ -738,7 +738,7 @@
           <h4>8. Writing Effective Tools for AI Agents</h4>
           <div class="src">Anthropic · 2025</div>
           <p class="pt">Agent-Computer Interface (ACI) 设计指南——好的工具设计比 Prompt 调整对 Agent 性能影响更大。</p>
-          <div class="link">🔗 <a href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank" rel="noopener">anthropic.com/engineering/writing-tools-for-agents</a></div>
+          <div class="link">🔗 <a href="https://www.anthropic.com/engineering/writing-tools-for-agents" rel="noopener" target="_blank" >anthropic.com/engineering/writing-tools-for-agents</a></div>
         </div>
         <!-- 9 -->
         <div class="res-card">
@@ -746,7 +746,7 @@
           <h4>9. Prompt Engineering Guide</h4>
           <div class="src">DAIR.AI</div>
           <p class="pt">最全面的免费 Prompt 工程参考，涵盖基础到高级方法。</p>
-          <div class="link">🔗 <a href="https://www.promptingguide.ai/" target="_blank" rel="noopener">promptingguide.ai</a></div>
+          <div class="link">🔗 <a href="https://www.promptingguide.ai/" rel="noopener" target="_blank" >promptingguide.ai</a></div>
         </div>
         <!-- 10 -->
         <div class="res-card">
@@ -754,7 +754,7 @@
           <h4>10. Self-Refine</h4>
           <div class="src">CMU · NeurIPS 2023</div>
           <p class="pt">LLM 生成→自我反馈→改进的循环，无需额外训练数据。7 项任务上提升 5-40%。<b style="color:var(--purple)">自校验核心</b>。</p>
-          <div class="link">🔗 <a href="https://arxiv.org/abs/2303.17651" target="_blank" rel="noopener">arxiv.org/abs/2303.17651</a></div>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2303.17651" rel="noopener" target="_blank" >arxiv.org/abs/2303.17651</a></div>
         </div>
         <!-- 11 -->
         <div class="res-card">
@@ -762,7 +762,7 @@
           <h4>11. The Self-Critique Paradox</h4>
           <div class="src">Snorkel AI · 2025</div>
           <p class="pt">重要反论——自我改进循环在简单任务上反而降低性能。理解自校验的局限性。</p>
-          <div class="link">🔗 <a href="https://snorkel.ai/blog/the-self-critique-paradox-why-ai-verification-fails-where-its-needed-most/" target="_blank" rel="noopener">snorkel.ai/blog/the-self-critique-paradox</a></div>
+          <div class="link">🔗 <a href="https://snorkel.ai/blog/the-self-critique-paradox-why-ai-verification-fails-where-its-needed-most/" rel="noopener" target="_blank" >snorkel.ai/blog/the-self-critique-paradox</a></div>
         </div>
         <!-- 12 -->
         <div class="res-card">
@@ -770,7 +770,7 @@
           <h4>12. Self-Evaluation in AI Agents</h4>
           <div class="src">Galileo AI · 2025</div>
           <p class="pt">实现 Agent 自评估的工程指南，覆盖反思模式、置信度评分、思维链验证。</p>
-          <div class="link">🔗 <a href="https://galileo.ai/blog/self-evaluation-ai-agents-performance-reasoning-reflection" target="_blank" rel="noopener">galileo.ai/blog/self-evaluation-ai-agents</a></div>
+          <div class="link">🔗 <a href="https://galileo.ai/blog/self-evaluation-ai-agents-performance-reasoning-reflection" rel="noopener" target="_blank" >galileo.ai/blog/self-evaluation-ai-agents</a></div>
         </div>
         <!-- 13 -->
         <div class="res-card">
@@ -778,7 +778,7 @@
           <h4>13. How and When to Build Multi-Agent Systems</h4>
           <div class="src">LangChain · 2025</div>
           <p class="pt">何时使用多 Agent 架构（以及何时单 Agent 更好）。Supervisor vs Swarm 拓扑对比。</p>
-          <div class="link">🔗 <a href="https://www.langchain.com/blog/how-and-when-to-build-multi-agent-systems" target="_blank" rel="noopener">langchain.com/blog/how-and-when-to-build-multi-agent-systems</a></div>
+          <div class="link">🔗 <a href="https://www.langchain.com/blog/how-and-when-to-build-multi-agent-systems" rel="noopener" target="_blank" >langchain.com/blog/how-and-when-to-build-multi-agent-systems</a></div>
         </div>
         <!-- 14 -->
         <div class="res-card">
@@ -786,7 +786,7 @@
           <h4>14. OpenAI Swarm</h4>
           <div class="src">OpenAI · 2024</div>
           <p class="pt">轻量级多 Agent 编排框架，两个核心原语：Routines 和 Handoffs。</p>
-          <div class="link">🔗 <a href="https://github.com/openai/swarm" target="_blank" rel="noopener">github.com/openai/swarm</a></div>
+          <div class="link">🔗 <a href="https://github.com/openai/swarm" rel="noopener" target="_blank" >github.com/openai/swarm</a></div>
         </div>
         <!-- 15 -->
         <div class="res-card">
@@ -794,7 +794,7 @@
           <h4>15. Microsoft AutoGen</h4>
           <div class="src">Microsoft · 2024-2025</div>
           <p class="pt">将 Agent 协作建模为可配置 Agent 之间的对话，v0.4 引入事件驱动架构。</p>
-          <div class="link">🔗 <a href="https://github.com/microsoft/autogen" target="_blank" rel="noopener">github.com/microsoft/autogen</a></div>
+          <div class="link">🔗 <a href="https://github.com/microsoft/autogen" rel="noopener" target="_blank" >github.com/microsoft/autogen</a></div>
         </div>
         <!-- 16 -->
         <div class="res-card">
@@ -802,7 +802,7 @@
           <h4>16. CrewAI</h4>
           <div class="src">CrewAI Inc · 2024-2025</div>
           <p class="pt">基于角色的多 Agent 编排框架，定义 Agent（角色、目标、背景故事）和 Task。</p>
-          <div class="link">🔗 <a href="https://github.com/crewAIInc/crewAI" target="_blank" rel="noopener">github.com/crewAIInc/crewAI</a></div>
+          <div class="link">🔗 <a href="https://github.com/crewAIInc/crewAI" rel="noopener" target="_blank" >github.com/crewAIInc/crewAI</a></div>
         </div>
         <!-- 17 -->
         <div class="res-card">
@@ -810,7 +810,7 @@
           <h4>17. A Practical Guide to Building Agents</h4>
           <div class="src">OpenAI · 2025</div>
           <p class="pt">OpenAI 的 Agent 开发全流程指南：用例识别、模型选择、工具定义、编排、部署。</p>
-          <div class="link">🔗 <a href="https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf" target="_blank" rel="noopener">cdn.openai.com/.../a-practical-guide-to-building-agents.pdf</a></div>
+          <div class="link">🔗 <a href="https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf" rel="noopener" target="_blank" >cdn.openai.com/.../a-practical-guide-to-building-agents.pdf</a></div>
         </div>
         <!-- 18 -->
         <div class="res-card">
@@ -818,7 +818,7 @@
           <h4>18. Model Context Protocol (MCP)</h4>
           <div class="src">Anthropic · 2024</div>
           <p class="pt">连接 AI 模型与外部数据源和工具的开放标准，已被 OpenAI、Google、Microsoft 采用。</p>
-          <div class="link">🔗 <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">modelcontextprotocol.io</a></div>
+          <div class="link">🔗 <a href="https://modelcontextprotocol.io/" rel="noopener" target="_blank" >modelcontextprotocol.io</a></div>
         </div>
         <!-- 19 -->
         <div class="res-card">
@@ -826,7 +826,7 @@
           <h4>19. SWE-agent</h4>
           <div class="src">Princeton NLP · NeurIPS 2024</div>
           <p class="pt">Agent-Computer Interface (ACI) 概念——界面设计（不仅仅是 Prompt）驱动 Agent 能力。</p>
-          <div class="link">🔗 <a href="https://arxiv.org/abs/2405.15793" target="_blank" rel="noopener">arxiv.org/abs/2405.15793</a></div>
+          <div class="link">🔗 <a href="https://arxiv.org/abs/2405.15793" rel="noopener" target="_blank" >arxiv.org/abs/2405.15793</a></div>
         </div>
         <!-- 20 -->
         <div class="res-card">
@@ -834,7 +834,7 @@
           <h4>20. LangGraph</h4>
           <div class="src">LangChain · 2024-2025</div>
           <p class="pt">将 Agent 工作流建模为状态机/有向图，提供显式路由、并行分支、人机回路检查点。</p>
-          <div class="link">🔗 <a href="https://docs.langchain.com/oss/python/langgraph/overview" target="_blank" rel="noopener">docs.langchain.com/.../langgraph/overview</a></div>
+          <div class="link">🔗 <a href="https://docs.langchain.com/oss/python/langgraph/overview" rel="noopener" target="_blank" >docs.langchain.com/.../langgraph/overview</a></div>
         </div>
         <!-- 21 -->
         <div class="res-card">
@@ -842,7 +842,7 @@
           <h4>21. Awesome LLM-Powered Agent</h4>
           <div class="src">社区维护</div>
           <p class="pt">最全面的 LLM Agent 论文、框架、资源索引。</p>
-          <div class="link">🔗 <a href="https://github.com/hyp1231/awesome-llm-powered-agent" target="_blank" rel="noopener">github.com/hyp1231/awesome-llm-powered-agent</a></div>
+          <div class="link">🔗 <a href="https://github.com/hyp1231/awesome-llm-powered-agent" rel="noopener" target="_blank" >github.com/hyp1231/awesome-llm-powered-agent</a></div>
         </div>
       </div>
     </section>
@@ -1406,17 +1406,17 @@
 
 <script>
   // Active sidebar link highlighting on scroll
-  (function(){
+  (()=> {
     var links = document.querySelectorAll('.sidebar a[href^="#sec"], .sidebar a[href^="#team"]');
     var tops = document.querySelectorAll('section.report, .team-block');
     function onScroll(){
       var pos = window.scrollY + 120;
       var current = null;
-      tops.forEach(function(el){
+      tops.forEach((el)=> {
         if (el.offsetTop <= pos) current = el;
       });
       if(!current) return;
-      links.forEach(function(a){
+      links.forEach((a)=> {
         a.classList.toggle('active', a.getAttribute('href') === '#' + current.id);
       });
     }

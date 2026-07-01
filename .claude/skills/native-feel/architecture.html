@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html data-theme="dark" lang="en" >
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 2.6.0">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" >
+  <meta content="archify 2.6.0" name="generator" >
   <title>SwarmAgents Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
-    (function () {
+    (() => {
       try {
         var theme = null;
         try {
@@ -27,9 +27,9 @@
   </script>
   <!-- Async font load: a blackholed network must not block first paint.
        The body font stack falls back to system monospace until it lands. -->
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet" media="print" onload="this.media='all'">
+  <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" >
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'"
+        rel="stylesheet" >
   <noscript>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   </noscript>
@@ -460,31 +460,31 @@
 <body>
   <!-- Toolbar: theme toggle + export menu (present on every generated diagram)
        Keyboard: T toggles theme, E opens export menu (when no input focused) -->
-  <div class="toolbar" role="toolbar" aria-label="Diagram actions">
-    <button id="btn-theme" type="button"
-            title="Toggle theme (T)"
+  <div aria-label="Diagram actions" class="toolbar" role="toolbar" >
+    <button 
             aria-label="Toggle color theme"
-            aria-pressed="false">
-      <span id="theme-icon" aria-hidden="true">&#9790;</span>
+            aria-pressed="false" id="btn-theme" 
+            title="Toggle theme (T)" type="button">
+      <span aria-hidden="true" id="theme-icon" >&#9790;</span>
       <span id="theme-label">Dark</span>
     </button>
     <div class="export-wrap">
-      <button id="btn-export" type="button"
-              title="Export diagram (E)"
-              aria-label="Export diagram"
-              aria-haspopup="menu"
+      <button 
+              aria-controls="export-menu"
               aria-expanded="false"
-              aria-controls="export-menu">
+              aria-haspopup="menu"
+              aria-label="Export diagram" id="btn-export" 
+              title="Export diagram (E)" type="button">
         Export <span aria-hidden="true">&#9662;</span>
       </button>
-      <div class="export-menu" id="export-menu" role="menu" aria-label="Export">
-        <button data-action="copy"  type="button" role="menuitem" tabindex="-1">Copy to clipboard <span class="hint">PNG</span></button>
+      <div aria-label="Export" class="export-menu" id="export-menu" role="menu" >
+        <button data-action="copy"  role="menuitem" tabindex="-1" type="button" >Copy to clipboard <span class="hint">PNG</span></button>
         <hr role="separator">
-        <button data-format="png"   type="button" role="menuitem" tabindex="-1">Download PNG</button>
-        <button data-format="jpeg"  type="button" role="menuitem" tabindex="-1">Download JPEG</button>
-        <button data-format="webp"  type="button" role="menuitem" tabindex="-1">Download WebP</button>
+        <button data-format="png"   role="menuitem" tabindex="-1" type="button" >Download PNG</button>
+        <button data-format="jpeg"  role="menuitem" tabindex="-1" type="button" >Download JPEG</button>
+        <button data-format="webp"  role="menuitem" tabindex="-1" type="button" >Download WebP</button>
         <hr role="separator">
-        <button data-format="svg"   type="button" role="menuitem" tabindex="-1">Download SVG <span class="hint">vector</span></button>
+        <button data-format="svg"   role="menuitem" tabindex="-1" type="button" >Download SVG <span class="hint">vector</span></button>
       </div>
     </div>
   </div>
@@ -501,200 +501,200 @@
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 1440 788" role="img" aria-label="SwarmAgents — Electron 3-process autonomous agent app — Renderer / Main / Service utilityProcess (architecture diagram)">
+      <svg aria-label="SwarmAgents — Electron 3-process autonomous agent app — Renderer / Main / Service utilityProcess (architecture diagram)" role="img" viewBox="0 0 1440 788" >
         <!-- Definitions -->
         <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-default" />
+          <marker id="arrowhead" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-default" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <marker id="arrowhead-emphasis" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-emphasis" />
+          <marker id="arrowhead-emphasis" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-emphasis" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <marker id="arrowhead-security" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-security" />
+          <marker id="arrowhead-security" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-security" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-dashed" />
+          <marker id="arrowhead-dashed" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-dashed" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" class="c-grid" stroke-width="0.5"/>
+          <pattern height="40" id="grid" patternUnits="userSpaceOnUse" width="40" >
+            <path class="c-grid" d="M 40 0 L 0 0 0 40" stroke-width="0.5"/>
           </pattern>
         </defs>
 
         <!-- Background Grid -->
-        <rect width="100%" height="100%" fill="url(#grid)" />
+        <rect fill="url(#grid)" height="100%" width="100%" />
 
         <!-- Boundaries (behind everything) -->
-        <rect x="180" y="210" width="180" height="290" rx="12" class="c-region" stroke-width="1"/>
-        <text x="188" y="228" class="t-cloud" font-size="9" font-weight="600">Renderer Process</text>
+        <rect class="c-region" height="290" rx="12" stroke-width="1" width="180" x="180" y="210" />
+        <text class="t-cloud" font-size="9" font-weight="600" x="188" y="228" >Renderer Process</text>
 
-        <rect x="570" y="130" width="180" height="590" rx="12" class="c-region" stroke-width="1"/>
-        <text x="578" y="148" class="t-cloud" font-size="9" font-weight="600">Main Process</text>
+        <rect class="c-region" height="590" rx="12" stroke-width="1" width="180" x="570" y="130" />
+        <text class="t-cloud" font-size="9" font-weight="600" x="578" y="148" >Main Process</text>
 
-        <rect x="790" y="130" width="400" height="590" rx="12" class="c-region" stroke-width="1"/>
-        <text x="798" y="148" class="t-cloud" font-size="9" font-weight="600">Service utilityProcess</text>
+        <rect class="c-region" height="590" rx="12" stroke-width="1" width="400" x="790" y="130" />
+        <text class="t-cloud" font-size="9" font-weight="600" x="798" y="148" >Service utilityProcess</text>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path d="M 160 390 L 177 390 Q 185 390 185 382 L 185 278 Q 185 270 193 270 L 210 270" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 330 270 L 357 270 Q 365 270 365 278 L 365 352 Q 365 360 373 360 L 400 360" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 330 450 L 357 450 Q 365 450 365 442 L 365 368 Q 365 360 373 360 L 400 360" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 520 360 L 555 360 Q 560 360 560 355 L 560 355 Q 560 350 565 350 L 600 350" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 520 360 L 552 360 Q 560 360 560 352 L 560 198 Q 560 190 568 190 L 600 190" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 660 220 L 660 320" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 660 380 L 660 480" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 720 510 L 762 510 Q 770 510 770 502 L 770 198 Q 770 190 778 190 L 820 190" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 880 220 L 880 320" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 940 350 L 1040 350" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 1100 320 L 1100 220" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 1160 350 L 1280 350" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 1160 190 L 1280 190" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path d="M 940 350 L 982 350 Q 990 350 990 358 L 990 502 Q 990 510 998 510 L 1040 510" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 1160 190 L 1182 190 Q 1190 190 1190 198 L 1190 662 Q 1190 670 1182 670 L 1160 670" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 880 380 L 880 480" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 820 510 L 720 510" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path d="M 660 540 L 660 640" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 660 700 L 605.6568542494924 754.3431457505076 Q 600 760 592 760 L 158 760 Q 150 760 150 752 L 150 278 Q 150 270 158 270 L 210 270" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path class="a-default" d="M 160 390 L 177 390 Q 185 390 185 382 L 185 278 Q 185 270 193 270 L 210 270" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-emphasis" d="M 330 270 L 357 270 Q 365 270 365 278 L 365 352 Q 365 360 373 360 L 400 360" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <path class="a-default" d="M 330 450 L 357 450 Q 365 450 365 442 L 365 368 Q 365 360 373 360 L 400 360" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-emphasis" d="M 520 360 L 555 360 Q 560 360 560 355 L 560 355 Q 560 350 565 350 L 600 350" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <path class="a-default" d="M 520 360 L 552 360 Q 560 360 560 352 L 560 198 Q 560 190 568 190 L 600 190" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-default" d="M 660 220 L 660 320" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-emphasis" d="M 660 380 L 660 480" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <path class="a-emphasis" d="M 720 510 L 762 510 Q 770 510 770 502 L 770 198 Q 770 190 778 190 L 820 190" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <path class="a-default" d="M 880 220 L 880 320" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-emphasis" d="M 940 350 L 1040 350" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <path class="a-default" d="M 1100 320 L 1100 220" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-emphasis" d="M 1160 350 L 1280 350" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <path class="a-security" d="M 1160 190 L 1280 190" marker-end="url(#arrowhead-security)" stroke-width="1.5" />
+        <path class="a-default" d="M 940 350 L 982 350 Q 990 350 990 358 L 990 502 Q 990 510 998 510 L 1040 510" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-default" d="M 1160 190 L 1182 190 Q 1190 190 1190 198 L 1190 662 Q 1190 670 1182 670 L 1160 670" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-default" d="M 880 380 L 880 480" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-dashed" d="M 820 510 L 720 510" marker-end="url(#arrowhead-dashed)" stroke-width="1.5" />
+        <path class="a-default" d="M 660 540 L 660 640" marker-end="url(#arrowhead)" stroke-width="1.5" />
+        <path class="a-dashed" d="M 660 700 L 605.6568542494924 754.3431457505076 Q 600 760 592 760 L 158 760 Q 150 760 150 752 L 150 278 Q 150 270 158 270 L 210 270" marker-end="url(#arrowhead-dashed)" stroke-width="1.5" />
 
         <!-- Components -->
-        <rect x="40" y="360" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="40" y="360" width="120" height="60" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="100" y="388" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">User</text>
-        <text x="100" y="404" class="t-muted" font-size="9" text-anchor="middle">macOS desktop</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="40" y="360" />
+        <rect class="c-external" height="60" rx="6" stroke-width="1.5" width="120" x="40" y="360" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="100" y="388" >User</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="100" y="404" >macOS desktop</text>
 
-        <rect x="210" y="240" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="210" y="240" width="120" height="60" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="270" y="268" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Main Window</text>
-        <text x="270" y="284" class="t-muted" font-size="9" text-anchor="middle">React · TanStack Router</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="210" y="240" />
+        <rect class="c-frontend" height="60" rx="6" stroke-width="1.5" width="120" x="210" y="240" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="270" y="268" >Main Window</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="270" y="284" >React · TanStack Router</text>
 
-        <rect x="210" y="420" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="210" y="420" width="120" height="60" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="270" y="448" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Settings Window</text>
-        <text x="270" y="464" class="t-muted" font-size="9" text-anchor="middle">providers · permissions</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="210" y="420" />
+        <rect class="c-frontend" height="60" rx="6" stroke-width="1.5" width="120" x="210" y="420" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="270" y="448" >Settings Window</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="270" y="464" >providers · permissions</text>
 
-        <rect x="400" y="330" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="400" y="330" width="120" height="60" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="460" y="358" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Preload Bridge</text>
-        <text x="460" y="374" class="t-muted" font-size="9" text-anchor="middle">contextBridge · window.swarm</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="400" y="330" />
+        <rect class="c-security" height="60" rx="6" stroke-width="1.5" width="120" x="400" y="330" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="460" y="358" >Preload Bridge</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="460" y="374" >contextBridge · window.swarm</text>
 
-        <rect x="600" y="160" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="600" y="160" width="120" height="60" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="660" y="188" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Providers</text>
-        <text x="660" y="204" class="t-muted" font-size="9" text-anchor="middle">API keys · safeStorage</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="600" y="160" />
+        <rect class="c-security" height="60" rx="6" stroke-width="1.5" width="120" x="600" y="160" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="660" y="188" >Providers</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="660" y="204" >API keys · safeStorage</text>
 
-        <rect x="600" y="320" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="600" y="320" width="120" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="660" y="348" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">swarm-ipc</text>
-        <text x="660" y="364" class="t-muted" font-size="9" text-anchor="middle">ipcMain handlers</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="600" y="320" />
+        <rect class="c-backend" height="60" rx="6" stroke-width="1.5" width="120" x="600" y="320" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="660" y="348" >swarm-ipc</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="660" y="364" >ipcMain handlers</text>
 
-        <rect x="600" y="480" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="600" y="480" width="120" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="660" y="508" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Service Client</text>
-        <text x="660" y="524" class="t-muted" font-size="9" text-anchor="middle">parentPort RPC</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="600" y="480" />
+        <rect class="c-backend" height="60" rx="6" stroke-width="1.5" width="120" x="600" y="480" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="660" y="508" >Service Client</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="660" y="524" >parentPort RPC</text>
 
-        <rect x="600" y="640" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="600" y="640" width="120" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="660" y="668" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">forward-event</text>
-        <text x="660" y="684" class="t-muted" font-size="9" text-anchor="middle">→ UIEvent</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="600" y="640" />
+        <rect class="c-backend" height="60" rx="6" stroke-width="1.5" width="120" x="600" y="640" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="660" y="668" >forward-event</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="660" y="684" >→ UIEvent</text>
 
-        <rect x="820" y="160" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="820" y="160" width="120" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="880" y="188" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dispatcher</text>
-        <text x="880" y="204" class="t-muted" font-size="9" text-anchor="middle">method router</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="820" y="160" />
+        <rect class="c-backend" height="60" rx="6" stroke-width="1.5" width="120" x="820" y="160" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="880" y="188" >Dispatcher</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="880" y="204" >method router</text>
 
-        <rect x="820" y="320" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="820" y="320" width="120" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="880" y="348" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Session Manager</text>
-        <text x="880" y="364" class="t-muted" font-size="9" text-anchor="middle">sessions · tasks · max 4</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="820" y="320" />
+        <rect class="c-backend" height="60" rx="6" stroke-width="1.5" width="120" x="820" y="320" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="880" y="348" >Session Manager</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="880" y="364" >sessions · tasks · max 4</text>
 
-        <rect x="820" y="480" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="820" y="480" width="120" height="60" rx="6" class="c-messagebus" stroke-width="1.5"/>
-        <text x="880" y="508" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Broadcaster</text>
-        <text x="880" y="524" class="t-muted" font-size="9" text-anchor="middle">event fan-out</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="820" y="480" />
+        <rect class="c-messagebus" height="60" rx="6" stroke-width="1.5" width="120" x="820" y="480" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="880" y="508" >Broadcaster</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="880" y="524" >event fan-out</text>
 
-        <rect x="1040" y="160" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="1040" y="160" width="120" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="1100" y="188" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tool Registry</text>
-        <text x="1100" y="204" class="t-muted" font-size="9" text-anchor="middle">peekaboo · fs · shell · web</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="1040" y="160" />
+        <rect class="c-backend" height="60" rx="6" stroke-width="1.5" width="120" x="1040" y="160" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="1100" y="188" >Tool Registry</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="1100" y="204" >peekaboo · fs · shell · web</text>
 
-        <rect x="1040" y="320" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="1040" y="320" width="120" height="60" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="1100" y="348" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Agent Runner</text>
-        <text x="1100" y="364" class="t-muted" font-size="9" text-anchor="middle">pi agent loop · spawn</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="1040" y="320" />
+        <rect class="c-backend" height="60" rx="6" stroke-width="1.5" width="120" x="1040" y="320" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="1100" y="348" >Agent Runner</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="1100" y="364" >pi agent loop · spawn</text>
 
-        <rect x="1040" y="480" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="1040" y="480" width="120" height="60" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="1100" y="508" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Conversation Store</text>
-        <text x="1100" y="524" class="t-muted" font-size="9" text-anchor="middle">SQLite</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="1040" y="480" />
+        <rect class="c-database" height="60" rx="6" stroke-width="1.5" width="120" x="1040" y="480" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="1100" y="508" >Conversation Store</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="1100" y="524" >SQLite</text>
 
-        <rect x="1040" y="640" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="1040" y="640" width="120" height="60" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="1100" y="668" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Memory Store</text>
-        <text x="1100" y="684" class="t-muted" font-size="9" text-anchor="middle">JSON</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="1040" y="640" />
+        <rect class="c-database" height="60" rx="6" stroke-width="1.5" width="120" x="1040" y="640" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="1100" y="668" >Memory Store</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="1100" y="684" >JSON</text>
 
-        <rect x="1280" y="160" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="1280" y="160" width="120" height="60" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="1340" y="188" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">macOS</text>
-        <text x="1340" y="204" class="t-muted" font-size="9" text-anchor="middle">screen · shell · fs</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="1280" y="160" />
+        <rect class="c-external" height="60" rx="6" stroke-width="1.5" width="120" x="1280" y="160" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="1340" y="188" >macOS</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="1340" y="204" >screen · shell · fs</text>
 
-        <rect x="1280" y="320" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="1280" y="320" width="120" height="60" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="1340" y="348" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LLM Providers</text>
-        <text x="1340" y="364" class="t-muted" font-size="9" text-anchor="middle">Anthropic · OpenAI · custom</text>
+        <rect class="c-mask" height="60" rx="6" width="120" x="1280" y="320" />
+        <rect class="c-external" height="60" rx="6" stroke-width="1.5" width="120" x="1280" y="320" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="1340" y="348" >LLM Providers</text>
+        <text class="t-muted" font-size="9" text-anchor="middle" x="1340" y="364" >Anthropic · OpenAI · custom</text>
 
         <!-- Connection labels -->
-        <rect x="170" y="310" width="30" height="14" rx="3" class="c-mask"/>
-        <text x="185" y="320" class="t-muted" font-size="8" text-anchor="middle">uses</text>
-        <rect x="331.2" y="283" width="67.6" height="14" rx="3" class="c-mask"/>
-        <text x="365" y="293" class="t-backend" font-size="8" text-anchor="middle">window.swarm</text>
-        <rect x="338.4" y="397" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-        <text x="365" y="407" class="t-muted" font-size="8" text-anchor="middle">providers</text>
-        <rect x="540.6" y="323" width="38.8" height="14" rx="3" class="c-mask"/>
-        <text x="560" y="333" class="t-backend" font-size="8" text-anchor="middle">invoke</text>
-        <rect x="528.6" y="243" width="62.8" height="14" rx="3" class="c-mask"/>
-        <text x="560" y="253" class="t-muted" font-size="8" text-anchor="middle">providers:*</text>
-        <rect x="533" y="200" width="58" height="14" rx="3" class="c-mask"/>
-        <text x="562" y="210" class="t-muted" font-size="8" text-anchor="middle">inject key</text>
-        <rect x="547" y="360" width="30" height="14" rx="3" class="c-mask"/>
-        <text x="562" y="370" class="t-backend" font-size="8" text-anchor="middle">RPC</text>
-        <rect x="743.4" y="278" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-        <text x="770" y="288" class="t-backend" font-size="8" text-anchor="middle">{request}</text>
-        <rect x="755" y="200" width="34" height="14" rx="3" class="c-mask"/>
-        <text x="772" y="210" class="t-muted" font-size="8" text-anchor="middle">route</text>
-        <rect x="965.8" y="318" width="48.4" height="14" rx="3" class="c-mask"/>
-        <text x="990" y="328" class="t-backend" font-size="8" text-anchor="middle">run task</text>
-        <rect x="970.2" y="300" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="992" y="310" class="t-muted" font-size="8" text-anchor="middle">execute</text>
-        <rect x="1205" y="318" width="30" height="14" rx="3" class="c-mask"/>
-        <text x="1220" y="328" class="t-backend" font-size="8" text-anchor="middle">chat</text>
-        <rect x="1169.4" y="158" width="101.2" height="14" rx="3" class="c-mask"/>
-        <text x="1220" y="168" class="t-security" font-size="8" text-anchor="middle">screen · shell · fs</text>
-        <rect x="968.2" y="364" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="990" y="374" class="t-muted" font-size="8" text-anchor="middle">persist</text>
-        <rect x="1170.6" y="410" width="38.8" height="14" rx="3" class="c-mask"/>
-        <text x="1190" y="420" class="t-muted" font-size="8" text-anchor="middle">memory</text>
-        <rect x="757" y="360" width="30" height="14" rx="3" class="c-mask"/>
-        <text x="772" y="370" class="t-muted" font-size="8" text-anchor="middle">emit</text>
-        <rect x="748.2" y="478" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="770" y="488" class="t-messagebus" font-size="8" text-anchor="middle">{event}</text>
-        <rect x="540.2" y="520" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="562" y="530" class="t-muted" font-size="8" text-anchor="middle">onEvent</text>
-        <rect x="343.6" y="740" width="62.8" height="14" rx="3" class="c-mask"/>
-        <text x="375" y="750" class="t-messagebus" font-size="8" text-anchor="middle">swarm:event</text>
+        <rect class="c-mask" height="14" rx="3" width="30" x="170" y="310" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="185" y="320" >uses</text>
+        <rect class="c-mask" height="14" rx="3" width="67.6" x="331.2" y="283" />
+        <text class="t-backend" font-size="8" text-anchor="middle" x="365" y="293" >window.swarm</text>
+        <rect class="c-mask" height="14" rx="3" width="53.199999999999996" x="338.4" y="397" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="365" y="407" >providers</text>
+        <rect class="c-mask" height="14" rx="3" width="38.8" x="540.6" y="323" />
+        <text class="t-backend" font-size="8" text-anchor="middle" x="560" y="333" >invoke</text>
+        <rect class="c-mask" height="14" rx="3" width="62.8" x="528.6" y="243" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="560" y="253" >providers:*</text>
+        <rect class="c-mask" height="14" rx="3" width="58" x="533" y="200" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="562" y="210" >inject key</text>
+        <rect class="c-mask" height="14" rx="3" width="30" x="547" y="360" />
+        <text class="t-backend" font-size="8" text-anchor="middle" x="562" y="370" >RPC</text>
+        <rect class="c-mask" height="14" rx="3" width="53.199999999999996" x="743.4" y="278" />
+        <text class="t-backend" font-size="8" text-anchor="middle" x="770" y="288" >{request}</text>
+        <rect class="c-mask" height="14" rx="3" width="34" x="755" y="200" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="772" y="210" >route</text>
+        <rect class="c-mask" height="14" rx="3" width="48.4" x="965.8" y="318" />
+        <text class="t-backend" font-size="8" text-anchor="middle" x="990" y="328" >run task</text>
+        <rect class="c-mask" height="14" rx="3" width="43.6" x="970.2" y="300" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="992" y="310" >execute</text>
+        <rect class="c-mask" height="14" rx="3" width="30" x="1205" y="318" />
+        <text class="t-backend" font-size="8" text-anchor="middle" x="1220" y="328" >chat</text>
+        <rect class="c-mask" height="14" rx="3" width="101.2" x="1169.4" y="158" />
+        <text class="t-security" font-size="8" text-anchor="middle" x="1220" y="168" >screen · shell · fs</text>
+        <rect class="c-mask" height="14" rx="3" width="43.6" x="968.2" y="364" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="990" y="374" >persist</text>
+        <rect class="c-mask" height="14" rx="3" width="38.8" x="1170.6" y="410" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="1190" y="420" >memory</text>
+        <rect class="c-mask" height="14" rx="3" width="30" x="757" y="360" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="772" y="370" >emit</text>
+        <rect class="c-mask" height="14" rx="3" width="43.6" x="748.2" y="478" />
+        <text class="t-messagebus" font-size="8" text-anchor="middle" x="770" y="488" >{event}</text>
+        <rect class="c-mask" height="14" rx="3" width="43.6" x="540.2" y="520" />
+        <text class="t-muted" font-size="8" text-anchor="middle" x="562" y="530" >onEvent</text>
+        <rect class="c-mask" height="14" rx="3" width="62.8" x="343.6" y="740" />
+        <text class="t-messagebus" font-size="8" text-anchor="middle" x="375" y="750" >swarm:event</text>
 
         <!-- Legend -->
-        <text x="40" y="759" class="t-primary" font-size="9" font-weight="600">Legend</text>
-        <rect x="40" y="764" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
-        <text x="60" y="772" class="t-muted" font-size="8">External</text>
-        <rect x="138" y="764" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="158" y="772" class="t-muted" font-size="8">Frontend</text>
-        <rect x="236" y="764" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="256" y="772" class="t-muted" font-size="8">Security</text>
-        <rect x="334" y="764" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="354" y="772" class="t-muted" font-size="8">Backend</text>
-        <rect x="427" y="764" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
-        <text x="447" y="772" class="t-muted" font-size="8">Message bus</text>
-        <rect x="540" y="764" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="560" y="772" class="t-muted" font-size="8">Database</text>
+        <text class="t-primary" font-size="9" font-weight="600" x="40" y="759" >Legend</text>
+        <rect class="c-external" height="9" rx="2" stroke-width="1" width="14" x="40" y="764" />
+        <text class="t-muted" font-size="8" x="60" y="772" >External</text>
+        <rect class="c-frontend" height="9" rx="2" stroke-width="1" width="14" x="138" y="764" />
+        <text class="t-muted" font-size="8" x="158" y="772" >Frontend</text>
+        <rect class="c-security" height="9" rx="2" stroke-width="1" width="14" x="236" y="764" />
+        <text class="t-muted" font-size="8" x="256" y="772" >Security</text>
+        <rect class="c-backend" height="9" rx="2" stroke-width="1" width="14" x="334" y="764" />
+        <text class="t-muted" font-size="8" x="354" y="772" >Backend</text>
+        <rect class="c-messagebus" height="9" rx="2" stroke-width="1" width="14" x="427" y="764" />
+        <text class="t-muted" font-size="8" x="447" y="772" >Message bus</text>
+        <rect class="c-database" height="9" rx="2" stroke-width="1" width="14" x="540" y="764" />
+        <text class="t-muted" font-size="8" x="560" y="772" >Database</text>
       </svg>
     </div>
 
@@ -715,8 +715,8 @@
        ============================================================ */
     var Archify = {};
 
-    Archify.theme = (function () {
-      var STORAGE_KEY = 'archify-theme';
+    Archify.theme = (() => {
+      var StorageKey = 'archify-theme';
       var html = document.documentElement;
       var btn = document.getElementById('btn-theme');
       var icon = document.getElementById('theme-icon');
@@ -725,10 +725,10 @@
       // localStorage can throw (blocked cookies, sandboxed iframes); the whole
       // script element dies on an uncaught error, so guard every access.
       function readStored() {
-        try { return localStorage.getItem(STORAGE_KEY); } catch (_) { return null; }
+        try { return localStorage.getItem(StorageKey); } catch (_) { return null; }
       }
       function writeStored(value) {
-        try { localStorage.setItem(STORAGE_KEY, value); } catch (_) {}
+        try { localStorage.setItem(StorageKey, value); } catch (_) {}
       }
       function urlOverride() {
         // URL param wins (useful for deterministic screenshots / share links)
@@ -766,7 +766,7 @@
       // Follow live OS theme changes while the user has no explicit preference.
       try {
         var media = window.matchMedia('(prefers-color-scheme: light)');
-        var onChange = function (e) {
+        var onChange = (e) => {
           var saved = readStored();
           if (urlOverride() || saved === 'light' || saved === 'dark') return;
           apply(e.matches ? 'light' : 'dark');
@@ -790,15 +790,15 @@
        JPEG/WebP paint the current theme's background explicitly since
        those formats have no alpha channel.
        ============================================================ */
-    (function () {
-      var RASTER_SCALE = 4;
+    (() => {
+      var RasterScale = 4;
 
       function diagramFilename() {
         var title = (document.title || 'diagram')
           .replace(/\s+Architecture(\s+Diagram)?$/i, '')
           .replace(/\s+Diagram$/i, '')
           .trim();
-        return title.replace(/[^a-z0-9_\-]+/gi, '-')
+        return title.replace(/[^a-z0-9_-]+/gi, '-')
                     .toLowerCase()
                     .replace(/^-+|-+$/g, '') || 'diagram';
       }
@@ -843,13 +843,13 @@
         // Only the SVG-relevant rules: semantic classes, markers, and the
         // theme variable blocks. Toolbar/cards/print CSS can never apply
         // inside a standalone SVG and would only bloat the export.
-        var hostStyle = (function () {
+        var hostStyle = (() => {
           var out = [];
-          Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+          Array.prototype.forEach.call(document.styleSheets, (sheet) => {
             var rules;
             try { rules = sheet.cssRules; } catch (_) { return; } // cross-origin
             if (!rules) return;
-            Array.prototype.forEach.call(rules, function (rule) {
+            Array.prototype.forEach.call(rules, (rule) => {
               if (rule.type !== 1) return; // plain style rules only
               var sel = rule.selectorText || '';
               if (/(^|,)\s*(svg|:root|\[data-theme|\.c-|\.t-|\.a-|\.m-)/.test(sel)) {
@@ -863,10 +863,10 @@
         // Derive the variable list from the stylesheet so newly added theme
         // variables can never be missed by the export pipeline again
         // (--lane-fill/--lane-stroke once were).
-        var varNames = (function () {
+        var varNames = (() => {
           var seen = {};
           var names = [];
-          (hostStyle.match(/--[a-zA-Z0-9-]+(?=\s*:)/g) || []).forEach(function (n) {
+          (hostStyle.match(/--[a-zA-Z0-9-]+(?=\s*:)/g) || []).forEach((n) => {
             if (!seen[n]) { seen[n] = true; names.push(n); }
           });
           return names;
@@ -881,9 +881,7 @@
           document.body.appendChild(probe);
           try {
             var c = getComputedStyle(probe);
-            return varNames.map(function (n) {
-              return n + ': ' + c.getPropertyValue(n).trim() + ';';
-            }).join(' ');
+            return varNames.map((n) => n + ': ' + c.getPropertyValue(n).trim() + ';').join(' ');
           } finally {
             document.body.removeChild(probe);
           }
@@ -895,10 +893,8 @@
         // falls through cleanly to the monospace stack otherwise. The usual
         // Google-Fonts <link> in the host document is unreachable from the
         // serialized SVG, so url()-sourced faces would just hang.
-        var fontFallback = [400, 500, 600, 700].map(function (w) {
-          return "@font-face { font-family: 'JetBrains Mono'; font-weight: " + w +
-                 "; src: local('JetBrains Mono'), local('JetBrainsMono-Regular'); }";
-        }).join('\n');
+        var fontFallback = [400, 500, 600, 700].map((w) => "@font-face { font-family: 'JetBrains Mono'; font-weight: " + w +
+                 "; src: local('JetBrains Mono'), local('JetBrainsMono-Regular'); }").join('\n');
 
         var style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
         var bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -933,9 +929,7 @@
           var theme = document.documentElement.getAttribute('data-theme') || 'dark';
           var themeHost = document.querySelector('[data-theme="' + theme + '"]') || document.documentElement;
           var computed = getComputedStyle(themeHost);
-          var vars = varNames.map(function (n) {
-            return n + ': ' + computed.getPropertyValue(n).trim() + ';';
-          }).join(' ');
+          var vars = varNames.map((n) => n + ': ' + computed.getPropertyValue(n).trim() + ';').join(' ');
 
           // IMPORTANT: inject the resolved variables AFTER hostStyle,
           // otherwise hostStyle's ":root, [data-theme=\"dark\"] { ... }" rule
@@ -968,7 +962,7 @@
         document.body.appendChild(a);
         a.click();
         a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        setTimeout(() => { URL.revokeObjectURL(url); }, 1000);
       }
 
       // Conservative upper bound on total canvas pixels. Older Safari on iOS
@@ -976,11 +970,11 @@
       // desktop Safari are far higher but start failing on memory-constrained
       // devices. We pick the largest integer scale in {4,3,2,1} whose target
       // pixel count fits under this cap.
-      var MAX_CANVAS_PIXELS = 16 * 1024 * 1024;
+      var MaxCanvasPixels = 16 * 1024 * 1024;
 
       function pickSafeScale(vbW, vbH) {
-        for (var s = RASTER_SCALE; s >= 1; s--) {
-          if (vbW * s * vbH * s <= MAX_CANVAS_PIXELS) return s;
+        for (var s = RasterScale; s >= 1; s--) {
+          if (vbW * s * vbH * s <= MaxCanvasPixels) return s;
         }
         return 1;
       }
@@ -997,9 +991,9 @@
         var svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
         var svgUrl = URL.createObjectURL(svgBlob);
 
-        return new Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
           var img = new Image();
-          img.onload = function () {
+          img.onload = () => {
             var canvas = document.createElement('canvas');
             canvas.width = data.width;
             canvas.height = data.height;
@@ -1014,12 +1008,12 @@
             var mime = format === 'jpeg' ? 'image/jpeg' :
                        format === 'webp' ? 'image/webp' : 'image/png';
             var quality = format === 'png' ? undefined : 0.95;
-            canvas.toBlob(function (blob) {
+            canvas.toBlob((blob) => {
               if (!blob) reject(new Error('toBlob returned null for ' + format));
               else resolve(blob);
             }, mime, quality);
           };
-          img.onerror = function (e) {
+          img.onerror = (e) => {
             URL.revokeObjectURL(svgUrl);
             reject(e);
           };
@@ -1029,9 +1023,7 @@
 
       var menu = document.getElementById('export-menu');
       var btn = document.getElementById('btn-export');
-      var items = function () {
-        return Array.prototype.slice.call(menu.querySelectorAll('button[role="menuitem"]'));
-      };
+      var items = () => Array.prototype.slice.call(menu.querySelectorAll('button[role="menuitem"]'));
 
       // ---- Clipboard support ----------------------------------------------
       function canCopyImage() {
@@ -1054,7 +1046,7 @@
       }
 
       // Gray out unsupported items.
-      items().forEach(function (it) {
+      items().forEach((it) => {
         if (it.dataset.format && !supports(it.dataset.format)) {
           it.disabled = true;
           it.title = 'Not supported by this browser';
@@ -1078,18 +1070,18 @@
 
       function toast(msg) {
         toastEl.textContent = '';
-        requestAnimationFrame(function () {
+        requestAnimationFrame(() => {
           toastEl.textContent = msg;
           toastEl.classList.add('show');
         });
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1500);
+        toastTimer = setTimeout(() => { toastEl.classList.remove('show'); }, 1500);
       }
 
       function open(focusLast) {
         menu.classList.add('open');
         btn.setAttribute('aria-expanded', 'true');
-        var available = items().filter(function (i) { return !i.disabled; });
+        var available = items().filter((i) => !i.disabled);
         var target = focusLast ? available[available.length - 1] : available[0];
         if (target) target.focus();
       }
@@ -1100,30 +1092,30 @@
       }
       function isOpen() { return menu.classList.contains('open'); }
 
-      btn.addEventListener('click', function (e) {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (isOpen()) close(false);
         else open();
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
-      btn.addEventListener('keydown', function (e) {
+      btn.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
         }
       });
-      document.addEventListener('click', function (e) {
+      document.addEventListener('click', (e) => {
         if (!menu.contains(e.target) && e.target !== btn) close(false);
       });
 
       // Keyboard navigation inside the menu.
       //   Menu items: Up/Down, Home/End.
       //   Esc closes + returns focus to trigger; Tab closes.
-      menu.addEventListener('keydown', function (e) {
+      menu.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
 
-        var available = items().filter(function (i) { return !i.disabled; });
+        var available = items().filter((i) => !i.disabled);
         var current = available.indexOf(document.activeElement);
         switch (e.key) {
           case 'ArrowDown':
@@ -1149,13 +1141,13 @@
         var base = diagramFilename();
         close(true);
         return (format === 'svg'
-          ? Promise.resolve(serializeSvg(1, { autoTheme: true })).then(function (d) {
+          ? Promise.resolve(serializeSvg(1, { autoTheme: true })).then((d) => {
               download(new Blob([d.svgString], { type: 'image/svg+xml;charset=utf-8' }), base + '.svg');
             })
-          : rasterize(format).then(function (blob) {
+          : rasterize(format).then((blob) => {
               download(blob, base + '.' + format);
             })
-        ).catch(function (err) {
+        ).catch((err) => {
           console.error(err);
           alert('Export failed: ' + (err && err.message ? err.message : format));
         });
@@ -1176,19 +1168,17 @@
         try {
           writePromise = navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
         } catch (_) {
-          writePromise = blobPromise.then(function (blob) {
-            return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-          });
+          writePromise = blobPromise.then((blob) => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]));
         }
-        return writePromise.then(function () {
+        return writePromise.then(() => {
           toast('Copied PNG to clipboard');
-        }).catch(function (err) {
+        }).catch((err) => {
           console.error(err);
           alert('Copy failed: ' + (err && err.message ? err.message : 'unknown'));
         });
       }
 
-      menu.addEventListener('click', function (e) {
+      menu.addEventListener('click', (e) => {
         var copyBtn = e.target.closest('button[data-action="copy"]');
         if (copyBtn && !copyBtn.disabled) { runCopy(); return; }
 
@@ -1204,8 +1194,8 @@
       // Font Loading API.
       try {
         if (new URLSearchParams(window.location.search).get('openExport') === '1') {
-          var openWhenReady = function () {
-            requestAnimationFrame(function () { requestAnimationFrame(open); });
+          var openWhenReady = () => {
+            requestAnimationFrame(() => { requestAnimationFrame(open); });
           };
           if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(openWhenReady);
@@ -1222,7 +1212,7 @@
          E -> open export menu
        Ignored when focus is inside an input/textarea/contenteditable.
        ============================================================ */
-    document.addEventListener('keydown', function (e) {
+    document.addEventListener('keydown', (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

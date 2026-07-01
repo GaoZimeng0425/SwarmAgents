@@ -3,9 +3,9 @@ import type {
   Attachment,
   ConsumedResources,
   PlanTodo,
+  UIEvent,
   VerificationRound,
 } from '@swarm/protocol'
-import type { UIEvent } from '@swarm/protocol'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
 

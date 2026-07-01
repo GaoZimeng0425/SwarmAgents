@@ -9,10 +9,10 @@
 //
 // `useVirtualList` + `<VirtualRows>` are shared with `StickToBottomList`, which
 // composes the same virtualization and adds stick-to-bottom behavior.
-import { useRef } from "react"
-import { type Virtualizer, useVirtualizer } from "@tanstack/react-virtual"
+import { useRef } from 'react'
+import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 // Concrete virtualizer type, matching what `useVirtualizer` infers from a div
 // scroll element: TScrollElement = HTMLDivElement, TItemElement = Element (each
@@ -34,9 +34,10 @@ type VirtualListOptions<T> = {
 
 // Owns the scroll viewport ref and configures the virtualizer. Both VirtualList
 // and StickToBottomList call this so the react-virtual wiring lives in one place.
-export function useVirtualList<T>(
-  opts: VirtualListOptions<T>,
-): { viewportRef: React.RefObject<HTMLDivElement | null>; virtualizer: VirtualizerInstance } {
+export function useVirtualList<T>(opts: VirtualListOptions<T>): {
+  viewportRef: React.RefObject<HTMLDivElement | null>
+  virtualizer: VirtualizerInstance
+} {
   const viewportRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({

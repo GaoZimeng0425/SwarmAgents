@@ -1,11 +1,12 @@
 // src/shared/types/gmail.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+
 import {
+  defaultGmailConfigOnDisk,
   GmailConfigOnDisk,
   GmailConfigViewSchema,
   GmailMessageSchema,
   GmailThreadSchema,
-  defaultGmailConfigOnDisk,
 } from './gmail'
 
 describe('gmail types', () => {

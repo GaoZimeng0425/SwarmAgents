@@ -20,9 +20,7 @@ afterEach(cleanup)
 describe('AgentFormSheet', () => {
   it('create mode: assembles an AgentDefinition omitting empty optionals', () => {
     const onSubmit = vi.fn()
-    render(
-      <AgentFormSheet open mode="create" agents={[existing]} onSubmit={onSubmit} onOpenChange={() => {}} />
-    )
+    render(<AgentFormSheet agents={[existing]} mode="create" onOpenChange={() => {}} onSubmit={onSubmit} open />)
     fireEvent.change(screen.getByLabelText('id'), { target: { value: 'helper' } })
     fireEvent.change(screen.getByLabelText('name'), { target: { value: 'Helper' } })
     fireEvent.change(screen.getByLabelText('description'), { target: { value: 'helps' } })
@@ -41,7 +39,14 @@ describe('AgentFormSheet', () => {
 
   it('edit mode: prefills fields and makes id read-only', () => {
     render(
-      <AgentFormSheet open mode="edit" agent={existing} agents={[existing]} onSubmit={() => {}} onOpenChange={() => {}} />
+      <AgentFormSheet
+        agent={existing}
+        agents={[existing]}
+        mode="edit"
+        onOpenChange={() => {}}
+        onSubmit={() => {}}
+        open
+      />
     )
     expect(screen.getByLabelText('name')).toHaveValue('PM')
     expect(screen.getByLabelText('id')).toHaveAttribute('readonly')
@@ -50,12 +55,12 @@ describe('AgentFormSheet', () => {
   it('parentId dropdown lists other agents and excludes the edited agent', () => {
     render(
       <AgentFormSheet
-        open
-        mode="edit"
         agent={existing}
         agents={[existing, { ...existing, id: 'eng', name: 'Eng' }]}
-        onSubmit={() => {}}
+        mode="edit"
         onOpenChange={() => {}}
+        onSubmit={() => {}}
+        open
       />
     )
     const parent = screen.getByLabelText('parent') as HTMLSelectElement
@@ -67,9 +72,7 @@ describe('AgentFormSheet', () => {
 
   it('toggling "Team head" sets teamRole to head on submit', () => {
     const onSubmit = vi.fn()
-    render(
-      <AgentFormSheet open mode="create" agents={[]} onSubmit={onSubmit} onOpenChange={() => {}} />
-    )
+    render(<AgentFormSheet agents={[]} mode="create" onOpenChange={() => {}} onSubmit={onSubmit} open />)
     fireEvent.change(screen.getByLabelText('id'), { target: { value: 'lead' } })
     fireEvent.change(screen.getByLabelText('name'), { target: { value: 'Lead' } })
     fireEvent.change(screen.getByLabelText('description'), { target: { value: 'leads' } })

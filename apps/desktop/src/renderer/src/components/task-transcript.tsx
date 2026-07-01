@@ -34,10 +34,10 @@ const AttachmentViewerSheet = lazy(() =>
 import { Spinner } from '@/components/ui/spinner'
 import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
 import type { TaskRecord } from '@/lib/apply-event'
+import { buildTimelineItems, type TimelineItem } from '@/lib/build-timeline-items'
 import { extractImagePaths } from '@/lib/file-paths'
 import { groupSegments } from '@/lib/group-segments'
 import type { Segment } from '@/lib/task-segments'
-import { buildTimelineItems, type TimelineItem } from '@/lib/build-timeline-items'
 import { dayKey, formatDayLabel, formatMessageTime, safeTs } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
 
@@ -443,7 +443,7 @@ export function useTimelineRenderer(opts: {
 export function buildThreadItems(
   tasks: TaskRecord[],
   renderSegment: ReturnType<typeof createSegmentRenderer>,
-  opts: { busy: boolean; showDayDividers?: boolean },
+  opts: { busy: boolean; showDayDividers?: boolean }
 ): TimelineItem[] {
   return buildTimelineItems(
     tasks,
@@ -455,7 +455,7 @@ export function buildThreadItems(
       toolGroup: (segs) => <ToolGroupBlock key={segs[0].key} renderSegment={renderSegment} segs={segs} />,
       dayDivider: (ts) => <DayDivider key={`day-${dayKey(ts)}`} ts={ts} />,
     },
-    opts,
+    opts
   )
 }
 

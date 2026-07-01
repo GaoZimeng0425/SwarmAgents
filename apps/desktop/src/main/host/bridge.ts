@@ -1,5 +1,5 @@
-import type { WebSocket } from 'ws'
 import type { ServiceTransport } from '@swarm/protocol'
+import type { WebSocket } from 'ws'
 
 export type BridgeLog = { info: (m: unknown) => void; warn: (m: unknown) => void; error: (m: unknown) => void }
 

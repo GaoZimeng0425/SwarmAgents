@@ -1,10 +1,11 @@
+import { EventEmitter } from 'node:events'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { EventEmitter } from 'node:events'
-import { WebSocket } from 'ws'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createServiceClient, type ServiceTransport } from '@swarm/protocol'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { WebSocket } from 'ws'
+
 import { startWsHost } from './index'
 
 // Fake service sidecar: receives requests via postMessage, emits a canned
@@ -36,8 +37,17 @@ function wsTransport(ws: WebSocket): ServiceTransport {
 describe('startWsHost (loopback integration)', () => {
   let dir: string
   let dispose: () => void
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'ws-host-e2e-')) })
-  afterEach(() => { try { dispose() } catch { /* noop */ } rmSync(dir, { recursive: true, force: true }) })
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'ws-host-e2e-'))
+  })
+  afterEach(() => {
+    try {
+      dispose()
+    } catch {
+      /* noop */
+    }
+    rmSync(dir, { recursive: true, force: true })
+  })
 
   it('an external ServiceClient over WS can call listAgents and get the service response', async () => {
     const serviceProcess = fakeServiceProcess()
@@ -45,11 +55,15 @@ describe('startWsHost (loopback integration)', () => {
     dispose = host.dispose
 
     const ws = new WebSocket(`ws://127.0.0.1:${host.port}`, `swarm.${host.token}`)
-    await new Promise((res, rej) => { ws.once('open', res); ws.once('error', rej) })
+    await new Promise((res, rej) => {
+      ws.once('open', res)
+      ws.once('error', rej)
+    })
     const client = createServiceClient({ transport: wsTransport(ws) })
     await client.connect()
     const result = await client.listAgents()
     expect((result as unknown as { agents: unknown[] }).agents).toEqual(['ceo', 'worker'])
-    client.disconnect(); ws.close()
+    client.disconnect()
+    ws.close()
   })
 })

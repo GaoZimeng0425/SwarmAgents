@@ -1,5 +1,4 @@
-import type { PlanTodo } from '@swarm/protocol'
-import type { PermissionDecision } from '@swarm/protocol'
+import type { PermissionDecision, PlanTodo } from '@swarm/protocol'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { XIcon, ZapIcon } from 'lucide-react'
 

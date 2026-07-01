@@ -1,19 +1,34 @@
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@swarm/protocol'
-import type { BiliAnalysis, BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '@swarm/protocol'
-import type { MemoryView } from '@swarm/protocol'
-import type { Attachment, Task, TaskOptions } from '@swarm/protocol'
-import type { TrendingPeriod, TrendingRepo } from '@swarm/protocol'
 import type {
+  AgentDefinition,
+  AgentListItem,
+  AgentMutationResult,
+  Attachment,
+  BiliAnalysis,
+  BiliListResult,
+  BiliLoginStatus,
+  BiliProcessResult,
+  BiliSaveResult,
+  BiliSummary,
+  BiliTranscribeProgress,
+  BiliTranscribeResult,
+  BiliVideo,
   CronJobSummary,
   CronRun,
+  MemoryView,
+  ObsidianConfig,
   PermissionDecision,
   ScheduledTask,
   SessionSettings,
   SessionSummary,
   SubmitGoalResult,
+  Task,
+  TaskOptions,
+  TranscriptionConfig,
+  TrendingPeriod,
+  TrendingRepo,
   UIEvent,
+  UsageStats,
 } from '@swarm/protocol'
-import type { UsageStats } from '@swarm/protocol'
 
 export const swarmApi = {
   submitGoal: (
@@ -59,8 +74,7 @@ export const swarmApi = {
   bilibiliPickVault: (): Promise<string | null> => window.swarm.bilibili.pickVault(),
   bilibiliSave: (video: BiliVideo, summary: BiliSummary): Promise<BiliSaveResult> =>
     window.swarm.bilibili.save(video, summary),
-  bilibiliGetTranscribeConfig: (): Promise<TranscriptionConfig | null> =>
-    window.swarm.bilibili.getTranscribeConfig(),
+  bilibiliGetTranscribeConfig: (): Promise<TranscriptionConfig | null> => window.swarm.bilibili.getTranscribeConfig(),
   bilibiliSetTranscribeConfig: (cfg: TranscriptionConfig): Promise<void> =>
     window.swarm.bilibili.setTranscribeConfig(cfg),
   bilibiliPickModelDir: (): Promise<string | null> => window.swarm.bilibili.pickModelDir(),

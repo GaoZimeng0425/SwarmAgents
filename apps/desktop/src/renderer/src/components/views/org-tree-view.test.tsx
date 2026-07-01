@@ -115,11 +115,17 @@ describe('OrgTreeView delegation highlight', () => {
     ...over,
   })
 
-  it('highlights the selected agent\'s delegation targets and shows its chips', () => {
+  it("highlights the selected agent's delegation targets and shows its chips", () => {
     render(
       <OrgTreeView
         agents={[
-          li({ id: 'pm', name: 'PM', team: 'dev', teamRole: 'head', systemPrompt: "find_agents({ role: 'engineer' })" }),
+          li({
+            id: 'pm',
+            name: 'PM',
+            team: 'dev',
+            teamRole: 'head',
+            systemPrompt: "find_agents({ role: 'engineer' })",
+          }),
           li({ id: 'engineer', name: 'Engineer', role: 'engineer', team: 'dev' }),
         ]}
       />

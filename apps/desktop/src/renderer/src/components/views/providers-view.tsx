@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ProvidersTestResult } from '@swarm/protocol'
 import {
   type ApiStyle,
   BUILTIN_DEFS,
@@ -10,7 +11,6 @@ import {
   type ProviderView,
   providerViewById,
 } from '@swarm/protocol'
-import type { ProvidersTestResult } from '@swarm/protocol'
 import { ArrowDown, ArrowUp, Bot, Box, Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 

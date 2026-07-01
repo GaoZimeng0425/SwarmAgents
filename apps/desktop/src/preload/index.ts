@@ -1,9 +1,13 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import { contextBridge, ipcRenderer } from 'electron'
-
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@swarm/protocol'
 import type {
+  AddCustomProviderInput,
+  AgentBridge,
+  AgentDefinition,
+  AgentListItem,
+  AgentMutationResult,
+  ApiStyle,
   BiliAnalysis,
+  BilibiliBridge,
   BiliListResult,
   BiliLoginStatus,
   BiliProcessResult,
@@ -12,42 +16,46 @@ import type {
   BiliTranscribeProgress,
   BiliTranscribeResult,
   BiliVideo,
-  ObsidianConfig,
-  TranscriptionConfig,
-} from '@swarm/protocol'
-import type { BudgetConfig } from '@swarm/protocol'
-import type { GmailClientCreds, GmailConfigView } from '@swarm/protocol'
-import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '@swarm/protocol'
-import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '@swarm/protocol'
-import type { Skill, SkillMutationResult } from '@swarm/protocol'
-import type { ToolGroupInfo, ToolToggles } from '@swarm/protocol'
-import type {
-  AddCustomProviderInput,
-  AgentBridge,
-  BilibiliBridge,
+  BudgetConfig,
   BudgetsBridge,
   BudgetsSetResult,
   GmailBridge,
+  GmailClientCreds,
+  GmailConfigView,
   GmailSetResult,
   MacPermissions,
   McpBridge,
+  McpMutationResult,
+  McpServerConfig,
+  McpServerStatus,
+  McpToolOverride,
   MemoryBridge,
+  ModelThinkingLevel,
+  ObsidianConfig,
   PermissionDecision,
   ProvidersAddResult,
   ProvidersBridge,
   ProvidersFetchModelInfoResult,
   ProvidersSetResult,
+  ProvidersStateView,
   ProvidersTestResult,
+  Skill,
   SkillBridge,
+  SkillMutationResult,
   SubmitGoalResult,
   SwarmBridge,
+  ToolGroupInfo,
+  ToolToggles,
   ToolTogglesBridge,
+  TranscriptionConfig,
   UIEvent,
   WebSearchBridge,
+  WebSearchConfigView,
   WebSearchKeyId,
+  WebSearchProviderId,
   WebSearchSetResult,
 } from '@swarm/protocol'
-import type { WebSearchConfigView, WebSearchProviderId } from '@swarm/protocol'
+import { contextBridge, ipcRenderer } from 'electron'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
 const NAVIGATE_CHANNEL = 'swarm:navigate'
@@ -262,9 +270,7 @@ const swarm: SwarmBridge = {
   },
   trending: {
     get: (period: import('@swarm/protocol').TrendingPeriod, language: string) =>
-      ipcRenderer.invoke('trending:get', period, language) as Promise<
-        import('@swarm/protocol').TrendingRepo[]
-      >,
+      ipcRenderer.invoke('trending:get', period, language) as Promise<import('@swarm/protocol').TrendingRepo[]>,
   },
   cron: {
     listForSession: (sessionId: string) =>

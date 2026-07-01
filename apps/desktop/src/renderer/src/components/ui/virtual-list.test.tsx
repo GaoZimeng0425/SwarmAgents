@@ -18,7 +18,7 @@ describe('VirtualList', () => {
         getKey={(s) => s}
         items={['alpha', 'beta', 'gamma']}
         renderItem={(s) => <div>{s}</div>}
-      />,
+      />
     )
     // ScrollArea root is present (project convention: all scroll uses ScrollArea).
     expect(document.querySelector('[data-slot="scroll-area"]')).not.toBeNull()

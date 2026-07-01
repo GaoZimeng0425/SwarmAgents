@@ -1,6 +1,12 @@
-import type { BiliCredentials, BiliSummary, BiliTranscribeProgress, TranscriptionConfig } from '@swarm/protocol'
-import type { ProviderInjection } from '@swarm/protocol'
+import type {
+  BiliCredentials,
+  BiliSummary,
+  BiliTranscribeProgress,
+  ProviderInjection,
+  TranscriptionConfig,
+} from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
+
 import { FfmpegError } from './audio'
 import { createTranscribeQueue, type TranscribeQueueDeps } from './transcribe-queue'
 

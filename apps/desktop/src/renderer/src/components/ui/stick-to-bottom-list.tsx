@@ -6,16 +6,7 @@
 // Why hand-rolled (not the `use-stick-to-bottom` lib): the library renders its
 // own native-scrollbar scroller, which violates the project rule that every
 // scroll container uses the styled ScrollArea. This composes ScrollArea instead.
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useVirtualList, VirtualRows } from '@/components/ui/virtual-list'
@@ -27,7 +18,7 @@ import { cn } from '@/lib/utils'
 export function useStickToBottom(
   viewportRef: React.RefObject<HTMLDivElement | null>,
   totalSize: number,
-  tolerance = 4,
+  tolerance = 4
 ): { isAtBottom: boolean; scrollToBottom: (behavior?: ScrollBehavior) => void } {
   const [isAtBottom, setIsAtBottom] = useState(true)
   // True "should we pin" flag. Stays true until the user scrolls away from the
@@ -79,7 +70,7 @@ export function useStickToBottom(
         window.setTimeout(reset, 500)
       }
     },
-    [viewportRef],
+    [viewportRef]
   )
 
   return { isAtBottom, scrollToBottom }
@@ -151,13 +142,10 @@ export function StickToBottomList<T>({
       if (index === undefined) return
       virtualizer.scrollToIndex(index, { align })
     },
-    [keyToIndex, virtualizer],
+    [keyToIndex, virtualizer]
   )
 
-  const ctx = useMemo(
-    () => ({ isAtBottom, scrollToBottom, scrollToKey }),
-    [isAtBottom, scrollToBottom, scrollToKey],
-  )
+  const ctx = useMemo(() => ({ isAtBottom, scrollToBottom, scrollToKey }), [isAtBottom, scrollToBottom, scrollToKey])
 
   return (
     <StickToBottomListContext.Provider value={ctx}>

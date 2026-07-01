@@ -1,5 +1,7 @@
 // @swarm/protocol — cross-process wire types + RPC client. Zero non-zod runtime deps.
 
+// RPC client + transport (consumed unchanged by desktop, extension, RN)
+export * from './service-client'
 // Type modules
 export * from './types/actor'
 export * from './types/agent'
@@ -20,6 +22,3 @@ export * from './types/trending'
 export * from './types/ui'
 export * from './types/usage'
 export * from './types/web-search'
-
-// RPC client + transport (consumed unchanged by desktop, extension, RN)
-export * from './service-client'

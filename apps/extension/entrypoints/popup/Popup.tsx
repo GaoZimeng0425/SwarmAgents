@@ -29,11 +29,15 @@ export function Popup(): JSX.Element {
           connected — {result.count} agents visible on the desktop.
         </div>
       )}
-      {result && !result.ok && (
-        <div style={{ marginTop: 8, fontSize: 12, color: '#c00' }}>error: {result.error}</div>
-      )}
+      {result && !result.ok && <div style={{ marginTop: 8, fontSize: 12, color: '#c00' }}>error: {result.error}</div>}
       <div style={{ marginTop: 8 }}>
-        <a href="#" onClick={(e) => { e.preventDefault(); browser.runtime.openOptionsPage() }}>
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault()
+            browser.runtime.openOptionsPage()
+          }}
+        >
           options
         </a>
       </div>

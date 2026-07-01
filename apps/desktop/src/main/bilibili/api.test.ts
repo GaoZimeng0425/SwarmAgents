@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { cookieHeader, getFavFolders, getNav, getWatchLater, toHttpsUrl } from './api'
 
 const creds = { sessdata: 's', biliJct: 'j', dedeUserId: '42' }

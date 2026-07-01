@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
-import { WebSocket, WebSocketServer } from 'ws'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { WebSocket, WebSocketServer } from 'ws'
+
 import { attachBridge } from './bridge'
 
 // A fake service transport: structured like the Electron utilityProcess —
@@ -33,7 +34,10 @@ describe('ws bridge', () => {
     server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
 
     const ws = new WebSocket(`ws://127.0.0.1:${port}`)
-    await new Promise((res, rej) => { ws.once('open', res); ws.once('error', rej) })
+    await new Promise((res, rej) => {
+      ws.once('open', res)
+      ws.once('error', rej)
+    })
     ws.send(JSON.stringify({ kind: 'request', id: 1, method: 'listAgents', args: [] }))
     await new Promise((res) => setTimeout(res, 50))
     expect(received).toHaveLength(1)
@@ -45,7 +49,10 @@ describe('ws bridge', () => {
     const svc = fakeServiceTransport()
     server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
     const ws = new WebSocket(`ws://127.0.0.1:${port}`)
-    await new Promise((res, rej) => { ws.once('open', res); ws.once('error', rej) })
+    await new Promise((res, rej) => {
+      ws.once('open', res)
+      ws.once('error', rej)
+    })
     const seen: unknown[] = []
     ws.on('message', (raw) => seen.push(JSON.parse(raw.toString())))
 

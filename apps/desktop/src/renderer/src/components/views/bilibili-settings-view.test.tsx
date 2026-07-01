@@ -35,8 +35,6 @@ describe('BilibiliSettingsView', () => {
     fireEvent.click(screen.getByRole('button', { name: /选择目录/ }))
     await screen.findByDisplayValue('/models/sv')
     fireEvent.click(screen.getByRole('button', { name: /保存转写配置/ }))
-    await waitFor(() =>
-      expect(set).toHaveBeenCalledWith({ ffmpegPath: '/usr/bin/ffmpeg', modelDir: '/models/sv' })
-    )
+    await waitFor(() => expect(set).toHaveBeenCalledWith({ ffmpegPath: '/usr/bin/ffmpeg', modelDir: '/models/sv' }))
   })
 })

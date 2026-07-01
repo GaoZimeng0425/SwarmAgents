@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta content="width=device-width, initial-scale=1.0" name="viewport" >
 <title>Agent 优化巡检报告 v2 — SwarmAgents</title>
 <style>
 :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--purple:#bc8cff;--code-bg:#1c2128;--p0:#f85149;--p1:#d29922;--p2:#3fb950}
@@ -1183,7 +1183,7 @@ engineer, devops-engineer: 增加 read-only / write / destructive 三级操作�
 function toggleTheme(){var b=document.body;var t=b.getAttribute('data-theme');if(t==='dark'){b.setAttribute('data-theme','light');document.querySelector('.theme-toggle').textContent='☀️';localStorage.setItem('theme','light')}else{b.setAttribute('data-theme','dark');document.querySelector('.theme-toggle').textContent='🌙';localStorage.setItem('theme','dark')}}
 var saved=localStorage.getItem('theme');if(saved==='light'){document.body.setAttribute('data-theme','light');document.querySelector('.theme-toggle').textContent='☀️'}
 function toggleCard(el){el.parentElement.classList.toggle('collapsed')}
-function copyCode(btn){var code=btn.parentElement.querySelector('pre');var text=code.textContent;navigator.clipboard.writeText(text).then(function(){btn.textContent='✅ 已复制';setTimeout(function(){btn.textContent='📋 复制'},2000)})}
+function copyCode(btn){var code=btn.parentElement.querySelector('pre');var text=code.textContent;navigator.clipboard.writeText(text).then(()=> {btn.textContent='✅ 已复制';setTimeout(()=> {btn.textContent='📋 复制'},2000)})}
 </script>
 </body>
 </html>

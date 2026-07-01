@@ -1,7 +1,8 @@
-import { loadOrCreateHostConfig } from './auth'
-import { startWsServer } from './ws-server'
-import { attachBridge } from './bridge'
 import type { ServiceTransport } from '@swarm/protocol'
+
+import { loadOrCreateHostConfig } from './auth'
+import { attachBridge } from './bridge'
+import { startWsServer } from './ws-server'
 
 export type StartWsHost = {
   serviceProcess: ServiceTransport

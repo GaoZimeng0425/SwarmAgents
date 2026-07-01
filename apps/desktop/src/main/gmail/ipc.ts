@@ -4,8 +4,7 @@
 // exposes the main-rpc query handlers the service→main bridge dispatches to.
 // Mirrors budgets/ipc.ts; broadcasts gmail:stateChanged to all windows.
 import { createLogger } from '@shared/logger'
-import type { GmailClientCreds } from '@swarm/protocol'
-import type { MainMethod } from '@swarm/protocol'
+import type { GmailClientCreds, MainMethod } from '@swarm/protocol'
 import { BrowserWindow, ipcMain } from 'electron'
 
 import type { Service } from './service'

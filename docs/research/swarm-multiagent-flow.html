@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html data-theme="dark" lang="en" >
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 2.6.0">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" >
+  <meta content="archify 2.6.0" name="generator" >
   <title>SwarmAgents 多 Agent 协作 Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
-    (function () {
+    (() => {
       try {
         var theme = null;
         try {
@@ -27,9 +27,9 @@
   </script>
   <!-- Async font load: a blackholed network must not block first paint.
        The body font stack falls back to system monospace until it lands. -->
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet" media="print" onload="this.media='all'">
+  <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" >
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'"
+        rel="stylesheet" >
   <noscript>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   </noscript>
@@ -460,31 +460,31 @@
 <body>
   <!-- Toolbar: theme toggle + export menu (present on every generated diagram)
        Keyboard: T toggles theme, E opens export menu (when no input focused) -->
-  <div class="toolbar" role="toolbar" aria-label="Diagram actions">
-    <button id="btn-theme" type="button"
-            title="Toggle theme (T)"
+  <div aria-label="Diagram actions" class="toolbar" role="toolbar" >
+    <button 
             aria-label="Toggle color theme"
-            aria-pressed="false">
-      <span id="theme-icon" aria-hidden="true">&#9790;</span>
+            aria-pressed="false" id="btn-theme" 
+            title="Toggle theme (T)" type="button">
+      <span aria-hidden="true" id="theme-icon" >&#9790;</span>
       <span id="theme-label">Dark</span>
     </button>
     <div class="export-wrap">
-      <button id="btn-export" type="button"
-              title="Export diagram (E)"
-              aria-label="Export diagram"
-              aria-haspopup="menu"
+      <button 
+              aria-controls="export-menu"
               aria-expanded="false"
-              aria-controls="export-menu">
+              aria-haspopup="menu"
+              aria-label="Export diagram" id="btn-export" 
+              title="Export diagram (E)" type="button">
         Export <span aria-hidden="true">&#9662;</span>
       </button>
-      <div class="export-menu" id="export-menu" role="menu" aria-label="Export">
-        <button data-action="copy"  type="button" role="menuitem" tabindex="-1">Copy to clipboard <span class="hint">PNG</span></button>
+      <div aria-label="Export" class="export-menu" id="export-menu" role="menu" >
+        <button data-action="copy"  role="menuitem" tabindex="-1" type="button" >Copy to clipboard <span class="hint">PNG</span></button>
         <hr role="separator">
-        <button data-format="png"   type="button" role="menuitem" tabindex="-1">Download PNG</button>
-        <button data-format="jpeg"  type="button" role="menuitem" tabindex="-1">Download JPEG</button>
-        <button data-format="webp"  type="button" role="menuitem" tabindex="-1">Download WebP</button>
+        <button data-format="png"   role="menuitem" tabindex="-1" type="button" >Download PNG</button>
+        <button data-format="jpeg"  role="menuitem" tabindex="-1" type="button" >Download JPEG</button>
+        <button data-format="webp"  role="menuitem" tabindex="-1" type="button" >Download WebP</button>
         <hr role="separator">
-        <button data-format="svg"   type="button" role="menuitem" tabindex="-1">Download SVG <span class="hint">vector</span></button>
+        <button data-format="svg"   role="menuitem" tabindex="-1" type="button" >Download SVG <span class="hint">vector</span></button>
       </div>
     </div>
   </div>
@@ -501,153 +501,153 @@
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 820 860" role="img" aria-label="SwarmAgents 多 Agent 协作 — 单会话任务树:父 Agent 经 spawnChild 同步委派,只交换 goal↓ / summary↑ (sequence diagram)">
+      <svg aria-label="SwarmAgents 多 Agent 协作 — 单会话任务树:父 Agent 经 spawnChild 同步委派,只交换 goal↓ / summary↑ (sequence diagram)" role="img" viewBox="0 0 820 860" >
         <!-- Definitions -->
         <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-default" />
+          <marker id="arrowhead" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-default" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <marker id="arrowhead-emphasis" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-emphasis" />
+          <marker id="arrowhead-emphasis" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-emphasis" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <marker id="arrowhead-security" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-security" />
+          <marker id="arrowhead-security" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-security" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" class="m-dashed" />
+          <marker id="arrowhead-dashed" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5" >
+            <polygon class="m-dashed" points="0 0, 10 3.5, 0 7" />
           </marker>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" class="c-grid" stroke-width="0.5"/>
+          <pattern height="40" id="grid" patternUnits="userSpaceOnUse" width="40" >
+            <path class="c-grid" d="M 40 0 L 0 0 0 40" stroke-width="0.5"/>
           </pattern>
         </defs>
 
         <!-- Background Grid -->
-        <rect width="100%" height="100%" fill="url(#grid)" />
+        <rect fill="url(#grid)" height="100%" width="100%" />
 
         <!-- Time Segments -->
-        <rect x="48" y="162" width="724" height="124" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="180" class="t-dim" font-size="9" font-weight="600">Submit</text>
+        <rect class="c-lane" height="124" rx="10" stroke-width="1" width="724" x="48" y="162" />
+        <text class="t-dim" font-size="9" font-weight="600" x="62" y="180" >Submit</text>
 
-        <rect x="48" y="290" width="724" height="204" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="308" class="t-dim" font-size="9" font-weight="600">Delegate / spawnChild</text>
+        <rect class="c-lane" height="204" rx="10" stroke-width="1" width="724" x="48" y="290" />
+        <text class="t-dim" font-size="9" font-weight="600" x="62" y="308" >Delegate / spawnChild</text>
 
-        <rect x="48" y="498" width="724" height="254" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="516" class="t-dim" font-size="9" font-weight="600">Return summary</text>
+        <rect class="c-lane" height="254" rx="10" stroke-width="1" width="724" x="48" y="498" />
+        <text class="t-dim" font-size="9" font-weight="600" x="62" y="516" >Return summary</text>
 
         <!-- Lifelines -->
-        <path d="M 62 142 L 62 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 170 142 L 170 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 278 142 L 278 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 386 142 L 386 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 494 142 L 494 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 602 142 L 602 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path class="a-default" d="M 62 142 L 62 795" stroke-dasharray="3,7" stroke-width="0.8" />
+        <path class="a-default" d="M 170 142 L 170 795" stroke-dasharray="3,7" stroke-width="0.8" />
+        <path class="a-default" d="M 278 142 L 278 795" stroke-dasharray="3,7" stroke-width="0.8" />
+        <path class="a-default" d="M 386 142 L 386 795" stroke-dasharray="3,7" stroke-width="0.8" />
+        <path class="a-default" d="M 494 142 L 494 795" stroke-dasharray="3,7" stroke-width="0.8" />
+        <path class="a-default" d="M 602 142 L 602 795" stroke-dasharray="3,7" stroke-width="0.8" />
 
         <!-- Messages -->
-        <path d="M 69 182 L 163 182" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="68.4" y="162" width="95.2" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="172" class="t-backend" font-size="9" text-anchor="middle">submitGoal(goal)</text>
+        <path class="a-emphasis" d="M 69 182 L 163 182" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <rect class="c-mask" height="16" rx="3" width="95.2" x="68.4" y="162" />
+        <text class="t-backend" font-size="9" text-anchor="middle" x="116" y="172" >submitGoal(goal)</text>
 
-        <path d="M 177 224 L 487 224" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="261" y="204" width="142" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="214" class="t-backend" font-size="9" text-anchor="middle">save Task (parentId=null)</text>
+        <path class="a-default" d="M 177 224 L 487 224" marker-end="url(#arrowhead)" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="142" x="261" y="204" />
+        <text class="t-backend" font-size="9" text-anchor="middle" x="332" y="214" >save Task (parentId=null)</text>
 
-        <path d="M 177 262 L 595 262" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <rect x="348.8" y="242" width="74.4" height="16" rx="3" class="c-mask"/>
-        <text x="386" y="252" class="t-messagebus" font-size="9" text-anchor="middle">task.created</text>
+        <path class="a-dashed" d="M 177 262 L 595 262" marker-end="url(#arrowhead-dashed)" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="74.4" x="348.8" y="242" />
+        <text class="t-messagebus" font-size="9" text-anchor="middle" x="386" y="252" >task.created</text>
 
-        <path d="M 177 306 L 271 306" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="166" y="286" width="116" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="296" class="t-backend" font-size="9" text-anchor="middle">run() — acquire slot</text>
+        <path class="a-emphasis" d="M 177 306 L 271 306" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <rect class="c-mask" height="16" rx="3" width="116" x="166" y="286" />
+        <text class="t-backend" font-size="9" text-anchor="middle" x="224" y="296" >run() — acquire slot</text>
 
-        <path d="M 271 350 L 177 350" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="134.8" y="330" width="178.4" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="340" class="t-backend" font-size="9" text-anchor="middle">ctx.spawnChild(goal↓, agentType)</text>
+        <path class="a-emphasis" d="M 271 350 L 177 350" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <rect class="c-mask" height="16" rx="3" width="178.4" x="134.8" y="330" />
+        <text class="t-backend" font-size="9" text-anchor="middle" x="224" y="340" >ctx.spawnChild(goal↓, agentType)</text>
 
-        <path d="M 177 392 L 487 392" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="258.4" y="372" width="147.20000000000002" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="382" class="t-backend" font-size="9" text-anchor="middle">save child Task (parentId)</text>
+        <path class="a-default" d="M 177 392 L 487 392" marker-end="url(#arrowhead)" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="147.20000000000002" x="258.4" y="372" />
+        <text class="t-backend" font-size="9" text-anchor="middle" x="332" y="382" >save child Task (parentId)</text>
 
-        <path d="M 177 430 L 595 430" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <rect x="328" y="410" width="116" height="16" rx="3" class="c-mask"/>
-        <text x="386" y="420" class="t-messagebus" font-size="9" text-anchor="middle">task.handoff.spawned</text>
+        <path class="a-dashed" d="M 177 430 L 595 430" marker-end="url(#arrowhead-dashed)" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="116" x="328" y="410" />
+        <text class="t-messagebus" font-size="9" text-anchor="middle" x="386" y="420" >task.handoff.spawned</text>
 
-        <path d="M 177 474 L 379 474" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="201.8" y="454" width="152.4" height="16" rx="3" class="c-mask"/>
-        <text x="278" y="464" class="t-backend" font-size="9" text-anchor="middle">run() — initialMessages: []</text>
+        <path class="a-emphasis" d="M 177 474 L 379 474" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <rect class="c-mask" height="16" rx="3" width="152.4" x="201.8" y="454" />
+        <text class="t-backend" font-size="9" text-anchor="middle" x="278" y="464" >run() — initialMessages: []</text>
 
-        <path d="M 393 516 L 595 516" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <rect x="454.2" y="496" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
-        <text x="494" y="506" class="t-messagebus" font-size="9" text-anchor="middle">task.progress</text>
+        <path class="a-dashed" d="M 393 516 L 595 516" marker-end="url(#arrowhead-dashed)" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="79.60000000000001" x="454.2" y="496" />
+        <text class="t-messagebus" font-size="9" text-anchor="middle" x="494" y="506" >task.progress</text>
 
-        <path d="M 379 558 L 177 558" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="225.2" y="538" width="105.60000000000001" height="16" rx="3" class="c-mask"/>
-        <text x="278" y="548" class="t-muted" font-size="9" text-anchor="middle">result { summary }</text>
+        <path class="a-default" d="M 379 558 L 177 558" marker-end="url(#arrowhead)" stroke-dasharray="3,5" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="105.60000000000001" x="225.2" y="538" />
+        <text class="t-muted" font-size="9" text-anchor="middle" x="278" y="548" >result { summary }</text>
 
-        <path d="M 177 600 L 271 600" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="160.8" y="580" width="126.4" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="590" class="t-muted" font-size="9" text-anchor="middle">summary↑ (tool result)</text>
+        <path class="a-default" d="M 177 600 L 271 600" marker-end="url(#arrowhead)" stroke-dasharray="3,5" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="126.4" x="160.8" y="580" />
+        <text class="t-muted" font-size="9" text-anchor="middle" x="224" y="590" >summary↑ (tool result)</text>
 
-        <path d="M 285 644 L 487 644" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="309.8" y="624" width="152.4" height="16" rx="3" class="c-mask"/>
-        <text x="386" y="634" class="t-backend" font-size="9" text-anchor="middle">updateTaskStatus(completed)</text>
+        <path class="a-default" d="M 285 644 L 487 644" marker-end="url(#arrowhead)" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="152.4" x="309.8" y="624" />
+        <text class="t-backend" font-size="9" text-anchor="middle" x="386" y="634" >updateTaskStatus(completed)</text>
 
-        <path d="M 271 686 L 177 686" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="181.6" y="666" width="84.8" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="676" class="t-muted" font-size="9" text-anchor="middle">run() resolves</text>
+        <path class="a-default" d="M 271 686 L 177 686" marker-end="url(#arrowhead)" stroke-dasharray="3,5" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="84.8" x="181.6" y="666" />
+        <text class="t-muted" font-size="9" text-anchor="middle" x="224" y="676" >run() resolves</text>
 
-        <path d="M 163 728 L 69 728" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="73.6" y="708" width="84.8" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="718" class="t-muted" font-size="9" text-anchor="middle">task.completed</text>
+        <path class="a-default" d="M 163 728 L 69 728" marker-end="url(#arrowhead)" stroke-dasharray="3,5" stroke-width="1.4" />
+        <rect class="c-mask" height="16" rx="3" width="84.8" x="73.6" y="708" />
+        <text class="t-muted" font-size="9" text-anchor="middle" x="116" y="718" >task.completed</text>
 
         <!-- Activations -->
-        <rect x="165" y="180" width="10" height="552" rx="3" class="c-mask"/>
-        <rect x="165" y="180" width="10" height="552" rx="3" class="c-backend" stroke-width="1"/>
-        <rect x="273" y="302" width="10" height="388" rx="3" class="c-mask"/>
-        <rect x="273" y="302" width="10" height="388" rx="3" class="c-backend" stroke-width="1"/>
-        <rect x="381" y="470" width="10" height="90" rx="3" class="c-mask"/>
-        <rect x="381" y="470" width="10" height="90" rx="3" class="c-backend" stroke-width="1"/>
+        <rect class="c-mask" height="552" rx="3" width="10" x="165" y="180" />
+        <rect class="c-backend" height="552" rx="3" stroke-width="1" width="10" x="165" y="180" />
+        <rect class="c-mask" height="388" rx="3" width="10" x="273" y="302" />
+        <rect class="c-backend" height="388" rx="3" stroke-width="1" width="10" x="273" y="302" />
+        <rect class="c-mask" height="90" rx="3" width="10" x="381" y="470" />
+        <rect class="c-backend" height="90" rx="3" stroke-width="1" width="10" x="381" y="470" />
 
         <!-- Participants -->
-        <rect x="19" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="19" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="62" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">User</text>
-        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">submitGoal</text>
+        <rect class="c-mask" height="54" rx="6" width="86" x="19" y="72" />
+        <rect class="c-external" height="54" rx="6" stroke-width="1.5" width="86" x="19" y="72" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="62" y="94" >User</text>
+        <text class="t-muted" font-size="7" text-anchor="middle" x="62" y="111" >submitGoal</text>
 
-        <rect x="127" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="127" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="170" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">SessionMgr</text>
-        <text x="170" y="111" class="t-muted" font-size="7" text-anchor="middle">orchestrator</text>
+        <rect class="c-mask" height="54" rx="6" width="86" x="127" y="72" />
+        <rect class="c-backend" height="54" rx="6" stroke-width="1.5" width="86" x="127" y="72" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="170" y="94" >SessionMgr</text>
+        <text class="t-muted" font-size="7" text-anchor="middle" x="170" y="111" >orchestrator</text>
 
-        <rect x="235" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="235" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="278" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Parent</text>
-        <text x="278" y="111" class="t-muted" font-size="7" text-anchor="middle">AgentRunner</text>
+        <rect class="c-mask" height="54" rx="6" width="86" x="235" y="72" />
+        <rect class="c-backend" height="54" rx="6" stroke-width="1.5" width="86" x="235" y="72" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="278" y="94" >Parent</text>
+        <text class="t-muted" font-size="7" text-anchor="middle" x="278" y="111" >AgentRunner</text>
 
-        <rect x="343" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="343" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="386" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Child</text>
-        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">AgentRunner</text>
+        <rect class="c-mask" height="54" rx="6" width="86" x="343" y="72" />
+        <rect class="c-backend" height="54" rx="6" stroke-width="1.5" width="86" x="343" y="72" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="386" y="94" >Child</text>
+        <text class="t-muted" font-size="7" text-anchor="middle" x="386" y="111" >AgentRunner</text>
 
-        <rect x="451" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="451" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="494" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Store</text>
-        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">SQLite</text>
+        <rect class="c-mask" height="54" rx="6" width="86" x="451" y="72" />
+        <rect class="c-database" height="54" rx="6" stroke-width="1.5" width="86" x="451" y="72" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="494" y="94" >Store</text>
+        <text class="t-muted" font-size="7" text-anchor="middle" x="494" y="111" >SQLite</text>
 
-        <rect x="559" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="559" y="72" width="86" height="54" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="602" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">UI</text>
-        <text x="602" y="111" class="t-muted" font-size="7" text-anchor="middle">broadcast</text>
+        <rect class="c-mask" height="54" rx="6" width="86" x="559" y="72" />
+        <rect class="c-frontend" height="54" rx="6" stroke-width="1.5" width="86" x="559" y="72" />
+        <text class="t-primary" font-size="11" font-weight="600" text-anchor="middle" x="602" y="94" >UI</text>
+        <text class="t-muted" font-size="7" text-anchor="middle" x="602" y="111" >broadcast</text>
 
         <!-- Legend -->
-        <text x="150" y="786" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <path d="M 150 806 L 184 806" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <text x="193" y="809" class="t-muted" font-size="8">request</text>
-        <path d="M 270 806 L 304 806" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <text x="313" y="809" class="t-muted" font-size="8">return</text>
-        <path d="M 385 806 L 419 806" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <text x="428" y="809" class="t-muted" font-size="8">security</text>
-        <path d="M 530 806 L 564 806" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <text x="573" y="809" class="t-muted" font-size="8">async trace</text>
+        <text class="t-primary" font-size="10" font-weight="600" x="150" y="786" >Legend</text>
+        <path class="a-emphasis" d="M 150 806 L 184 806" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" />
+        <text class="t-muted" font-size="8" x="193" y="809" >request</text>
+        <path class="a-default" d="M 270 806 L 304 806" marker-end="url(#arrowhead)" stroke-dasharray="3,5" stroke-width="1.4" />
+        <text class="t-muted" font-size="8" x="313" y="809" >return</text>
+        <path class="a-security" d="M 385 806 L 419 806" marker-end="url(#arrowhead-security)" stroke-width="1.4" />
+        <text class="t-muted" font-size="8" x="428" y="809" >security</text>
+        <path class="a-dashed" d="M 530 806 L 564 806" marker-end="url(#arrowhead-dashed)" stroke-width="1.4" />
+        <text class="t-muted" font-size="8" x="573" y="809" >async trace</text>
       </svg>
     </div>
 
@@ -703,8 +703,8 @@
        ============================================================ */
     var Archify = {};
 
-    Archify.theme = (function () {
-      var STORAGE_KEY = 'archify-theme';
+    Archify.theme = (() => {
+      var StorageKey = 'archify-theme';
       var html = document.documentElement;
       var btn = document.getElementById('btn-theme');
       var icon = document.getElementById('theme-icon');
@@ -713,10 +713,10 @@
       // localStorage can throw (blocked cookies, sandboxed iframes); the whole
       // script element dies on an uncaught error, so guard every access.
       function readStored() {
-        try { return localStorage.getItem(STORAGE_KEY); } catch (_) { return null; }
+        try { return localStorage.getItem(StorageKey); } catch (_) { return null; }
       }
       function writeStored(value) {
-        try { localStorage.setItem(STORAGE_KEY, value); } catch (_) {}
+        try { localStorage.setItem(StorageKey, value); } catch (_) {}
       }
       function urlOverride() {
         // URL param wins (useful for deterministic screenshots / share links)
@@ -754,7 +754,7 @@
       // Follow live OS theme changes while the user has no explicit preference.
       try {
         var media = window.matchMedia('(prefers-color-scheme: light)');
-        var onChange = function (e) {
+        var onChange = (e) => {
           var saved = readStored();
           if (urlOverride() || saved === 'light' || saved === 'dark') return;
           apply(e.matches ? 'light' : 'dark');
@@ -778,15 +778,15 @@
        JPEG/WebP paint the current theme's background explicitly since
        those formats have no alpha channel.
        ============================================================ */
-    (function () {
-      var RASTER_SCALE = 4;
+    (() => {
+      var RasterScale = 4;
 
       function diagramFilename() {
         var title = (document.title || 'diagram')
           .replace(/\s+Architecture(\s+Diagram)?$/i, '')
           .replace(/\s+Diagram$/i, '')
           .trim();
-        return title.replace(/[^a-z0-9_\-]+/gi, '-')
+        return title.replace(/[^a-z0-9_-]+/gi, '-')
                     .toLowerCase()
                     .replace(/^-+|-+$/g, '') || 'diagram';
       }
@@ -831,13 +831,13 @@
         // Only the SVG-relevant rules: semantic classes, markers, and the
         // theme variable blocks. Toolbar/cards/print CSS can never apply
         // inside a standalone SVG and would only bloat the export.
-        var hostStyle = (function () {
+        var hostStyle = (() => {
           var out = [];
-          Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+          Array.prototype.forEach.call(document.styleSheets, (sheet) => {
             var rules;
             try { rules = sheet.cssRules; } catch (_) { return; } // cross-origin
             if (!rules) return;
-            Array.prototype.forEach.call(rules, function (rule) {
+            Array.prototype.forEach.call(rules, (rule) => {
               if (rule.type !== 1) return; // plain style rules only
               var sel = rule.selectorText || '';
               if (/(^|,)\s*(svg|:root|\[data-theme|\.c-|\.t-|\.a-|\.m-)/.test(sel)) {
@@ -851,10 +851,10 @@
         // Derive the variable list from the stylesheet so newly added theme
         // variables can never be missed by the export pipeline again
         // (--lane-fill/--lane-stroke once were).
-        var varNames = (function () {
+        var varNames = (() => {
           var seen = {};
           var names = [];
-          (hostStyle.match(/--[a-zA-Z0-9-]+(?=\s*:)/g) || []).forEach(function (n) {
+          (hostStyle.match(/--[a-zA-Z0-9-]+(?=\s*:)/g) || []).forEach((n) => {
             if (!seen[n]) { seen[n] = true; names.push(n); }
           });
           return names;
@@ -869,9 +869,7 @@
           document.body.appendChild(probe);
           try {
             var c = getComputedStyle(probe);
-            return varNames.map(function (n) {
-              return n + ': ' + c.getPropertyValue(n).trim() + ';';
-            }).join(' ');
+            return varNames.map((n) => n + ': ' + c.getPropertyValue(n).trim() + ';').join(' ');
           } finally {
             document.body.removeChild(probe);
           }
@@ -883,10 +881,8 @@
         // falls through cleanly to the monospace stack otherwise. The usual
         // Google-Fonts <link> in the host document is unreachable from the
         // serialized SVG, so url()-sourced faces would just hang.
-        var fontFallback = [400, 500, 600, 700].map(function (w) {
-          return "@font-face { font-family: 'JetBrains Mono'; font-weight: " + w +
-                 "; src: local('JetBrains Mono'), local('JetBrainsMono-Regular'); }";
-        }).join('\n');
+        var fontFallback = [400, 500, 600, 700].map((w) => "@font-face { font-family: 'JetBrains Mono'; font-weight: " + w +
+                 "; src: local('JetBrains Mono'), local('JetBrainsMono-Regular'); }").join('\n');
 
         var style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
         var bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -921,9 +917,7 @@
           var theme = document.documentElement.getAttribute('data-theme') || 'dark';
           var themeHost = document.querySelector('[data-theme="' + theme + '"]') || document.documentElement;
           var computed = getComputedStyle(themeHost);
-          var vars = varNames.map(function (n) {
-            return n + ': ' + computed.getPropertyValue(n).trim() + ';';
-          }).join(' ');
+          var vars = varNames.map((n) => n + ': ' + computed.getPropertyValue(n).trim() + ';').join(' ');
 
           // IMPORTANT: inject the resolved variables AFTER hostStyle,
           // otherwise hostStyle's ":root, [data-theme=\"dark\"] { ... }" rule
@@ -956,7 +950,7 @@
         document.body.appendChild(a);
         a.click();
         a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        setTimeout(() => { URL.revokeObjectURL(url); }, 1000);
       }
 
       // Conservative upper bound on total canvas pixels. Older Safari on iOS
@@ -964,11 +958,11 @@
       // desktop Safari are far higher but start failing on memory-constrained
       // devices. We pick the largest integer scale in {4,3,2,1} whose target
       // pixel count fits under this cap.
-      var MAX_CANVAS_PIXELS = 16 * 1024 * 1024;
+      var MaxCanvasPixels = 16 * 1024 * 1024;
 
       function pickSafeScale(vbW, vbH) {
-        for (var s = RASTER_SCALE; s >= 1; s--) {
-          if (vbW * s * vbH * s <= MAX_CANVAS_PIXELS) return s;
+        for (var s = RasterScale; s >= 1; s--) {
+          if (vbW * s * vbH * s <= MaxCanvasPixels) return s;
         }
         return 1;
       }
@@ -985,9 +979,9 @@
         var svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
         var svgUrl = URL.createObjectURL(svgBlob);
 
-        return new Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
           var img = new Image();
-          img.onload = function () {
+          img.onload = () => {
             var canvas = document.createElement('canvas');
             canvas.width = data.width;
             canvas.height = data.height;
@@ -1002,12 +996,12 @@
             var mime = format === 'jpeg' ? 'image/jpeg' :
                        format === 'webp' ? 'image/webp' : 'image/png';
             var quality = format === 'png' ? undefined : 0.95;
-            canvas.toBlob(function (blob) {
+            canvas.toBlob((blob) => {
               if (!blob) reject(new Error('toBlob returned null for ' + format));
               else resolve(blob);
             }, mime, quality);
           };
-          img.onerror = function (e) {
+          img.onerror = (e) => {
             URL.revokeObjectURL(svgUrl);
             reject(e);
           };
@@ -1017,9 +1011,7 @@
 
       var menu = document.getElementById('export-menu');
       var btn = document.getElementById('btn-export');
-      var items = function () {
-        return Array.prototype.slice.call(menu.querySelectorAll('button[role="menuitem"]'));
-      };
+      var items = () => Array.prototype.slice.call(menu.querySelectorAll('button[role="menuitem"]'));
 
       // ---- Clipboard support ----------------------------------------------
       function canCopyImage() {
@@ -1042,7 +1034,7 @@
       }
 
       // Gray out unsupported items.
-      items().forEach(function (it) {
+      items().forEach((it) => {
         if (it.dataset.format && !supports(it.dataset.format)) {
           it.disabled = true;
           it.title = 'Not supported by this browser';
@@ -1066,18 +1058,18 @@
 
       function toast(msg) {
         toastEl.textContent = '';
-        requestAnimationFrame(function () {
+        requestAnimationFrame(() => {
           toastEl.textContent = msg;
           toastEl.classList.add('show');
         });
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1500);
+        toastTimer = setTimeout(() => { toastEl.classList.remove('show'); }, 1500);
       }
 
       function open(focusLast) {
         menu.classList.add('open');
         btn.setAttribute('aria-expanded', 'true');
-        var available = items().filter(function (i) { return !i.disabled; });
+        var available = items().filter((i) => !i.disabled);
         var target = focusLast ? available[available.length - 1] : available[0];
         if (target) target.focus();
       }
@@ -1088,30 +1080,30 @@
       }
       function isOpen() { return menu.classList.contains('open'); }
 
-      btn.addEventListener('click', function (e) {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (isOpen()) close(false);
         else open();
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
-      btn.addEventListener('keydown', function (e) {
+      btn.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
         }
       });
-      document.addEventListener('click', function (e) {
+      document.addEventListener('click', (e) => {
         if (!menu.contains(e.target) && e.target !== btn) close(false);
       });
 
       // Keyboard navigation inside the menu.
       //   Menu items: Up/Down, Home/End.
       //   Esc closes + returns focus to trigger; Tab closes.
-      menu.addEventListener('keydown', function (e) {
+      menu.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
 
-        var available = items().filter(function (i) { return !i.disabled; });
+        var available = items().filter((i) => !i.disabled);
         var current = available.indexOf(document.activeElement);
         switch (e.key) {
           case 'ArrowDown':
@@ -1137,13 +1129,13 @@
         var base = diagramFilename();
         close(true);
         return (format === 'svg'
-          ? Promise.resolve(serializeSvg(1, { autoTheme: true })).then(function (d) {
+          ? Promise.resolve(serializeSvg(1, { autoTheme: true })).then((d) => {
               download(new Blob([d.svgString], { type: 'image/svg+xml;charset=utf-8' }), base + '.svg');
             })
-          : rasterize(format).then(function (blob) {
+          : rasterize(format).then((blob) => {
               download(blob, base + '.' + format);
             })
-        ).catch(function (err) {
+        ).catch((err) => {
           console.error(err);
           alert('Export failed: ' + (err && err.message ? err.message : format));
         });
@@ -1164,19 +1156,17 @@
         try {
           writePromise = navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
         } catch (_) {
-          writePromise = blobPromise.then(function (blob) {
-            return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-          });
+          writePromise = blobPromise.then((blob) => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]));
         }
-        return writePromise.then(function () {
+        return writePromise.then(() => {
           toast('Copied PNG to clipboard');
-        }).catch(function (err) {
+        }).catch((err) => {
           console.error(err);
           alert('Copy failed: ' + (err && err.message ? err.message : 'unknown'));
         });
       }
 
-      menu.addEventListener('click', function (e) {
+      menu.addEventListener('click', (e) => {
         var copyBtn = e.target.closest('button[data-action="copy"]');
         if (copyBtn && !copyBtn.disabled) { runCopy(); return; }
 
@@ -1192,8 +1182,8 @@
       // Font Loading API.
       try {
         if (new URLSearchParams(window.location.search).get('openExport') === '1') {
-          var openWhenReady = function () {
-            requestAnimationFrame(function () { requestAnimationFrame(open); });
+          var openWhenReady = () => {
+            requestAnimationFrame(() => { requestAnimationFrame(open); });
           };
           if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(openWhenReady);
@@ -1210,7 +1200,7 @@
          E -> open export menu
        Ignored when focus is inside an input/textarea/contenteditable.
        ============================================================ */
-    document.addEventListener('keydown', function (e) {
+    document.addEventListener('keydown', (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

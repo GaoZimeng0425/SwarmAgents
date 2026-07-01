@@ -98,10 +98,31 @@ export type UIEvent =
       seq?: number
     }
   | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number; seq?: number }
-  | { kind: 'task.criteria'; sessionId: string; taskId: string; criteria: AcceptanceCriterion[]; ts: number; seq?: number }
+  | {
+      kind: 'task.criteria'
+      sessionId: string
+      taskId: string
+      criteria: AcceptanceCriterion[]
+      ts: number
+      seq?: number
+    }
   | { kind: 'task.verification'; sessionId: string; taskId: string; round: VerificationRound; ts: number; seq?: number }
-  | { kind: 'task.delegation_plan'; sessionId: string; taskId: string; plan: DelegationItem[]; ts: number; seq?: number }
-  | { kind: 'task.handoff.spawned'; sessionId: string; parentTaskId: string; childTaskId: string; ts: number; seq?: number }
+  | {
+      kind: 'task.delegation_plan'
+      sessionId: string
+      taskId: string
+      plan: DelegationItem[]
+      ts: number
+      seq?: number
+    }
+  | {
+      kind: 'task.handoff.spawned'
+      sessionId: string
+      parentTaskId: string
+      childTaskId: string
+      ts: number
+      seq?: number
+    }
   | {
       kind: 'task.handoff.completed'
       sessionId: string

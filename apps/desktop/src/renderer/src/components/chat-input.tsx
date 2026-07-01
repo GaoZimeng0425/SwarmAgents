@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@swarm/protocol'
 import type { Attachment, ExecutionMode, PermissionMode } from '@swarm/protocol'
+import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@swarm/protocol'
 import { useRanger } from '@tanstack/react-ranger'
 import { Check, Cpu, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, Users, X } from 'lucide-react'
 

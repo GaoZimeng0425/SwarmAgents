@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import type { UIEvent } from '@swarm/protocol'
+import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'

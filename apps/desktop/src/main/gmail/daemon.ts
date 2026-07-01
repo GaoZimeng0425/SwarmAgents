@@ -5,11 +5,10 @@
 // it does NOT track deletions or older-thread updates — the `gmail.synced`
 // event carries `deletionsNotTracked: true` so the limitation is visible.
 import { createLogger } from '@shared/logger'
+import type { GmailMessage, GmailThread } from '@swarm/protocol'
 
 import type { GmailApi } from './api'
 import type { Cache } from './cache'
-
-import type { GmailMessage, GmailThread } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'gmail-daemon' })
 

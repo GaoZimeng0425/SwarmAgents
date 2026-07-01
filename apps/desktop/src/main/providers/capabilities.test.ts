@@ -29,13 +29,7 @@ describe('modelThinkingLevels', () => {
 
   it('derives real depths for a spec-matched custom GLM model (no registry)', () => {
     // minimal maps to null (disabled) → excluded; the rest are real depths.
-    expect(modelThinkingLevels(undefined, 'openai', 'glm-5.2')).toEqual([
-      'off',
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-    ])
+    expect(modelThinkingLevels(undefined, 'openai', 'glm-5.2')).toEqual(['off', 'low', 'medium', 'high', 'xhigh'])
   })
 
   it('derives real depths for a spec-matched custom DeepSeek model', () => {

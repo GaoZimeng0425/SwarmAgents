@@ -1,5 +1,6 @@
 import type { BiliCredentials } from '@swarm/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { getSubtitleText } from './subtitle'
 
 const CRED: BiliCredentials = { sessdata: 's', biliJct: 'j', dedeUserId: 'u' }
@@ -30,9 +31,7 @@ describe('getSubtitleText', () => {
           })
         )
       )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ body: [{ content: '第一句' }, { content: '第二句' }] }))
-      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ body: [{ content: '第一句' }, { content: '第二句' }] })))
     const text = await getSubtitleText(DEPS, CRED, 'BV1')
     expect(text).toBe('第一句\n第二句')
     // second fetch must be upgraded to https

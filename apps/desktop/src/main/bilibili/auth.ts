@@ -39,7 +39,10 @@ export function createAuth(opts: { store: Store }): Auth {
     try {
       return await getNav(cfg.credentials)
     } catch (err) {
-      log.warn({ msg: 'nav check failed, treating as logged-out', err: err instanceof Error ? err.message : String(err) })
+      log.warn({
+        msg: 'nav check failed, treating as logged-out',
+        err: err instanceof Error ? err.message : String(err),
+      })
       return { loggedIn: false, uname: null, mid: null }
     }
   }

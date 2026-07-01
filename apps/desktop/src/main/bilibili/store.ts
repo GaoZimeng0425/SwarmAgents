@@ -31,9 +31,9 @@ export function createStore(opts: { filePath: string }): Store {
   const save: Store['save'] = (state) => {
     const next = saveQueue.then(async () => {
       BilibiliConfigOnDisk.parse(state)
-      const ciphertext = safeStorage.encryptString(JSON.stringify(state))
+      const cipherText = safeStorage.encryptString(JSON.stringify(state))
       const tmp = `${filePath}.tmp`
-      await fs.writeFile(tmp, ciphertext)
+      await fs.writeFile(tmp, cipherText)
       await fs.rename(tmp, filePath)
     })
     saveQueue = next.catch(() => undefined)

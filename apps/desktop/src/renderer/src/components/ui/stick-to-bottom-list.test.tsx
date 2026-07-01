@@ -1,15 +1,11 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
+import { useEffect, useRef } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useEffect, useRef } from 'react'
 
-import {
-  StickToBottomList,
-  useStickToBottom,
-  useStickToBottomList,
-} from './stick-to-bottom-list'
+import { StickToBottomList, useStickToBottom, useStickToBottomList } from './stick-to-bottom-list'
 
 afterEach(() => {
   cleanup()
@@ -134,7 +130,7 @@ describe('StickToBottomList', () => {
         renderItem={(s) => <div>{s}</div>}
       >
         <ContextProbe />
-      </StickToBottomList>,
+      </StickToBottomList>
     )
     expect(document.querySelector('[data-slot="scroll-area"]')).not.toBeNull()
     expect(screen.getByText('one')).toBeInTheDocument()
@@ -168,8 +164,8 @@ describe('StickToBottomList.scrollToKey', () => {
           renderItem={(it: { id: string }) => <div>{it.id}</div>}
         >
           <ScrollToKeyProbe targetKey="b" />
-        </StickToBottomList>,
-      ),
+        </StickToBottomList>
+      )
     ).not.toThrow()
   })
 
@@ -182,8 +178,8 @@ describe('StickToBottomList.scrollToKey', () => {
           renderItem={(it: { id: string }) => <div>{it.id}</div>}
         >
           <ScrollToKeyProbe targetKey="missing" />
-        </StickToBottomList>,
-      ),
+        </StickToBottomList>
+      )
     ).not.toThrow()
   })
 })

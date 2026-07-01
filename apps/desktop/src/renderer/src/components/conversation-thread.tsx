@@ -29,7 +29,7 @@ function ScrollToLatest() {
   if (isAtBottom) return null
   return (
     <Button
-      className="absolute left-1/2 bottom-4 -translate-x-1/2 rounded-full bg-popover/90 shadow-sm ring-1 ring-border/60 backdrop-blur hover:bg-muted dark:bg-popover/85 dark:hover:bg-muted"
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-popover/90 shadow-sm ring-1 ring-border/60 backdrop-blur hover:bg-muted dark:bg-popover/85 dark:hover:bg-muted"
       onClick={() => scrollToBottom()}
       size="icon"
       variant="outline"
@@ -54,7 +54,7 @@ function FocusProbe({ focusTaskId }: { focusTaskId?: string }) {
       el.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background', 'rounded-lg')
       window.setTimeout(
         () => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background', 'rounded-lg'),
-        2200,
+        2200
       )
     }, 120)
     return () => window.clearTimeout(id)
@@ -106,7 +106,9 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
         {formatUsage(usage)}
       </div>
     ) : null
-    return footer ? [...thread, { key: '__footer', node: footer, seq: Number.MAX_SAFE_INTEGER, ts: Date.now() }] : thread
+    return footer
+      ? [...thread, { key: '__footer', node: footer, seq: Number.MAX_SAFE_INTEGER, ts: Date.now() }]
+      : thread
   }, [tasks, renderSegment, busy, last, usage])
 
   if (tasks.length === 0) {

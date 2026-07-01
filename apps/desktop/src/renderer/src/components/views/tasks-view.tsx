@@ -1,6 +1,5 @@
+import type { ExecutionMode, PermissionMode, SessionSettings } from '@swarm/protocol'
 import { providerViewById } from '@swarm/protocol'
-import type { ExecutionMode, PermissionMode } from '@swarm/protocol'
-import type { SessionSettings } from '@swarm/protocol'
 import { sortBy } from 'es-toolkit'
 
 import { ChatIdBadge } from '@/components/chat-id-badge'

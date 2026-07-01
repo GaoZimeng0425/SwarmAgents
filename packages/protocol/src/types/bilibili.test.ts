@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { BiliAnalysisSchema, BilibiliConfigOnDisk, defaultBilibiliConfigOnDisk } from './bilibili'
 
 describe('BiliAnalysisSchema', () => {

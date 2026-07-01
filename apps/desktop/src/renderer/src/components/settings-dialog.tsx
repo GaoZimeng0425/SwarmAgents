@@ -1,4 +1,16 @@
-import { Bot, Boxes, DollarSign, Info, Lock, Mail, Search, Settings as SettingsIcon, Sparkles, Tv, Users } from 'lucide-react'
+import {
+  Bot,
+  Boxes,
+  DollarSign,
+  Info,
+  Lock,
+  Mail,
+  Search,
+  Settings as SettingsIcon,
+  Sparkles,
+  Tv,
+  Users,
+} from 'lucide-react'
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'

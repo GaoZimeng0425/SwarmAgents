@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { encWbi, getMixinKey, keyFromUrl } from './wbi'
 
 describe('wbi', () => {

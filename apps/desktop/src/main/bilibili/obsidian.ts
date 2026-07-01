@@ -55,7 +55,7 @@ export function renderNote(video: BiliVideo, summary: BiliSummary, processed: st
   bulleted('踩坑 / 注意', summary.pitfalls)
   if (summary.steps.length > 0) {
     lines.push('', '## 可执行步骤', '')
-    summary.steps.forEach((s, i) => lines.push(`${i + 1}. ${s}`))
+    for (const [i, s] of summary.steps.entries()) lines.push(`${i + 1}. ${s}`)
   }
   lines.push('', '## 原视频', '', `[${video.title}](${url})`)
   return `${lines.join('\n')}\n`
@@ -67,7 +67,7 @@ export async function writeNote(
   summary: BiliSummary,
   processed: string
 ): Promise<BiliSaveResult> {
-  if (!cfg || !cfg.vaultPath) {
+  if (!cfg?.vaultPath) {
     log.warn({ msg: 'save requested but no vault configured', bvid: video.bvid })
     return { ok: false, code: 'no_vault', message: '未配置 Obsidian 库路径，请在设置中配置。' }
   }

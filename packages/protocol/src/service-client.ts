@@ -109,7 +109,7 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
             const message = err instanceof Error ? err.message : String(err)
             log.error({ msg: 'main-rpc handler threw', method: req.method, id: req.id, err: message })
             transport.postMessage({ kind: 'mainResponse', id: req.id, ok: false, error: message })
-          },
+          }
         )
     }
   }

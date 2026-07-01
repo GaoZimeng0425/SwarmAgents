@@ -56,9 +56,7 @@ describe('gmail auth helpers', () => {
       status: 400,
       text: async () => '{"error":"invalid_grant"}',
     } as Response)
-    await expect(refreshTokens({ creds, refreshToken: 'RT' })).rejects.toThrow(
-      /refresh failed: 400.*invalid_grant/,
-    )
+    await expect(refreshTokens({ creds, refreshToken: 'RT' })).rejects.toThrow(/refresh failed: 400.*invalid_grant/)
   })
 })
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 import type { ResourceBudget } from '@swarm/protocol'
+import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

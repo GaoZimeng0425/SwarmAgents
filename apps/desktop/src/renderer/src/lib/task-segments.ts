@@ -1,5 +1,4 @@
-import type { Attachment } from '@swarm/protocol'
-import type { UIEvent } from '@swarm/protocol'
+import type { Attachment, UIEvent } from '@swarm/protocol'
 
 import type { TaskRecord } from './apply-event'
 
@@ -146,7 +145,15 @@ export function taskSegments(task: TaskRecord): Segment[] {
         out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, taskId: task.id, ts: e.ts, seq })
       }
     } else if (e.kind === 'task.permission_request') {
-      out.push({ kind: 'event', label: `permission (${e.risk})`, detail: e.summary, key, taskId: task.id, ts: e.ts, seq })
+      out.push({
+        kind: 'event',
+        label: `permission (${e.risk})`,
+        detail: e.summary,
+        key,
+        taskId: task.id,
+        ts: e.ts,
+        seq,
+      })
     } else if (e.kind === 'task.error') {
       const err = typeof e.error === 'object' && e.error ? (e.error as { message?: unknown; code?: unknown }) : null
       const msg = err && 'message' in err ? String(err.message) : 'error'

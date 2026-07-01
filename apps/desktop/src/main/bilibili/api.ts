@@ -3,6 +3,7 @@
 // UA + Referer (required to avoid -412 风控). All endpoints wrap responses as
 // { code, message, data }; a non-zero code is an error.
 import type { BiliCredentials, BiliFavFolder, BiliLoginStatus, BiliVideo } from '@swarm/protocol'
+
 import { keyFromUrl } from './wbi'
 
 export const BILI_UA =

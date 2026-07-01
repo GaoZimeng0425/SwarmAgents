@@ -19,9 +19,9 @@ export function Options(): JSX.Element {
         Copy the token from the desktop's <code>userData/ws-host.json</code>.
       </p>
       <label>WS host</label>
-      <input value={wsHost} onChange={(e) => setWsHost(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
+      <input onChange={(e) => setWsHost(e.target.value)} style={{ width: '100%', marginBottom: 8 }} value={wsHost} />
       <label>Token</label>
-      <input value={token} onChange={(e) => setToken(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
+      <input onChange={(e) => setToken(e.target.value)} style={{ width: '100%', marginBottom: 8 }} value={token} />
       <button
         onClick={() => {
           browser.storage.local.set({ wsHost, token }).then(() => setSaved(true))

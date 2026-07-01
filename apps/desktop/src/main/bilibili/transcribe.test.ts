@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { __clearRecognizerCache, type RecognizerFactory, transcribeWav } from './transcribe'
 
 afterEach(() => __clearRecognizerCache())

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { createWsTransport } from './transport-ws'
 
 // DOM-shaped fake of the browser WebSocket the adapter calls into.
@@ -7,18 +8,30 @@ class FakeWebSocket {
   readyState = 0
   private listeners: Record<string, Set<(ev: unknown) => void>> = {}
   sent: string[] = []
-  constructor(public url: string, public subprotocol: string) {
-    queueMicrotask(() => { this.readyState = 1; this.dispatch('open', {}) })
+  constructor(
+    public url: string,
+    public subprotocol: string
+  ) {
+    queueMicrotask(() => {
+      this.readyState = 1
+      this.dispatch('open', {})
+    })
   }
   addEventListener(type: string, fn: (ev: unknown) => void): void {
-    (this.listeners[type] ??= new Set()).add(fn)
+    ;(this.listeners[type] ??= new Set()).add(fn)
   }
   removeEventListener(type: string, fn: (ev: unknown) => void): void {
     this.listeners[type]?.delete(fn)
   }
-  send(data: string): void { this.sent.push(data) }
-  close(): void { this.readyState = 3 }
-  dispatch(type: string, ev: unknown): void { this.listeners[type]?.forEach((fn) => fn(ev)) }
+  send(data: string): void {
+    this.sent.push(data)
+  }
+  close(): void {
+    this.readyState = 3
+  }
+  dispatch(type: string, ev: unknown): void {
+    this.listeners[type]?.forEach((fn) => fn(ev))
+  }
 }
 
 describe('createWsTransport', () => {

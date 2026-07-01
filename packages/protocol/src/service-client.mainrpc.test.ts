@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { createServiceClient, type ServiceTransport } from './service-client'
 
 function fakeTransport(): { t: ServiceTransport; sent: unknown[]; deliver(m: unknown): void } {
@@ -41,9 +42,7 @@ describe('service-client mainRequest routing', () => {
     deliver({ kind: 'mainRequest', id: 77, method: 'gmail.search', args: ['inv', 5] })
     await flush()
 
-    expect(sent).toEqual([
-      { kind: 'mainResponse', id: 77, ok: true, result: [{ id: 't1', q: 'inv', limit: 5 }] },
-    ])
+    expect(sent).toEqual([{ kind: 'mainResponse', id: 77, ok: true, result: [{ id: 't1', q: 'inv', limit: 5 }] }])
   })
 
   it('posts an error response when the handler throws', async () => {
@@ -67,8 +66,6 @@ describe('service-client mainRequest routing', () => {
     deliver({ kind: 'mainRequest', id: 3, method: 'gmail.list_recent', args: [] })
     await flush()
     // No handler registered → error response, not a crash.
-    expect(sent).toEqual([
-      { kind: 'mainResponse', id: 3, ok: false, error: expect.stringContaining('no handler') },
-    ])
+    expect(sent).toEqual([{ kind: 'mainResponse', id: 3, ok: false, error: expect.stringContaining('no handler') }])
   })
 })

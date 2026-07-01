@@ -32,17 +32,26 @@ function ActivityHeatmap({ days }: { days: { date: string; tokens: number }[] })
   const max = Math.max(0, ...days.map((d) => d.tokens))
   return (
     <div className="rounded-xl border bg-card p-4">
-      <h3 className="mb-3 font-medium text-sm">活跃热力图</h3>
+      <div className="my-2 flex items-center justify-between">
+        <h3 className="font-medium text-sm">活跃热力图</h3>
+        <div className="flex items-center justify-end gap-1 text-muted-foreground text-xs">
+          <span>较少</span>
+          {SHADE_CLASS.map((c) => (
+            <span className={cn('h-3 w-3 rounded-[3px]', c)} key={c} />
+          ))}
+          <span>较多</span>
+        </div>
+      </div>
       {/* 52-week (one year) grid; column-major 7-row fill = one column per week.
           Wider than the card on narrow windows, so scroll the grid horizontally. */}
       <TooltipProvider>
         <ScrollArea>
           <div className="flex items-center justify-center">
-            <div className="grid w-max grid-flow-col grid-rows-7 gap-1 pb-2">
+            <div className="grid w-max grid-flow-col grid-rows-7 gap-1.5 pb-2">
               {days.map((d) => (
                 <Tooltip key={d.date}>
                   <TooltipTrigger
-                    className={cn('h-3 w-3 rounded-[3px]', SHADE_CLASS[heatmapShade(d.tokens, max)])}
+                    className={cn('h-3.5 w-3.5 rounded', SHADE_CLASS[heatmapShade(d.tokens, max)])}
                     render={<div />}
                   />
                   <TooltipContent className="flex-col items-start gap-0.5">
@@ -56,13 +65,6 @@ function ActivityHeatmap({ days }: { days: { date: string; tokens: number }[] })
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </TooltipProvider>
-      <div className="mt-2 flex items-center justify-end gap-1 text-muted-foreground text-xs">
-        <span>较少</span>
-        {SHADE_CLASS.map((c) => (
-          <span className={cn('h-3 w-3 rounded-[3px]', c)} key={c} />
-        ))}
-        <span>较多</span>
-      </div>
     </div>
   )
 }
@@ -228,7 +230,7 @@ export function UsageView(): React.JSX.Element {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
         <header className="flex items-center justify-between">
           <h2 className="font-semibold text-lg">时间范围</h2>
           <div className="flex rounded-lg border p-0.5">

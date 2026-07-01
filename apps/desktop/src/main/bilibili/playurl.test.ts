@@ -1,5 +1,6 @@
 import type { BiliCredentials } from '@swarm/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { getDashAudioUrl } from './playurl'
 
 const CRED: BiliCredentials = { sessdata: 's', biliJct: 'j', dedeUserId: 'u' }

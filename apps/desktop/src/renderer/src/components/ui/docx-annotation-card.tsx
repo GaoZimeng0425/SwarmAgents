@@ -1,43 +1,40 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import type {
-  DocxCommentCardRenderProps,
-  DocxTrackedChangeCardRenderProps,
-} from "@extend-ai/react-docx"
+import type * as React from 'react'
+import type { DocxCommentCardRenderProps, DocxTrackedChangeCardRenderProps } from '@extend-ai/react-docx'
 
-import { Badge } from "@/components/ui/badge"
-import { Card } from "@/components/ui/card"
+import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 
 // local-adapt: local Badge has no success/error/warning/info variants; map to local variants
 function trackedChangeBadgeVariant(
-  kind: DocxTrackedChangeCardRenderProps["change"]["kind"]
-): React.ComponentProps<typeof Badge>["variant"] {
+  kind: DocxTrackedChangeCardRenderProps['change']['kind']
+): React.ComponentProps<typeof Badge>['variant'] {
   switch (kind) {
-    case "insertion":
-    case "move-to":
-      return "secondary"
-    case "deletion":
-    case "move-from":
-      return "destructive"
+    case 'insertion':
+    case 'move-to':
+      return 'secondary'
+    case 'deletion':
+    case 'move-from':
+      return 'destructive'
     default:
-      return "outline"
+      return 'outline'
   }
 }
 
 function trackedChangeBadgeLabel({
   change,
   kindLabel,
-}: Pick<DocxTrackedChangeCardRenderProps, "change" | "kindLabel">) {
+}: Pick<DocxTrackedChangeCardRenderProps, 'change' | 'kindLabel'>) {
   switch (change.kind) {
-    case "insertion":
-      return "Inserted"
-    case "deletion":
-      return "Removed"
-    case "move-from":
-      return "Moved from"
-    case "move-to":
-      return "Moved to"
+    case 'insertion':
+      return 'Inserted'
+    case 'deletion':
+      return 'Removed'
+    case 'move-from':
+      return 'Moved from'
+    case 'move-to':
+      return 'Moved to'
     default:
       return kindLabel
   }
@@ -46,7 +43,7 @@ function trackedChangeBadgeLabel({
 function DocxAnnotationCard({
   anchorText,
   badge,
-  badgeVariant = "outline",
+  badgeVariant = 'outline',
   date,
   meta,
   snippet,
@@ -54,7 +51,7 @@ function DocxAnnotationCard({
 }: {
   anchorText?: string
   badge: string
-  badgeVariant?: React.ComponentProps<typeof Badge>["variant"]
+  badgeVariant?: React.ComponentProps<typeof Badge>['variant']
   date?: string
   meta: string
   snippet: string
@@ -62,25 +59,25 @@ function DocxAnnotationCard({
 }) {
   return (
     <Card
-      style={style}
       className="pointer-events-auto box-border gap-2 rounded-lg bg-card/95 p-2 text-card-foreground shadow-sm before:rounded-[7px]"
+      style={style}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0 text-[11px] leading-tight font-medium text-muted-foreground">
+        <div className="min-w-0 font-medium text-[11px] text-muted-foreground leading-tight">
           <div className="truncate">{meta}</div>
           {date ? <div className="mt-0.5 truncate">{date}</div> : null}
         </div>
         {/* local-adapt: local Badge has no `size` prop */}
-        <Badge variant={badgeVariant} className="max-w-[92px] truncate">
+        <Badge className="max-w-[92px] truncate" variant={badgeVariant}>
           {badge}
         </Badge>
       </div>
       {anchorText ? (
-        <div className="rounded-md bg-muted/60 px-2 py-1 text-[11px] leading-snug text-muted-foreground italic">
+        <div className="rounded-md bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground italic leading-snug">
           {anchorText}
         </div>
       ) : null}
-      <div className="text-xs leading-snug break-words">{snippet}</div>
+      <div className="break-words text-xs leading-snug">{snippet}</div>
     </Card>
   )
 }
@@ -97,32 +94,23 @@ export function renderDocxTrackedChangeCard({
       badge={trackedChangeBadgeLabel({ change, kindLabel })}
       badgeVariant={trackedChangeBadgeVariant(change.kind)}
       date={formattedDate}
-      meta={change.author?.trim() || "Unknown author"}
+      meta={change.author?.trim() || 'Unknown author'}
       snippet={snippet}
       style={style}
     />
   )
 }
 
-export function renderDocxCommentCard({
-  comment,
-  formattedDate,
-  snippet,
-  style,
-}: DocxCommentCardRenderProps) {
-  const badge = comment.resolved
-    ? "Resolved"
-    : comment.parentId !== undefined
-      ? "Reply"
-      : "Comment"
+export function renderDocxCommentCard({ comment, formattedDate, snippet, style }: DocxCommentCardRenderProps) {
+  const badge = comment.resolved ? 'Resolved' : comment.parentId !== undefined ? 'Reply' : 'Comment'
 
   return (
     <DocxAnnotationCard
       anchorText={comment.anchorText}
       badge={badge}
-      badgeVariant={comment.resolved ? "secondary" : "outline"}
+      badgeVariant={comment.resolved ? 'secondary' : 'outline'}
       date={formattedDate}
-      meta={comment.author?.trim() || "Unknown author"}
+      meta={comment.author?.trim() || 'Unknown author'}
       snippet={snippet}
       style={style}
     />

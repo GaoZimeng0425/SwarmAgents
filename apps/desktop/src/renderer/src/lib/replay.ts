@@ -1,5 +1,4 @@
-import type { Task } from '@swarm/protocol'
-import type { UIEvent } from '@swarm/protocol'
+import type { Task, UIEvent } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 
 import type { TaskRecord, TaskStatus } from './apply-event'

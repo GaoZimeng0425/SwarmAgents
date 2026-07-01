@@ -59,12 +59,11 @@ describe('buildOrgForest', () => {
   })
 
   it('does not loop on a cyclic parentId; breaks the cycle into roots', () => {
-    const forest = buildOrgForest([
-      a({ id: 'a', parentId: 'b' }),
-      a({ id: 'b', parentId: 'a' }),
-    ])
+    const forest = buildOrgForest([a({ id: 'a', parentId: 'b' }), a({ id: 'b', parentId: 'a' })])
     // No infinite loop; both nodes appear exactly once.
-    const ids = edges(forest).map((e) => e.split(':')[0]).sort()
+    const ids = edges(forest)
+      .map((e) => e.split(':')[0])
+      .sort()
     expect(ids).toEqual(['a', 'b'])
   })
 })

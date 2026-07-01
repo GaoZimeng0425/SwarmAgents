@@ -10,9 +10,9 @@ import type {
   BiliTranscribeProgress,
   BiliTranscribeResult,
   BiliTranscribeStage,
+  ProviderInjection,
   TranscriptionConfig,
 } from '@swarm/protocol'
-import type { ProviderInjection } from '@swarm/protocol'
 
 import { FfmpegError } from './audio'
 

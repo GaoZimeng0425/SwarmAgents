@@ -1,13 +1,18 @@
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import { generateToken, loadOrCreateHostConfig } from './auth'
 
 describe('ws host auth', () => {
   let dir: string
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'ws-host-')) })
-  afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'ws-host-'))
+  })
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
 
   it('generateToken returns 32-byte hex', () => {
     const t = generateToken()
