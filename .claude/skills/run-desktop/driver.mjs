@@ -8,7 +8,12 @@ import * as readline from 'node:readline'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-const APP_DIR = path.resolve(import.meta.dirname, '../../..')
+// The Electron app lives under apps/desktop in the monorepo; fall back to the
+// repo root for the legacy single-package layout.
+const REPO_DIR = path.resolve(import.meta.dirname, '../../..')
+const APP_DIR = fs.existsSync(path.join(REPO_DIR, 'apps/desktop/package.json'))
+  ? path.join(REPO_DIR, 'apps/desktop')
+  : REPO_DIR
 const SHOT_DIR = process.env.SCREENSHOT_DIR || '/tmp/shots'
 fs.mkdirSync(SHOT_DIR, { recursive: true })
 
@@ -26,7 +31,13 @@ const COMMANDS = {
     if (app) return console.log('already launched')
     app = await electron.launch({
       executablePath: electronBin,
-      args: ['--no-sandbox', '.'],
+      args: [
+        '--no-sandbox',
+        ...(process.env.SWARM_USER_DATA_DIR
+          ? [`--user-data-dir=${process.env.SWARM_USER_DATA_DIR}`]
+          : []),
+        '.',
+      ],
       cwd: APP_DIR,
       timeout: 60_000,
     })
