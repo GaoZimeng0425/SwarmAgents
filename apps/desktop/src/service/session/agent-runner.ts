@@ -1450,19 +1450,17 @@ export async function runResident(
     try {
       residentLog.info({ msg: 'turn-start', address: deps.selfAddress, msgId: msg.id, kind: msg.kind })
       const { summary } = await session.promptOnce(msg.payload)
-      // Compaction (off-the-shelf pi): keep persisted state bounded across
-      // many activations. Failure is non-fatal — persist uncompacted; keeping
-      // memory beats losing it.
-      try {
-        if (shouldCompact(session.getContextTokens(), session.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
-          const { tokensBefore } = await session.agent.compact()
-          residentLog.info({ msg: 'compact', address: deps.selfAddress, tokensBefore, component: 'actor-state' })
-        }
-      } catch (err) {
-        residentLog.error({
-          msg: 'compact-failed',
+      // TODO: resident-actor context compaction is not wired. pi exposes
+      // compaction as a standalone compact(preparation, models, model) — there is
+      // no Agent.compact() method — which requires exposing model resolution on
+      // AgentSession (see buildAgentSession). Until then, surface the
+      // unbounded-growth risk with a warn when the threshold is crossed.
+      if (shouldCompact(session.getContextTokens(), session.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
+        residentLog.warn({
+          msg: 'compact-skipped-not-wired',
           address: deps.selfAddress,
-          err: err instanceof Error ? err.message : String(err),
+          contextTokens: session.getContextTokens(),
+          contextWindow: session.contextWindow,
           component: 'actor-state',
         })
       }

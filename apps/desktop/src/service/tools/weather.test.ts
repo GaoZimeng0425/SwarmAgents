@@ -9,6 +9,9 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => undefined,
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 const tool = () => getWeatherSpec().build(ctx)
 
@@ -19,31 +22,33 @@ afterEach(() => {
 describe('get_weather tool', () => {
   it('requests wttr.in with a curl UA, location and clamped day option', async () => {
     const fetchMock = vi.fn(
-      async () => new Response('Tokyo: ☀️ +20°C', { status: 200, headers: { 'content-type': 'text/plain' } })
+      async (_url: string, _init: RequestInit) =>
+        new Response('Tokyo: ☀️ +20°C', { status: 200, headers: { 'content-type': 'text/plain' } })
     )
     vi.stubGlobal('fetch', fetchMock)
 
     const res = await tool().execute('c', { location: 'Tokyo', days: 9 })
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://wttr.in/Tokyo?3Tm') // days clamped to wttr.in max of 3
-    expect((init.headers as Record<string, string>)['user-agent']).toMatch(/curl/)
-    expect(res.content[0].text).toContain('Tokyo')
+    expect((init!.headers as Record<string, string>)['user-agent']).toMatch(/curl/)
+    const first = res.content[0]
+    expect(first.type === 'text' && first.text).toContain('Tokyo')
   })
 
   it('omits the day digit when days is not provided', async () => {
-    const fetchMock = vi.fn(async () => new Response('weather', { status: 200 }))
+    const fetchMock = vi.fn(async (_url: string) => new Response('weather', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await tool().execute('c', { location: 'Beijing' })
-    expect((fetchMock.mock.calls[0] as [string])[0]).toBe('https://wttr.in/Beijing?Tm')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://wttr.in/Beijing?Tm')
   })
 
   it('falls back to geo-IP (empty path) when no location is given', async () => {
-    const fetchMock = vi.fn(async () => new Response('weather', { status: 200 }))
+    const fetchMock = vi.fn(async (_url: string) => new Response('weather', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await tool().execute('c', {})
-    expect((fetchMock.mock.calls[0] as [string])[0]).toBe('https://wttr.in/?Tm')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://wttr.in/?Tm')
   })
 
   it('surfaces an HTTP error as a result, not a throw', async () => {

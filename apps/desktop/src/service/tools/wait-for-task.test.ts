@@ -33,14 +33,15 @@ describe('wait_for_task tool', () => {
   it('registers a waiter for the calling agent address', async () => {
     const svc = fakeService(false)
     const tool = buildTool(svc, baseCtx)
-    const res = (await tool.execute('1', { taskId: 'task-X' })) as { content: [{ text: string }] }
+    const res = await tool.execute('1', { taskId: 'task-X' })
     expect(svc.register).toHaveBeenCalledWith({
       sessionId: 'ses-1',
       waiterAddress: 'addr-A',
       taskId: 'task-X',
       goal: null,
     })
-    expect(res.content[0].text).toContain('waiting for task task-X')
+    const first = res.content[0]
+    expect(first.type === 'text' && first.text).toContain('waiting for task task-X')
   })
 
   it('passes an agent-supplied goal through', async () => {
@@ -58,16 +59,18 @@ describe('wait_for_task tool', () => {
   it('errors when taskId is missing', async () => {
     const svc = fakeService()
     const tool = buildTool(svc, baseCtx)
-    const res = (await tool.execute('1', {})) as { content: [{ text: string }] }
-    expect(res.content[0].text).toContain('error')
+    const res = await tool.execute('1', {})
+    const first = res.content[0]
+    expect(first.type === 'text' && first.text).toContain('error')
     expect(svc.register).not.toHaveBeenCalled()
   })
 
   it('errors when the agent is not addressable', async () => {
     const svc = fakeService()
     const tool = buildTool(svc, { ...baseCtx, selfAddress: undefined })
-    const res = (await tool.execute('1', { taskId: 'task-X' })) as { content: [{ text: string }] }
-    expect(res.content[0].text).toContain('not addressable')
+    const res = await tool.execute('1', { taskId: 'task-X' })
+    const first = res.content[0]
+    expect(first.type === 'text' && first.text).toContain('not addressable')
     expect(svc.register).not.toHaveBeenCalled()
   })
 })

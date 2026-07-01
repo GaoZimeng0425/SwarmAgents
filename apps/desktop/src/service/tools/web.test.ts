@@ -17,8 +17,14 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => {},
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 const tool = () => webFetchSpec().build(ctx)
+
+/** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -76,7 +82,7 @@ describe('web fetch tool', () => {
       )
     )
     const res = await tool().execute('c', { url: 'https://example.com' })
-    expect(res.content[0].text).toContain('Doc Heading')
+    expect(textOf(res.content[0])).toContain('Doc Heading')
     expect((res.details as { status: number }).status).toBe(200)
   })
 
@@ -86,7 +92,7 @@ describe('web fetch tool', () => {
       vi.fn(async () => new Response('{"a":1}', { status: 200, headers: { 'content-type': 'application/json' } }))
     )
     const res = await tool().execute('c', { url: 'https://api.example.com/x' })
-    expect(res.content[0].text).toContain('"a":1')
+    expect(textOf(res.content[0])).toContain('"a":1')
   })
 
   it('returns the raw body when raw is set', async () => {
@@ -95,7 +101,7 @@ describe('web fetch tool', () => {
       vi.fn(async () => new Response('<h1>raw</h1>', { status: 200, headers: { 'content-type': 'text/html' } }))
     )
     const res = await tool().execute('c', { url: 'https://example.com', raw: true })
-    expect(res.content[0].text).toContain('<h1>raw</h1>')
+    expect(textOf(res.content[0])).toContain('<h1>raw</h1>')
   })
 
   it('surfaces a network error as a result, not a throw', async () => {
@@ -170,8 +176,8 @@ describe('web search tool', () => {
       )
     )
     const res = await searchTool({ provider: 'brave', braveKey: 'k' }).execute('c', { query: 'hello' })
-    expect(res.content[0].text).toContain('1. A')
-    expect(res.content[0].text).toContain('https://a.com')
+    expect(textOf(res.content[0])).toContain('1. A')
+    expect(textOf(res.content[0])).toContain('https://a.com')
     expect((res.details as { provider: string }).provider).toBe('brave')
   })
 
@@ -195,7 +201,7 @@ describe('web search tool', () => {
       vi.fn(async () => new Response(html, { status: 200, headers: { 'content-type': 'text/html' } }))
     )
     const res = await searchTool({ provider: 'duckduckgo' }).execute('c', { query: 'hello' })
-    expect(res.content[0].text).toContain('Example')
-    expect(res.content[0].text).toContain('https://example.com/x')
+    expect(textOf(res.content[0])).toContain('Example')
+    expect(textOf(res.content[0])).toContain('https://example.com/x')
   })
 })

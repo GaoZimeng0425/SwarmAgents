@@ -13,12 +13,18 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => {},
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 
 let dir: string
 let store: MemoryStore
 let specs: ReturnType<typeof memorySpecs>
 const tool = (name: string) => specs.find((s) => s.name === name)!.build(ctx)
+
+/** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
 
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'swarm-mem-tool-'))
@@ -45,14 +51,14 @@ describe('remember + recall', () => {
   it('remembers a fact and recalls it by query', async () => {
     await tool('remember').execute('c', { key: 'fav-editor', content: 'The user prefers the Zed editor' })
     const res = await tool('recall').execute('c', { query: 'editor' })
-    expect(res.content[0].text).toContain('Zed')
+    expect(textOf(res.content[0])).toContain('Zed')
     expect((res.details as { count: number }).count).toBe(1)
   })
 
   it('reports no matches cleanly', async () => {
     const res = await tool('recall').execute('c', { query: 'nonexistent-topic-xyz' })
     expect((res.details as { count: number }).count).toBe(0)
-    expect(res.content[0].text).toMatch(/no match/i)
+    expect(textOf(res.content[0])).toMatch(/no match/i)
   })
 
   it('rejects an empty key or content', async () => {

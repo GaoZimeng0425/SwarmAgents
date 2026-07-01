@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AcceptanceCriterion } from '@swarm/protocol'
+import type { AcceptanceCriterion, SpawnChildOptions, TaskResult } from '@swarm/protocol'
 
 import { spawnAgentSpec } from './spawn'
 
@@ -10,15 +10,27 @@ describe('spawn_sub_agent', () => {
   it('delegates to ctx.spawnChild and returns the summary', async () => {
     const spawnChild = vi.fn(async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }))
     const tool = spawnAgentSpec().build(ctx(spawnChild))
-    const res = (await tool.execute('id', { goal: 'do it' })) as { content: [{ text: string }] }
+    const res = await tool.execute('id', { goal: 'do it' })
     expect(spawnChild).toHaveBeenCalledWith('do it', undefined, undefined, undefined, undefined)
-    expect(res.content[0].text).toBe('done')
+    const first = res.content[0]
+    expect(first.type === 'text' && first.text).toBe('done')
   })
 })
 
 describe('spawn_sub_agent options', () => {
   it('passes acceptanceCriteria and verify=true through as options', async () => {
-    const spawnChild = vi.fn(async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }))
+    const spawnChild = vi.fn(
+      async (
+        _goal: string,
+        _suggestedTools?: string[],
+        _providerKey?: string,
+        _agentType?: string,
+        _options?: SpawnChildOptions
+      ): Promise<{ childTaskId: string; result: TaskResult }> => ({
+        childTaskId: 'c',
+        result: { summary: 'done', artifacts: [] },
+      })
+    )
     const tool = spawnAgentSpec().build(ctx(spawnChild))
     const criteria: AcceptanceCriterion[] = [{ id: 'c1', description: 'ships' }]
     await tool.execute('id', { goal: 'do it', agentType: 'pm', acceptanceCriteria: criteria, verify: true })
@@ -31,7 +43,18 @@ describe('spawn_sub_agent options', () => {
   })
 
   it('omits options when neither acceptanceCriteria nor verify is supplied', async () => {
-    const spawnChild = vi.fn(async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }))
+    const spawnChild = vi.fn(
+      async (
+        _goal: string,
+        _suggestedTools?: string[],
+        _providerKey?: string,
+        _agentType?: string,
+        _options?: SpawnChildOptions
+      ): Promise<{ childTaskId: string; result: TaskResult }> => ({
+        childTaskId: 'c',
+        result: { summary: 'done', artifacts: [] },
+      })
+    )
     const tool = spawnAgentSpec().build(ctx(spawnChild))
     await tool.execute('id', { goal: 'do it' })
     const args = spawnChild.mock.calls[0]

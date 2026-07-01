@@ -9,10 +9,16 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => undefined,
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 
 const tool = () => updatePlanSpec().build(ctx)
-const textOf = (r: { content: Array<{ text?: string }> }): string => r.content[0]?.text ?? ''
+const textOf = (r: { content: Array<{ type: 'text'; text: string } | { type: 'image' }> }): string => {
+  const first = r.content[0]
+  return first && first.type === 'text' ? first.text : ''
+}
 
 describe('update_plan tool', () => {
   it('is a low-risk agent tool', () => {

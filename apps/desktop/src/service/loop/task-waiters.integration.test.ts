@@ -17,16 +17,20 @@ const mkTask = (id: string, status: Task['status']): Task => ({
   assignedWorkerId: null,
   toolAllowlist: [],
   budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-  used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+  used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
   history: [],
+  attachments: [],
+  plan: [],
   result: null,
   createdAt: Date.now(),
+  startedAt: null,
+  endedAt: null,
 })
 
 describe('task waiter integration (store ↔ service ↔ deliver)', () => {
   it('a registered waiter is woken when its awaited task goes terminal', () => {
     const store = createConversationStore(tmpDb())
-    store.createSession('ses-1', { id: 'anthropic' as const, model: 'm', apiKey: 'k' })
+    store.createSession('ses-1', { id: 'anthropic' as const, apiStyle: 'anthropic', model: 'm', apiKey: 'k' })
     store.saveTask(mkTask('task-X', 'running'), 'ses-1')
 
     const deliver = vi.fn()

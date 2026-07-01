@@ -4,7 +4,7 @@ import { encodeActorState } from '../actor/state'
 
 const initialMessagesSeen: any[][] = []
 vi.mock('./agent-runner', () => ({
-  createAgentRunner: (d: any) => ({ run: async () => ({ status: 'completed', summary: '', messages: [], used: {} }) }),
+  createAgentRunner: (_d: any) => ({ run: async () => ({ status: 'completed', summary: '', messages: [], used: {} }) }),
   buildAgentSession: () => ({}),
   runResident: async (deps: any, mailbox: any, hooks: any, _idleMs: number) => {
     initialMessagesSeen.push(deps.initialMessages)

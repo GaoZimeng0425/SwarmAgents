@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import type { Task, TaskEvent } from '@swarm/protocol'
+import { emptyUsed } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createConversationStore } from './store'
@@ -23,7 +24,7 @@ describe('ConversationStore', () => {
 
   it('creates and retrieves a session', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const session = store.createSession('ses-1', provider)
     expect(session.id).toBe('ses-1')
     expect(session.status).toBe('active')
@@ -35,7 +36,7 @@ describe('ConversationStore', () => {
   })
 
   it('returns interrupted sessions on restart', () => {
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const store1 = createConversationStore(dbPath)
     store1.createSession('ses-active', provider)
     const store1b = createConversationStore(dbPath)
@@ -55,7 +56,7 @@ describe('ConversationStore', () => {
   })
 
   it('interrupts non-terminal tasks of interrupted sessions on restart, preserving terminal ones', () => {
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
       id,
       parentId: null,
@@ -65,8 +66,10 @@ describe('ConversationStore', () => {
       assignedWorkerId: null,
       toolAllowlist: [],
       budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      used: emptyUsed(),
       history: [],
+      attachments: [],
+      plan: [],
       result: null,
       createdAt: Date.now(),
       startedAt: null,
@@ -93,7 +96,7 @@ describe('ConversationStore', () => {
     // tasks slipped through the old active-only cleanup. A second restart must
     // still clean those zombies — the cleanup is global, not keyed to sessions
     // flipped active→interrupted this run.
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
       id,
       parentId: null,
@@ -103,8 +106,10 @@ describe('ConversationStore', () => {
       assignedWorkerId: null,
       toolAllowlist: [],
       budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      used: emptyUsed(),
       history: [],
+      attachments: [],
+      plan: [],
       result: null,
       createdAt: Date.now(),
       startedAt: null,
@@ -128,7 +133,7 @@ describe('ConversationStore', () => {
     // would spin "running" forever on reload. The restart cleanup must synthesize
     // a tool.result (ok=false) for each unresolved call, while leaving already
     // resolved calls untouched.
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
       id,
       parentId: null,
@@ -138,8 +143,10 @@ describe('ConversationStore', () => {
       assignedWorkerId: null,
       toolAllowlist: [],
       budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      used: emptyUsed(),
       history: [],
+      attachments: [],
+      plan: [],
       result: null,
       createdAt: Date.now(),
       startedAt: null,
@@ -192,7 +199,7 @@ describe('ConversationStore', () => {
 
   it('markTaskRunning sets running status and stamps started_at once', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-r', provider)
     store.saveTask(
       {
@@ -204,8 +211,10 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
+        attachments: [],
+        plan: [],
         result: null,
         createdAt: Date.now(),
         startedAt: null,
@@ -226,7 +235,7 @@ describe('ConversationStore', () => {
 
   it('saves and retrieves tasks', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
 
     const now = Date.now()
@@ -240,8 +249,10 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
+        attachments: [],
+        plan: [],
         result: null,
         createdAt: now,
         startedAt: null,
@@ -257,7 +268,7 @@ describe('ConversationStore', () => {
 
   it('saves and retrieves tool state', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
     store.saveToolState('ses-1', 'cookies', [{ name: 'sid', value: '123' }])
     const cookies = store.getToolState('ses-1', 'cookies')
@@ -268,7 +279,7 @@ describe('ConversationStore', () => {
 
   it('stores and updates a session title', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-t', provider)
     expect(store.getSession('ses-t')?.title).toBeNull()
     store.setSessionTitle('ses-t', 'Tidy the desktop')
@@ -278,7 +289,7 @@ describe('ConversationStore', () => {
 
   it('round-trips an agent message snapshot', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-s', provider)
     expect(store.getAgentSnapshot('ses-s')).toEqual([])
     const messages = [{ role: 'user', content: 'hi' }] as unknown as Parameters<typeof store.saveAgentSnapshot>[1]
@@ -289,7 +300,7 @@ describe('ConversationStore', () => {
 
   it('lists non-ended sessions newest-first with task counts', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-a', provider)
     store.updateSessionLastActive('ses-a')
     store.createSession('ses-b', provider)
@@ -308,8 +319,10 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
+        attachments: [],
+        plan: [],
         result: null,
         createdAt: now,
         startedAt: null,
@@ -330,7 +343,7 @@ describe('ConversationStore', () => {
 
   it('aggregates per-session token + cost usage in listSessions', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-u', provider)
     const mk = (id: string, parentId: string | null, tokens: number, usdCents: number) => ({
       id,
@@ -343,6 +356,7 @@ describe('ConversationStore', () => {
       budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
       used: { tokens, calls: 1, wallMs: 0, usdCents, cacheRead: 0, cacheWrite: 0 },
       history: [],
+      attachments: [],
       plan: [],
       result: null,
       createdAt: 1,
@@ -369,8 +383,9 @@ describe('ConversationStore', () => {
     assignedWorkerId: null,
     toolAllowlist: [] as string[],
     budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-    used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    used: emptyUsed(),
     history,
+    attachments: [],
     plan: [],
     result: null,
     createdAt: 1,
@@ -380,7 +395,7 @@ describe('ConversationStore', () => {
 
   it('appends events and reconstructs history in insertion order', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-e', provider)
     store.saveTask(taskLiteral('01HRX0000000000000000000E1'), 'ses-e')
     store.appendTaskEvent('01HRX0000000000000000000E1', { kind: 'reasoning', content: 'a', ts: 1 })
@@ -393,7 +408,7 @@ describe('ConversationStore', () => {
   })
 
   it('backfills legacy tasks.history into task_events on open, without duplicating', () => {
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const legacy: import('@swarm/protocol').TaskEvent[] = [
       { kind: 'reasoning', content: 'x', ts: 1 },
       { kind: 'error', error: { code: 'boom', message: 'nope', tier: 'fatal' }, ts: 2 },
@@ -414,7 +429,7 @@ describe('ConversationStore', () => {
 
   it('deletes task_events when its session is deleted', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-d', provider)
     store.saveTask(taskLiteral('01HRX0000000000000000000D1'), 'ses-d')
     store.appendTaskEvent('01HRX0000000000000000000D1', { kind: 'reasoning', content: 'a', ts: 1 })
@@ -425,7 +440,7 @@ describe('ConversationStore', () => {
 
   it('persists and reloads a task plan', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-p', provider)
     const now = Date.now()
     store.saveTask(
@@ -438,8 +453,9 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
+        attachments: [],
         plan: [],
         result: null,
         createdAt: now,
@@ -463,7 +479,7 @@ describe('ConversationStore', () => {
   })
 
   it('saveTaskUsage writes used back to the task row', () => {
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     const store = createConversationStore(dbPath)
     store.createSession('ses-u', provider)
     store.saveTask(
@@ -476,8 +492,10 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 100, calls: 5, wallMs: 1000, usdCents: 10 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
+        attachments: [],
+        plan: [],
         result: null,
         createdAt: 1,
         startedAt: null,
@@ -485,19 +503,19 @@ describe('ConversationStore', () => {
       },
       'ses-u'
     )
-    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 }, 200_000)
+    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7, cacheRead: 0, cacheWrite: 0 }, 200_000)
     const task = store.getSessionTasks('ses-u').find((t) => t.id === '01HRX0000000000000000000U1')
-    expect(task?.used).toEqual({ tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7 })
+    expect(task?.used).toEqual({ tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7, cacheRead: 0, cacheWrite: 0 })
     expect(task?.contextWindow).toBe(200_000)
 
     // A later call without a window must not wipe the stored one (COALESCE).
-    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1600, calls: 4, wallMs: 4300, usdCents: 8 })
+    store.saveTaskUsage('01HRX0000000000000000000U1', { tokens: 1600, calls: 4, wallMs: 4300, usdCents: 8, cacheRead: 0, cacheWrite: 0 })
     const after = store.getSessionTasks('ses-u').find((t) => t.id === '01HRX0000000000000000000U1')
     expect(after?.contextWindow).toBe(200_000)
     store.close()
   })
 
-  const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+  const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
 
   it('renames a session via setSessionTitle', () => {
     const store = createConversationStore(dbPath)
@@ -534,8 +552,10 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 100, calls: 5, wallMs: 1000, usdCents: 10 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
+        attachments: [],
+        plan: [],
         result: null,
         createdAt: 1,
         startedAt: null,
@@ -563,9 +583,10 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
         attachments: [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }],
+        plan: [],
         result: null,
         createdAt: 1,
         startedAt: null,
@@ -580,12 +601,13 @@ describe('ConversationStore', () => {
 
   it('saves, lists, touches, and deletes cron jobs', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
     store.createSession('ses-1', provider)
 
     store.saveCronJob({
       id: 'job-1',
       sessionId: 'ses-1',
+      originSessionId: 'ses-1',
       name: 'morning',
       cron: '0 9 * * *',
       goal: 'summarize inbox',
@@ -606,12 +628,13 @@ describe('ConversationStore', () => {
 
   it('reassigns a cron job to another session', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
     store.createSession('ses-old', provider)
     store.createSession(SYSTEM_SESSION_ID, provider)
     store.saveCronJob({
       id: 'job-1',
       sessionId: 'ses-old',
+      originSessionId: null,
       name: null,
       cron: '0 9 * * *',
       goal: 'g',
@@ -629,7 +652,7 @@ describe('ConversationStore', () => {
 
   it('persists and round-trips originSessionId', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
     store.createSession('ses-origin', provider)
     store.saveCronJob({
       id: 'job-1',
@@ -647,7 +670,7 @@ describe('ConversationStore', () => {
 
   it('reassign captures origin only when not already set (COALESCE)', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
     store.createSession('ses-old', provider)
     store.createSession(SYSTEM_SESSION_ID, provider)
     store.saveCronJob({
@@ -674,11 +697,12 @@ describe('ConversationStore', () => {
 
   it('cascades cron job deletion when its session is deleted', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
     store.createSession('ses-1', provider)
     store.saveCronJob({
       id: 'job-1',
       sessionId: 'ses-1',
+      originSessionId: null,
       name: null,
       cron: '* * * * *',
       goal: 'g',
@@ -721,8 +745,8 @@ describe('ConversationStore', () => {
 
   it('aggregates usage stats over the range', () => {
     const store = createConversationStore(dbPath)
-    const anthropic = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
-    const glm = { id: 'custom' as const, model: 'GLM-5.2', apiKey: 'k' }
+    const anthropic = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const glm = { id: 'custom' as const, apiStyle: 'openai' as const, model: 'GLM-5.2', apiKey: 'k' }
     store.createSession('ses-a', anthropic)
     store.createSession('ses-b', glm)
 
@@ -739,7 +763,7 @@ describe('ConversationStore', () => {
           assignedWorkerId: null,
           toolAllowlist: [],
           budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-          used: { tokens, calls: 1, wallMs: 1, usdCents },
+          used: { tokens, calls: 1, wallMs: 1, usdCents, cacheRead: 0, cacheWrite: 0 },
           history: [],
           attachments: [],
           plan: [],
@@ -798,7 +822,7 @@ describe('ConversationStore', () => {
 
   it('records, attaches, and finishes a cron run', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
 
     store.saveCronRun({
@@ -827,7 +851,7 @@ describe('ConversationStore', () => {
 
   it('lists running cron runs only', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
     store.saveCronRun({
       id: 'r-run',
@@ -857,7 +881,7 @@ describe('ConversationStore', () => {
 
   it('keeps only the latest 100 runs per job', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
     for (let i = 0; i < 105; i++) {
       store.saveCronRun({
@@ -881,11 +905,12 @@ describe('ConversationStore', () => {
 
   it('cascades cron_runs on session delete but keeps them after job removal', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
     store.saveCronJob({
       id: 'job-1',
       sessionId: 'ses-1',
+      originSessionId: null,
       name: null,
       cron: '0 0 * * *',
       goal: 'g',
@@ -913,7 +938,7 @@ describe('ConversationStore', () => {
 
   it('getTask returns a saved task or undefined', () => {
     const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
     store.createSession('ses-1', provider)
     const now = Date.now()
     store.saveTask(
@@ -926,9 +951,10 @@ describe('ConversationStore', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: emptyUsed(),
         history: [],
         attachments: [],
+        plan: [],
         result: null,
         createdAt: now,
         startedAt: null,
@@ -942,7 +968,7 @@ describe('ConversationStore', () => {
   })
 
   describe('system session', () => {
-    const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
 
     it('includes the system session in listSessions and marks it isSystem', () => {
       const store = createConversationStore(':memory:')
@@ -960,6 +986,7 @@ describe('ConversationStore', () => {
       store.saveCronJob({
         id: 'job-1',
         sessionId: SYSTEM_SESSION_ID,
+        originSessionId: null,
         name: null,
         cron: '0 0 * * *',
         goal: 'g',
@@ -1002,7 +1029,7 @@ describe('ConversationStore', () => {
     it('updates a session provider snapshot in place', () => {
       const store = createConversationStore(':memory:')
       store.createSession('ses-1', provider)
-      const next = { id: 'anthropic' as const, model: 'claude-opus-4-8', apiKey: 'k2' }
+      const next = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-opus-4-8', apiKey: 'k2' }
       store.updateSessionProvider('ses-1', next)
       expect(store.getSession('ses-1')?.providerSnapshot).toEqual(next)
       store.close()
@@ -1040,16 +1067,20 @@ describe('ConversationStore', () => {
     assignedWorkerId: null,
     toolAllowlist: [],
     budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-    used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+    used: emptyUsed(),
     history: [],
+    attachments: [],
+    plan: [],
     result: null,
     createdAt: Date.now(),
+    startedAt: null,
+    endedAt: null,
   })
 
   describe('acceptance criteria & verifications persistence', () => {
     it('round-trips criteria and verifications on a task', () => {
       const store = createConversationStore(':memory:')
-      store.createSession('s1', { id: 'anthropic' as const, model: 'm', apiKey: 'k' })
+      store.createSession('s1', { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' })
       const task = {
         id: '01HZZZZZZZZZZZZZZZZZZZZZZ01',
         parentId: null,
@@ -1106,7 +1137,7 @@ describe('ConversationStore', () => {
 
     it('fires the terminal listener only on terminal status', () => {
       const store = createConversationStore(tmpDb())
-      store.createSession('ses-1', { id: 'anthropic' as const, model: 'm', apiKey: 'k' })
+      store.createSession('ses-1', { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' })
       store.saveTask(mkTask('task-X', 'running'), 'ses-1')
       const fired: Array<[string, string]> = []
       store.setTaskTerminalListener((taskId, status) => fired.push([taskId, status]))
@@ -1133,7 +1164,7 @@ describe('ConversationStore', () => {
   describe('delegation plan persistence', () => {
     it('round-trips a delegation plan on a task', () => {
       const store = createConversationStore(dbPath)
-      const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
+      const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
       store.createSession('ses-dlp', provider)
       const task = {
         id: 'task-dlp',

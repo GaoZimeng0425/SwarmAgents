@@ -5,7 +5,7 @@ import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import type { ActorMessage } from '@swarm/protocol'
 import type { AgentDefinition } from '@swarm/protocol'
-import { allowlistForAgent } from '@swarm/protocol'
+import { allowlistForAgent, emptyUsed } from '@swarm/protocol'
 import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 import type { ProviderInjection } from '@swarm/protocol'
 import type { PermissionMode, Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@swarm/protocol'
@@ -349,11 +349,12 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       parentId: null,
       agentDefId: def.id,
       goal: `actor:${actor.address}`,
+      plan: [],
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: allowlistForAgent(def),
       budget: budgets().sub,
-      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      used: emptyUsed(),
       history: [],
       attachments: [],
       result: null,
@@ -553,12 +554,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       parentId: parentTaskId,
       agentDefId: def.id,
       goal: newGoal,
+      plan: [],
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: suggestedTools ?? allowlistForAgent(def),
       acceptanceCriteria: options?.acceptanceCriteria,
       budget: budgets().sub,
-      used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+      used: emptyUsed(),
       history: [],
       attachments: [],
       result: null,
@@ -810,12 +812,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             id: taskId,
             parentId: null,
             agentDefId: agentDef.id,
+            plan: [],
             goal,
             status: 'pending',
             assignedWorkerId: null,
             toolAllowlist,
             budget: budgets().main,
-            used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+            used: emptyUsed(),
             history: [],
             attachments,
             result: null,

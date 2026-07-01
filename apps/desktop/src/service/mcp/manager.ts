@@ -1,4 +1,5 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
+import type { ImageContent, TextContent } from '@earendil-works/pi-ai'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -23,7 +24,7 @@ export type McpClientLike = {
 
 export type McpConnector = (config: McpServerConfig) => Promise<McpClientLike>
 
-type TextOrImage = { type: 'text'; text: string } | { type: string; [k: string]: unknown }
+type TextOrImage = TextContent | ImageContent
 
 const DEFAULT_RISK: McpToolRisk = 'medium'
 
@@ -46,7 +47,7 @@ function mapContent(content: Array<Record<string, unknown>> | undefined): TextOr
   if (!content || content.length === 0) return [{ type: 'text', text: '' }]
   return content.map((item) => {
     if (item.type === 'text' && typeof item.text === 'string') return { type: 'text', text: item.text }
-    if (item.type === 'image') return item as TextOrImage
+    if (item.type === 'image') return item as unknown as ImageContent
     return { type: 'text', text: JSON.stringify(item) }
   })
 }

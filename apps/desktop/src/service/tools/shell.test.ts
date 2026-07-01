@@ -9,9 +9,15 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => {},
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 
 const tool = () => shellSpec().build(ctx)
+
+/** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
 
 describe('isDangerousCommand', () => {
   it('flags catastrophic commands', () => {
@@ -38,7 +44,7 @@ describe('isDangerousCommand', () => {
 describe('run_shell tool', () => {
   it('captures stdout and exit 0', async () => {
     const res = await tool().execute('c1', { command: 'echo hi' })
-    expect(res.content[0].text).toContain('hi')
+    expect(textOf(res.content[0])).toContain('hi')
     expect((res.details as { exitCode: number }).exitCode).toBe(0)
   })
 
@@ -50,13 +56,13 @@ describe('run_shell tool', () => {
   it('surfaces a bad cwd as an error result, not a throw', async () => {
     const res = await tool().execute('c3', { command: 'echo hi', cwd: '/nonexistent/path/xyz' })
     expect((res.details as { exitCode: number | null }).exitCode).toBeNull()
-    expect(res.content[0].text).toMatch(/spawn error/i)
+    expect(textOf(res.content[0])).toMatch(/spawn error/i)
   })
 
   it('truncates oversized output', async () => {
     const res = await tool().execute('c4', { command: "head -c 20000 /dev/zero | tr '\\0' a" })
     expect((res.details as { truncated: boolean }).truncated).toBe(true)
-    expect(res.content[0].text).toContain('[output truncated]')
+    expect(textOf(res.content[0])).toContain('[output truncated]')
   })
 
   it('kills on timeout', async () => {

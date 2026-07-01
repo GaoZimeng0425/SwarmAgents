@@ -10,7 +10,9 @@ function storeWith(skills: Skill[]): SkillStore {
     get: (name) => skills.find((s) => s.name === name),
     reload: vi.fn(),
     save: vi.fn(),
+    importFolder: vi.fn(),
     remove: vi.fn(),
+    watch: vi.fn(() => () => {}),
   }
 }
 

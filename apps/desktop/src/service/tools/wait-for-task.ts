@@ -4,7 +4,7 @@ import { Type } from '@earendil-works/pi-ai'
 import type { TaskWaiterService } from '../loop/task-waiters'
 import type { ToolRunContext, ToolSpec } from './registry'
 
-type Result = { content: [{ type: 'text'; text: string }]; details?: Record<string, unknown> }
+type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
 const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
   content: [{ type: 'text', text }],
   details,

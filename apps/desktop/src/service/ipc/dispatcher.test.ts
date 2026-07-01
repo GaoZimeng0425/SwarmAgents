@@ -22,10 +22,21 @@ const mcpDeps = () => ({
   setBudgetConfig: vi.fn(),
   listSkills: vi.fn().mockReturnValue([]),
   listAgents: vi.fn().mockReturnValue([{ id: 'ceo' }]),
+  saveAgent: vi.fn().mockReturnValue({ ok: true }),
+  deleteAgent: vi.fn().mockReturnValue({ ok: true }),
+  restoreDefaultAgents: vi.fn().mockReturnValue({ ok: true }),
   saveSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   deleteSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
   importSkill: vi.fn().mockReturnValue({ ok: true, skills: [] }),
+  getToolToggles: vi.fn().mockReturnValue({}),
+  setSkillEnabled: vi.fn().mockReturnValue({}),
+  setToolGroupEnabled: vi.fn().mockReturnValue({}),
+  listToolGroups: vi.fn().mockReturnValue([]),
   listMemory: vi.fn().mockReturnValue([]),
+  listCronJobsForSession: vi.fn().mockReturnValue([]),
+  listAllCronJobs: vi.fn().mockReturnValue([]),
+  listAllCronRuns: vi.fn().mockReturnValue([]),
+  cancelCronJob: vi.fn(),
 })
 
 describe('dispatcher', () => {

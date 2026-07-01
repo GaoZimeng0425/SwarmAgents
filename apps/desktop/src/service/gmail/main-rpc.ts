@@ -21,7 +21,8 @@ export function createMainRpc(deps: MainRpcDeps): MainRpc {
   deps.subscribe((message) => {
     const msg = message as { kind?: string; id?: number; ok?: boolean; result?: unknown; error?: string }
     if (msg.kind !== 'mainResponse') return
-    const p = msg.id != null ? pending.get(msg.id) : undefined
+    if (msg.id == null) return
+    const p = pending.get(msg.id)
     if (!p) return
     pending.delete(msg.id)
     if (msg.ok) p.resolve(msg.result)

@@ -50,7 +50,7 @@ vi.mock('@earendil-works/pi-agent-core', () => {
 import type { AgentRunnerDeps } from './agent-runner'
 import { buildAgentSession, isPermanentModelFailure } from './agent-runner'
 
-const injection = (model: string) => ({ id: model, model, apiStyle: 'anthropic', apiKey: 'k' }) as never
+const injection = (model: string) => ({ id: model, model, apiStyle: 'anthropic' as const, apiKey: 'k' })
 
 const deps = (
   emit: (event: string, data: unknown) => void,

@@ -9,6 +9,9 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => undefined,
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 const tool = () => currentTimeSpec().build(ctx)
 
@@ -19,7 +22,8 @@ describe('current_time tool', () => {
     expect(details.iso).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/)
     expect(typeof details.epochMs).toBe('number')
     expect(details.timezone).toBeTruthy()
-    expect(res.content[0].text).toContain('UTC (ISO 8601):')
+    const first = res.content[0]
+    expect(first.type === 'text' && first.text).toContain('UTC (ISO 8601):')
   })
 
   it('honors an explicit IANA timezone', async () => {

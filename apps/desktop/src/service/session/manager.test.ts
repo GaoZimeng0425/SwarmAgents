@@ -1,11 +1,14 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
+import { type AgentDefinition, type ProviderInjection, type Task, emptyUsed } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
 import { createBroadcaster } from '../ipc/broadcaster'
+import type { AgentRunner } from './agent-runner'
 import { createSessionManager } from './manager'
 
 vi.mock('./agent-runner', () => ({
@@ -15,6 +18,19 @@ vi.mock('./agent-runner', () => ({
 import { createAgentRunner } from './agent-runner'
 
 const mockCreate = vi.mocked(createAgentRunner)
+
+// Awaited return type of AgentRunner.run(). Stubs use `runnerReturn(...)` to
+// satisfy the full contract (status + summary + messages + 6-field `used`).
+type RunReturn = Awaited<ReturnType<AgentRunner['run']>>
+const runnerReturn = (
+  status: 'completed' | 'failed' | 'cancelled',
+  summary = '',
+  messages: RunReturn['messages'] = []
+): RunReturn => ({ status, summary, messages, used: emptyUsed() })
+
+// Build an AgentRunner stub from a run() body. Lets mockImplementation
+// callbacks stay loosely-typed while satisfying the AgentRunner contract.
+const runner = (run: AgentRunner['run']): AgentRunner => ({ run })
 
 const tmpDb = () => join(tmpdir(), `swarm-ses-test-${Date.now()}.db`)
 
@@ -151,13 +167,15 @@ describe('SessionManager', () => {
   it('limits concurrent runners to maxConcurrent', async () => {
     // Goals submitted to DIFFERENT sessions run concurrently (cross-session),
     // bounded by the semaphore. Goals in the same session are serialized.
-    const resolvers: Array<(v: { status: 'completed' | 'failed'; summary: string }) => void> = []
-    mockCreate.mockImplementation(() => ({
-      run: () =>
-        new Promise<{ status: 'completed' | 'failed'; summary: string }>((resolve) => {
-          resolvers.push(resolve)
-        }),
-    }))
+    const resolvers: Array<(v: RunReturn) => void> = []
+    mockCreate.mockImplementation(() =>
+      runner(
+        () =>
+          new Promise<RunReturn>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -183,14 +201,14 @@ describe('SessionManager', () => {
     expect(resolvers).toHaveLength(2)
 
     // Release one slot — the queued runner should start
-    resolvers[0]({ status: 'completed', summary: '' })
+    resolvers[0](runnerReturn('completed', ''))
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
     expect(resolvers).toHaveLength(3)
 
-    resolvers[1]({ status: 'completed', summary: '' })
-    resolvers[2]({ status: 'completed', summary: '' })
+    resolvers[1](runnerReturn('completed', ''))
+    resolvers[2](runnerReturn('completed', ''))
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
@@ -200,13 +218,15 @@ describe('SessionManager', () => {
   it('semaphore never exceeds maxConcurrent under contended release+acquire', async () => {
     // Goals submitted to DIFFERENT sessions run concurrently (cross-session),
     // bounded by the semaphore. This exercises the waiter-transfer path.
-    const resolvers: Array<(v: { status: 'completed' | 'failed'; summary: string }) => void> = []
-    mockCreate.mockImplementation(() => ({
-      run: () =>
-        new Promise<{ status: 'completed' | 'failed'; summary: string }>((resolve) => {
-          resolvers.push(resolve)
-        }),
-    }))
+    const resolvers: Array<(v: RunReturn) => void> = []
+    mockCreate.mockImplementation(() =>
+      runner(
+        () =>
+          new Promise<RunReturn>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -236,7 +256,7 @@ describe('SessionManager', () => {
     // submit g4. Under the buggy semaphore, g4's acquireSlot fast-path sees
     // activeRunners=1, increments to 2. Then M3 (waiter w3) ALSO increments to 3.
     // Total resolvers pushed by g3 + g4 -> 2 new = 4 resolvers, exceeding cap 2.
-    resolvers[0]({ status: 'completed', summary: '' })
+    resolvers[0](runnerReturn('completed', ''))
     await Promise.resolve() // M1 fires here (release + queue M3)
 
     // Now we're in M2 (test continuation). Synchronously submit g4 on a new session
@@ -256,9 +276,9 @@ describe('SessionManager', () => {
     expect(resolvers.length).toBeLessThanOrEqual(3)
 
     // Drain remaining runners.
-    resolvers[1]({ status: 'completed', summary: '' })
-    resolvers[2]?.({ status: 'completed', summary: '' })
-    resolvers[3]?.({ status: 'completed', summary: '' })
+    resolvers[1](runnerReturn('completed', ''))
+    resolvers[2]?.(runnerReturn('completed', ''))
+    resolvers[3]?.(runnerReturn('completed', ''))
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
@@ -277,11 +297,11 @@ describe('SessionManager', () => {
       if (callCount === 1) {
         // Parent runner: capture spawnChild dep, then resolve
         capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
-        return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'parent done' }) }
+        return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'parent done')))
       }
       // Child runner: capture its verify-round budget; resolves with a non-empty summary
       childMaxVerifyRounds = deps.maxVerifyRounds
-      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'child result text' }) }
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'child result text')))
     })
 
     const store = createConversationStore(dbPath)
@@ -325,9 +345,9 @@ describe('SessionManager', () => {
       seenBudgets.push(deps.task.budget)
       if (callCount === 1) {
         capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
-        return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'parent done' }) }
+        return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'parent done')))
       }
-      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: 'child done' }) }
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'child done')))
     })
 
     const store = createConversationStore(dbPath)
@@ -367,7 +387,7 @@ describe('SessionManager', () => {
     mockCreate.mockImplementation((deps) => {
       getPermissionMode = deps.getPermissionMode
       // A never-resolving run keeps the turn in-flight while we toggle the gate.
-      return { run: () => new Promise<{ status: 'completed'; summary: string }>(() => {}) }
+      return runner(() => new Promise<RunReturn>(() => {}))
     })
 
     const store = createConversationStore(dbPath)
@@ -402,15 +422,15 @@ describe('SessionManager', () => {
           providerKey?: string
         ) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>)
       | null = null
-    let childProvider: { id: string; model: string; apiKey: string } | null = null
+    let childProvider = null as ProviderInjection | null
 
     mockCreate.mockImplementationOnce((deps) => {
       capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
-      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
     mockCreate.mockImplementationOnce((deps) => {
-      childProvider = deps.provider as typeof childProvider
-      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+      childProvider = deps.provider
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
 
     const store = createConversationStore(dbPath)
@@ -465,15 +485,15 @@ describe('SessionManager', () => {
           providerKey?: string
         ) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>)
       | null = null
-    let childProvider: { id: string; model: string; apiKey: string } | null = null
+    let childProvider = null as ProviderInjection | null
 
     mockCreate.mockImplementationOnce((deps) => {
       capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
-      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
     mockCreate.mockImplementationOnce((deps) => {
-      childProvider = deps.provider as typeof childProvider
-      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+      childProvider = deps.provider
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
 
     const store = createConversationStore(dbPath)
@@ -506,17 +526,17 @@ describe('SessionManager', () => {
       removeClient: () => undefined,
     } as never
 
-    mockCreate.mockImplementation((deps: { task: { id: string }; emit: (n: string, d: unknown) => void }) => ({
-      run: async () => {
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
         deps.emit('task.progress', {
           taskId: deps.task.id,
           event: { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 },
           ts: 1,
         })
         deps.emit('task.complete', { taskId: deps.task.id, result: { summary: 'hi', artifacts: [] }, ts: 2 })
-        return { status: 'completed' as const, summary: 'hi', messages: [] }
-      },
-    }))
+        return runnerReturn('completed', 'hi')
+      })
+    )
 
     const store = createConversationStore(dbPath)
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
@@ -543,31 +563,33 @@ describe('SessionManager', () => {
     const seeds: unknown[] = []
     let resolveFirst: (() => void) | null = null
     let firstStarted = false
-    mockCreate.mockImplementation(
-      (deps: { initialMessages: unknown; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-        run: async () => {
-          seeds.push(deps.initialMessages)
-          if (!firstStarted) {
-            firstStarted = true
-            await new Promise<void>((r) => {
-              resolveFirst = r
-            })
-            deps.saveSnapshot?.([{ role: 'assistant', content: 'a' }], {
-              tokens: 0,
-              calls: 0,
-              wallMs: 0,
-              usdCents: 0,
-            })
-            return { status: 'completed' as const, summary: 'a' }
-          }
-          deps.saveSnapshot?.([{ role: 'assistant', content: 'b' }], {
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        seeds.push(deps.initialMessages)
+        if (!firstStarted) {
+          firstStarted = true
+          await new Promise<void>((r) => {
+            resolveFirst = r
+          })
+          deps.saveSnapshot?.([{ role: 'assistant', content: [{ type: 'text', text: 'a' }] }] as AgentMessage[], {
             tokens: 0,
             calls: 0,
             wallMs: 0,
             usdCents: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
           })
-          return { status: 'completed' as const, summary: 'b' }
-        },
+          return runnerReturn('completed', 'a')
+        }
+        deps.saveSnapshot?.([{ role: 'assistant', content: [{ type: 'text', text: 'b' }] }] as AgentMessage[], {
+          tokens: 0,
+          calls: 0,
+          wallMs: 0,
+          usdCents: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+        })
+        return runnerReturn('completed', 'b')
       })
     )
 
@@ -594,15 +616,15 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(seeds).toHaveLength(2)
-    expect(seeds[1]).toEqual([{ role: 'assistant', content: 'a' }])
-    expect(store.getAgentSnapshot(sessionId)).toEqual([{ role: 'assistant', content: 'b' }])
+    expect(seeds[1]).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'a' }] }])
+    expect(store.getAgentSnapshot(sessionId)).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'b' }] }])
     store.close()
   })
 
   it('sets the session title from the first goal', async () => {
-    mockCreate.mockImplementation(() => ({
-      run: async () => ({ status: 'completed' as const, summary: '', messages: [] }),
-    }))
+    mockCreate.mockImplementation(() =>
+      runner(async () => runnerReturn('completed', ''))
+    )
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
@@ -623,12 +645,18 @@ describe('SessionManager', () => {
     // does. Without this emit the active turn stays 'pending' and is misrendered
     // as a queued card. pump must emit it when it starts a turn.
     let resolveA: (() => void) | null = null
-    mockCreate.mockImplementation(() => ({
-      run: () =>
-        new Promise<{ status: 'completed'; summary: string }>((resolve) => {
-          resolveA = () => resolve({ status: 'completed', summary: '' })
-        }),
-    }))
+    const resolveANow = (): void => {
+      const fn = resolveA as (() => void) | null
+      if (fn) fn()
+    }
+    mockCreate.mockImplementation(() =>
+      runner(
+        () =>
+          new Promise<RunReturn>((resolve) => {
+            resolveA = () => resolve(runnerReturn('completed', ''))
+          })
+      )
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -641,16 +669,16 @@ describe('SessionManager', () => {
 
     expect(broadcastSpy).toHaveBeenCalledWith('task.dispatched', expect.objectContaining({ sessionId, taskId }))
 
-    resolveA?.()
+    resolveANow()
     await new Promise((r) => setTimeout(r, 0))
     store.close()
   })
 
   it('cancelTask aborts the running task signal', async () => {
     let capturedSignal: AbortSignal | undefined
-    mockCreate.mockImplementation((deps: { signal?: AbortSignal }) => {
+    mockCreate.mockImplementation((deps) => {
       capturedSignal = deps.signal
-      return { run: () => new Promise<never>(() => {}) } // stays running
+      return runner(() => new Promise<RunReturn>(() => {})) // stays running
     })
 
     const store = createConversationStore(dbPath)
@@ -675,12 +703,12 @@ describe('SessionManager', () => {
   })
 
   it('persists the used returned by the runner to the task row', async () => {
-    mockCreate.mockImplementation((deps: { saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-      run: async () => {
-        deps.saveSnapshot?.([], { tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6 })
-        return { status: 'completed' as const, summary: '' }
-      },
-    }))
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        deps.saveSnapshot?.([], { tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6, cacheRead: 0, cacheWrite: 0 })
+        return runnerReturn('completed', '')
+      })
+    )
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
@@ -697,7 +725,7 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     const task = store.getSessionTasks(sessionId).find((t) => t.id === taskId)
-    expect(task?.used).toEqual({ tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6 })
+    expect(task?.used).toEqual({ tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6, cacheRead: 0, cacheWrite: 0 })
     store.close()
   })
 
@@ -729,18 +757,16 @@ describe('SessionManager', () => {
   it('cancelTask drops a queued task so it never runs and marks it cancelled', async () => {
     const ran: string[] = []
     let resolveA: (() => void) | null = null
-    mockCreate.mockImplementation(
-      (deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-        run: async () => {
-          ran.push(deps.task.goal)
-          if (deps.task.goal === 'A') {
-            await new Promise<void>((r) => {
-              resolveA = r
-            })
-          }
-          deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
-          return { status: 'completed' as const, summary: '' }
-        },
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        ran.push(deps.task.goal)
+        if (deps.task.goal === 'A') {
+          await new Promise<void>((r) => {
+            resolveA = r
+          })
+        }
+        deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 })
+        return runnerReturn('completed', '')
       })
     )
 
@@ -794,8 +820,10 @@ describe('SessionManager', () => {
         assignedWorkerId: null,
         toolAllowlist: [],
         budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
+        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
         history: [],
+        attachments: [],
+        plan: [],
         result: null,
         createdAt: Date.now(),
         startedAt: null,
@@ -839,15 +867,11 @@ describe('SessionManager', () => {
   })
 
   it('stamps composer options on the task and applies the plan read-only allowlist', async () => {
-    let capturedTask: {
-      cwd?: string
-      permissionMode?: string
-      executionMode?: string
-      toolAllowlist: string[]
-    } | null = null
-    mockCreate.mockImplementation((deps: { task: typeof capturedTask }) => {
+    // Capture the full Task; assert the composer-stamped fields below.
+    let capturedTask = null as Task | null
+    mockCreate.mockImplementation((deps) => {
       capturedTask = deps.task
-      return { run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }) }
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
 
     const store = createConversationStore(dbPath)
@@ -881,9 +905,9 @@ describe('SessionManager', () => {
   })
 
   it('lists sessions and returns a session tasks via the manager', () => {
-    mockCreate.mockImplementation(() => ({
-      run: async () => ({ status: 'completed' as const, summary: '', messages: [] }),
-    }))
+    mockCreate.mockImplementation(() =>
+      runner(async () => runnerReturn('completed', ''))
+    )
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
@@ -914,7 +938,14 @@ describe('SessionManager', () => {
       maxIterations: 25,
       model: undefined,
     }
-    const agentStore = { get: (id: string) => (id === 'researcher' ? customDef : undefined), list: () => [customDef] }
+    const agentStore = {
+      get: (id: string) => (id === 'researcher' ? customDef : undefined),
+      list: () => [customDef],
+      reload: () => undefined,
+      save: () => ({ ok: true as const, agents: [] as AgentDefinition[] }),
+      remove: () => ({ ok: true as const, agents: [] as AgentDefinition[] }),
+      watch: () => () => undefined,
+    }
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -944,15 +975,10 @@ describe('SessionManager', () => {
   it('interruptWith cancels the running task and runs the promoted one before the rest', async () => {
     const ran: string[] = []
     const seeds: Record<string, unknown> = {}
-    mockCreate.mockImplementation(
-      (deps: {
-        task: { goal: string }
-        signal?: AbortSignal
-        initialMessages?: unknown
-        saveSnapshot?: (m: unknown, u: unknown) => void
-      }) => ({
-        run: () =>
-          new Promise<{ status: 'completed' | 'cancelled'; summary: string }>((resolve) => {
+    mockCreate.mockImplementation((deps) =>
+      runner(
+        () =>
+          new Promise<RunReturn>((resolve) => {
             ran.push(deps.task.goal)
             seeds[deps.task.goal] = deps.initialMessages
             if (deps.task.goal === 'A') {
@@ -960,20 +986,22 @@ describe('SessionManager', () => {
               // partial transcript via saveSnapshot before resolving cancelled, so
               // the promoted turn must seed from that partial output.
               deps.signal?.addEventListener('abort', () => {
-                deps.saveSnapshot?.([{ role: 'assistant', content: 'partial-A' }], {
+                deps.saveSnapshot?.([{ role: 'assistant', content: [{ type: 'text', text: 'partial-A' }] }] as AgentMessage[], {
                   tokens: 0,
                   calls: 0,
                   wallMs: 0,
                   usdCents: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
                 })
-                resolve({ status: 'cancelled', summary: '' })
+                resolve(runnerReturn('cancelled', ''))
               })
               return
             }
-            deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
-            resolve({ status: 'completed', summary: '' })
-          }),
-      })
+            deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 })
+            resolve(runnerReturn('completed', ''))
+          })
+      )
     )
 
     const store = createConversationStore(dbPath)
@@ -992,7 +1020,7 @@ describe('SessionManager', () => {
 
     expect(ran).toEqual(['A', 'C', 'B'])
     // The promoted turn C seeds from the partial output A saved on abort.
-    expect(seeds.C).toEqual([{ role: 'assistant', content: 'partial-A' }])
+    expect(seeds.C).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'partial-A' }] }])
     store.close()
   })
 
@@ -1002,13 +1030,11 @@ describe('SessionManager', () => {
     // submitGoal always pumps, so we reach an idle-with-pending state via the
     // test-only enqueue seam, then promote C ahead of B and assert C runs first.
     const ran: string[] = []
-    mockCreate.mockImplementation(
-      (deps: { task: { goal: string }; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-        run: async () => {
-          ran.push(deps.task.goal)
-          deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
-          return { status: 'completed' as const, summary: '' }
-        },
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        ran.push(deps.task.goal)
+        deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 })
+        return runnerReturn('completed', '')
       })
     )
 
@@ -1039,20 +1065,20 @@ describe('SessionManager', () => {
     // handle must be registered BEFORE that await, or a cancel issued during the
     // slot wait finds the turn nowhere and silently no-ops.
     const sawAbortedAtEntry: Record<string, boolean> = {}
-    mockCreate.mockImplementation(
-      (deps: { task: { goal: string }; signal?: AbortSignal; saveSnapshot?: (m: unknown, u: unknown) => void }) => ({
-        run: () =>
-          new Promise<{ status: 'completed' | 'cancelled'; summary: string }>((resolve) => {
+    mockCreate.mockImplementation((deps) =>
+      runner(
+        () =>
+          new Promise<RunReturn>((resolve) => {
             // Record whether the signal was already aborted when run() started.
             sawAbortedAtEntry[deps.task.goal] = deps.signal?.aborted ?? false
             if (deps.signal?.aborted) {
-              resolve({ status: 'cancelled', summary: '' })
+              resolve(runnerReturn('cancelled', ''))
               return
             }
             // A holds the single slot until it is itself aborted.
-            deps.signal?.addEventListener('abort', () => resolve({ status: 'cancelled', summary: '' }))
-          }),
-      })
+            deps.signal?.addEventListener('abort', () => resolve(runnerReturn('cancelled', '')))
+          })
+      )
     )
 
     const store = createConversationStore(dbPath)
@@ -1095,7 +1121,14 @@ describe('SessionManager', () => {
       run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }),
     }))
 
-    const agentStore = { get: (_id: string) => undefined, list: () => [] }
+    const agentStore = {
+      get: (_id: string) => undefined,
+      list: () => [],
+      reload: () => undefined,
+      save: () => ({ ok: true as const, agents: [] as AgentDefinition[] }),
+      remove: () => ({ ok: true as const, agents: [] as AgentDefinition[] }),
+      watch: () => () => undefined,
+    }
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -1127,9 +1160,9 @@ describe('SessionManager', () => {
     // it from the mock and call it directly to exercise the two new branches without
     // needing a real runner loop. This mirrors the task.plan/saveTaskPlan pattern.
     let capturedEmit: ((event: string, data: unknown) => void) | null = null
-    mockCreate.mockImplementation((deps: { emit: (event: string, data: unknown) => void }) => {
+    mockCreate.mockImplementation((deps) => {
       capturedEmit = deps.emit
-      return { run: () => new Promise<never>(() => {}) }
+      return runner(() => new Promise<RunReturn>(() => {}))
     })
 
     const store = createConversationStore(dbPath)
@@ -1171,9 +1204,9 @@ describe('SessionManager', () => {
 
   it('persists task.delegation_plan emits via the emit handler', async () => {
     let capturedEmit: ((event: string, data: unknown) => void) | null = null
-    mockCreate.mockImplementation((deps: { emit: (event: string, data: unknown) => void }) => {
+    mockCreate.mockImplementation((deps) => {
       capturedEmit = deps.emit
-      return { run: () => new Promise<never>(() => {}) }
+      return runner(() => new Promise<RunReturn>(() => {}))
     })
 
     const store = createConversationStore(dbPath)
@@ -1202,12 +1235,12 @@ describe('SessionManager', () => {
 
   it('continues the most-recent root task on an idle follow-up instead of creating a new one', async () => {
     const goals: string[] = []
-    mockCreate.mockImplementation((deps: { task: { id: string; goal: string } }) => ({
-      run: async () => {
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
         goals.push(deps.task.goal)
-        return { status: 'completed' as const, summary: 'ok', messages: [], used: {} }
-      },
-    }))
+        return runnerReturn('completed', 'ok')
+      })
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -1236,18 +1269,22 @@ describe('SessionManager', () => {
 
   it('queues a distinct task when a top-level turn is already running', async () => {
     let releaseFirst: (() => void) | null = null
+    const releaseFirstNow = (): void => {
+      const fn = releaseFirst as (() => void) | null
+      if (fn) fn()
+    }
     let firstStarted = false
-    mockCreate.mockImplementation(() => ({
-      run: async () => {
+    mockCreate.mockImplementation(() =>
+      runner(async () => {
         if (!firstStarted) {
           firstStarted = true
           await new Promise<void>((r) => {
             releaseFirst = r
           })
         }
-        return { status: 'completed' as const, summary: 'ok', messages: [], used: {} }
-      },
-    }))
+        return runnerReturn('completed', 'ok')
+      })
+    )
 
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -1263,7 +1300,7 @@ describe('SessionManager', () => {
     expect(second.taskId).not.toBe(first.taskId)
     expect(store.getSessionTasks(sessionId).filter((t) => t.parentId === null)).toHaveLength(2)
 
-    releaseFirst?.()
+    releaseFirstNow()
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
     store.close()

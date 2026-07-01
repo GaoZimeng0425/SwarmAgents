@@ -2,7 +2,6 @@ import { homedir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 
 import type { CronScheduler } from '../cron/scheduler'
-import type { TaskWaiterService } from '../loop/task-waiters'
 import type { MemoryStore } from '../memory/store'
 import { registerBuiltinTools } from './builtins'
 import { createToolRegistry, type ToolRunContext } from './registry'
@@ -10,6 +9,7 @@ import { createToolRegistry, type ToolRunContext } from './registry'
 const fakeMemoryStore: MemoryStore = {
   store: () => undefined,
   recall: () => [],
+  list: () => [],
   forget: () => false,
   close: () => undefined,
 }
@@ -22,6 +22,7 @@ const ctx: ToolRunContext = {
   requestPermission: async () => 'grant',
   sendMessage: async () => {},
   sendAndWait: async () => '',
+  findPeers: () => [],
 }
 
 describe('registerBuiltinTools', () => {
@@ -135,6 +136,9 @@ const fakeScheduler = {
   add: () => ({ id: 'x', nextRun: 0 }),
   remove: () => true,
   listForSession: () => [],
+  listAll: () => [],
+  latestRunForJob: () => null,
+  runsForJob: () => [],
   start: () => undefined,
   runJobNow: () => undefined,
   dispose: () => undefined,

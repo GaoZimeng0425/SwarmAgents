@@ -73,7 +73,7 @@ describe('buildAgentSession', () => {
     await s.promptOnce('second')
     // Both prompts went to the SAME agent; its message history holds both turns.
     expect(prompts).toEqual(['first', 'second'])
-    expect(s.agent.state.messages.map((m) => m.content)).toEqual(['first', 'ack:first', 'second', 'ack:second'])
+    expect(s.agent.state.messages.map((m) => ('content' in m ? m.content : ''))).toEqual(['first', 'ack:first', 'second', 'ack:second'])
   })
 
   it('exposes contextWindow and a getContextTokens snapshot', () => {

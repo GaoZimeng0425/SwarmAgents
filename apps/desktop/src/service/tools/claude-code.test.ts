@@ -24,6 +24,9 @@ function fakeManager(over: Partial<ClaudeCodeManager> = {}): ClaudeCodeManager {
 
 const ctx = { cwd: '/work' } as unknown as ToolRunContext
 
+/** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
+
 function toolByName(manager: ClaudeCodeManager, name: string) {
   const spec = claudeCodeSpecs(manager).find((s) => s.name === name)
   if (!spec) throw new Error(`no spec ${name}`)
@@ -56,7 +59,7 @@ describe('cc_* tools', () => {
       expect.objectContaining({ prompt: 'do it', cwd: '/work', ccSessionId: expect.any(String) })
     )
     expect(res.details?.handle).toEqual(expect.any(String))
-    expect(res.content[0].text).toContain('echo:hi')
+    expect(textOf(res.content[0])).toContain('echo:hi')
   })
 
   it('cc_send forwards the handle and message', async () => {
@@ -112,9 +115,9 @@ describe('cc_* tools', () => {
     })
     const tool = toolByName(manager, 'cc_observe')
     const res = await tool.execute('t1', { handle: 'cc1' })
-    expect(res.content[0].text).toContain('needs_approval')
-    expect(res.content[0].text).toContain('req-9')
-    expect(res.content[0].text).toContain('cc_approve')
+    expect(textOf(res.content[0])).toContain('needs_approval')
+    expect(textOf(res.content[0])).toContain('req-9')
+    expect(textOf(res.content[0])).toContain('cc_approve')
   })
 
   it('cc_stop reports completed status', async () => {
@@ -122,6 +125,6 @@ describe('cc_* tools', () => {
     const tool = toolByName(manager, 'cc_stop')
     const res = await tool.execute('t1', { handle: 'cc1' })
     expect(manager.stop).toHaveBeenCalledWith('cc1')
-    expect(res.content[0].text).toContain('status: completed')
+    expect(textOf(res.content[0])).toContain('status: completed')
   })
 })

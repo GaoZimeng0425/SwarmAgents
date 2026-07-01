@@ -235,7 +235,7 @@ function userMessage(text: string): CCUserMessage {
 function normalize(raw: CCRawMessage): CCEvent[] {
   switch (raw.type) {
     case 'system':
-      return raw.subtype === 'init' ? [{ kind: 'system', text: 'session initialized' }] : []
+      return 'subtype' in raw && raw.subtype === 'init' ? [{ kind: 'system', text: 'session initialized' }] : []
     case 'assistant': {
       const blocks = (raw as { message?: { content?: CCContentBlock[] } }).message?.content ?? []
       const out: CCEvent[] = []

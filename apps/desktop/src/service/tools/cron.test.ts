@@ -10,16 +10,20 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => undefined,
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 
 function fakeScheduler(): CronScheduler {
   return {
     add: vi.fn(() => ({ id: 'job-1', nextRun: 1_000_000 })),
     remove: vi.fn(() => true),
-    listForSession: vi.fn(() => [
+    listForSession: vi.fn((_sessionId: string) => [
       {
         id: 'job-1',
         sessionId: 'ses-1',
+        originSessionId: 'ses-1',
         name: 'nightly',
         cron: '0 0 * * *',
         goal: 'g',
@@ -32,6 +36,7 @@ function fakeScheduler(): CronScheduler {
       {
         id: 'job-1',
         sessionId: 'other-session',
+        originSessionId: 'ses-1',
         name: 'nightly',
         cron: '0 0 * * *',
         goal: 'g',

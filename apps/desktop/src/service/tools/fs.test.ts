@@ -12,10 +12,16 @@ const ctx: ToolRunContext = {
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
   send: () => undefined,
   requestPermission: async () => 'grant',
+  sendMessage: async () => {},
+  sendAndWait: async () => '',
+  findPeers: () => [],
 }
 
 const specs = fsSpecs()
 const tool = (name: string) => specs.find((s) => s.name === name)!.build(ctx)
+
+/** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
 
 let dir: string
 beforeAll(() => {
@@ -71,24 +77,24 @@ describe('read_file', () => {
     const p = join(dir, 'three.txt')
     writeFileSync(p, 'alpha\nbeta\ngamma')
     const res = await tool('read_file').execute('c', { path: p })
-    expect(res.content[0].text).toContain('1\talpha')
-    expect(res.content[0].text).toContain('3\tgamma')
+    expect(textOf(res.content[0])).toContain('1\talpha')
+    expect(textOf(res.content[0])).toContain('3\tgamma')
   })
 
   it('honours offset and limit (1-based lines)', async () => {
     const p = join(dir, 'five.txt')
     writeFileSync(p, 'a\nb\nc\nd\ne')
     const res = await tool('read_file').execute('c', { path: p, offset: 2, limit: 2 })
-    expect(res.content[0].text).toContain('2\tb')
-    expect(res.content[0].text).toContain('3\tc')
-    expect(res.content[0].text).not.toContain('1\ta')
-    expect(res.content[0].text).not.toContain('4\td')
+    expect(textOf(res.content[0])).toContain('2\tb')
+    expect(textOf(res.content[0])).toContain('3\tc')
+    expect(textOf(res.content[0])).not.toContain('1\ta')
+    expect(textOf(res.content[0])).not.toContain('4\td')
   })
 
   it('reports a missing file as an error result, not a throw', async () => {
     const res = await tool('read_file').execute('c', { path: join(dir, 'nope.txt') })
     expect((res.details as { error?: string }).error).toBeTruthy()
-    expect(res.content[0].text).toMatch(/error/i)
+    expect(textOf(res.content[0])).toMatch(/error/i)
   })
 
   it('resolves a relative path against the working directory', async () => {
@@ -98,7 +104,7 @@ describe('read_file', () => {
       .build({ ...ctx, cwd: dir })
     const res = await t.execute('c', { path: 'rel-read.txt' })
     expect((res.details as { error?: string }).error).toBeFalsy()
-    expect(res.content[0].text).toContain('1\thi')
+    expect(textOf(res.content[0])).toContain('1\thi')
   })
 })
 
@@ -194,15 +200,15 @@ describe('glob', () => {
     const res = await tool('glob').execute('c', { pattern: '**/*.ts', path: gdir })
     const det = res.details as { count: number }
     expect(det.count).toBe(2)
-    expect(res.content[0].text).toContain(join(gdir, 'a.ts'))
-    expect(res.content[0].text).toContain(join(gdir, 'sub', 'c.ts'))
-    expect(res.content[0].text).not.toContain('b.md')
+    expect(textOf(res.content[0])).toContain(join(gdir, 'a.ts'))
+    expect(textOf(res.content[0])).toContain(join(gdir, 'sub', 'c.ts'))
+    expect(textOf(res.content[0])).not.toContain('b.md')
   })
 
   it('reports zero matches cleanly', async () => {
     const res = await tool('glob').execute('c', { pattern: '**/*.zzz', path: gdir })
     expect((res.details as { count: number }).count).toBe(0)
-    expect(res.content[0].text).toMatch(/no match/i)
+    expect(textOf(res.content[0])).toMatch(/no match/i)
   })
 
   it('uses the working directory as the default base', async () => {
@@ -211,7 +217,7 @@ describe('glob', () => {
       .build({ ...ctx, cwd: gdir })
     const res = await t.execute('c', { pattern: '**/*.ts' })
     expect((res.details as { count: number }).count).toBe(2)
-    expect(res.content[0].text).toContain(join(gdir, 'a.ts'))
+    expect(textOf(res.content[0])).toContain(join(gdir, 'a.ts'))
   })
 })
 
@@ -229,7 +235,7 @@ describe('grep', () => {
   it('returns file:line matches across files', async () => {
     const res = await tool('grep').execute('c', { pattern: 'TODO', path: rdir })
     expect((res.details as { count: number }).count).toBe(2) // one.ts + two.md; binary skipped
-    expect(res.content[0].text).toContain(`${join(rdir, 'one.ts')}:2:`)
+    expect(textOf(res.content[0])).toContain(`${join(rdir, 'one.ts')}:2:`)
   })
 
   it('restricts files with the glob filter', async () => {

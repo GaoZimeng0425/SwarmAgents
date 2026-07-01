@@ -10,13 +10,16 @@ const ctx = (over: Partial<any> = {}) =>
     ...over,
   }) as any
 
+/** Narrow a content item to its text, matching mcp/manager.ts:textOf. */
+const textOf = (c: { type: string; text?: string }): string => (c.type === 'text' ? c.text ?? '' : '')
+
 describe('messaging tools', () => {
   it('send_message calls ctx.sendMessage and reports delivery', async () => {
     const c = ctx()
     const tool = sendMessageSpec().build(c)
     const res = await tool.execute('id', { to: 'peer', payload: 'hi' })
     expect(c.sendMessage).toHaveBeenCalledWith('peer', 'hi')
-    expect(res.content[0].text).toMatch(/delivered/i)
+    expect(textOf(res.content[0])).toMatch(/delivered/i)
   })
 
   it('send_and_wait returns the reply text', async () => {
@@ -24,19 +27,19 @@ describe('messaging tools', () => {
     const tool = sendAndWaitSpec().build(c)
     const res = await tool.execute('id', { to: 'peer', payload: 'ping' })
     expect(c.sendAndWait).toHaveBeenCalledWith('peer', 'ping')
-    expect(res.content[0].text).toBe('the-reply')
+    expect(textOf(res.content[0])).toBe('the-reply')
   })
 
   it('whoami returns the agent self address', async () => {
     const tool = whoamiSpec().build(ctx())
     const res = await tool.execute('id', {})
-    expect(res.content[0].text).toContain('me')
+    expect(textOf(res.content[0])).toContain('me')
   })
 
   it('whoami returns the fallback when selfAddress is absent', async () => {
     const tool = whoamiSpec().build(ctx({ selfAddress: undefined }))
     const res = await tool.execute('id', {})
-    expect(res.content[0].text).toContain('no address: this agent is not addressable')
+    expect(textOf(res.content[0])).toContain('no address: this agent is not addressable')
   })
 })
 

@@ -122,6 +122,7 @@ describe('createCronScheduler', () => {
       goal: 'reload me',
       createdAt: 1,
       lastRunAt: null,
+      originSessionId: 'ses-1',
     }
     const { store, sessions } = fakeStore([persisted])
     sessions.add('ses-1')
@@ -143,6 +144,7 @@ describe('createCronScheduler', () => {
       goal: 'remind me',
       createdAt: 1,
       lastRunAt: null,
+      originSessionId: 'old-ses',
     }
     const { store, jobs, sessions } = fakeStore([legacy])
     sessions.add('old-ses')
@@ -167,6 +169,7 @@ describe('createCronScheduler', () => {
       goal: 'g',
       createdAt: 1,
       lastRunAt: null,
+      originSessionId: 'old-ses',
     }
     const { store, jobs, sessions } = fakeStore([legacy])
     sessions.add('old-ses')

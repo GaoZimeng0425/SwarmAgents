@@ -25,7 +25,7 @@ export function sendMessageSpec(): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const p = params as { to: string; payload: string }
         await ctx.sendMessage(p.to, p.payload)
-        return { content: [{ type: 'text', text: `Message delivered to ${p.to}.` }] }
+        return { content: [{ type: 'text', text: `Message delivered to ${p.to}.` }], details: {} }
       },
     }),
   }
@@ -75,7 +75,7 @@ export function findAgentsSpec(): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const peers = ctx.findPeers((params ?? {}) as PeerQuery)
         if (peers.length === 0) {
-          return { content: [{ type: 'text', text: 'No matching agents in this session.' }] }
+          return { content: [{ type: 'text', text: 'No matching agents in this session.' }], details: {} }
         }
         const lines = peers.map((p) => {
           const caps = p.capabilities.length ? ` · caps: ${p.capabilities.join(', ')}` : ''
@@ -106,6 +106,7 @@ export function whoamiSpec(): ToolSpec {
             text: ctx.selfAddress ?? '(no address: this agent is not addressable)',
           },
         ],
+        details: {},
       }),
     }),
   }

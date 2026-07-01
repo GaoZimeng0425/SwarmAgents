@@ -36,15 +36,15 @@ export function writeAgentSpec(): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const p = params as Partial<AgentDefinition>
         if (!ctx.writeAgent) {
-          return { content: [{ type: 'text', text: 'Authoring is not available to this agent.' }] }
+          return { content: [{ type: 'text', text: 'Authoring is not available to this agent.' }], details: {} }
         }
         log.info({ msg: 'write_agent', id: p.id, team: p.team })
         const res = ctx.writeAgent(p as AgentDefinition)
         if (!res.ok) {
           log.warn({ msg: 'write_agent rejected', id: p.id, code: res.code })
-          return { content: [{ type: 'text', text: `Could not create agent: ${res.message}` }] }
+          return { content: [{ type: 'text', text: `Could not create agent: ${res.message}` }], details: {} }
         }
-        return { content: [{ type: 'text', text: `Agent "${p.id}" created. It is now discoverable via find_agents.` }] }
+        return { content: [{ type: 'text', text: `Agent "${p.id}" created. It is now discoverable via find_agents.` }], details: {} }
       },
     }),
   }
@@ -71,15 +71,15 @@ export function writeSkillSpec(): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const p = params as Skill
         if (!ctx.writeSkill) {
-          return { content: [{ type: 'text', text: 'Authoring is not available to this agent.' }] }
+          return { content: [{ type: 'text', text: 'Authoring is not available to this agent.' }], details: {} }
         }
         log.info({ msg: 'write_skill', name: p.name })
         const res = ctx.writeSkill(p)
         if (!res.ok) {
           log.warn({ msg: 'write_skill rejected', name: p.name, code: res.code })
-          return { content: [{ type: 'text', text: `Could not create skill: ${res.message}` }] }
+          return { content: [{ type: 'text', text: `Could not create skill: ${res.message}` }], details: {} }
         }
-        return { content: [{ type: 'text', text: `Skill "${p.name}" created.` }] }
+        return { content: [{ type: 'text', text: `Skill "${p.name}" created.` }], details: {} }
       },
     }),
   }

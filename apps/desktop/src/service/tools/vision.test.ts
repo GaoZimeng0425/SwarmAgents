@@ -61,7 +61,7 @@ describe('analyze_image tool', () => {
 
     await run(tool, { path: pngPath })
 
-    expect(analyzeImage.mock.calls[0][0].toLowerCase()).toContain('ocr')
+    expect((analyzeImage.mock.calls[0] as unknown as [string])[0].toLowerCase()).toContain('ocr')
   })
 
   it('resolves a relative path against the working directory', async () => {
@@ -102,7 +102,7 @@ describe('analyze_image tool', () => {
     const res = await run(tool, { path: pngPath })
 
     expect(res.details?.error).toBeTruthy()
-    expect(res.content[0].text.toLowerCase()).toContain('image-capable')
+    expect(res.content[0].text?.toLowerCase()).toContain('image-capable')
   })
 })
 

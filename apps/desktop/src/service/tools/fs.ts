@@ -185,7 +185,7 @@ function listSpec(): ToolSpec {
       execute: async (_id: string, params: unknown) => {
         const p = params as { path: string }
         const abs = resolvePath(p.path, ctx.cwd)
-        let dirents: Awaited<ReturnType<typeof readdir>>
+        let dirents: import('node:fs').Dirent[]
         try {
           dirents = await readdir(abs, { withFileTypes: true })
         } catch (e) {

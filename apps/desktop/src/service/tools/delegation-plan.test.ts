@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { delegationPlanSpec } from './delegation-plan'
 import type { ToolRunContext } from './registry'
 
-const ctx = (over: Partial<ToolRunContext> = {}): ToolRunContext =>
+const ctx = (_over: Partial<ToolRunContext> = {}): ToolRunContext =>
   ({ sessionId: 's', setDelegationPlan: vi.fn(), spawnChild: vi.fn() } as unknown as ToolRunContext)
 
 describe('set_delegation_plan tool', () => {
