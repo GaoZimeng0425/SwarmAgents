@@ -8,10 +8,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { chunk, compact } from 'es-toolkit'
 
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { VirtualList } from '@/components/ui/virtual-list'
 import { swarmApi } from '@/lib/api'
 import { TranscribeProgress } from './transcribe-progress'
 
@@ -463,30 +463,33 @@ export function BilibiliView(): React.JSX.Element {
       ) : (
         // measureRef tracks the available content width to derive the column count.
         <div className="min-h-0 flex-1" ref={measureRef}>
-          <VirtualList
-            className="h-full"
-            estimateSize={170}
-            gap={12}
-            getKey={(row) => row.key}
-            items={rows}
-            renderItem={(row) =>
-              row.kind === 'header' ? (
-                <h2 className="pt-2 font-medium text-foreground/80 text-sm">{row.title}</h2>
-              ) : (
-                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-                  {row.videos.map((v) => (
-                    <VideoCard
-                      analyzed={analyzedSet.has(v.bvid)}
-                      key={v.bvid}
-                      onClick={setSelected}
-                      selected={selected?.bvid === v.bvid}
-                      video={v}
-                    />
-                  ))}
-                </div>
-              )
-            }
-          />
+          <ScrollArea className="h-full">
+            <div className="flex flex-col gap-3">
+              {rows.map((row) =>
+                row.kind === 'header' ? (
+                  <h2 className="pt-2 font-medium text-foreground/80 text-sm" key={row.key}>
+                    {row.title}
+                  </h2>
+                ) : (
+                  <div
+                    className="grid gap-3"
+                    key={row.key}
+                    style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+                  >
+                    {row.videos.map((v) => (
+                      <VideoCard
+                        analyzed={analyzedSet.has(v.bvid)}
+                        key={v.bvid}
+                        onClick={setSelected}
+                        selected={selected?.bvid === v.bvid}
+                        video={v}
+                      />
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          </ScrollArea>
         </div>
       )}
 
