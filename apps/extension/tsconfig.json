@@ -1,0 +1,11 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "paths": {
+      "@swarm/protocol": ["../../packages/protocol/src"],
+      "@swarm/protocol/*": ["../../packages/protocol/src/*"]
+    }
+  },
+  "include": ["entrypoints/**/*", "lib/**/*", "wxt.config.ts"]
+}
