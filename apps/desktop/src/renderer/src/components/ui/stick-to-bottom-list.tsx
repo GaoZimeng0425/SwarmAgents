@@ -1,15 +1,28 @@
-// Virtualized message list that stays pinned to the bottom while new content
-// streams in — the chat/transcript UX — without giving up the bounded DOM of
-// `@tanstack/react-virtual`. Reuses `useVirtualList` + `<VirtualRows>` from
-// virtual-list.tsx and layers a hand-rolled stick-to-bottom behavior on top.
+// Message list that stays pinned to the bottom while new content streams in —
+// the chat/transcript UX. Every row is rendered directly inside the styled
+// ScrollArea (no virtualization): the project trades the bounded DOM of
+// `@tanstack/react-virtual` for the simplicity and correctness of a plain
+// scrolling container — react-virtual could not reliably measure the base-ui
+// ScrollArea viewport under React 19 (rows mounted as 0 while getTotalSize was
+// non-zero). A ResizeObserver on the content re-pins to the bottom whenever it
+// grows while the user is still stuck there.
 //
 // Why hand-rolled (not the `use-stick-to-bottom` lib): the library renders its
 // own native-scrollbar scroller, which violates the project rule that every
 // scroll container uses the styled ScrollArea. This composes ScrollArea instead.
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  type RefCallback,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useVirtualList, VirtualRows } from '@/components/ui/virtual-list'
 import { cn } from '@/lib/utils'
 
 // `useStickToBottom` is exported for direct unit testing of its state machine.
@@ -43,7 +56,7 @@ export function useStickToBottom(
     return () => el.removeEventListener('scroll', onScroll)
   }, [viewportRef, tolerance])
 
-  // Re-pin to the bottom whenever the virtualized height changes (new message,
+  // Re-pin to the bottom whenever the content height changes (new message,
   // streaming tail growth, async image remeasure) — but only if still stuck.
   // useLayoutEffect so the assignment lands before paint (no flicker).
   useLayoutEffect(() => {
@@ -79,7 +92,7 @@ export function useStickToBottom(
 type StickToBottomListContextValue = {
   isAtBottom: boolean
   scrollToBottom: (behavior?: ScrollBehavior) => void
-  /** Scroll a specific row into view by its key (works even if not rendered). */
+  /** Scroll a specific row into view by its key. */
   scrollToKey: (key: string, align?: 'start' | 'center' | 'end') => void
 }
 
@@ -94,15 +107,9 @@ export function useStickToBottomList(): StickToBottomListContextValue {
 
 type StickToBottomListProps<T> = {
   items: readonly T[]
-  /** Stable identity per item — keeps the measurement cache correct. */
+  /** Stable identity per item — the React key and the scrollToKey target. */
   getKey: (item: T, index: number) => string | number
   renderItem: (item: T, index: number) => React.ReactNode
-  /** Rough average row height (px) for the first paint. */
-  estimateSize?: number
-  /** Rows rendered beyond each viewport edge. */
-  overscan?: number
-  /** Vertical gap between rows (px). */
-  gap?: number
   /** Class for the wrapper — it owns the scroll height (e.g. "min-h-0 flex-1"). */
   className?: string
   /** Show top/bottom edge fades on the ScrollArea. */
@@ -117,32 +124,48 @@ export function StickToBottomList<T>({
   items,
   getKey,
   renderItem,
-  estimateSize,
-  overscan,
-  gap,
   className,
   edgeFade = false,
   bottomTolerance,
   children,
 }: StickToBottomListProps<T>): React.JSX.Element {
-  const { viewportRef, virtualizer } = useVirtualList({ items, getKey, estimateSize, overscan, gap })
-  const totalSize = virtualizer.getTotalSize()
-  const { isAtBottom, scrollToBottom } = useStickToBottom(viewportRef, totalSize, bottomTolerance)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
-  // key → index so a consumer can deep-link to a row virtualization hasn't
-  // mounted yet; scrollToIndex scrolls it into view and react-virtual mounts it.
-  const keyToIndex = useMemo(() => {
-    const m = new Map<string, number>()
-    items.forEach((it, i) => m.set(String(getKey(it, i)), i))
-    return m
-  }, [items, getKey])
+  // Content height is the re-pin trigger: it changes whenever an item is added
+  // or a row grows in place (streaming tail, lazy images). items.length alone
+  // would miss in-place growth, so observe the content element directly.
+  const [contentHeight, setContentHeight] = useState(0)
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setContentHeight(el.scrollHeight))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const { isAtBottom, scrollToBottom } = useStickToBottom(viewportRef, contentHeight, bottomTolerance)
+
+  // key → element so scrollToKey can deep-link to a row without a CSS selector
+  // (keys are arbitrary strings that would need escaping in an attribute
+  // selector). The shared callback reads data-scroll-key; a stale entry left by
+  // an unmounted row is harmless (scrollIntoView on a detached node is a no-op,
+  // and a remounted key overwrites it).
+  const itemEls = useRef(new Map<string, HTMLElement>()).current
+  const registerItem: RefCallback<HTMLDivElement> = useCallback(
+    (el) => {
+      if (el) itemEls.set(el.dataset.scrollKey ?? '', el)
+    },
+    [itemEls]
+  )
   const scrollToKey = useCallback(
     (key: string, align: 'start' | 'center' | 'end' = 'center') => {
-      const index = keyToIndex.get(String(key))
-      if (index === undefined) return
-      virtualizer.scrollToIndex(index, { align })
+      // All rows are mounted (no virtualization), so the element is always
+      // present for a known key. Optional-chain the method: jsdom has no
+      // scrollIntoView, and the test only asserts "does not throw".
+      itemEls.get(String(key))?.scrollIntoView?.({ block: align, behavior: 'smooth' })
     },
-    [keyToIndex, virtualizer]
+    [itemEls]
   )
 
   const ctx = useMemo(() => ({ isAtBottom, scrollToBottom, scrollToKey }), [isAtBottom, scrollToBottom, scrollToKey])
@@ -153,7 +176,16 @@ export function StickToBottomList<T>({
           center) anchors against the list, not the page. */}
       <div className={cn('relative', className)}>
         <ScrollArea className="size-full" edgeFade={edgeFade} viewportRef={viewportRef}>
-          <VirtualRows items={items} renderItem={renderItem} virtualizer={virtualizer} />
+          <div ref={contentRef}>
+            {items.map((item, index) => {
+              const key = String(getKey(item, index))
+              return (
+                <div data-scroll-key={key} key={key} ref={registerItem}>
+                  {renderItem(item, index)}
+                </div>
+              )
+            })}
+          </div>
         </ScrollArea>
         {children}
       </div>
