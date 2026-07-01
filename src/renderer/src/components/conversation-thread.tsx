@@ -75,7 +75,9 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
 
   const ordered = sortBy(tasks, ['startedAt'])
   const last = ordered[ordered.length - 1]
-  const busy = last.status === 'running' || last.status === 'pending'
+  // Optional-chain: hooks (useTimelineRenderer/useMemo) run before the empty-state
+  // early return, so `busy` must tolerate tasks=[] (last undefined → busy false).
+  const busy = last?.status === 'running' || last?.status === 'pending'
   // Usage footer: cost + calls are the cumulative session total; the token
   // figure is the latest turn's context size. See sessionDisplayUsage.
   const usage = sessionDisplayUsage(tasks)
