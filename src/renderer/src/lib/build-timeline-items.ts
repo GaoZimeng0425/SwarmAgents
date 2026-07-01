@@ -51,20 +51,20 @@ export function buildTimelineItems(tasks: TaskRecord[], render: Render, opts: Op
     }
   }
 
-  type Raw = { seq: number; ts: number; node: ReactNode }
+  type Raw = { key: string; seq: number; ts: number; node: ReactNode }
   const raw: Raw[] = []
   for (const t of ordered) {
     const segs = taskSegments(t)
     if (t.parentTaskId) {
-      raw.push({ seq: t.events[0]?.seq ?? t.startedAt, ts: t.startedAt, node: render.subagent(t, segs, lastKey) })
+      raw.push({ key: t.id, seq: t.events[0]?.seq ?? t.startedAt, ts: t.startedAt, node: render.subagent(t, segs, lastKey) })
     } else {
       for (const item of groupSegments(segs)) {
         if (item.kind === 'single') {
           const seg = item.seg
-          raw.push({ seq: seg.seq, ts: seg.ts, node: render.segment(seg, seg.key === lastKey) })
+          raw.push({ key: seg.key, seq: seg.seq, ts: seg.ts, node: render.segment(seg, seg.key === lastKey) })
         } else {
           const first = item.segs[0]
-          raw.push({ seq: first.seq, ts: first.ts, node: render.toolGroup(item.segs) })
+          raw.push({ key: first.key, seq: first.seq, ts: first.ts, node: render.toolGroup(item.segs) })
         }
       }
     }
@@ -73,7 +73,7 @@ export function buildTimelineItems(tasks: TaskRecord[], render: Render, opts: Op
   const sorted = sortBy(raw, ['seq'])
 
   if (!opts.showDayDividers) {
-    return sorted.map((r, i) => ({ key: `item-${i}-${r.seq}`, node: r.node, seq: r.seq, ts: r.ts }))
+    return sorted.map((r) => ({ key: r.key, node: r.node, seq: r.seq, ts: r.ts }))
   }
 
   // Splice day dividers using ts (display), placed at seq - 0.5 so a divider
@@ -86,7 +86,7 @@ export function buildTimelineItems(tasks: TaskRecord[], render: Render, opts: Op
       out.push({ key: `day-${d}`, node: render.dayDivider(r.ts), seq: r.seq - 0.5, ts: r.ts })
       prevDay = d
     }
-    out.push({ key: `item-${r.seq}`, node: r.node, seq: r.seq, ts: r.ts })
+    out.push({ key: r.key, node: r.node, seq: r.seq, ts: r.ts })
   }
   return out
 }
