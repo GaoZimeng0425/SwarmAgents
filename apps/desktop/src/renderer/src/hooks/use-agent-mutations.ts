@@ -1,4 +1,4 @@
-import type { AgentDefinition, AgentMutationResult } from '@shared/types/agent'
+import type { AgentDefinition, AgentMutationResult } from '@swarm/protocol'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'

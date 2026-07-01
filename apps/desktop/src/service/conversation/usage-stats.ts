@@ -1,4 +1,4 @@
-import type { DayBucket } from '@shared/types/usage'
+import type { DayBucket } from '@swarm/protocol'
 import { format, startOfDay, subDays } from 'date-fns'
 
 /** Local-time 'yyyy-MM-dd' — matches SQLite date(.., 'unixepoch', 'localtime'). */

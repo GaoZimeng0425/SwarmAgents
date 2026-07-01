@@ -6,7 +6,7 @@
 // stays a synchronous snapshot for ipcMain.handle. A failed persist does NOT
 // advance the in-memory state.
 import { createLogger } from '@shared/logger'
-import type { GmailClientCreds, GmailConfigOnDisk, GmailConfigView } from '@shared/types/gmail'
+import type { GmailClientCreds, GmailConfigOnDisk, GmailConfigView } from '@swarm/protocol'
 
 import type { Auth } from './auth'
 import type { Cache } from './cache'

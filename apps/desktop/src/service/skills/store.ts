@@ -1,7 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join, relative, sep } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { type Skill, type SkillMutationResult, SkillSchema } from '@shared/types/skill'
+import { type Skill, type SkillMutationResult, SkillSchema } from '@swarm/protocol'
 import { watch as chokidarWatch } from 'chokidar'
 import { parse as parseYaml } from 'yaml'
 

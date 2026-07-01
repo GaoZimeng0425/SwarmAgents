@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { type ProvidersStateView, providerViewById } from '@shared/types/provider'
+import { type ProvidersStateView, providerViewById } from '@swarm/protocol'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

@@ -5,16 +5,16 @@ import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { getBuiltinModel as getModel, getBuiltinModels as getModels } from '@earendil-works/pi-ai/providers/all'
 import { reasoningOverridesFor } from '@shared/constants/models'
 import { createLogger } from '@shared/logger'
-import type { ActorMessage } from '@shared/types/actor'
-import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
-import type { ModelPricing, ProviderInjection } from '@shared/types/provider'
+import type { ActorMessage } from '@swarm/protocol'
+import type { AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'
+import type { ModelPricing, ProviderInjection } from '@swarm/protocol'
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
   DEFAULT_CONTEXT_WINDOW,
   OPENAI_MODEL_SUGGESTIONS,
-} from '@shared/types/provider'
-import type { Skill, SkillMutationResult } from '@shared/types/skill'
+} from '@swarm/protocol'
+import type { Skill, SkillMutationResult } from '@swarm/protocol'
 import {
   type AcceptanceCriterion,
   type ConsumedResources,
@@ -26,7 +26,7 @@ import {
   type TaskEvent,
   type TaskResult,
   type VerificationRound,
-} from '@shared/types/task'
+} from '@swarm/protocol'
 
 import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
 import { encodeActorState } from '../actor/state'

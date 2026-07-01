@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@shared/types/ui'
+import type { SessionSummary } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { pickNextSession } from './session-nav'

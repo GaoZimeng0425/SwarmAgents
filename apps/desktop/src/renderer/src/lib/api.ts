@@ -1,8 +1,8 @@
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
-import type { BiliAnalysis, BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '@shared/types/bilibili'
-import type { MemoryView } from '@shared/types/memory'
-import type { Attachment, Task, TaskOptions } from '@shared/types/task'
-import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@swarm/protocol'
+import type { BiliAnalysis, BiliListResult, BiliLoginStatus, BiliProcessResult, BiliSaveResult, BiliTranscribeProgress, BiliTranscribeResult, ObsidianConfig, TranscriptionConfig, BiliVideo, BiliSummary } from '@swarm/protocol'
+import type { MemoryView } from '@swarm/protocol'
+import type { Attachment, Task, TaskOptions } from '@swarm/protocol'
+import type { TrendingPeriod, TrendingRepo } from '@swarm/protocol'
 import type {
   CronJobSummary,
   CronRun,
@@ -12,8 +12,8 @@ import type {
   SessionSummary,
   SubmitGoalResult,
   UIEvent,
-} from '@shared/types/ui'
-import type { UsageStats } from '@shared/types/usage'
+} from '@swarm/protocol'
+import type { UsageStats } from '@swarm/protocol'
 
 export const swarmApi = {
   submitGoal: (

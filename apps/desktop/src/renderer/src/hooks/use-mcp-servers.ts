@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
+import type { McpServerConfig, McpServerStatus } from '@swarm/protocol'
 
 /** Live MCP config + connection status from main/service. */
 export function useMcpServers(): {

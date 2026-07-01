@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 
 import { DEFAULT_SYSTEM_PROMPT } from '../agents/default-prompt'
 

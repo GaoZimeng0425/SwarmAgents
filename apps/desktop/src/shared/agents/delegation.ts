@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 
 /** A directed delegation-intent edge: `from` delegates to `to`. Derived from
  *  find_agents({...}) calls in the source agent's prompt — DESIGN INTENT, not

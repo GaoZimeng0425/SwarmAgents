@@ -1,10 +1,10 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
-import type { AgentDefinition, Peer, PeerQuery } from '@shared/types/agent'
-import type { Outbound } from '@shared/types/ipc'
-import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import type { AcceptanceCriterion, DelegationItem, SpawnChildOptions, TaskResult } from '@shared/types/task'
-import type { PermissionDecision } from '@shared/types/ui'
+import type { AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'
+import type { Outbound } from '@swarm/protocol'
+import type { Skill, SkillMutationResult } from '@swarm/protocol'
+import type { AcceptanceCriterion, DelegationItem, SpawnChildOptions, TaskResult } from '@swarm/protocol'
+import type { PermissionDecision } from '@swarm/protocol'
 
 import type { AgentMutationResult } from '../agents/store'
 

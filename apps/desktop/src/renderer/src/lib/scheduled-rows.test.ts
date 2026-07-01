@@ -1,4 +1,4 @@
-import type { CronRun } from '@shared/types/ui'
+import type { CronRun } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import type { TaskRecord } from './apply-event'

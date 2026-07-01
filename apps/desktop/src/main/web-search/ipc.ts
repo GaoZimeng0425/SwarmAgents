@@ -4,7 +4,7 @@
 // / setKey / clearKey / setSearxngUrl handlers and broadcasts state changes (the
 // redacted view) to all renderer windows.
 import { createLogger } from '@shared/logger'
-import { WebSearchProviderId } from '@shared/types/web-search'
+import { WebSearchProviderId } from '@swarm/protocol'
 import { BrowserWindow, ipcMain } from 'electron'
 
 import type { KeyId, Service } from './service'

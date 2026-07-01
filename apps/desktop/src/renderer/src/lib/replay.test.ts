@@ -1,4 +1,4 @@
-import type { Task, TaskEvent } from '@shared/types/task'
+import type { Task, TaskEvent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { tasksToRecords } from './replay'

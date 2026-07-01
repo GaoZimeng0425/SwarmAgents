@@ -11,8 +11,8 @@ import type {
   BiliTranscribeResult,
   BiliTranscribeStage,
   TranscriptionConfig,
-} from '@shared/types/bilibili'
-import type { ProviderInjection } from '@shared/types/provider'
+} from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
 
 import { FfmpegError } from './audio'
 

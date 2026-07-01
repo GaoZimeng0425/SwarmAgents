@@ -1,4 +1,4 @@
-import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
+import type { McpServerConfig, McpServerStatus } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createToolRegistry } from '../tools/registry'

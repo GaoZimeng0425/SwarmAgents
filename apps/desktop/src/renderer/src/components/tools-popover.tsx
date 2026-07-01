@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { McpServerConfig } from '@shared/types/mcp'
-import type { Skill } from '@shared/types/skill'
-import type { ToolGroupInfo } from '@shared/types/tool-toggles'
+import type { McpServerConfig } from '@swarm/protocol'
+import type { Skill } from '@swarm/protocol'
+import type { ToolGroupInfo } from '@swarm/protocol'
 import { SlidersHorizontal } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'

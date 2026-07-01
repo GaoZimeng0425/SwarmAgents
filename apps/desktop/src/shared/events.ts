@@ -12,8 +12,8 @@
  *   bus.publish({ type: 'task.complete', taskId: '...', result, ts: Date.now() })
  */
 
-import type { Risk } from './types/ipc'
-import type { TaskEvent, TaskResult } from './types/task'
+import type { Risk } from '@swarm/protocol'
+import type { TaskEvent, TaskResult } from '@swarm/protocol'
 
 // ── Domain events ────────────────────────────────────────────────────────
 

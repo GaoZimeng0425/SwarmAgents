@@ -1,11 +1,11 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
-import type { Actor, ActorMessage } from '@shared/types/actor'
-import type { ProviderInjection } from '@shared/types/provider'
-import type { Task, TaskEvent } from '@shared/types/task'
-import type { UsageStats } from '@shared/types/usage'
-import { HEATMAP_DAYS } from '@shared/types/usage'
+import type { Actor, ActorMessage } from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
+import type { Task, TaskEvent } from '@swarm/protocol'
+import type { UsageStats } from '@swarm/protocol'
+import { HEATMAP_DAYS } from '@swarm/protocol'
 import Database from 'better-sqlite3'
 
 import { currentStreak, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './usage-stats'
@@ -64,17 +64,17 @@ export type ConversationStore = {
   updateSessionProvider(id: string, provider: ProviderInjection): void
   updateSessionLastActive(id: string): void
   getInterruptedSessions(): StoredSession[]
-  listSessions(): import('@shared/types/ui').SessionSummary[]
+  listSessions(): import('@swarm/protocol').SessionSummary[]
   setSessionTitle(id: string, title: string): void
   setSessionPinned(id: string, pinned: boolean): void
-  setSessionSettings(id: string, settings: import('@shared/types/ui').SessionSettings): void
+  setSessionSettings(id: string, settings: import('@swarm/protocol').SessionSettings): void
   /** Read the persisted composer settings (cwd / permission / execution / agent) for a session. */
-  getSessionSettings(id: string): import('@shared/types/ui').SessionSettings | undefined
+  getSessionSettings(id: string): import('@swarm/protocol').SessionSettings | undefined
   reorderSessions(orderedIds: string[]): void
   deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
-  appendTaskEvent(taskId: string, event: import('@shared/types/task').TaskEvent): void
+  appendTaskEvent(taskId: string, event: import('@swarm/protocol').TaskEvent): void
   saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTaskCriteria(taskId: string, criteria: Task['acceptanceCriteria']): void
   saveTaskVerifications(taskId: string, rounds: Task['verifications']): void

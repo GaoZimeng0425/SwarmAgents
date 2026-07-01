@@ -1,4 +1,4 @@
-import type { MemoryView } from '@shared/types/memory'
+import type { MemoryView } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 import { Brain } from 'lucide-react'
 

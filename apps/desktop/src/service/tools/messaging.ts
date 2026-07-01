@@ -1,7 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 
-import type { PeerQuery } from '@shared/types/agent'
+import type { PeerQuery } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 

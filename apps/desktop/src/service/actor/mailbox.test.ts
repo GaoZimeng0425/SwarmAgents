@@ -1,6 +1,6 @@
 // src/service/actor/mailbox.test.ts
 
-import type { ActorMessage } from '@shared/types/actor'
+import type { ActorMessage } from '@swarm/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createMailbox, IdleTimeoutError } from './mailbox'

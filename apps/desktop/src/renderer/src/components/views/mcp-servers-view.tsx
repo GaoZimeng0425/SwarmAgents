@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { McpConnectionState, McpServerConfig, McpToolRisk, McpTransport } from '@shared/types/mcp'
+import type { McpConnectionState, McpServerConfig, McpToolRisk, McpTransport } from '@swarm/protocol'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 

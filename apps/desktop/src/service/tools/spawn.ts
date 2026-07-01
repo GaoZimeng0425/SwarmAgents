@@ -1,7 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 
-import type { AcceptanceCriterion, SpawnChildOptions } from '@shared/types/task'
+import type { AcceptanceCriterion, SpawnChildOptions } from '@swarm/protocol'
 
 import { DEFAULT_MAX_VERIFY_ROUNDS } from '../session/agent-runner'
 import type { ToolRunContext, ToolSpec } from './registry'

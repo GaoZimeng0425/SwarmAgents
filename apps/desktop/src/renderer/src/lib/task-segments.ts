@@ -1,5 +1,5 @@
-import type { Attachment } from '@shared/types/task'
-import type { UIEvent } from '@shared/types/ui'
+import type { Attachment } from '@swarm/protocol'
+import type { UIEvent } from '@swarm/protocol'
 
 import type { TaskRecord } from './apply-event'
 

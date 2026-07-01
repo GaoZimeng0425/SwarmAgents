@@ -8,7 +8,7 @@ import type { Service as BudgetsService } from '../budgets'
 import { swarmHome } from '../constants'
 import type { Service as McpService } from '../mcp-servers'
 import type { Service as ProvidersService } from '../providers'
-import type { ServiceClient } from '../service-client'
+import type { ServiceClient } from '@swarm/protocol'
 import { getAccent, subscribeAccent } from '../system/accent'
 import { getMacPermissions, openPrivacySettings } from '../system/permissions'
 import type { Service as WebSearchService } from '../web-search'
@@ -91,11 +91,11 @@ export function wireSwarmIpc(args: {
   // ---- Skills (service owns the files; main is a thin passthrough) ----
   ipcMain.handle('skills:list', () => serviceClient.listSkills())
   ipcMain.handle('agents:list', () => serviceClient.listAgents())
-  ipcMain.handle('skills:save', (_e: Electron.IpcMainInvokeEvent, skill: import('@shared/types/skill').Skill) =>
+  ipcMain.handle('skills:save', (_e: Electron.IpcMainInvokeEvent, skill: import('@swarm/protocol').Skill) =>
     serviceClient.saveSkill(skill)
   )
   ipcMain.handle('skills:delete', (_e: Electron.IpcMainInvokeEvent, name: string) => serviceClient.deleteSkill(name))
-  ipcMain.handle('agents:save', (_e: Electron.IpcMainInvokeEvent, def: import('@shared/types/agent').AgentDefinition) =>
+  ipcMain.handle('agents:save', (_e: Electron.IpcMainInvokeEvent, def: import('@swarm/protocol').AgentDefinition) =>
     serviceClient.saveAgent(def)
   )
   ipcMain.handle('agents:delete', (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.deleteAgent(id))
@@ -146,7 +146,7 @@ export function wireSwarmIpc(args: {
     return { sessionId }
   }
 
-  const listSessions = (): Promise<import('@shared/types/ui').SessionSummary[]> => serviceClient.listSessions()
+  const listSessions = (): Promise<import('@swarm/protocol').SessionSummary[]> => serviceClient.listSessions()
 
   const getSessionTasks = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
     serviceClient.getSessionTasks(sessionId)
@@ -164,7 +164,7 @@ export function wireSwarmIpc(args: {
   const updateSessionSettings = (
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
-    settings: import('@shared/types/ui').SessionSettings
+    settings: import('@swarm/protocol').SessionSettings
   ) => serviceClient.updateSessionSettings(sessionId, settings)
 
   const reorderSessions = (_e: Electron.IpcMainInvokeEvent, orderedIds: string[]) =>
@@ -174,8 +174,8 @@ export function wireSwarmIpc(args: {
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
     goal: string,
-    attachments?: import('@shared/types/task').Attachment[],
-    options?: import('@shared/types/task').TaskOptions
+    attachments?: import('@swarm/protocol').Attachment[],
+    options?: import('@swarm/protocol').TaskOptions
   ): Promise<{ taskId: string }> => {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
@@ -219,7 +219,7 @@ export function wireSwarmIpc(args: {
     decision: string
   ): void => {
     void serviceClient
-      .decidePermission(sessionId, actionId, decision as import('@shared/types/ui').PermissionDecision)
+      .decidePermission(sessionId, actionId, decision as import('@swarm/protocol').PermissionDecision)
       .catch((err: unknown) => log.warn({ msg: 'decidePermission failed', err: String(err) }))
     log.info({ msg: 'permission decided', sessionId, actionId, decision })
   }

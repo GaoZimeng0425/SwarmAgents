@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AcceptanceCriterion, TaskStatus, VerificationRound } from '@shared/types/task'
+import type { AcceptanceCriterion, TaskStatus, VerificationRound } from '@swarm/protocol'
 import { Check, ChevronRight, Circle, ShieldCheck, TriangleAlert, X } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'

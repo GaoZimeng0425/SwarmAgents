@@ -1,5 +1,5 @@
 import type { DelegationEdge } from '@shared/agents/delegation'
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 
 type DelegationLinksProps = {
   agentId: string

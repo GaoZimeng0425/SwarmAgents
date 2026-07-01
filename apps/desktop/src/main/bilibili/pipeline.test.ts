@@ -1,4 +1,4 @@
-import type { BiliCredentials } from '@shared/types/bilibili'
+import type { BiliCredentials } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 import { processVideo } from './pipeline'
 

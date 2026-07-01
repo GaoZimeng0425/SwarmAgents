@@ -1,6 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { Skill } from '@shared/types/skill'
+import type { Skill } from '@swarm/protocol'
 
 import type { SkillStore } from '../skills/store'
 import type { ToolSpec } from './registry'

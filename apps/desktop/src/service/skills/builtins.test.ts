@@ -1,4 +1,4 @@
-import { SkillSchema } from '@shared/types/skill'
+import { SkillSchema } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { builtinSkills } from './builtins'

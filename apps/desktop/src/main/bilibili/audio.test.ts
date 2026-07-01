@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { BiliCredentials } from '@shared/types/bilibili'
+import type { BiliCredentials } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { extractWav, FfmpegError } from './audio'
 

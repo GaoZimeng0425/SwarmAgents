@@ -1,7 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge, ipcRenderer } from 'electron'
 
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '../shared/types/agent'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@swarm/protocol'
 import type {
   BiliAnalysis,
   BiliListResult,
@@ -14,13 +14,13 @@ import type {
   BiliVideo,
   ObsidianConfig,
   TranscriptionConfig,
-} from '../shared/types/bilibili'
-import type { BudgetConfig } from '../shared/types/budgets'
-import type { GmailClientCreds, GmailConfigView } from '../shared/types/gmail'
-import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '../shared/types/mcp'
-import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '../shared/types/provider'
-import type { Skill, SkillMutationResult } from '../shared/types/skill'
-import type { ToolGroupInfo, ToolToggles } from '../shared/types/tool-toggles'
+} from '@swarm/protocol'
+import type { BudgetConfig } from '@swarm/protocol'
+import type { GmailClientCreds, GmailConfigView } from '@swarm/protocol'
+import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from '@swarm/protocol'
+import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from '@swarm/protocol'
+import type { Skill, SkillMutationResult } from '@swarm/protocol'
+import type { ToolGroupInfo, ToolToggles } from '@swarm/protocol'
 import type {
   AddCustomProviderInput,
   AgentBridge,
@@ -46,8 +46,8 @@ import type {
   WebSearchBridge,
   WebSearchKeyId,
   WebSearchSetResult,
-} from '../shared/types/ui'
-import type { WebSearchConfigView, WebSearchProviderId } from '../shared/types/web-search'
+} from '@swarm/protocol'
+import type { WebSearchConfigView, WebSearchProviderId } from '@swarm/protocol'
 
 const IPC_EVENT_CHANNEL = 'swarm:event'
 const NAVIGATE_CHANNEL = 'swarm:navigate'
@@ -180,7 +180,7 @@ const toolToggles: ToolTogglesBridge = {
 
 const memory: MemoryBridge = {
   list: (namespace?: string) =>
-    ipcRenderer.invoke('memory:list', namespace) as Promise<import('../shared/types/memory').MemoryView[]>,
+    ipcRenderer.invoke('memory:list', namespace) as Promise<import('@swarm/protocol').MemoryView[]>,
 }
 
 const agents: AgentBridge = {
@@ -243,36 +243,36 @@ const swarm: SwarmBridge = {
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
   sessions: {
-    list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('../shared/types/ui').SessionSummary[]>,
+    list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('@swarm/protocol').SessionSummary[]>,
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
     getTasks: (sessionId: string) =>
-      ipcRenderer.invoke('swarm:getSessionTasks', sessionId) as Promise<import('../shared/types/task').Task[]>,
+      ipcRenderer.invoke('swarm:getSessionTasks', sessionId) as Promise<import('@swarm/protocol').Task[]>,
     delete: (sessionId: string) => ipcRenderer.invoke('swarm:deleteSession', sessionId) as Promise<void>,
     rename: (sessionId: string, title: string) =>
       ipcRenderer.invoke('swarm:renameSession', sessionId, title) as Promise<void>,
     setPinned: (sessionId: string, pinned: boolean) =>
       ipcRenderer.invoke('swarm:setSessionPinned', sessionId, pinned) as Promise<void>,
-    updateSettings: (sessionId: string, settings: import('../shared/types/ui').SessionSettings) =>
+    updateSettings: (sessionId: string, settings: import('@swarm/protocol').SessionSettings) =>
       ipcRenderer.invoke('swarm:updateSessionSettings', sessionId, settings) as Promise<void>,
     reorder: (orderedIds: string[]) => ipcRenderer.invoke('swarm:reorderSessions', orderedIds) as Promise<void>,
   },
   usage: {
     get: (rangeDays: number) =>
-      ipcRenderer.invoke('swarm:getUsageStats', rangeDays) as Promise<import('../shared/types/usage').UsageStats>,
+      ipcRenderer.invoke('swarm:getUsageStats', rangeDays) as Promise<import('@swarm/protocol').UsageStats>,
   },
   trending: {
-    get: (period: import('../shared/types/trending').TrendingPeriod, language: string) =>
+    get: (period: import('@swarm/protocol').TrendingPeriod, language: string) =>
       ipcRenderer.invoke('trending:get', period, language) as Promise<
-        import('../shared/types/trending').TrendingRepo[]
+        import('@swarm/protocol').TrendingRepo[]
       >,
   },
   cron: {
     listForSession: (sessionId: string) =>
       ipcRenderer.invoke('swarm:listCronJobsForSession', sessionId) as Promise<
-        import('../shared/types/ui').CronJobSummary[]
+        import('@swarm/protocol').CronJobSummary[]
       >,
-    listAll: () => ipcRenderer.invoke('swarm:listAllCronJobs') as Promise<import('../shared/types/ui').ScheduledTask[]>,
-    listAllRuns: () => ipcRenderer.invoke('swarm:listAllCronRuns') as Promise<import('../shared/types/ui').CronRun[]>,
+    listAll: () => ipcRenderer.invoke('swarm:listAllCronJobs') as Promise<import('@swarm/protocol').ScheduledTask[]>,
+    listAllRuns: () => ipcRenderer.invoke('swarm:listAllCronRuns') as Promise<import('@swarm/protocol').CronRun[]>,
     cancel: (id: string) => ipcRenderer.invoke('swarm:cancelCronJob', id) as Promise<void>,
   },
   subscribeEvents: (cb) => {

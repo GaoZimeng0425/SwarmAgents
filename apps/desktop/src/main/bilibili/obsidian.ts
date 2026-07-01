@@ -5,7 +5,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import type { BiliSaveResult, BiliSummary, BiliVideo, ObsidianConfig } from '@shared/types/bilibili'
+import type { BiliSaveResult, BiliSummary, BiliVideo, ObsidianConfig } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-obsidian' })
 

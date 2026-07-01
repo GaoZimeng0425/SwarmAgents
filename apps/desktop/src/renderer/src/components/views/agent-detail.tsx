@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 
 /** Detail panel for a single agent: name, id, description, and full system
  *  prompt. Single source for the agent detail view (previously duplicated). */

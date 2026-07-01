@@ -4,7 +4,7 @@
 // bilibili/api.ts. Each call sets Authorization: Bearer <token>; on 401 it asks
 // the caller to refresh and retries once. 429/5xx use bounded exponential backoff.
 import { createLogger } from '@shared/logger'
-import type { GmailMessage, GmailThread } from '@shared/types/gmail'
+import type { GmailMessage, GmailThread } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'gmail-api' })
 

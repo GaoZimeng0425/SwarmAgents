@@ -4,8 +4,8 @@ import type {
   ConsumedResources,
   PlanTodo,
   VerificationRound,
-} from '@shared/types/task'
-import type { UIEvent } from '@shared/types/ui'
+} from '@swarm/protocol'
+import type { UIEvent } from '@swarm/protocol'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
 

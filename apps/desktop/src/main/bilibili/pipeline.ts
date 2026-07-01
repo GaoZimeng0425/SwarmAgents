@@ -3,8 +3,8 @@
 // This milestone is subtitle-only; missing subtitle returns a structured
 // no_subtitle (ASR fallback is milestone C).
 import { createLogger } from '@shared/logger'
-import type { BiliCredentials, BiliProcessResult, BiliSummary } from '@shared/types/bilibili'
-import type { ProviderInjection } from '@shared/types/provider'
+import type { BiliCredentials, BiliProcessResult, BiliSummary } from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-pipeline' })
 

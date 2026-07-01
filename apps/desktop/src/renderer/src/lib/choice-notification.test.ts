@@ -1,4 +1,4 @@
-import type { UIEvent } from '@shared/types/ui'
+import type { UIEvent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { parseChoiceCard } from './choice-notification'

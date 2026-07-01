@@ -6,7 +6,7 @@
 // Info.plist key to pre-declare them — so the app can only report status and
 // open the correct settings pane.
 import { shell, systemPreferences } from 'electron'
-import type { MacPermissions, MacPermissionState } from '@shared/types/ui'
+import type { MacPermissions, MacPermissionState } from '@swarm/protocol'
 
 const isMac = process.platform === 'darwin'
 

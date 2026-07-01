@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AcceptanceCriterion } from '@shared/types/task'
+import type { AcceptanceCriterion } from '@swarm/protocol'
 
 import { spawnAgentSpec } from './spawn'
 

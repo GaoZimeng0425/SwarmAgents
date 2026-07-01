@@ -2,7 +2,7 @@
 //
 // Projects the on-disk config (which holds secret keys) to the renderer-visible
 // view. Keys become hasKey booleans and NEVER cross the IPC boundary.
-import type { WebSearchConfigOnDisk, WebSearchConfigView } from '@shared/types/web-search'
+import type { WebSearchConfigOnDisk, WebSearchConfigView } from '@swarm/protocol'
 
 export function toView(state: WebSearchConfigOnDisk): WebSearchConfigView {
   return {

@@ -5,7 +5,7 @@
 // → rename) and validated against the Zod schema before encryption so we never
 // persist garbage. Pure module: no logging, no globals — callers inject filePath.
 import { existsSync, promises as fs } from 'node:fs'
-import { defaultWebSearchConfigOnDisk, WebSearchConfigOnDisk } from '@shared/types/web-search'
+import { defaultWebSearchConfigOnDisk, WebSearchConfigOnDisk } from '@swarm/protocol'
 import { safeStorage } from 'electron'
 
 export type LoadResult =

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createAgentStore, parseAgent, serializeAgent, syncBuiltinAgents } from './store'

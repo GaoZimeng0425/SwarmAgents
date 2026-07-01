@@ -4,7 +4,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { createLogger } from '@shared/logger'
-import type { McpServerConfig, McpServerStatus, McpToolInfo, McpToolRisk } from '@shared/types/mcp'
+import type { McpServerConfig, McpServerStatus, McpToolInfo, McpToolRisk } from '@swarm/protocol'
 
 import type { ToolRegistry, ToolSpec } from '../tools/registry'
 

@@ -2,7 +2,7 @@
 // results in memory per (period, language). OSSInsight refreshes the data daily,
 // so a 1h client cache is plenty and keeps the API friendly.
 import { createLogger } from '@shared/logger'
-import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
+import type { TrendingPeriod, TrendingRepo } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'trending' })
 

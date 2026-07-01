@@ -1,4 +1,4 @@
-import type { Skill } from '@shared/types/skill'
+import type { Skill } from '@swarm/protocol'
 
 /** Append the available-skills section to a base system prompt. */
 export function withSkills(base: string, skills: Skill[]): string {

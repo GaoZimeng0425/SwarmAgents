@@ -8,7 +8,7 @@ import {
   type McpServerConfig,
   McpServerConfigSchema,
   type McpToolOverride,
-} from '@shared/types/mcp'
+} from '@swarm/protocol'
 
 import type { McpServersState, Store } from './store'
 

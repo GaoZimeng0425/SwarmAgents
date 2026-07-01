@@ -3,7 +3,7 @@
 // folder. Clicking a video opens a read-only detail panel (no external nav).
 // Prompts for login when logged out.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BiliListResult, BiliSummary, BiliVideo } from '@shared/types/bilibili'
+import type { BiliListResult, BiliSummary, BiliVideo } from '@swarm/protocol'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { chunk, compact } from 'es-toolkit'
 

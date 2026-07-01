@@ -7,7 +7,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { createLogger } from '@shared/logger'
-import type { GmailClientCreds, GmailConfigOnDisk, GmailTokens } from '@shared/types/gmail'
+import type { GmailClientCreds, GmailConfigOnDisk, GmailTokens } from '@swarm/protocol'
 import { shell } from 'electron'
 
 import type { Store } from './store'

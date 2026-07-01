@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { AgentDefinition } from '@shared/types/agent'
-import type { Actor } from '@shared/types/actor'
+import type { AgentDefinition } from '@swarm/protocol'
+import type { Actor } from '@swarm/protocol'
 import { createAgentDirectory } from './receptionist'
 
 const actor = (address: string, agentDefId: string, name: string | null, createdAt = 0): Actor => ({

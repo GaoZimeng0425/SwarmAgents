@@ -1,4 +1,4 @@
-import type { BiliAnalysis } from '@shared/types/bilibili'
+import type { BiliAnalysis } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AnalysisStore } from './analysis-store'

@@ -6,7 +6,7 @@
 // (destructive 样式 + 栈顶卡默认焦点落在 Deny),不加二次确认门槛。Escape
 // 处理(skip 栈顶)上移到 ComposerOverlay。
 import { useEffect, useRef } from 'react'
-import type { PermissionDecision } from '@shared/types/ui'
+import type { PermissionDecision } from '@swarm/protocol'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'

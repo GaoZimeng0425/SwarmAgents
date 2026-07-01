@@ -1,4 +1,4 @@
-import type { CronRun } from '@shared/types/ui'
+import type { CronRun } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 
 import type { TaskRecord, TaskStatus } from './apply-event'

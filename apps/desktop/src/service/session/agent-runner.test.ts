@@ -1,6 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { getBuiltinModel as getModel } from '@earendil-works/pi-ai/providers/all'
-import type { Task } from '@shared/types/task'
+import type { Task } from '@swarm/protocol'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createToolRegistry } from '../tools/registry'

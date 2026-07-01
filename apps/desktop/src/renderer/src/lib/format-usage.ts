@@ -1,4 +1,4 @@
-import type { ResourceBudget } from '@shared/types/task'
+import type { ResourceBudget } from '@swarm/protocol'
 
 export const formatTokens = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
 

@@ -7,7 +7,7 @@
 // lives here; the service stays a pure state machine.
 import { promises as fs } from 'node:fs'
 import { createLogger } from '@shared/logger'
-import type { ModelMeta, ModelPricing } from '@shared/types/provider'
+import type { ModelMeta, ModelPricing } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'openrouter' })
 

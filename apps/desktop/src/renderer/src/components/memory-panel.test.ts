@@ -1,4 +1,4 @@
-import type { MemoryView } from '@shared/types/memory'
+import type { MemoryView } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { groupByCategory } from './memory-panel'

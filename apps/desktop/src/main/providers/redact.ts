@@ -3,7 +3,7 @@
 // Pure projection from on-disk providers state (v3) to the renderer-visible
 // view. Strips apiKey, replacing it with hasKey:boolean. NEVER call from the
 // renderer.
-import type { Provider, ProvidersStateOnDisk, ProvidersStateView, ProviderView } from '@shared/types/provider'
+import type { Provider, ProvidersStateOnDisk, ProvidersStateView, ProviderView } from '@swarm/protocol'
 
 import { effectiveThinkingLevel, modelSupportsImages, modelThinkingLevels } from './capabilities'
 

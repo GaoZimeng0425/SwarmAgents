@@ -3,7 +3,7 @@
 // Subscribes to providers state from main and derives the `ready` flag used
 // by the main-window banner (Task 19) and any future task-creation surface.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { type ProvidersStateView, providerViewById } from '@shared/types/provider'
+import { type ProvidersStateView, providerViewById } from '@swarm/protocol'
 
 const EMPTY: ProvidersStateView = {
   active: null,

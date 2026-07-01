@@ -1,4 +1,4 @@
-import { providerViewById } from '@shared/types/provider'
+import { providerViewById } from '@swarm/protocol'
 import { useNavigate } from '@tanstack/react-router'
 
 import { ChatInput } from '@/components/chat-input'

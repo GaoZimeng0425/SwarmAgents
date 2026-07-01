@@ -1,8 +1,8 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
-import type { AgentDefinition } from '@shared/types/agent'
-import type { Skill } from '@shared/types/skill'
+import type { AgentDefinition } from '@swarm/protocol'
+import type { Skill } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 

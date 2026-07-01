@@ -14,7 +14,7 @@ import {
   type McpServerEntry,
   type McpServersFile,
   McpServersFileSchema,
-} from '@shared/types/mcp'
+} from '@swarm/protocol'
 import { safeStorage } from 'electron'
 
 const log = createLogger({ process: 'main' }).child({ component: 'mcp-servers-store' })

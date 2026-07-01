@@ -3,7 +3,7 @@
 // Wires the trending subsystem to Electron IPC. Single read endpoint that
 // validates params (falling back to safe defaults) and returns trending repos.
 import { createLogger } from '@shared/logger'
-import { TRENDING_PERIODS, type TrendingPeriod } from '@shared/types/trending'
+import { TRENDING_PERIODS, type TrendingPeriod } from '@swarm/protocol'
 import { ipcMain } from 'electron'
 
 import { fetchTrending } from './service'

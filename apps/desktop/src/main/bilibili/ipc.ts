@@ -5,7 +5,7 @@
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { TranscriptionConfigSchema } from '@shared/types/bilibili'
+import { TranscriptionConfigSchema } from '@swarm/protocol'
 import type {
   BiliAnalysis,
   BiliCredentials,
@@ -19,8 +19,8 @@ import type {
   BiliVideo,
   ObsidianConfig,
   TranscriptionConfig,
-} from '@shared/types/bilibili'
-import type { ProviderInjection } from '@shared/types/provider'
+} from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import { writeNote } from './obsidian'

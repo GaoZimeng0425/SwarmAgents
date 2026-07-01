@@ -5,7 +5,7 @@ import {
   TRENDING_PERIODS,
   type TrendingPeriod,
   type TrendingRepo,
-} from '@shared/types/trending'
+} from '@swarm/protocol'
 import { useQuery } from '@tanstack/react-query'
 import { range } from 'es-toolkit'
 import { ExternalLink, GitFork, GitPullRequest, Loader2, Sparkles, Star } from 'lucide-react'

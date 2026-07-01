@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { ProviderInjection } from '@shared/types/provider'
+import type { ProviderInjection } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 

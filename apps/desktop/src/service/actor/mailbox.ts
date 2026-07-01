@@ -1,5 +1,5 @@
 // src/service/actor/mailbox.ts
-import type { ActorMessage } from '@shared/types/actor'
+import type { ActorMessage } from '@swarm/protocol'
 
 // Thrown by receive() when no message arrives within idleMs — the resident
 // loop treats this as the signal to sleep (destroy the actor).

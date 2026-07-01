@@ -1,4 +1,4 @@
-import { AgentDefinitionSchema } from '@shared/types/agent'
+import { AgentDefinitionSchema } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { defaultAgents } from './agents'

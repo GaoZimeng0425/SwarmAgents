@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { buildDelegationEdges } from './delegation'

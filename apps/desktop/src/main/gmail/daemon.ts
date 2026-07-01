@@ -9,7 +9,7 @@ import { createLogger } from '@shared/logger'
 import type { GmailApi } from './api'
 import type { Cache } from './cache'
 
-import type { GmailMessage, GmailThread } from '@shared/types/gmail'
+import type { GmailMessage, GmailThread } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'gmail-daemon' })
 

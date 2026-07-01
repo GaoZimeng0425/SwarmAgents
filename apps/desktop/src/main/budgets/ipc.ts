@@ -1,7 +1,7 @@
 // Wires the budget config subsystem to Electron IPC: get / set handlers plus a
 // broadcast of the new config to all renderer windows on change.
 import { createLogger } from '@shared/logger'
-import { BudgetConfigSchema } from '@shared/types/budgets'
+import { BudgetConfigSchema } from '@swarm/protocol'
 import { BrowserWindow, ipcMain } from 'electron'
 
 import type { Service } from './service'

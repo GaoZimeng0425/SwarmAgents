@@ -1,4 +1,4 @@
-import type { WebSearchInjection } from '@shared/types/web-search'
+import type { WebSearchInjection } from '@swarm/protocol'
 
 import type { ClaudeCodeManager } from '../claude-code/manager'
 import type { CronScheduler } from '../cron/scheduler'
@@ -67,7 +67,7 @@ export function registerBuiltinTools(
     /** Live predicate from the tool-toggles store; undefined → all skills enabled. */
     isSkillEnabled?: (name: string) => boolean
     /** Service-side client for gmail.* mainRequest/mainResponse calls. */
-    gmailMainRpc?: (method: import('@shared/types/service-ipc').MainMethod, args: unknown[]) => Promise<unknown>
+    gmailMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)

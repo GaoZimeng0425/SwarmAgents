@@ -3,7 +3,7 @@
 // subtitle_url points at a JSON of {body:[{content}]}. Returns null when the
 // video carries no subtitle (caller decides the fallback).
 import { createLogger } from '@shared/logger'
-import type { BiliCredentials } from '@shared/types/bilibili'
+import type { BiliCredentials } from '@swarm/protocol'
 
 import { BILI_REFERER, BILI_UA, get, getCid, getWbiKeys, toHttpsUrl } from './api'
 import { encWbi } from './wbi'

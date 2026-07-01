@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { TrendingRepo } from '@shared/types/trending'
+import type { TrendingRepo } from '@swarm/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'

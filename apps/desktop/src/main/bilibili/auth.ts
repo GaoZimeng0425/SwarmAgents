@@ -2,7 +2,7 @@
 // polls the window's session cookies until the three auth cookies appear, then
 // persists them (encrypted) and validates via the nav endpoint.
 import { createLogger } from '@shared/logger'
-import type { BiliCredentials, BiliLoginStatus } from '@shared/types/bilibili'
+import type { BiliCredentials, BiliLoginStatus } from '@swarm/protocol'
 import { BrowserWindow, session } from 'electron'
 
 import { getNav } from './api'

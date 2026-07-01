@@ -1,16 +1,18 @@
-import { createLogger } from '@shared/logger'
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
-import type { BudgetConfig } from '@shared/types/budgets'
-import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
-import type { MemoryView } from '@shared/types/memory'
-import type { ProviderInjection } from '@shared/types/provider'
-import type { MainMethod, MainRequest, ServiceMethod, ServiceToMain } from '@shared/types/service-ipc'
-import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import type { ToolGroupInfo, ToolToggles } from '@shared/types/tool-toggles'
-import type { PermissionDecision } from '@shared/types/ui'
-import type { WebSearchInjection } from '@shared/types/web-search'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from './types/agent'
+import type { BudgetConfig } from './types/budgets'
+import type { McpServerConfig, McpServerStatus } from './types/mcp'
+import type { MemoryView } from './types/memory'
+import type { ProviderInjection } from './types/provider'
+import type { MainMethod, MainRequest, ServiceMethod, ServiceToMain } from './types/service-ipc'
+import type { Skill, SkillMutationResult } from './types/skill'
+import type { ToolGroupInfo, ToolToggles } from './types/tool-toggles'
+import type { PermissionDecision } from './types/ui'
+import type { WebSearchInjection } from './types/web-search'
 
-const log = createLogger({ process: 'main' }).child({ component: 'service-client' })
+// @swarm/protocol is logger-free (no pino dep) so it stays portable across
+// desktop/extension/RN. Diagnostics go to console; desktop wraps if it needs
+// structured pino output.
+const log = console
 
 // Minimal duplex channel the client needs. Electron's UtilityProcess satisfies
 // this structurally (postMessage + EventEmitter on/off); tests pass a fake.
@@ -32,15 +34,15 @@ export type ServiceClient = {
   submitGoal(
     sessionId: string,
     goal: string,
-    attachments?: import('@shared/types/task').Attachment[],
-    options?: import('@shared/types/task').TaskOptions
+    attachments?: import('./types/task').Attachment[],
+    options?: import('./types/task').TaskOptions
   ): Promise<{ taskId: string }>
-  listSessions(): Promise<import('@shared/types/ui').SessionSummary[]>
-  getSessionTasks(sessionId: string): Promise<import('@shared/types/task').Task[]>
+  listSessions(): Promise<import('./types/ui').SessionSummary[]>
+  getSessionTasks(sessionId: string): Promise<import('./types/task').Task[]>
   deleteSession(sessionId: string): Promise<void>
   renameSession(sessionId: string, title: string): Promise<void>
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>
-  updateSessionSettings(sessionId: string, settings: import('@shared/types/ui').SessionSettings): Promise<void>
+  updateSessionSettings(sessionId: string, settings: import('./types/ui').SessionSettings): Promise<void>
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   cancelTask(sessionId: string, taskId: string): Promise<void>
@@ -62,10 +64,10 @@ export type ServiceClient = {
   setToolGroupEnabled(group: string, enabled: boolean): Promise<ToolToggles>
   listToolGroups(): Promise<ToolGroupInfo[]>
   listMemory(namespace?: string): Promise<MemoryView[]>
-  getUsageStats(rangeDays: number): Promise<import('@shared/types/usage').UsageStats>
-  listCronJobsForSession(sessionId: string): Promise<import('@shared/types/ui').CronJobSummary[]>
-  listAllCronJobs(): Promise<import('@shared/types/ui').ScheduledTask[]>
-  listAllCronRuns(): Promise<import('@shared/types/ui').CronRun[]>
+  getUsageStats(rangeDays: number): Promise<import('./types/usage').UsageStats>
+  listCronJobsForSession(sessionId: string): Promise<import('./types/ui').CronJobSummary[]>
+  listAllCronJobs(): Promise<import('./types/ui').ScheduledTask[]>
+  listAllCronRuns(): Promise<import('./types/ui').CronRun[]>
   cancelCronJob(id: string): Promise<void>
   registerMainRpc(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown> | unknown): void
 }

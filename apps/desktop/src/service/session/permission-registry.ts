@@ -1,5 +1,5 @@
-import type { PermissionDecision } from '@shared/types/ui'
-import type { Risk } from '@shared/types/ipc'
+import type { PermissionDecision } from '@swarm/protocol'
+import type { Risk } from '@swarm/protocol'
 import { ulid } from 'ulid'
 import { createLogger } from '@shared/logger'
 

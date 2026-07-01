@@ -2,7 +2,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { Readability } from '@mozilla/readability'
 import { createLogger } from '@shared/logger'
-import type { WebSearchInjection } from '@shared/types/web-search'
+import type { WebSearchInjection } from '@swarm/protocol'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 

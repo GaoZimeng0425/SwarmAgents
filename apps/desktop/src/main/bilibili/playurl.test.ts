@@ -1,4 +1,4 @@
-import type { BiliCredentials } from '@shared/types/bilibili'
+import type { BiliCredentials } from '@swarm/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getDashAudioUrl } from './playurl'
 

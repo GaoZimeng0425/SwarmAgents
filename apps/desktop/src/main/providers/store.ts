@@ -6,7 +6,7 @@
 // garbage. Pure module: no logging, no globals — callers inject the filePath.
 import { randomUUID } from 'node:crypto'
 import { existsSync, promises as fs } from 'node:fs'
-import { defaultProvidersStateOnDisk, ProvidersStateOnDisk, parsePersistedState } from '@shared/types/provider'
+import { defaultProvidersStateOnDisk, ProvidersStateOnDisk, parsePersistedState } from '@swarm/protocol'
 import { safeStorage } from 'electron'
 
 export type LoadResult =

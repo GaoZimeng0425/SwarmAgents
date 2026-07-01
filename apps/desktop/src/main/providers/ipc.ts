@@ -6,7 +6,7 @@
 // a test handler. Broadcasts state changes to all renderer windows and fires a
 // one-shot decrypt-failed event at boot when applicable.
 import { createLogger } from '@shared/logger'
-import { type ApiStyle, type ModelMeta, ModelThinkingLevel } from '@shared/types/provider'
+import { type ApiStyle, type ModelMeta, ModelThinkingLevel } from '@swarm/protocol'
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 
 import { paths } from '../constants'

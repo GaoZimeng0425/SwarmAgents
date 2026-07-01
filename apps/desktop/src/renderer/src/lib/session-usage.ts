@@ -1,4 +1,4 @@
-import type { ConsumedResources } from '@shared/types/task'
+import type { ConsumedResources } from '@swarm/protocol'
 
 import type { TaskRecord } from './apply-event'
 

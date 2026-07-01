@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { UIEvent } from '@shared/types/ui'
+import type { UIEvent } from '@swarm/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

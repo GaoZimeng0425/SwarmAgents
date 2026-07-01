@@ -3,7 +3,7 @@
 // Provider-side health check. Fires a 1-token request against the provider's
 // canonical chat endpoint and maps HTTP status to a structured result. Used
 // by the Settings "Test" button.
-import type { ProviderInjection } from '@shared/types/provider'
+import type { ProviderInjection } from '@swarm/protocol'
 
 export type TestResult =
   | { ok: true; latencyMs: number; url: string }

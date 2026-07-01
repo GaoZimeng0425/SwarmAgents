@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { defaultBudgetConfig } from '@shared/types/budgets'
+import { defaultBudgetConfig } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createStore } from './store'

@@ -1,6 +1,6 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
 
-import type { SwarmBridge } from '../shared/types/ui'
+import type { SwarmBridge } from '@swarm/protocol'
 
 declare global {
   interface Window {

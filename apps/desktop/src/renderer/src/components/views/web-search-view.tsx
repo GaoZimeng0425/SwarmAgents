@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { WebSearchConfigView, WebSearchProviderId } from '@shared/types/web-search'
+import type { WebSearchConfigView, WebSearchProviderId } from '@swarm/protocol'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

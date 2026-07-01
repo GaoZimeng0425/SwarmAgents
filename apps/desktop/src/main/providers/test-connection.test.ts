@@ -1,4 +1,4 @@
-import type { ProviderInjection } from '@shared/types/provider'
+import type { ProviderInjection } from '@swarm/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { testConnection } from './test-connection'

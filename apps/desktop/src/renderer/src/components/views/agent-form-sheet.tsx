@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AgentDefinition, ToolScope } from '@shared/types/agent'
+import type { AgentDefinition, ToolScope } from '@swarm/protocol'
 import { compact } from 'es-toolkit'
 
 import { Button } from '@/components/ui/button'

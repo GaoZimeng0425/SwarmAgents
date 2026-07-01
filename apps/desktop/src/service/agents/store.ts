@@ -1,13 +1,13 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { type AgentDefinition, AgentDefinitionSchema } from '@shared/types/agent'
+import { type AgentDefinition, AgentDefinitionSchema } from '@swarm/protocol'
 import { watch as chokidarWatch } from 'chokidar'
 import { parse as parseYaml } from 'yaml'
 
-export type { AgentMutationResult } from '@shared/types/agent'
+export type { AgentMutationResult } from '@swarm/protocol'
 
-import type { AgentMutationResult } from '@shared/types/agent'
+import type { AgentMutationResult } from '@swarm/protocol'
 
 const log = createLogger({ process: 'service' }).child({ component: 'agents' })
 

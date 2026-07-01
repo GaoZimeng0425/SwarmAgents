@@ -3,7 +3,7 @@
 // Local sqlite cache of synced Gmail threads/messages. Main process is the
 // sole writer (the daemon) and sole reader (the query methods); WAL is enabled
 // for hygiene. Opened with better-sqlite3; ':memory:' is used in tests.
-import type { GmailMessage, GmailThread } from '@shared/types/gmail'
+import type { GmailMessage, GmailThread } from '@swarm/protocol'
 import type { Database as DB } from 'better-sqlite3'
 import Database from 'better-sqlite3'
 

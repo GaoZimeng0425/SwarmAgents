@@ -1,6 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import { type AcceptanceCriterion, ExecutableCheckSchema } from '@shared/types/task'
+import { type AcceptanceCriterion, ExecutableCheckSchema } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 

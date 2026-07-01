@@ -3,7 +3,7 @@ import { closestCenter, DndContext, type DragEndEvent, PointerSensor, useSensor,
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { SessionSummary } from '@shared/types/ui'
+import type { SessionSummary } from '@swarm/protocol'
 import { useNavigate } from '@tanstack/react-router'
 import {
   CalendarClock,

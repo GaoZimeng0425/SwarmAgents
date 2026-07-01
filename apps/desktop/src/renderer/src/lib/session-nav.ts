@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@shared/types/ui'
+import type { SessionSummary } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 
 /**

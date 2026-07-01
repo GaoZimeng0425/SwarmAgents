@@ -19,7 +19,7 @@ import {
   type ProviderInjection,
   type ProvidersStateOnDisk,
   type ProvidersStateView,
-} from '@shared/types/provider'
+} from '@swarm/protocol'
 import { uniq } from 'es-toolkit'
 
 import { toView } from './redact'

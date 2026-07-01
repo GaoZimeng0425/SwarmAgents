@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import type { BiliCredentials } from '@shared/types/bilibili'
+import type { BiliCredentials } from '@swarm/protocol'
 
 import { BILI_REFERER, BILI_UA, cookieHeader } from './api'
 

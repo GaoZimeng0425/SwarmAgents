@@ -1,4 +1,4 @@
-import type { Task } from '@shared/types/task'
+import type { Task } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ConversationStore, StoredCronJob, StoredCronRun } from '../conversation/store'

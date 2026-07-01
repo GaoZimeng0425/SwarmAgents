@@ -10,7 +10,7 @@ import type {
   WebSearchConfigView,
   WebSearchInjection,
   WebSearchProviderId,
-} from '@shared/types/web-search'
+} from '@swarm/protocol'
 
 import { toView } from './redact'
 import type { Store } from './store'

@@ -1,4 +1,4 @@
-import type { MemoryView } from '@shared/types/memory'
+import type { MemoryView } from '@swarm/protocol'
 import { useQuery } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'

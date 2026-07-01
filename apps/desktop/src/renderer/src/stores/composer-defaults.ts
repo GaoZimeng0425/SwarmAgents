@@ -1,4 +1,4 @@
-import type { ExecutionMode, PermissionMode } from '@shared/types/task'
+import type { ExecutionMode, PermissionMode } from '@swarm/protocol'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 

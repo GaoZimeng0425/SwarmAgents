@@ -1,4 +1,4 @@
-import type { SessionSettings, SessionSummary } from '@shared/types/ui'
+import type { SessionSettings, SessionSummary } from '@swarm/protocol'
 import { create } from 'zustand'
 
 type SessionsStore = {

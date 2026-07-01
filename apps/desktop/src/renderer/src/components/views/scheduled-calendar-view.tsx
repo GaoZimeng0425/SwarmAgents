@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
-import type { CronRun, ScheduledTask } from '@shared/types/ui'
+import type { CronRun, ScheduledTask } from '@swarm/protocol'
 import { useNavigate } from '@tanstack/react-router'
 import {
   addMonths,

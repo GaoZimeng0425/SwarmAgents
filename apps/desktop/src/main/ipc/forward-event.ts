@@ -1,4 +1,4 @@
-import type { UIEvent } from '@shared/types/ui'
+import type { UIEvent } from '@swarm/protocol'
 
 /**
  * The service emits SSE frames whose *event name* is the discriminator the

@@ -1,4 +1,4 @@
-import type { WebSearchInjection } from '@shared/types/web-search'
+import type { WebSearchInjection } from '@swarm/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRunContext } from './registry'

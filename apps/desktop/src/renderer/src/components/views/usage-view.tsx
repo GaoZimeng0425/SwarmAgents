@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { UsageRange, UsageStats } from '@shared/types/usage'
+import type { UsageRange, UsageStats } from '@swarm/protocol'
 import {
   Activity,
   BarChart3,

@@ -1,4 +1,4 @@
-import type { Attachment } from '@shared/types/task'
+import type { Attachment } from '@swarm/protocol'
 
 // The minimal shape we need from the composer's FileUIPart.
 type FileLike = { type?: string; mediaType?: string; filename?: string; url?: string }

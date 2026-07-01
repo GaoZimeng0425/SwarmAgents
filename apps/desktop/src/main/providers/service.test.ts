@@ -1,4 +1,4 @@
-import type { Provider, ProvidersStateOnDisk } from '@shared/types/provider'
+import type { Provider, ProvidersStateOnDisk } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createService } from './service'

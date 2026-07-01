@@ -3,7 +3,7 @@
 // corrupt file → defaults); `save()` is atomic (tmp → rename).
 import { existsSync, promises as fs } from 'node:fs'
 import { createLogger } from '@shared/logger'
-import { type BudgetConfig, BudgetConfigSchema, defaultBudgetConfig } from '@shared/types/budgets'
+import { type BudgetConfig, BudgetConfigSchema, defaultBudgetConfig } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'budgets-store' })
 

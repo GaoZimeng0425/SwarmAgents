@@ -1,4 +1,4 @@
-import type { PermissionDecision } from '@shared/types/ui'
+import type { PermissionDecision } from '@swarm/protocol'
 import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
@@ -32,8 +32,8 @@ export function useSubmitGoal() {
       forceNew,
     }: {
       goal: string
-      attachments?: import('@shared/types/task').Attachment[]
-      options?: import('@shared/types/task').TaskOptions
+      attachments?: import('@swarm/protocol').Attachment[]
+      options?: import('@swarm/protocol').TaskOptions
       forceNew?: boolean
     }): Promise<{ sessionId: string }> => {
       let sessionId = forceNew ? null : useSessionsStore.getState().selectedSessionId

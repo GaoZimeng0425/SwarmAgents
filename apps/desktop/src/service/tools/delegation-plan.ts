@@ -1,8 +1,8 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 
-import type { DelegationItem } from '@shared/types/task'
-import { AcceptanceCriterionSchema } from '@shared/types/task'
+import type { DelegationItem } from '@swarm/protocol'
+import { AcceptanceCriterionSchema } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 

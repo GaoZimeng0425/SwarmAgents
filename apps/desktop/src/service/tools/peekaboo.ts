@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process'
 
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { Outbound } from '@shared/types/ipc'
-import type { PermissionDecision } from '@shared/types/ui'
+import type { Outbound } from '@swarm/protocol'
+import type { PermissionDecision } from '@swarm/protocol'
 
 const PEEKABOO_BIN = process.env.PEEKABOO_BIN ?? 'peekaboo'
 

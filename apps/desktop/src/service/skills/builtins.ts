@@ -1,4 +1,4 @@
-import type { Skill } from '@shared/types/skill'
+import type { Skill } from '@swarm/protocol'
 
 /**
  * Skills shipped with the app: always available, versioned in code, and not

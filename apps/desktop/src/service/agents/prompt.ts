@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 
 /** Append the available sub-agent-types section to a base system prompt. */
 export function withAgentTypes(base: string, defs: AgentDefinition[]): string {

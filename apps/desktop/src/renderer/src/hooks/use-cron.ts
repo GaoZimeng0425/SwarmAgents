@@ -1,4 +1,4 @@
-import type { CronJobSummary, CronRun, ScheduledTask } from '@shared/types/ui'
+import type { CronJobSummary, CronRun, ScheduledTask } from '@swarm/protocol'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'

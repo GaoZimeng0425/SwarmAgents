@@ -3,7 +3,7 @@
 // mainRpc(method, args) posts a mainRequest on the parentPort and resolves
 // when the matching mainResponse (by id) arrives. Mirrors the request side of
 // the main-side ServiceClient.
-import type { MainMethod } from '@shared/types/service-ipc'
+import type { MainMethod } from '@swarm/protocol'
 
 export type MainRpc = {
   mainRpc(method: MainMethod, args: unknown[]): Promise<unknown>

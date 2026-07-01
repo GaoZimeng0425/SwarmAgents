@@ -4,7 +4,7 @@
 // cache, REST client, OAuth auth, daemon, service, and IPC. Runs after
 // app.whenReady(). registerMainRpc is called from main wiring once the
 // ServiceClient exists.
-import type { MainMethod } from '@shared/types/service-ipc'
+import type { MainMethod } from '@swarm/protocol'
 
 import { paths } from '../constants'
 import { createGmailApi } from './api'

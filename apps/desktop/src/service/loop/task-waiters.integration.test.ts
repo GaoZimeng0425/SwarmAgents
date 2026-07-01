@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import type { Task } from '@shared/types/task'
+import type { Task } from '@swarm/protocol'
 
 import { createConversationStore } from '../conversation/store'
 import { createTaskWaiterService } from './task-waiters'

@@ -4,7 +4,7 @@
 // (tmp -> rename). A malformed file loads as empty so a bad write never wedges
 // the feature.
 import { existsSync, promises as fs, readFileSync } from 'node:fs'
-import { type BiliAnalysis, BiliAnalysisSchema } from '@shared/types/bilibili'
+import { type BiliAnalysis, BiliAnalysisSchema } from '@swarm/protocol'
 import { z } from 'zod'
 
 export type AnalysisStore = {

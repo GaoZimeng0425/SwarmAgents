@@ -3,7 +3,7 @@
 // the service→main rpc: search/get_thread/list_recent. Read-only ⇒ risk 'low'.
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { MainMethod } from '@shared/types/service-ipc'
+import type { MainMethod } from '@swarm/protocol'
 
 import type { ToolSpec } from '../tools/registry'
 

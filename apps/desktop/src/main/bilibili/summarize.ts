@@ -3,8 +3,8 @@
 // URL composition mirrors providers/test-connection.ts so runtime and health
 // check go through the same URL composition.
 import { createLogger } from '@shared/logger'
-import type { BiliSummary } from '@shared/types/bilibili'
-import type { ProviderInjection } from '@shared/types/provider'
+import type { BiliSummary } from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-summarize' })
 

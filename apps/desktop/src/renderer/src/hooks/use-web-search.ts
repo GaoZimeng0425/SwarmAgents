@@ -3,7 +3,7 @@
 // Subscribes to the web-search config view from main. The view is redacted —
 // keys are exposed only as hasKey booleans.
 import { useEffect, useState } from 'react'
-import type { WebSearchConfigView } from '@shared/types/web-search'
+import type { WebSearchConfigView } from '@swarm/protocol'
 
 const EMPTY: WebSearchConfigView = {
   provider: 'auto',

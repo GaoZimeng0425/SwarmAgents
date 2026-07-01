@@ -3,7 +3,7 @@
 // single file via Electron safeStorage, atomic writes (tmp -> rename), validated
 // against the Zod schema before encryption. Pure module: no logging, no globals.
 import { existsSync, promises as fs } from 'node:fs'
-import { BilibiliConfigOnDisk, defaultBilibiliConfigOnDisk } from '@shared/types/bilibili'
+import { BilibiliConfigOnDisk, defaultBilibiliConfigOnDisk } from '@swarm/protocol'
 import { safeStorage } from 'electron'
 
 export type Store = {

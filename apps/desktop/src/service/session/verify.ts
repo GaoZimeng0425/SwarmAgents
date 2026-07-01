@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { createLogger } from '@shared/logger'
-import type { AcceptanceCriterion, ExecutableCheck } from '@shared/types/task'
+import type { AcceptanceCriterion, ExecutableCheck } from '@swarm/protocol'
 
 const log = createLogger({ process: 'service' }).child({ component: 'verify' })
 const pexec = promisify(exec)

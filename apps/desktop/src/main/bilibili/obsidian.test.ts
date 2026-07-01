@@ -1,7 +1,7 @@
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { BiliSummary, BiliVideo } from '@shared/types/bilibili'
+import type { BiliSummary, BiliVideo } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 import { noteFilename, renderNote, writeNote } from './obsidian'
 

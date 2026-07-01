@@ -1,2 +1,25 @@
-// Barrel for @swarm/protocol — populated in Task 2.
-export {}
+// @swarm/protocol — cross-process wire types + RPC client. Zero non-zod runtime deps.
+
+// Type modules
+export * from './types/actor'
+export * from './types/agent'
+export * from './types/bilibili'
+export * from './types/budgets'
+export * from './types/gmail'
+export * from './types/ipc'
+export * from './types/mcp'
+export * from './types/memory'
+export * from './types/model-role'
+export * from './types/permission'
+export * from './types/provider'
+export * from './types/service-ipc'
+export * from './types/skill'
+export * from './types/task'
+export * from './types/tool-toggles'
+export * from './types/trending'
+export * from './types/ui'
+export * from './types/usage'
+export * from './types/web-search'
+
+// RPC client + transport (consumed unchanged by desktop, extension, RN)
+export * from './service-client'

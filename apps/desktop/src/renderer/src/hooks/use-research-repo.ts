@@ -1,5 +1,5 @@
-import type { TrendingPeriod, TrendingRepo } from '@shared/types/trending'
-import { TRENDING_PERIOD_LABELS } from '@shared/types/trending'
+import type { TrendingPeriod, TrendingRepo } from '@swarm/protocol'
+import { TRENDING_PERIOD_LABELS } from '@swarm/protocol'
 import { useNavigate } from '@tanstack/react-router'
 
 import { useSubmitGoal } from './use-tasks'

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Skill } from '@shared/types/skill'
+import type { Skill } from '@swarm/protocol'
 
 /** Loads the skill list (each annotated with its enabled state) and exposes a
  * setter for mutation results plus a reload to refresh after an enable toggle. */

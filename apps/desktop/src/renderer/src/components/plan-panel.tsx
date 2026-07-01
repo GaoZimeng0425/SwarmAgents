@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PlanTodo, TaskStatus } from '@shared/types/task'
+import type { PlanTodo, TaskStatus } from '@swarm/protocol'
 import { Check, ChevronRight, Circle, ListChecks, Loader2 } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'

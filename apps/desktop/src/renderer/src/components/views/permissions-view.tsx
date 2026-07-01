@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { MacPermissionState, MacPermissions } from '@shared/types/ui'
+import type { MacPermissionState, MacPermissions } from '@swarm/protocol'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

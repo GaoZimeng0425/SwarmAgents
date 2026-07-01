@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@shared/types/ui'
+import type { SessionSummary } from '@swarm/protocol'
 
 // Sentinel key for sessions without a cwd. Their group always renders last.
 export const UNGROUPED = '__UNGROUPED__'

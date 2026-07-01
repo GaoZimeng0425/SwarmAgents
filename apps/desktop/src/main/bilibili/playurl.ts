@@ -3,7 +3,7 @@
 // choose the lowest-bandwidth audio track — ASR gains nothing from high bitrate,
 // and a smaller file downloads and transcodes faster.
 import { createLogger } from '@shared/logger'
-import type { BiliCredentials } from '@shared/types/bilibili'
+import type { BiliCredentials } from '@swarm/protocol'
 
 import { get, getCid, getWbiKeys, toHttpsUrl } from './api'
 import type { SubtitleDeps } from './subtitle'

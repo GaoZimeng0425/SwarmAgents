@@ -5,7 +5,7 @@
 // and validated against the Zod schema before encryption so we never persist
 // garbage. Pure module: no logging, no globals - callers inject the filePath.
 import { existsSync, promises as fs } from 'node:fs'
-import { defaultGmailConfigOnDisk, GmailConfigOnDisk } from '@shared/types/gmail'
+import { defaultGmailConfigOnDisk, GmailConfigOnDisk } from '@swarm/protocol'
 import { safeStorage } from 'electron'
 
 export type LoadResult =

@@ -1,4 +1,4 @@
-import type { Task } from '@shared/types/task'
+import type { Task } from '@swarm/protocol'
 
 // Per-session monotonic seq counter. Lazily initializes from the max persisted
 // seq so a resumed session continues past its history (no collision across

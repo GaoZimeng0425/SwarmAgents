@@ -2,7 +2,7 @@
 // Wraps the Store with validation and a state-change broadcast for the IPC layer.
 // A failed persist does NOT advance the in-memory state.
 import { createLogger } from '@shared/logger'
-import { type BudgetConfig, BudgetConfigSchema } from '@shared/types/budgets'
+import { type BudgetConfig, BudgetConfigSchema } from '@swarm/protocol'
 
 import type { Store } from './store'
 

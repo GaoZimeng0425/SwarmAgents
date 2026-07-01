@@ -1,4 +1,4 @@
-import type { Risk } from '@shared/types/ipc'
+import type { Risk } from '@swarm/protocol'
 import { create } from 'zustand'
 
 export type PermissionPrompt = {

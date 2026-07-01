@@ -9,8 +9,8 @@ import {
   type ProvidersStateView,
   type ProviderView,
   providerViewById,
-} from '@shared/types/provider'
-import type { ProvidersTestResult } from '@shared/types/ui'
+} from '@swarm/protocol'
+import type { ProvidersTestResult } from '@swarm/protocol'
 import { ArrowDown, ArrowUp, Bot, Box, Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 

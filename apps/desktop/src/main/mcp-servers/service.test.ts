@@ -1,4 +1,4 @@
-import type { McpServerConfig } from '@shared/types/mcp'
+import type { McpServerConfig } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createService } from './service'

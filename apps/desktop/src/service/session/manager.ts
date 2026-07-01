@@ -3,13 +3,13 @@ import { applyAgentModel } from '@shared/agents/model-override'
 import { DEFAULT_AGENT_DEF, defaultAgents } from '@shared/constants/agents'
 import { createLogger } from '@shared/logger'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
-import type { ActorMessage } from '@shared/types/actor'
-import type { AgentDefinition } from '@shared/types/agent'
-import { allowlistForAgent } from '@shared/types/agent'
-import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
-import type { ProviderInjection } from '@shared/types/provider'
-import type { PermissionMode, Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@shared/types/task'
-import type { PermissionDecision } from '@shared/types/ui'
+import type { ActorMessage } from '@swarm/protocol'
+import type { AgentDefinition } from '@swarm/protocol'
+import { allowlistForAgent } from '@swarm/protocol'
+import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
+import type { PermissionMode, Task, TaskEvent, TaskOptions, TaskResult, TaskStatus } from '@swarm/protocol'
+import type { PermissionDecision } from '@swarm/protocol'
 import { ulid } from 'ulid'
 
 import { createMailbox } from '../actor/mailbox'
@@ -104,7 +104,7 @@ export type SessionManager = {
   submitGoal(
     sessionId: string,
     goal: string,
-    attachments?: import('@shared/types/task').Attachment[],
+    attachments?: import('@swarm/protocol').Attachment[],
     agentDef?: AgentDefinition,
     onComplete?: (status: TaskStatus, error?: string) => void,
     options?: TaskOptions
@@ -124,13 +124,13 @@ export type SessionManager = {
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
   setSessionPinned(sessionId: string, pinned: boolean): void
-  updateSessionSettings(sessionId: string, settings: import('@shared/types/ui').SessionSettings): void
+  updateSessionSettings(sessionId: string, settings: import('@swarm/protocol').SessionSettings): void
   reorderSessions(orderedIds: string[]): void
-  listSessions(): import('@shared/types/ui').SessionSummary[]
+  listSessions(): import('@swarm/protocol').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
-  getUsageStats(rangeDays: number): import('@shared/types/usage').UsageStats
+  getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
   /** @internal test hook */
-  __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@shared/types/actor').Actor
+  __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor
   /** @internal test hook */
   __sendMessageForTest?(
     sessionId: string,
@@ -266,17 +266,17 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         })
       }
       if (event === 'task.plan' && taskId && Array.isArray(obj?.todos)) {
-        const todos = obj.todos as import('@shared/types/task').PlanTodo[]
+        const todos = obj.todos as import('@swarm/protocol').PlanTodo[]
         store.saveTaskPlan(taskId, todos)
         log.debug({ msg: 'plan persisted', taskId, steps: todos.length })
       }
       if (event === 'task.criteria' && taskId && Array.isArray(obj?.criteria)) {
-        const criteria = obj.criteria as import('@shared/types/task').AcceptanceCriterion[]
+        const criteria = obj.criteria as import('@swarm/protocol').AcceptanceCriterion[]
         store.saveTaskCriteria(taskId, criteria)
         log.info({ msg: 'acceptance criteria persisted', taskId, count: criteria.length })
       }
       if (event === 'task.verification' && taskId && obj?.round) {
-        const round = obj.round as import('@shared/types/task').VerificationRound
+        const round = obj.round as import('@swarm/protocol').VerificationRound
         // Replace the full audit array each round (read-modify-write keeps it simple
         // and the array is tiny — bounded by maxVerifyRounds + 1).
         const existing = store.getTask(taskId)?.verifications ?? []
@@ -284,7 +284,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         log.info({ msg: 'verification round persisted', taskId, round: round.round, verdict: round.verdict })
       }
       if (event === 'task.delegation_plan' && taskId && Array.isArray(obj?.plan)) {
-        const plan = obj.plan as import('@shared/types/task').DelegationItem[]
+        const plan = obj.plan as import('@swarm/protocol').DelegationItem[]
         store.saveTaskDelegationPlan(taskId, plan)
         log.info({ msg: 'delegation plan persisted', taskId, items: plan.length })
       }
@@ -294,13 +294,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   // Resolve-or-create an addressable identity. With a name, an existing actor in
   // the same session is reused (so `send('researcher-1', …)` keeps hitting the
   // same identity); without a name a fresh ULID address is minted each time.
-  const ensureActor = (sessionId: string, agentDefId: string, name?: string): import('@shared/types/actor').Actor => {
+  const ensureActor = (sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor => {
     if (name) {
       const existing = store.getActorByName(sessionId, name)
       if (existing) return existing
     }
     const now = Date.now()
-    const actor: import('@shared/types/actor').Actor = {
+    const actor: import('@swarm/protocol').Actor = {
       address: ulid(),
       agentDefId,
       sessionId,
@@ -316,7 +316,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   }
 
   // Resolve `to` as either a raw ULID address or a session-scoped readable name.
-  const resolveAddress = (sessionId: string, to: string): import('@shared/types/actor').Actor | undefined =>
+  const resolveAddress = (sessionId: string, to: string): import('@swarm/protocol').Actor | undefined =>
     store.getActor(to) ?? store.getActorByName(sessionId, to)
 
   // Spawn ONE resident run-loop for an actor: create the residency Task, a
@@ -327,7 +327,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   // aborts, at which point the Task is marked terminal and the handle dropped.
   const spawnResident = (
     sessionId: string,
-    actor: import('@shared/types/actor').Actor
+    actor: import('@swarm/protocol').Actor
   ): { abort(): void; deliver(msg: ActorMessage): void } => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
@@ -526,7 +526,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     suggestedTools?: string[],
     providerKey?: string,
     agentType?: string,
-    options?: import('@shared/types/task').SpawnChildOptions
+    options?: import('@swarm/protocol').SpawnChildOptions
   ): Promise<{ childTaskId: string; result: TaskResult }> => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)

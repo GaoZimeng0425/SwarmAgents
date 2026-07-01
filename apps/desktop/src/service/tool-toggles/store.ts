@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createLogger } from '@shared/logger'
-import { type ToolToggles, ToolTogglesSchema } from '@shared/types/tool-toggles'
+import { type ToolToggles, ToolTogglesSchema } from '@swarm/protocol'
 
 const log = createLogger({ process: 'service' }).child({ component: 'tool-toggles' })
 

@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '@shared/types/agent'
+import type { AgentDefinition } from '@swarm/protocol'
 
 /** A node in the agent org forest. Minimal by design: enough for recursive
  *  rendering (Spec 2) and for overlaying delegation edges (Spec 4). */

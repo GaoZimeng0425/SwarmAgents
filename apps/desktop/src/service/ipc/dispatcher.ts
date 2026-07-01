@@ -3,16 +3,16 @@
 // matching that lived in the HTTP server. No transport, no I/O — trivially
 // unit-testable.
 
-import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@shared/types/agent'
-import type { BudgetConfig } from '@shared/types/budgets'
-import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
-import type { MemoryView } from '@shared/types/memory'
-import type { ProviderInjection } from '@shared/types/provider'
-import type { ServiceMethod } from '@shared/types/service-ipc'
-import type { Skill, SkillMutationResult } from '@shared/types/skill'
-import type { ToolGroupInfo, ToolToggles } from '@shared/types/tool-toggles'
-import type { PermissionDecision } from '@shared/types/ui'
-import type { WebSearchInjection } from '@shared/types/web-search'
+import type { AgentDefinition, AgentListItem, AgentMutationResult } from '@swarm/protocol'
+import type { BudgetConfig } from '@swarm/protocol'
+import type { McpServerConfig, McpServerStatus } from '@swarm/protocol'
+import type { MemoryView } from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
+import type { ServiceMethod } from '@swarm/protocol'
+import type { Skill, SkillMutationResult } from '@swarm/protocol'
+import type { ToolGroupInfo, ToolToggles } from '@swarm/protocol'
+import type { PermissionDecision } from '@swarm/protocol'
+import type { WebSearchInjection } from '@swarm/protocol'
 
 import type { SessionManager } from '../session/manager'
 
@@ -36,9 +36,9 @@ type DispatcherConfig = {
   setToolGroupEnabled(group: string, enabled: boolean): ToolToggles
   listToolGroups(): ToolGroupInfo[]
   listMemory(namespace?: string): MemoryView[]
-  listCronJobsForSession(sessionId: string): import('@shared/types/ui').CronJobSummary[]
-  listAllCronJobs(): import('@shared/types/ui').ScheduledTask[]
-  listAllCronRuns(): import('@shared/types/ui').CronRun[]
+  listCronJobsForSession(sessionId: string): import('@swarm/protocol').CronJobSummary[]
+  listAllCronJobs(): import('@swarm/protocol').ScheduledTask[]
+  listAllCronRuns(): import('@swarm/protocol').CronRun[]
   cancelCronJob(id: string): void
 }
 
@@ -57,8 +57,8 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         const [sessionId, goal, attachments, options] = args as [
           string,
           string,
-          import('@shared/types/task').Attachment[] | undefined,
-          import('@shared/types/task').TaskOptions | undefined,
+          import('@swarm/protocol').Attachment[] | undefined,
+          import('@swarm/protocol').TaskOptions | undefined,
         ]
         return manager.submitGoal(sessionId, goal, attachments, undefined, undefined, options)
       }
@@ -84,7 +84,7 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         return { ok: true }
       }
       case 'updateSessionSettings': {
-        const [sessionId, settings] = args as [string, import('@shared/types/ui').SessionSettings]
+        const [sessionId, settings] = args as [string, import('@swarm/protocol').SessionSettings]
         manager.updateSessionSettings(sessionId, settings)
         return { ok: true }
       }

@@ -1,4 +1,4 @@
-import type { UIEvent } from '@shared/types/ui'
+import type { UIEvent } from '@swarm/protocol'
 
 import { coerceProps } from '@/components/ui-renderers'
 

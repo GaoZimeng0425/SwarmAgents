@@ -1,4 +1,4 @@
-import type { ProviderInjection } from '@shared/types/provider'
+import type { ProviderInjection } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { applyAgentModel } from './model-override'

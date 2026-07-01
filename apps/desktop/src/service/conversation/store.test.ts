@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SYSTEM_SESSION_ID } from '@shared/system-session'
-import type { Task, TaskEvent } from '@shared/types/task'
+import type { Task, TaskEvent } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createConversationStore } from './store'
@@ -56,7 +56,7 @@ describe('ConversationStore', () => {
 
   it('interrupts non-terminal tasks of interrupted sessions on restart, preserving terminal ones', () => {
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
-    const mkTask = (id: string, status: import('@shared/types/task').Task['status']) => ({
+    const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
       id,
       parentId: null,
       agentDefId: 'default',
@@ -94,7 +94,7 @@ describe('ConversationStore', () => {
     // still clean those zombies — the cleanup is global, not keyed to sessions
     // flipped active→interrupted this run.
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
-    const mkTask = (id: string, status: import('@shared/types/task').Task['status']) => ({
+    const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
       id,
       parentId: null,
       agentDefId: 'default',
@@ -129,7 +129,7 @@ describe('ConversationStore', () => {
     // a tool.result (ok=false) for each unresolved call, while leaving already
     // resolved calls untouched.
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
-    const mkTask = (id: string, status: import('@shared/types/task').Task['status']) => ({
+    const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
       id,
       parentId: null,
       agentDefId: 'default',
@@ -360,7 +360,7 @@ describe('ConversationStore', () => {
     store.close()
   })
 
-  const taskLiteral = (id: string, history: import('@shared/types/task').TaskEvent[] = []) => ({
+  const taskLiteral = (id: string, history: import('@swarm/protocol').TaskEvent[] = []) => ({
     id,
     parentId: null,
     agentDefId: 'default',
@@ -394,7 +394,7 @@ describe('ConversationStore', () => {
 
   it('backfills legacy tasks.history into task_events on open, without duplicating', () => {
     const provider = { id: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
-    const legacy: import('@shared/types/task').TaskEvent[] = [
+    const legacy: import('@swarm/protocol').TaskEvent[] = [
       { kind: 'reasoning', content: 'x', ts: 1 },
       { kind: 'error', error: { code: 'boom', message: 'nope', tier: 'fatal' }, ts: 2 },
     ]
@@ -1070,10 +1070,10 @@ describe('ConversationStore', () => {
       } as never
       store.saveTask(task, 's1')
 
-      const criteria: import('@shared/types/task').AcceptanceCriterion[] = [
+      const criteria: import('@swarm/protocol').AcceptanceCriterion[] = [
         { id: 'c1', description: 'tests pass', check: { kind: 'command', command: 'npm test' } },
       ]
-      const rounds: import('@shared/types/task').VerificationRound[] = [
+      const rounds: import('@swarm/protocol').VerificationRound[] = [
         { round: 0, verdict: 'pass', results: [{ criterionId: 'c1', pass: true, detail: 'exit 0' }], gaps: [], ts: 5 },
       ]
       store.saveTaskCriteria('01HZZZZZZZZZZZZZZZZZZZZZZ01', criteria)

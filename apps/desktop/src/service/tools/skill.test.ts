@@ -1,4 +1,4 @@
-import type { Skill } from '@shared/types/skill'
+import type { Skill } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { SkillStore } from '../skills/store'

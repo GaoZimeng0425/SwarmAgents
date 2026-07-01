@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { type BudgetConfig, defaultBudgetConfig } from '@shared/types/budgets'
+import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 
 /** Read the persisted per-task budget config, kept in sync with main. */
 export function useBudgets(): BudgetConfig {

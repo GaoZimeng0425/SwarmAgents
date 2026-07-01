@@ -1,5 +1,5 @@
-import type { AgentDefinition } from '@shared/types/agent'
-import type { ProviderInjection } from '@shared/types/provider'
+import type { AgentDefinition } from '@swarm/protocol'
+import type { ProviderInjection } from '@swarm/protocol'
 
 /**
  * Apply an agent type's model-tier overrides onto a provider injection. An agent
