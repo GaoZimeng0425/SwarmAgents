@@ -4,6 +4,22 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { SessionSummary } from '@swarm/protocol'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  Input,
+} from '@swarm/ui'
 import { useNavigate } from '@tanstack/react-router'
 import {
   CalendarClock,
@@ -20,24 +36,6 @@ import {
 import { toast } from 'sonner'
 
 import { ServiceGrid } from '@/components/service-grid'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@swarm/ui'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@swarm/ui'
-import { Input } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'

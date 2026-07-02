@@ -39,7 +39,7 @@ function RootLayout(): React.JSX.Element {
       {/* The whole window backdrop is the conversation surface (--window-content);
           the floating sidebar card sits on it, so the gap around the card matches
           the chat area instead of showing raw desktop vibrancy. */}
-      <SidebarProvider className="bg-[var(--window-content)]">
+      <SidebarProvider className="bg-(--window-content)">
         <TopBar />
         <AppSidebar />
         <SidebarInset className="min-w-0 overflow-hidden">

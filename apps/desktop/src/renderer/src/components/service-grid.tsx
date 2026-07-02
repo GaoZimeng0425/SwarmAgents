@@ -2,7 +2,7 @@
 // Owns the service list so the sidebar footer can stay minimal (Settings +
 // ThemeToggle only). Each cell reuses the footer's icon-button styling.
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
+import { cn, Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { Link } from '@tanstack/react-router'
 import { BarChart3, CalendarClock, Mail, TrendingUp, Video } from 'lucide-react'
 
@@ -27,7 +27,7 @@ export const SERVICES: ServiceEntry[] = [
 
 export function ServiceGrid(): React.JSX.Element {
   return (
-    <div className="grid grid-cols-3 gap-1">
+    <div className="grid grid-cols-4 gap-1">
       {SERVICES.map(({ icon: Icon, to, label }) => (
         <Tooltip key={to}>
           <TooltipTrigger
@@ -35,7 +35,7 @@ export function ServiceGrid(): React.JSX.Element {
               <Link
                 // biome-ignore lint/suspicious/noExplicitAny: TanStack Router activeProps generic over route tree
                 activeProps={{ 'data-active': 'true' } as any}
-                className={iconBtn}
+                className={cn(iconBtn, 'w-full')}
                 // biome-ignore lint/suspicious/noExplicitAny: `to` widened over Router's typed registry
                 to={to as any}
               >
