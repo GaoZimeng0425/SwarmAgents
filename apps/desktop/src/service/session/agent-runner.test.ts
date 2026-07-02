@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { getBuiltinModel as getModel } from '@earendil-works/pi-ai/providers/all'
 import type { Task } from '@swarm/protocol'
@@ -5,6 +7,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createToolRegistry } from '../tools/registry'
 import { buildToolContext, createAgentRunner, pricingToCost } from './agent-runner'
+
+describe('AgentRunner decoupling guard', () => {
+  // AgentRunner must not re-acquire a dependency on the Task domain concept.
+  it('agent-runner.ts references neither deps.task nor `task: Task`', () => {
+    const src = readFileSync(fileURLToPath(new URL('./agent-runner.ts', import.meta.url)), 'utf8')
+    expect(src).not.toMatch(/deps\.task\b/)
+    expect(src).not.toMatch(/\btask:\s*Task\b/)
+  })
+})
 
 const MockAgent = vi.hoisted(() => vi.fn())
 
