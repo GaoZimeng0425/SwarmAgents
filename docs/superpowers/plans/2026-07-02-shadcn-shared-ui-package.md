@@ -559,6 +559,7 @@ and drop the now-moot label.tsx biome-ignore."
 ### Task 4: Wire `@swarm/ui` into the desktop renderer
 
 **Files:**
+- Modify: `packages/ui/src/components/ui/*.tsx` (rewrite `@/` imports → relative, so the package is consumer-agnostic — fixes a cross-consumer alias collision)
 - Modify: `apps/desktop/electron.vite.config.ts` (renderer `resolve.alias`)
 - Modify: `apps/desktop/tsconfig.web.json` (`paths` + `include`)
 - Modify: `apps/desktop/package.json` (dep)
@@ -568,9 +569,11 @@ and drop the now-moot label.tsx biome-ignore."
 - Consumes: `@swarm/ui` exports from Task 2.
 - Produces: `import { Button } from '@swarm/ui'` resolving in the desktop renderer, with Tailwind v4 generating the component classes.
 
-- [ ] **Step 1: Add the renderer vite alias**
+- [ ] **Step 1: Make `@swarm/ui` imports consumer-agnostic, then add the renderer vite alias**
 
-In `apps/desktop/electron.vite.config.ts`, inside the `renderer.resolve.alias` object, add one entry (keep existing entries intact):
+**1a. Rewrite the package's `@/` imports to relative (do this first).** shadcn generates component imports as `@/lib/utils`. Each consumer's `@/` alias points at THAT consumer's own src, so a shared package's `@/` imports resolve to the consumer, not the package — benign for desktop (its `cn` is identical) but **breaking for the extension**, which has no `@/` alias. Fix it once, in the package: rewrite every `@/...` import in `packages/ui/src/components/ui/*.tsx` to a path relative to the file. For the 5 starter components the only such import is `@/lib/utils` → `../../lib/utils`. Find them with `grep -rn "@/" packages/ui/src/components/ui/`. Verify the package still typechecks standalone: `pnpm --filter @swarm/ui typecheck`.
+
+**1b. Add the renderer vite alias.** In `apps/desktop/electron.vite.config.ts`, inside the `renderer.resolve.alias` object, add one entry (keep existing entries intact):
 
 ```ts
 '@swarm/ui': resolve('../../packages/ui/src'),
@@ -636,14 +639,15 @@ Then confirm the Tailwind `@source` and the runtime vite alias are in place (the
 
 - [ ] **Step 7: Format + commit**
 
-Run: `npx biome check --write apps/desktop/electron.vite.config.ts apps/desktop/src/renderer/src/styles/globals.css`
+Run: `npx biome check --write apps/desktop/electron.vite.config.ts apps/desktop/src/renderer/src/styles/globals.css packages/ui/src/components/ui`
 ```bash
-git add apps/desktop/electron.vite.config.ts apps/desktop/tsconfig.web.json apps/desktop/package.json apps/desktop/src/renderer/src/styles/globals.css
+git add packages/ui/src/components/ui apps/desktop/electron.vite.config.ts apps/desktop/tsconfig.web.json apps/desktop/package.json apps/desktop/src/renderer/src/styles/globals.css
 git commit -m "feat(desktop): consume @swarm/ui in the renderer
 
 Vite alias + tsconfig paths + workspace dep for @swarm/ui, plus a Tailwind
-@source so component classes are generated. Desktop's own components/ui is
-intentionally left in place (minimal scope)."
+@source so component classes are generated. Also rewrite the package's @/
+imports to relative so it is consumer-agnostic (the extension has no @/ alias).
+Desktop's own components/ui is intentionally left in place (minimal scope)."
 ```
 
 ---
