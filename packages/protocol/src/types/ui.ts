@@ -23,6 +23,7 @@ import type {
   TranscriptionConfig,
 } from './bilibili'
 import type { BudgetConfig } from './budgets'
+import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './calendar'
 import type { GmailClientCreds, GmailConfigView } from './gmail'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
@@ -265,6 +266,31 @@ export type GmailBridge = {
   onStateChanged(cb: (view: GmailConfigView) => void): () => void
 }
 
+export type CalendarSetResult = { ok: true } | { ok: false; code: string; message: string }
+
+export type CalendarLocalInput = {
+  title: string
+  startMs: number
+  endMs: number
+  allDay?: boolean
+  description?: string | null
+  location?: string | null
+}
+
+export type CalendarBridge = {
+  getStatus(): Promise<CalendarConfigView>
+  setClientCreds(creds: CalendarClientCreds): Promise<CalendarSetResult>
+  clearClientCreds(): Promise<unknown>
+  linkAccount(): Promise<CalendarSetResult>
+  unlinkAccount(): Promise<unknown>
+  syncNow(): Promise<void>
+  onStateChanged(cb: (view: CalendarConfigView) => void): () => void
+  listInRange(fromMs: number, toMs: number): Promise<CalendarEvent[]>
+  createLocal(input: CalendarLocalInput): Promise<CalendarEvent>
+  updateLocal(id: string, patch: Partial<CalendarLocalInput>): Promise<CalendarEvent | null>
+  deleteLocal(id: string): Promise<boolean>
+}
+
 export type ProvidersBridge = {
   get(): Promise<ProvidersStateView>
   /** id is a builtin id ('anthropic'|'openai') or a custom provider id. */
@@ -439,6 +465,7 @@ export type SwarmBridge = {
   agents: AgentBridge
   bilibili: BilibiliBridge
   gmail: GmailBridge
+  calendar: CalendarBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.
