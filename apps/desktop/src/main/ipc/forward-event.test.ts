@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyEvent } from '../../renderer/src/lib/apply-event'
+import { applyEvent } from '@shared/lib/apply-event'
 import { toRendererEvent } from './forward-event'
 
 describe('toRendererEvent', () => {

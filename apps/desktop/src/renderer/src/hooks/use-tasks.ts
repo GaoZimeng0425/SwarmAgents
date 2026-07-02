@@ -2,7 +2,7 @@ import type { PermissionDecision } from '@swarm/protocol'
 import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
-import type { TaskRecord } from '@/lib/apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { tasksToRecords } from '@/lib/replay'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'

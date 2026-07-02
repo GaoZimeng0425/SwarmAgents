@@ -1,7 +1,7 @@
 import type { CronRun } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 
-import type { TaskRecord, TaskStatus } from './apply-event'
+import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
 
 // One scheduled run, flattened for the read-only results list. Derived from the
 // run's top-level task, enriched with cron metadata (job name, run error) when a

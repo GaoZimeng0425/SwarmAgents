@@ -2,7 +2,7 @@ import { formatDistanceToNow } from 'date-fns'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { TaskRecord, TaskStatus } from '@/lib/apply-event'
+import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
 
 const STATUS_VARIANT: Record<TaskStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {

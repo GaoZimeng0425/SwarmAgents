@@ -1,6 +1,6 @@
 import { sortBy } from 'es-toolkit'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 
 export type ComposerTurns = {
   /**

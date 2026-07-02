@@ -1,5 +1,5 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { TaskRecord } from '@/lib/apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { useUiStore } from '@/stores/ui'
 import { TaskListItem } from './task-list-item'
 

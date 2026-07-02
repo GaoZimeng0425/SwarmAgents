@@ -1,6 +1,6 @@
 import type { Attachment, UIEvent } from '@swarm/protocol'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 
 // Every segment carries a global per-session seq (the timeline sort key, so the
 // renderer can interleave segments across tasks in true causal order — a spawned

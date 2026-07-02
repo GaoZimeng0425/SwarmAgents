@@ -1,7 +1,7 @@
 import type { CronRun } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { buildScheduledRows, collectSubtree, formatDuration } from './scheduled-rows'
 
 const task = (over: Partial<TaskRecord> & { id: string }): TaskRecord => ({

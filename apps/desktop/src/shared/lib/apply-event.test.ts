@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyEvent, type TaskRecord } from './apply-event'
+import { applyEvent, type TaskRecord } from '@shared/lib/apply-event'
 
 const baseEvent = { ts: 1, taskId: 't1' as const, sessionId: 'ses-1' }
 

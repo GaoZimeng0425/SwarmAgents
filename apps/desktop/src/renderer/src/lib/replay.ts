@@ -1,7 +1,7 @@
 import type { Task, UIEvent } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 
-import type { TaskRecord, TaskStatus } from './apply-event'
+import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
 
 // Keys are the persisted Task['status'] string values, so snake_case is required here.
 // biome-ignore lint/style/useNamingConvention: keys mirror stored status values verbatim

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { taskSegments } from './task-segments'
 
 function rec(events: TaskRecord['events'], attachments: TaskRecord['attachments'] = []): TaskRecord {

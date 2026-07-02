@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { minimapItems } from './minimap-items'
 
 function task(over: Partial<TaskRecord>): TaskRecord {

@@ -4,7 +4,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import type { TaskRecord } from '@/lib/apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 
 function eventLabel(e: UIEvent): string {
   switch (e.kind) {

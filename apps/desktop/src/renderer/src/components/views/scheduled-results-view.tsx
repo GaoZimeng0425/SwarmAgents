@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { TaskTimeline } from '@/components/task-transcript'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAllCronJobs, useAllCronRuns } from '@/hooks/use-cron'
-import type { TaskRecord, TaskStatus } from '@/lib/apply-event'
+import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
 import { buildScheduledRows, collectSubtree, formatDuration } from '@/lib/scheduled-rows'
 import { cn } from '@/lib/utils'
 

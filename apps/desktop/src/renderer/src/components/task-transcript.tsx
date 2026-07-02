@@ -33,7 +33,7 @@ const AttachmentViewerSheet = lazy(() =>
 
 import { Spinner } from '@/components/ui/spinner'
 import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
-import type { TaskRecord } from '@/lib/apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { buildTimelineItems, type TimelineItem } from '@/lib/build-timeline-items'
 import { extractImagePaths } from '@/lib/file-paths'
 import { groupSegments } from '@/lib/group-segments'

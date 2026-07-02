@@ -1,6 +1,6 @@
 import type { ConsumedResources } from '@swarm/protocol'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 
 /**
  * The usage display (context ring, cost, transcript footer) reflects the

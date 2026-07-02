@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from '@/lib/apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { ConversationMinimap } from './conversation-minimap'
 
 function task(over: Partial<TaskRecord>): TaskRecord {

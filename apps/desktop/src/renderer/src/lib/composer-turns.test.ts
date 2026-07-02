@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { classifyComposerTurns } from './composer-turns'
 
 const rec = (over: Partial<TaskRecord>): TaskRecord => ({

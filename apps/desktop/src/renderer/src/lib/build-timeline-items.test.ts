@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { buildTimelineItems } from './build-timeline-items'
 import type { Segment } from './task-segments'
 

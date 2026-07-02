@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { latestTopLevelTask, sessionDisplayUsage } from './session-usage'
 
 const used = (tokens: number, usdCents: number): TaskRecord['used'] => ({

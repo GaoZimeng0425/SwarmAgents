@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { sortBy } from 'es-toolkit'
 
-import type { TaskRecord } from './apply-event'
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { groupSegments } from './group-segments'
 import { type Segment, taskSegments } from './task-segments'
 import { dayKey } from './timeline'
