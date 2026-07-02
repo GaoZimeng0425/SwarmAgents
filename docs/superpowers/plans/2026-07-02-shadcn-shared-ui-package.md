@@ -789,20 +789,19 @@ Leave the rest of `Popup.tsx` (state, probe logic, result rendering) unchanged.
 - [ ] **Step 8: Relink + build the extension**
 
 Run: `pnpm install && pnpm --filter @swarm/extension build`
-Expected: WXT build succeeds; `.output/` contains the built popup/options with inlined CSS. If a Radix package fails to resolve, add it to the extension's devDependencies (hoisting usually covers it, but MV builds can be stricter) and rebuild.
+Expected: WXT build succeeds; `.output/` contains the built popup/options with inlined CSS. If a `@base-ui/react` (Base UI) primitive fails to resolve, add it to the extension's devDependencies (hoisting usually covers it, but MV builds can be stricter) and rebuild.
 
 - [ ] **Step 9: Typecheck the extension**
 
 Run: `pnpm --filter @swarm/extension typecheck`
 Expected: no errors. (If the `@wxt-dev/module-react` types differ, the existing popup already builds, so this should be unchanged apart from the new `@swarm/ui` import resolving.)
 
-- [ ] **Step 10: Load the popup and verify styling**
+- [ ] **Step 10: Verify Tailwind generated the `@swarm/ui` classes (built-CSS check)**
 
-Load the built extension in Chrome (`chrome://extensions` → Load unpacked → `apps/extension/.output/chromium-mv3`), open the popup, and screenshot. Confirm:
-- The "test connection" button has the primary accent background, rounded corners, and the system font.
-- The popup is 320px wide with the token background (not the browser default).
-
-> If the button is unstyled, the `@source` path did not resolve — confirm `ls apps/extension/node_modules/@swarm/ui/src` lists components and fix the relative depth in `globals.css`.
+A successful build (Step 8) proves imports/alias/CSS resolve, but NOT that Tailwind generated the `@swarm/ui` component classes — a wrong `@source` would build fine yet emit an unstyled component. Verify without a browser by grepping the built CSS for a representative Button utility:
+`find apps/extension/.output -name '*.css' -exec grep -lE 'inline-flex|bg-primary' {} \;`
+Expected: at least one built CSS file matches → the Button's classes were generated → `@source` worked.
+> If no match, the `@source "../../node_modules/@swarm/ui/src";` path in `globals.css` did not resolve — confirm `ls apps/extension/node_modules/@swarm/ui/src` lists the components and fix the relative depth (2 `..` from `entrypoints/popup/globals.css`). The browser visual (load unpacked in Chrome, open popup, screenshot) is a Task 6 optional check; this built-CSS grep is the automated proof here.
 
 - [ ] **Step 11: Format + commit**
 
