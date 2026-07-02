@@ -12,6 +12,15 @@ export default defineConfig({
     permissions: ['storage', 'alarms'],
     host_permissions: ['ws://127.0.0.1:47777/*', 'http://127.0.0.1:47777/*'],
   },
+  // Use Dia as the dev browser instead of Chrome. WXT's `dev` command otherwise
+  // spawns Chrome via chrome-launcher and fails with ChromeNotInstalledError on
+  // machines that only have Dia installed. Dia is Chromium-based, so web-ext's
+  // chromium runner drives it directly.
+  webExt: {
+    binaries: {
+      chrome: '/Applications/Dia.app/Contents/MacOS/Dia',
+    },
+  },
   vite: () => ({
     resolve: {
       alias: {
