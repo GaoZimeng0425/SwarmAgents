@@ -10,6 +10,7 @@ import { createLogger } from '@shared/logger'
 import type { GmailClientCreds, GmailConfigOnDisk, GmailTokens } from '@swarm/protocol'
 import { shell } from 'electron'
 
+import { oauthErrorHtml, oauthSuccessHtml } from '../oauth-redirect'
 import type { Store } from './store'
 
 const log = createLogger({ process: 'main' }).child({ component: 'gmail-auth' })
@@ -147,8 +148,8 @@ export function createAuth(deps: AuthDeps): Auth {
           const url = req.url ?? '/'
           const code = extractCode(url)
           if (!code) {
-            res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' })
-            res.end('Missing code parameter.')
+            res.writeHead(400, { 'content-type': 'text/html; charset=utf-8' })
+            res.end(oauthErrorHtml('Google 重定向里没有 code 参数，请回到 app 重新 Link。'))
             return
           }
           try {
@@ -156,14 +157,15 @@ export function createAuth(deps: AuthDeps): Auth {
             const profile = await deps.onProfile(tokens.accessToken)
             await persistTokens(tokens, profile.emailAddress)
             log.info({ msg: 'gmail login captured', email: profile.emailAddress })
-            res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
-            res.end('Linked. You can close this tab.')
+            res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+            res.end(oauthSuccessHtml(profile.emailAddress))
             finish(() => resolve())
           } catch (err) {
-            log.error({ msg: 'gmail login exchange failed', err: err instanceof Error ? err.message : String(err) })
-            res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
-            res.end('Link failed. Check the app.')
-            finish(() => reject(err instanceof Error ? err : new Error(String(err))))
+            const errMsg = err instanceof Error ? err.message : String(err)
+            log.error({ msg: 'gmail login exchange failed', err: errMsg })
+            res.writeHead(500, { 'content-type': 'text/html; charset=utf-8' })
+            res.end(oauthErrorHtml(errMsg))
+            finish(() => reject(err instanceof Error ? err : new Error(errMsg)))
           }
         })
         server.on('error', (err) => finish(() => reject(err)))
