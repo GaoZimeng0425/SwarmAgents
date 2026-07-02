@@ -336,7 +336,7 @@ export function SessionList(): React.JSX.Element {
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem
-            className="text-destructive data-[highlighted]:text-destructive"
+            className="text-destructive data-highlighted:text-destructive"
             onClick={() => setPendingDelete(s)}
           >
             <Trash2 className="size-4" />
