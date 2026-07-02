@@ -17,12 +17,12 @@ export const CalendarTokensSchema = z.object({
 export type CalendarTokens = z.infer<typeof CalendarTokensSchema>
 
 // On-disk config (encrypted via safeStorage).
-export const CalendarConfigOnDiskSchema = z.object({
+export const CalendarConfigOnDisk = z.object({
   clientCreds: CalendarClientCredsSchema.nullable(),
   tokens: CalendarTokensSchema.nullable(),
   accountEmail: z.string().nullable(),
 })
-export type CalendarConfigOnDisk = z.infer<typeof CalendarConfigOnDiskSchema>
+export type CalendarConfigOnDisk = z.infer<typeof CalendarConfigOnDisk>
 
 export function defaultCalendarConfigOnDisk(): CalendarConfigOnDisk {
   return { clientCreds: null, tokens: null, accountEmail: null }
