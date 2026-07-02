@@ -13,6 +13,7 @@
 - **Option 1 / minimal scope:** desktop's existing ~60 `components/ui` files are NOT migrated, renamed, or rewritten. `@swarm/ui` is purely additive. (Re-export shim / full migration are documented follow-ups in the spec, §9.)
 - **`@swarm/ui` must stay platform-agnostic:** React/web libs allowed; `electron`, `better-sqlite3`, `sqlite-vec`, `sherpa-onnx-node`, node builtins (`node:`, `child_process`, `path`, `fs`, `os`), `react-native`, `@anthropic-ai/*`, `@modelcontextprotocol/*` forbidden. Enforced by `tools/check-boundaries.mjs`.
 - **Source-only package:** no build step. `main`/`types` → `./src/index.ts`. Consumed from source via vite alias + tsconfig paths (mirror `@swarm/shared`).
+- **shadcn framework marker:** `packages/ui/vite.config.ts` (a permanent `export default {}` stub) exists solely so the shadcn CLI's framework detector recognizes the package — without it, `apply`/`add` exit 1 with "could not detect a supported framework". It is NOT a build config: no `build` script, outside the tsconfig `include`, never built by turbo.
 - **Versions (copy verbatim):** `tailwindcss@^4.3.2`, `@tailwindcss/vite@^4.3.2`, `tw-animate-css@^1.4.0`, `clsx@^2.1.1`, `tailwind-merge@^3.6.0`, `class-variance-authority@^0.7.1`, `lucide-react@^1.22.0`, `@types/react@19.2.17`, `@types/react-dom@19.2.3`, `vitest@^4.1.9`, `typescript@^6.0.3`.
 - **Test runner for `@swarm/ui`:** plain `vitest run` (no Electron — `cn` is pure TS). Desktop's electron-node test rule does NOT apply to this package.
 - **Commit messages & code comments in English.** Conversation in Chinese. Biome is the formatter (`npx biome check --write <file>` for scoped formatting — `pnpm check` reformats the whole repo).
@@ -31,6 +32,7 @@
 - `src/styles/tokens.css` — portable Tailwind v4 token block (`@theme inline`, `:root`, `.dark`, base layer). The single source of truth for design tokens.
 - `src/components/ui/*` — populated by the preset (Task 2).
 - `src/index.ts` — barrel re-exporting `cn` + every ui component.
+- `vite.config.ts` — permanent shadcn framework-detection marker only (no build step; Task 2).
 
 **Modified:**
 - `tools/check-boundaries.mjs` — per-package rules; add `ui`.
@@ -337,6 +339,7 @@ populated by the preset in the next commit."
 ### Task 2: Apply the preset and finalize the package surface
 
 **Files:**
+- Create: `packages/ui/vite.config.ts` (permanent shadcn framework marker — see Step 1)
 - Modify: `packages/ui/components.json` (preset may rewrite — verify aliases after)
 - Create: `packages/ui/src/components/ui/*` (by the preset)
 - Regenerate: `packages/ui/src/index.ts` (barrel)
@@ -345,15 +348,26 @@ populated by the preset in the next commit."
 **Interfaces:**
 - Produces: a populated `@swarm/ui` exporting the preset's components + `cn`; a `package.json` whose `dependencies` include every Radix primitive the components need.
 
-- [ ] **Step 1: Apply the preset inside the package**
+- [ ] **Step 1: Create the shadcn framework marker, then apply the preset**
 
-Run:
+shadcn 4.12.0's framework detector globs the cwd (deep:3) for `vite.config.*|next.config.*|…`. Task 1's package is source-only with no such marker, so `apply` exits 1 with "could not detect a supported framework" **before** fetching the preset (verified during execution). Create a permanent minimal marker first.
+
+Create `packages/ui/vite.config.ts`:
+```ts
+// shadcn CLI requires a framework marker (vite.config.*) to detect the project
+// type before `apply`/`add`. This file exists solely for that detection — the
+// package has no build step and is consumed from source via the apps' vite
+// aliases. It lives outside the package tsconfig `include`, so it is never
+// typechecked, and turbo never builds it (no `build` script).
+export default {}
+```
+Then run the preset:
 ```bash
 cd packages/ui
 bunx --bun shadcn@latest apply --preset b1abxEJN2
 cd ../..
 ```
-Expected: components are written under `packages/ui/src/components/ui/`. If the CLI prompts interactively, accept the defaults (the preset encodes the choices). If it errors that it cannot find a Tailwind entry, confirm `packages/ui/src/styles/tokens.css` exists with `@import "tailwindcss";` (it does from Task 1) and re-run.
+Expected: components are written under `packages/ui/src/components/ui/`. If `bun` is unavailable, substitute `npx shadcn@latest apply --preset b1abxEJN2` and note it. If it still exits non-zero, retry with a `--yes` flag. **The marker is committed permanently — do NOT delete it** (future `shadcn add` calls need it too).
 
 - [ ] **Step 2: Verify components landed**
 

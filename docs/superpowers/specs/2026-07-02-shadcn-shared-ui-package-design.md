@@ -74,6 +74,9 @@ packages/ui/
     lib/utils.ts        # cn() = twMerge(clsx(...))
     styles/tokens.css   # portable token block (see 4.2)
     components/ui/*     # populated by `shadcn apply` (the preset)
+  vite.config.ts       # permanent stub — shadcn framework-detection marker only
+                       # (no build step; apply/add exit 1 "could not detect a
+                       # supported framework" without a vite.config.*)
 ```
 
 **`package.json`** (key fields):
