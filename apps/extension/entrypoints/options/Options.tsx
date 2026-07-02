@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type JSX, useEffect, useState } from 'react'
 
 export function Options(): JSX.Element {
   const [wsHost, setWsHost] = useState('ws://127.0.0.1:47777')
@@ -18,14 +18,25 @@ export function Options(): JSX.Element {
       <p style={{ color: '#666', fontSize: 13 }}>
         Copy the token from the desktop's <code>userData/ws-host.json</code>.
       </p>
-      <label>WS host</label>
-      <input onChange={(e) => setWsHost(e.target.value)} style={{ width: '100%', marginBottom: 8 }} value={wsHost} />
-      <label>Token</label>
-      <input onChange={(e) => setToken(e.target.value)} style={{ width: '100%', marginBottom: 8 }} value={token} />
+      <label htmlFor="ws-host">WS host</label>
+      <input
+        id="ws-host"
+        onChange={(e) => setWsHost(e.target.value)}
+        style={{ width: '100%', marginBottom: 8 }}
+        value={wsHost}
+      />
+      <label htmlFor="token">Token</label>
+      <input
+        id="token"
+        onChange={(e) => setToken(e.target.value)}
+        style={{ width: '100%', marginBottom: 8 }}
+        value={token}
+      />
       <button
         onClick={() => {
           browser.storage.local.set({ wsHost, token }).then(() => setSaved(true))
         }}
+        type="button"
       >
         Save
       </button>

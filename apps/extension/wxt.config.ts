@@ -1,8 +1,11 @@
 import { resolve } from 'node:path'
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'wxt'
 
 // WXT auto-generates manifest.json from entrypoints + the manifest block below.
-// @swarm/protocol is bundled from source via the vite alias (no package build).
+// @swarm/protocol and @swarm/ui are bundled from source via the vite aliases
+// (no package build). Tailwind v4 is wired through @tailwindcss/vite; each
+// entrypoint imports its globals.css which pulls the shared token CSS.
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
@@ -22,9 +25,11 @@ export default defineConfig({
     },
   },
   vite: () => ({
+    plugins: [tailwindcss()],
     resolve: {
       alias: {
         '@swarm/protocol': resolve(__dirname, '../../packages/protocol/src'),
+        '@swarm/ui': resolve(__dirname, '../../packages/ui/src'),
       },
     },
   }),

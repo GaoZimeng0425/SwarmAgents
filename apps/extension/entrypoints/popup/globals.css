@@ -1,0 +1,13 @@
+/* @swarm/ui's tokens.css is the base-sera Tailwind v4 theme entry — it pulls in
+   tailwindcss + tw-animate-css + shadcn/tailwind.css + the theme tokens. So
+   import ONLY it here; do NOT also @import "tailwindcss" (duplicate import). */
+@import "../../node_modules/@swarm/ui/src/styles/tokens.css";
+
+/* Tailwind v4 does not scan outside this CSS file's subtree; source the shared
+   component classes from the workspace symlink (apps/extension/node_modules/@swarm/ui). */
+@source "../../node_modules/@swarm/ui/src";
+
+html,
+body {
+  width: 320px;
+}

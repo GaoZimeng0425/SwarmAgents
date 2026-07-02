@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { type JSX, useState } from 'react'
+import { Button } from '@swarm/ui'
 
 type ProbeResult = { ok: true; count: number } | { ok: false; error: string }
 
@@ -21,9 +22,9 @@ export function Popup(): JSX.Element {
       <p style={{ fontSize: 12, color: '#666', margin: '0 0 8px' }}>
         Skeleton — verifies the extension can reach the desktop runtime over WS.
       </p>
-      <button disabled={busy} onClick={probe} style={{ width: '100%' }}>
+      <Button className="w-full" disabled={busy} onClick={probe}>
         {busy ? '…' : 'test connection'}
-      </button>
+      </Button>
       {result?.ok && (
         <div style={{ marginTop: 8, fontSize: 12, color: '#555' }}>
           connected — {result.count} agents visible on the desktop.
@@ -31,15 +32,9 @@ export function Popup(): JSX.Element {
       )}
       {result && !result.ok && <div style={{ marginTop: 8, fontSize: 12, color: '#c00' }}>error: {result.error}</div>}
       <div style={{ marginTop: 8 }}>
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault()
-            browser.runtime.openOptionsPage()
-          }}
-        >
+        <Button onClick={() => browser.runtime.openOptionsPage()} variant="link">
           options
-        </a>
+        </Button>
       </div>
     </div>
   )
