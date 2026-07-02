@@ -1,6 +1,6 @@
+import type { TaskRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { taskSegments } from './task-segments'
 
 function rec(events: TaskRecord['events'], attachments: TaskRecord['attachments'] = []): TaskRecord {
@@ -20,12 +20,12 @@ const prog = (event: unknown) =>
   ({ kind: 'task.progress', sessionId: 's1', taskId: 't1', event, ts: 1 }) as TaskRecord['events'][number]
 
 describe('taskSegments', () => {
-  it('emits the goal as the first user segment', () => {
+  it('emits the goal as the first user segment when there is no user-message event (sub-agent path)', () => {
     const segs = taskSegments(rec([]))
     expect(segs[0]).toMatchObject({ kind: 'user', text: 'do x' })
   })
 
-  it('carries attachments on the user segment', () => {
+  it('carries attachments on the synthetic goal segment (sub-agent path)', () => {
     const segs = taskSegments(rec([], [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }]))
     const user = segs.find((s) => s.kind === 'user')
     expect(user && 'attachments' in user && user.attachments).toEqual([
@@ -60,14 +60,50 @@ describe('taskSegments', () => {
   it('renders a follow-up user message (role:user) as its own user segment', () => {
     const segs = taskSegments(
       rec([
-        prog({ kind: 'llm.message', role: 'assistant', content: 'done', ts: 1 }),
-        prog({ kind: 'llm.message', role: 'user', content: '继续', ts: 2 }),
+        prog({ kind: 'llm.message', role: 'user', content: 'do x', ts: 1 }),
+        prog({ kind: 'llm.message', role: 'assistant', content: 'done', ts: 2 }),
+        prog({ kind: 'llm.message', role: 'user', content: '继续', ts: 3 }),
       ])
     )
     const users = segs.filter((s) => s.kind === 'user')
-    // The original goal bubble plus the follow-up user bubble.
+    // Both user messages come from real events (no synthetic goal bubble).
     expect(users).toHaveLength(2)
     expect(users[1]).toMatchObject({ kind: 'user', text: '继续' })
+  })
+
+  it('renders the first user message from its real event, not a synthetic goal bubble', () => {
+    const segs = taskSegments(
+      rec([
+        {
+          kind: 'task.progress',
+          sessionId: 's1',
+          taskId: 't1',
+          event: { kind: 'llm.message', role: 'user', content: 'hello', ts: 5 },
+          ts: 5,
+          seq: 7,
+        } as TaskRecord['events'][number],
+      ])
+    )
+    const users = segs.filter((s) => s.kind === 'user')
+    // No synthetic goal bubble (task.goal is 'do x'); the single user segment is
+    // the real event, carrying the event's seq (7), not the startedAt fallback (1).
+    expect(users).toHaveLength(1)
+    expect(users[0]).toMatchObject({ kind: 'user', text: 'hello' })
+    expect((users[0] as unknown as { seq: number }).seq).toBe(7)
+  })
+
+  it('carries task attachments on the first (event-derived) user segment', () => {
+    const segs = taskSegments({
+      ...rec([prog({ kind: 'llm.message', role: 'user', content: 'hi', ts: 1 })]),
+      attachments: [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }],
+    })
+    const users = segs.filter((s) => s.kind === 'user')
+    // One user segment (from the event), and it carries the task's attachments
+    // (preserves image rendering now that the bubble comes from the event).
+    expect(users).toHaveLength(1)
+    expect(users[0] && 'attachments' in users[0] && users[0].attachments).toEqual([
+      { data: 'AAAA', mimeType: 'image/png', name: 'a.png' },
+    ])
   })
 
   it('pairs a tool.call with its tool.result into one tool segment', () => {
