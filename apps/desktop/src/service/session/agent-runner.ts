@@ -19,13 +19,13 @@ import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
   type Attachment,
-  type BudgetConfig,
   type ConsumedResources,
   DEFAULT_CONTEXT_WINDOW,
   type DelegationItem,
   emptyUsed,
   OPENAI_MODEL_SUGGESTIONS,
   type PermissionMode,
+  type ResourceBudget,
   type SpawnChildOptions,
   type Task,
   type TaskEvent,
@@ -187,7 +187,7 @@ type EmitFn = (event: string, data: unknown) => void
 
 export type AgentRunnerDeps = {
   /** @deprecated being removed — pass the explicit fields below instead. */
-  task?: Task
+  task: Task
   /** Opaque run id: emitted as `taskId` on every event, used as the spawnChild
    *  parent id. Replaces task.id. The runner does NOT interpret it. */
   correlationId?: string
@@ -199,7 +199,7 @@ export type AgentRunnerDeps = {
   /** Replaces task.executionMode. */
   executionMode?: 'goal' | 'plan'
   /** Replaces task.budget. */
-  budget?: BudgetConfig
+  budget?: ResourceBudget
   /** Per-invocation tool override. Replaces task.toolAllowlist. */
   toolAllowlist?: string[]
   /** Replaces task.attachments. */
@@ -578,14 +578,14 @@ function createEventTranslator(
 // Prepend task-scoped context to the agent's base system prompt so the model
 // honors the composer's choices: the working directory (relative paths/commands
 // land there) and, in plan mode, the read-only "produce a plan first" constraint.
-function composeSystemPrompt(base: string, task: Task): string {
+function composeSystemPrompt(base: string, ctx: { cwd?: string; executionMode?: 'goal' | 'plan' }): string {
   const prefix: string[] = []
-  if (task.cwd) {
+  if (ctx.cwd) {
     prefix.push(
-      `Working directory: ${task.cwd}. Treat it as the base for relative paths and run commands there unless told otherwise.`
+      `Working directory: ${ctx.cwd}. Treat it as the base for relative paths and run commands there unless told otherwise.`
     )
   }
-  if (task.executionMode === 'plan') {
+  if (ctx.executionMode === 'plan') {
     prefix.push(
       'You are in PLAN mode. Investigate using read-only tools and produce a step-by-step plan with update_plan. Do NOT modify files or run mutating commands — you have no write tools.'
     )
@@ -603,8 +603,8 @@ type RunContext = {
   cwd?: string
   goal: string
   executionMode?: 'goal' | 'plan'
-  budget: BudgetConfig
-  toolAllowlist?: string[]
+  budget: ResourceBudget
+  toolAllowlist: string[]
   attachments?: Attachment[]
   permissionMode?: PermissionMode
   acceptanceCriteria?: AcceptanceCriterion[]
@@ -617,8 +617,8 @@ function resolveRunContext(deps: AgentRunnerDeps): RunContext {
     cwd: deps.cwd ?? t?.cwd,
     goal: (deps.goal ?? t?.goal) as string,
     executionMode: deps.executionMode ?? t?.executionMode,
-    budget: (deps.budget ?? t?.budget) as BudgetConfig,
-    toolAllowlist: deps.toolAllowlist ?? t?.toolAllowlist,
+    budget: (deps.budget ?? t?.budget) as ResourceBudget,
+    toolAllowlist: deps.toolAllowlist ?? t?.toolAllowlist ?? [],
     attachments: deps.attachments ?? t?.attachments,
     permissionMode: deps.permissionMode ?? t?.permissionMode,
     acceptanceCriteria: deps.acceptanceCriteria ?? t?.acceptanceCriteria,
