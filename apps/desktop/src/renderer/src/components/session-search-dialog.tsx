@@ -10,7 +10,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
+} from '@swarm/ui'
 import { useSearchDialog } from '@/stores/search-dialog'
 import { useSessionsStore } from '@/stores/sessions'
 

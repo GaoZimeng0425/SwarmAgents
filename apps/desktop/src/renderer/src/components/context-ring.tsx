@@ -1,4 +1,4 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { formatTokens } from '@/lib/format-usage'
 import { cn } from '@/lib/utils'
 

@@ -13,9 +13,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+} from '@swarm/ui'
+import { Button } from '@swarm/ui'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@swarm/ui'
 import { useAgentMutations } from '@/hooks/use-agent-mutations'
 import { cn } from '@/lib/utils'
 import { AgentDetail } from './agent-detail'

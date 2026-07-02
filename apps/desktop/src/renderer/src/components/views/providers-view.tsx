@@ -24,10 +24,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+} from '@swarm/ui'
+import { Button } from '@swarm/ui'
+import { Input } from '@swarm/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
 import { useProviders } from '@/hooks/use-providers'
 import { cn } from '@/lib/utils'
 import { Section, SettingsHeader } from './settings-primitives'

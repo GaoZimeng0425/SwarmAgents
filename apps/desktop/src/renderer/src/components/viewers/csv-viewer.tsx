@@ -29,14 +29,14 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import Papa from 'papaparse'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Spinner } from '@/components/ui/spinner'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Input } from '@swarm/ui'
+import { Popover, PopoverContent, PopoverTrigger } from '@swarm/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
+import { Separator } from '@swarm/ui'
+import { Spinner } from '@swarm/ui'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 import { cn } from '@/lib/utils'
 
 const ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2] as const

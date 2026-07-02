@@ -4,7 +4,7 @@
 import { Link } from '@tanstack/react-router'
 import { BarChart3, CalendarClock, TrendingUp, Video } from 'lucide-react'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 
 const iconBtn =
   'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-foreground [&_svg]:size-4'

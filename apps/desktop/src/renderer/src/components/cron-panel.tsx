@@ -2,7 +2,7 @@ import type { CronJobSummary } from '@swarm/protocol'
 import { formatDistanceToNow } from 'date-fns'
 import { Trash2 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCancelCronJob } from '@/hooks/use-cron'
 

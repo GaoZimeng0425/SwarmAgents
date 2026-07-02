@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import type { McpServerConfig, Skill, ToolGroupInfo } from '@swarm/protocol'
 import { SlidersHorizontal } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button } from '@swarm/ui'
+import { Popover, PopoverContent, PopoverTrigger } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@swarm/ui'
 import { useMcpServers } from '@/hooks/use-mcp-servers'
 
 function Row({

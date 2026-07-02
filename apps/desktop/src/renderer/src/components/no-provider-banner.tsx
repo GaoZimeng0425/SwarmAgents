@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import { useProviders } from '@/hooks/use-providers'
 import { useSettingsDialog } from '@/stores/settings-dialog'
 

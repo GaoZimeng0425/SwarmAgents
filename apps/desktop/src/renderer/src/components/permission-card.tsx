@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react'
 import type { PermissionDecision } from '@swarm/protocol'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import type { PermissionPrompt } from '@/stores/permission'

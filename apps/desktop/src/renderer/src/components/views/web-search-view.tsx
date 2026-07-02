@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { WebSearchConfigView, WebSearchProviderId } from '@swarm/protocol'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@swarm/ui'
+import { Input } from '@swarm/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
 import { useWebSearch } from '@/hooks/use-web-search'
 import { Section, SettingsHeader } from './settings-primitives'
 

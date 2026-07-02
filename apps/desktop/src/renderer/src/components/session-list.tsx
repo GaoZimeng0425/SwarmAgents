@@ -29,15 +29,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+} from '@swarm/ui'
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from '@/components/ui/context-menu'
-import { Input } from '@/components/ui/input'
+} from '@swarm/ui'
+import { Input } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTasks } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'

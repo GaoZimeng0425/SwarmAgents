@@ -66,22 +66,22 @@ import { useDebouncer } from '@tanstack/react-pacer'
 import { flushSync } from 'react-dom'
 
 import { loadSharedPdfEngine } from '@/components/pdf-thumbnail-utils'
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import {
   DocumentViewerSidebarSkeleton,
   DocumentViewerThumbnailSidebar,
   useElementWidth,
   useInlineThumbnailSidebar,
-} from '@/components/ui/document-viewer-sidebar'
+} from '@/components/viewers/document-viewer-sidebar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Spinner } from '@/components/ui/spinner'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Input } from '@swarm/ui'
+import { Popover, PopoverContent, PopoverTrigger } from '@swarm/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
+import { Separator } from '@swarm/ui'
+import { Spinner } from '@swarm/ui'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 // local-adapt: local scroll-area is a base-ui subset lacking orientation/scrollFade/viewport* props the Extend viewers rely on; import Extend's vendored richer ScrollArea instead (shared primitive left untouched)
-import { ScrollArea } from '@/components/ui/viewer-scroll-area'
+import { ScrollArea } from '@/components/viewers/viewer-scroll-area'
 import { cn } from '@/lib/utils'
 
 export type PDFViewerPageOverlayProps = {

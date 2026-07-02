@@ -3,8 +3,8 @@
 import type * as React from 'react'
 import type { DocxCommentCardRenderProps, DocxTrackedChangeCardRenderProps } from '@extend-ai/react-docx'
 
-import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
+import { Badge } from '@swarm/ui'
+import { Card } from '@swarm/ui'
 
 // local-adapt: local Badge has no success/error/warning/info variants; map to local variants
 function trackedChangeBadgeVariant(

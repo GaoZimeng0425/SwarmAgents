@@ -4,7 +4,7 @@ import { XIcon, ZapIcon } from 'lucide-react'
 
 import { PermissionCard } from '@/components/permission-card'
 import { PlanStatusBar } from '@/components/plan-status-bar'
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import type { PermissionPrompt } from '@/stores/permission'
 
 type QueuedItem = { id: string; sessionId: string; goal: string }

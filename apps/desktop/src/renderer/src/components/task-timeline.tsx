@@ -1,9 +1,9 @@
 import type { UIEvent } from '@swarm/protocol'
 import { formatDistanceToNow } from 'date-fns'
 
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+import { Separator } from '@swarm/ui'
 import type { TaskRecord } from '@shared/lib/apply-event'
 
 function eventLabel(e: UIEvent): string {

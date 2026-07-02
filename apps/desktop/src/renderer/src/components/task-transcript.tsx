@@ -31,7 +31,7 @@ const AttachmentViewerSheet = lazy(() =>
   import('@/components/attachment-viewer-sheet').then((m) => ({ default: m.AttachmentViewerSheet }))
 )
 
-import { Spinner } from '@/components/ui/spinner'
+import { Spinner } from '@swarm/ui'
 import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
 import type { TaskRecord } from '@shared/lib/apply-event'
 import { buildTimelineItems, type TimelineItem } from '@/lib/build-timeline-items'

@@ -11,7 +11,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { ThemeProvider } from 'next-themes'
 import { createRoot } from 'react-dom/client'
 
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@swarm/ui'
 import { useAccent } from '@/hooks/use-accent'
 import { queryClient } from '@/lib/query-client'
 import { routeTree } from '../routeTree.gen'

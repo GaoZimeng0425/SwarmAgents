@@ -2,8 +2,8 @@ import { Settings } from 'lucide-react'
 
 import { SessionList } from '@/components/session-list'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Sidebar, SidebarContent, SidebarFooter } from '@/components/ui/sidebar'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Sidebar, SidebarContent, SidebarFooter } from '@swarm/ui'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { useSettingsDialog } from '@/stores/settings-dialog'
 
 const iconBtn =

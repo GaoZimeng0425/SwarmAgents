@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import type { AgentDefinition, ToolScope } from '@swarm/protocol'
 import { compact } from 'es-toolkit'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@swarm/ui'
+import { Input } from '@swarm/ui'
+import { Label } from '@swarm/ui'
+import { NativeSelect, NativeSelectOption } from '@swarm/ui'
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@swarm/ui'
+import { Switch } from '@swarm/ui'
+import { Textarea } from '@swarm/ui'
 
 type AgentFormSheetProps = {
   open: boolean

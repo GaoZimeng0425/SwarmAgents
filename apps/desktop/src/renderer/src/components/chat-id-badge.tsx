@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { useSessionsStore } from '@/stores/sessions'
 
 export function ChatIdBadge(): React.JSX.Element | null {

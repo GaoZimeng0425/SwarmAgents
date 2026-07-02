@@ -27,8 +27,8 @@ import {
   X,
 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@swarm/ui'
+import { Input } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCalendarEvents, useCreateLocalEvent, useDeleteLocalEvent } from '@/hooks/use-calendar'
 import { useAllCronJobs, useAllCronRuns, useCancelCronJob } from '@/hooks/use-cron'

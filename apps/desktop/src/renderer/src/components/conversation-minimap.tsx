@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 import type { TaskRecord } from '@shared/lib/apply-event'
 import { minimapItems } from '@/lib/minimap-items'
 import { cn } from '@/lib/utils'

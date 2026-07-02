@@ -26,7 +26,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
-import { SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select'
+import { SelectGroup, SelectLabel, SelectSeparator } from '@swarm/ui'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
 import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'

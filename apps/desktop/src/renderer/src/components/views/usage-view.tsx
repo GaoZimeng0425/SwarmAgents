@@ -18,9 +18,9 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-} from '@/components/ui/chart'
+} from '@swarm/ui'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 import { swarmApi } from '@/lib/api'
 import { formatCost, formatCount, heatmapShade } from '@/lib/usage-format'
 import { cn } from '@/lib/utils'

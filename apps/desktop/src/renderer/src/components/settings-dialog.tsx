@@ -13,7 +13,7 @@ import {
   Users,
 } from 'lucide-react'
 
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { AboutView } from '@/components/views/about-view'
 import { AgentsView } from '@/components/views/agents-view'

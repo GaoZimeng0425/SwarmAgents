@@ -29,7 +29,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { useDebouncer } from '@tanstack/react-pacer'
 import { createPortal } from 'react-dom'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -39,16 +39,16 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+} from '@swarm/ui'
+import { Input } from '@swarm/ui'
+import { Popover, PopoverContent, PopoverTrigger } from '@swarm/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
+import { Separator } from '@swarm/ui'
+import { Spinner } from '@swarm/ui'
+import { Tabs, TabsList, TabsTrigger } from '@swarm/ui'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 // local-adapt: local scroll-area is a base-ui subset lacking orientation/scrollFade/viewport* props the Extend viewers rely on; import Extend's vendored richer ScrollArea instead (shared primitive left untouched)
-import { ScrollArea } from '@/components/ui/viewer-scroll-area'
+import { ScrollArea } from '@/components/viewers/viewer-scroll-area'
 import { cn } from '@/lib/utils'
 
 const XLSX_LOADING_INDICATOR_DELAY_MS = 300

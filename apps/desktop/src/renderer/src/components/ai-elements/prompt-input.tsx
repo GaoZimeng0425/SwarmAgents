@@ -28,7 +28,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from '@/components/ui/command'
+} from '@swarm/ui'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,11 +36,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Spinner } from '@/components/ui/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@swarm/ui'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@swarm/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
+import { Spinner } from '@swarm/ui'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { cn } from '@/lib/utils'
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from './types'
 

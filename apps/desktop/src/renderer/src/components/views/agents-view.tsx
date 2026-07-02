@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@swarm/ui'
 import { useAgentMutations } from '@/hooks/use-agent-mutations'
 import { swarmApi } from '@/lib/api'
 import { OrgTreeView } from './org-tree-view'
