@@ -1,6 +1,21 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
-  "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*", "src/service/**/*", "src/worker/**/*", "src/shared/**/*"],
+  "include": [
+    "electron.vite.config.*",
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/service/**/*",
+    "src/worker/**/*",
+    "src/shared/**/*",
+    "../../packages/protocol/src/**/*",
+    "../../packages/shared/src/**/*"
+  ],
+  "exclude": [
+    "../../packages/protocol/src/**/*.test.ts",
+    "../../packages/protocol/src/**/*.test.tsx",
+    "../../packages/shared/src/**/*.test.ts",
+    "../../packages/shared/src/**/*.test.tsx"
+  ],
   "compilerOptions": {
     "composite": true,
     "paths": {
