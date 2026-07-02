@@ -1,9 +1,8 @@
+import { Sidebar, SidebarContent, SidebarFooter, Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { Settings } from 'lucide-react'
 
 import { SessionList } from '@/components/session-list'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Sidebar, SidebarContent, SidebarFooter } from '@swarm/ui'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { useSettingsDialog } from '@/stores/settings-dialog'
 
 const iconBtn =
@@ -20,7 +19,7 @@ export function AppSidebar(): React.JSX.Element {
     // list clear of that top control band. The fixed TopBar — not the card —
     // owns the toggle, so it stays reachable when the sidebar is collapsed.
     <Sidebar variant="floating">
-      <SidebarContent>
+      <SidebarContent className="pt-10">
         <SessionList />
       </SidebarContent>
       <SidebarFooter className="border-sidebar-border border-t">

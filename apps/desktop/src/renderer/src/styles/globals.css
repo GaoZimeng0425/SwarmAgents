@@ -62,11 +62,18 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Native macOS palette over vibrancy. --background is transparent so the
-   `vibrancy: 'sidebar'` material set in main-window.ts paints through; content
-   panes layer a translucent material (--window-content) on top. */
+/* Native macOS palette over vibrancy. --background is the OPAQUE logical page
+   color — used by bg-background surfaces (viewers, tabs, fallback panels) and
+   as the inverse text color on tooltips (bg-foreground text-background). It
+   must stay opaque: setting it to transparent makes tooltip text invisible and
+   leaves every bg-background surface see-through. The window body itself is
+   kept transparent so the `vibrancy: 'sidebar'` material set in main-window.ts
+   paints through — that comes from the explicit `html, body { background:
+   transparent }` rule below (unlayered, so it beats the base-layer
+   bg-background on body). Content panes layer a translucent material
+   (--window-content) on top. */
 :root {
-  --background: transparent;
+  --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -108,7 +115,7 @@
 }
 
 .dark {
-  --background: transparent;
+  --background: oklch(0.205 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
@@ -186,6 +193,20 @@ textarea,
 html,
 body {
   background: transparent;
+}
+
+/* Tooltip: override @swarm/ui's default inverted look (bg-foreground
+   text-background), which renders as a bright white box in dark mode. By
+   redefining --foreground to --popover inside the tooltip, the bubble AND the
+   arrow (both bg-foreground / fill-foreground) resolve to the neutral surface
+   color, so the whole tooltip reads as a flat popover-like surface instead of
+   an inverted chip — matching the desktop's flat-neutral aesthetic. Text is
+   forced to --popover-foreground because the default text-background would be
+   dark-on-dark once the bubble is dark. Scoped to the desktop only; @swarm/ui
+   keeps its preset inverted tooltip for other consumers. */
+[data-slot="tooltip-content"] {
+  --foreground: var(--popover);
+  color: var(--popover-foreground);
 }
 
 /* C.25 / D.33: native form controls follow the system accent tint, not a

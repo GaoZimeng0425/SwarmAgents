@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
+import { Button, SidebarInset, SidebarProvider, SidebarTrigger, Toaster } from '@swarm/ui'
 import { createRootRoute, Outlet, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 
@@ -8,9 +9,6 @@ import { NoProviderBanner } from '@/components/no-provider-banner'
 import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { ToolsPopover } from '@/components/tools-popover'
-import { Button } from '@swarm/ui'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@swarm/ui'
-import { Toaster } from '@swarm/ui'
 import { useLoadSessions } from '@/hooks/use-tasks'
 
 // Opt-in only — devtools overlap the UI and interfere with manual/automated UI
