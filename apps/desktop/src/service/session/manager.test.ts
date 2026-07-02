@@ -406,6 +406,29 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('emits the user message as a real seq event on a new task', async () => {
+    mockCreate.mockImplementationOnce(() => runner(vi.fn().mockResolvedValue(runnerReturn('completed', ''))))
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    manager.submitGoal(sessionId, 'hello world')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const [task] = store.getSessionTasks(sessionId)
+    const userEvent = task.history.find((e) => e.kind === 'llm.message' && (e as { role?: string }).role === 'user') as
+      | { content?: unknown; seq?: number }
+      | undefined
+    // The user message is a first-class event with a real seq (not just task.goal).
+    expect(userEvent).toBeDefined()
+    expect(userEvent!.content).toBe('hello world')
+    expect(userEvent!.seq).toBeTypeOf('number')
+    expect(userEvent!.seq!).toBeGreaterThan(0)
+
+    store.close()
+  })
+
   it('uses session provider when providerKey is not given', async () => {
     const sessionProvider = {
       id: 'anthropic' as const,
@@ -555,7 +578,10 @@ describe('SessionManager', () => {
     expect(events.every((e) => typeof e.data.sessionId === 'string')).toBe(true)
     expect(events.find((e) => e.name === 'task.created')?.data.sessionId).toBe(sessionId)
     const history = store.getSessionTasks(sessionId).find((t) => t.id === taskId)?.history
-    expect(history).toEqual([{ kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1, seq: expect.any(Number) }])
+    expect(history).toEqual([
+      { kind: 'llm.message', role: 'user', content: 'say hi', ts: expect.any(Number), seq: expect.any(Number) },
+      { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1, seq: expect.any(Number) },
+    ])
     store.close()
   })
 

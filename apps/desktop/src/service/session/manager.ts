@@ -864,6 +864,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       } else {
         store.saveTask(task, sessionId)
         broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
+        // The user's message is a first-class event with a real seq, so it renders
+        // in true causal position (fixes first-message-renders-last). Symmetric with
+        // the continuation path above.
+        makeEmit(sessionId)('task.progress', {
+          taskId,
+          event: { kind: 'llm.message', role: 'user', content: goal, ts: now },
+        })
         store.updateSessionLastActive(sessionId)
         log.info({
           msg: 'goal submitted',
