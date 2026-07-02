@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { ServiceGrid } from '@/components/service-grid'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -412,6 +413,7 @@ export function SessionList(): React.JSX.Element {
         <SquarePen className="size-4 shrink-0 stroke-[2.5px]" />
         New chat
       </button>
+      <ServiceGrid />
       <button
         className="flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-3.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-tight transition-colors hover:bg-muted/30 hover:text-foreground"
         onClick={() => openSearch()}
