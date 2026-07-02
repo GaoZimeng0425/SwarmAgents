@@ -33,6 +33,13 @@ export function wireGmailIpc(args: { service: Service }): {
   ipcMain.handle('gmail:linkAccount', () => service.linkAccount())
   ipcMain.handle('gmail:unlinkAccount', () => service.unlinkAccount())
   ipcMain.handle('gmail:syncNow', () => service.syncNow())
+  // Renderer-facing read access to the cache (the inbox view). The agent-tool
+  // equivalents live in mainRpcHandlers below; these are the same service calls.
+  ipcMain.handle('gmail:listRecent', (_e, input: { limit?: number; label?: string } | undefined) =>
+    service.listRecent({ limit: input?.limit ?? 20, label: input?.label })
+  )
+  ipcMain.handle('gmail:getThread', (_e, id: string) => service.getThread(String(id)))
+  ipcMain.handle('gmail:search', (_e, q: string, limit: number) => service.search(String(q), Number(limit ?? 20)))
 
   const mainRpcHandlers: MainRpcHandlers = {
     'gmail.search': (q, limit) => Promise.resolve(service.search(String(q), Number(limit ?? 20))),
@@ -55,6 +62,9 @@ export function wireGmailIpc(args: { service: Service }): {
         'gmail:linkAccount',
         'gmail:unlinkAccount',
         'gmail:syncNow',
+        'gmail:listRecent',
+        'gmail:getThread',
+        'gmail:search',
       ]) {
         ipcMain.removeHandler(ch)
       }

@@ -9,12 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UsageRouteImport } from './routes/usage'
-import { Route as TrendingRouteImport } from './routes/trending'
-import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as BilibiliRouteImport } from './routes/bilibili'
+import { Route as GmailRouteImport } from './routes/gmail'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
+import { Route as TrendingRouteImport } from './routes/trending'
+import { Route as UsageRouteImport } from './routes/usage'
 
 const UsageRoute = UsageRouteImport.update({
   id: '/usage',
@@ -29,6 +30,11 @@ const TrendingRoute = TrendingRouteImport.update({
 const ScheduledRoute = ScheduledRouteImport.update({
   id: '/scheduled',
   path: '/scheduled',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GmailRoute = GmailRouteImport.update({
+  id: '/gmail',
+  path: '/gmail',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BilibiliRoute = BilibiliRouteImport.update({
@@ -50,6 +56,7 @@ const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bilibili': typeof BilibiliRoute
+  '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bilibili': typeof BilibiliRoute
+  '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/bilibili': typeof BilibiliRoute
+  '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
@@ -74,34 +83,16 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/bilibili'
-    | '/scheduled'
-    | '/trending'
-    | '/usage'
-    | '/session/$sessionId'
+  fullPaths: '/' | '/bilibili' | '/gmail' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/bilibili'
-    | '/scheduled'
-    | '/trending'
-    | '/usage'
-    | '/session/$sessionId'
-  id:
-    | '__root__'
-    | '/'
-    | '/bilibili'
-    | '/scheduled'
-    | '/trending'
-    | '/usage'
-    | '/session/$sessionId'
+  to: '/' | '/bilibili' | '/gmail' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
+  id: '__root__' | '/' | '/bilibili' | '/gmail' | '/scheduled' | '/trending' | '/usage' | '/session/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BilibiliRoute: typeof BilibiliRoute
+  GmailRoute: typeof GmailRoute
   ScheduledRoute: typeof ScheduledRoute
   TrendingRoute: typeof TrendingRoute
   UsageRoute: typeof UsageRoute
@@ -131,6 +122,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScheduledRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gmail': {
+      id: '/gmail'
+      path: '/gmail'
+      fullPath: '/gmail'
+      preLoaderRoute: typeof GmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bilibili': {
       id: '/bilibili'
       path: '/bilibili'
@@ -158,11 +156,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BilibiliRoute: BilibiliRoute,
+  GmailRoute: GmailRoute,
   ScheduledRoute: ScheduledRoute,
   TrendingRoute: TrendingRoute,
   UsageRoute: UsageRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,
 }
-export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()

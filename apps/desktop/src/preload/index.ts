@@ -28,7 +28,9 @@ import type {
   GmailBridge,
   GmailClientCreds,
   GmailConfigView,
+  GmailMessage,
   GmailSetResult,
+  GmailThread,
   MacPermissions,
   McpBridge,
   McpMutationResult,
@@ -240,6 +242,14 @@ const gmail: GmailBridge = {
   linkAccount: () => ipcRenderer.invoke('gmail:linkAccount') as Promise<GmailSetResult>,
   unlinkAccount: () => ipcRenderer.invoke('gmail:unlinkAccount') as Promise<unknown>,
   syncNow: () => ipcRenderer.invoke('gmail:syncNow') as Promise<void>,
+  listRecent: (input: { limit: number; label?: string }) =>
+    ipcRenderer.invoke('gmail:listRecent', input) as Promise<GmailThread[]>,
+  getThread: (id: string) =>
+    ipcRenderer.invoke('gmail:getThread', id) as Promise<{
+      thread: GmailThread
+      messages: GmailMessage[]
+    } | null>,
+  search: (query: string, limit: number) => ipcRenderer.invoke('gmail:search', query, limit) as Promise<GmailThread[]>,
   onStateChanged: (cb: (view: GmailConfigView) => void) => {
     const listener = (_e: unknown, view: GmailConfigView): void => cb(view)
     ipcRenderer.on('gmail:stateChanged', listener)

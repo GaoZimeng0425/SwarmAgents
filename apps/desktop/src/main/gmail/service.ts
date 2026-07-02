@@ -130,7 +130,10 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
     },
     async syncNow() {
       try {
-        await deps.daemon.pollOnce()
+        // Manual sync forces a full re-fetch (background polls are incremental
+        // and skip cached threads). This is the recovery path for new replies
+        // that landed on an already-cached thread since the last poll.
+        await deps.daemon.pollOnce({ force: true })
         syncError = null
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)

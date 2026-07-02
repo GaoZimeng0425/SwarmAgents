@@ -14,6 +14,11 @@ export type Cache = {
   upsertMessages(rows: GmailMessage[]): void
   search(query: string, limit: number): GmailThread[]
   getThread(id: string): { thread: GmailThread; messages: GmailMessage[] } | null
+  // Cheap existence check used by the daemon to skip already-cached threads
+  // during incremental polls.
+  hasThread(id: string): boolean
+  // True total cached message count, regardless of the last poll's fetch volume.
+  countMessages(): number
   listRecent(input: { limit: number; label?: string }): GmailThread[]
   stats(): ThreadStats
   setStats(stats: ThreadStats): void
@@ -142,6 +147,13 @@ export function createCache(opts: { filePath: string }): Cache {
     return { thread: rowToThread(tr), messages: msgs.map(rowToMessage) }
   }
 
+  const hasThread: Cache['hasThread'] = (id) =>
+    db.prepare('SELECT 1 FROM threads WHERE id = ? LIMIT 1').get(id) !== undefined
+  const countMessages: Cache['countMessages'] = () => {
+    const r = db.prepare('SELECT COUNT(*) AS n FROM messages').get() as { n?: number } | undefined
+    return r?.n ?? 0
+  }
+
   const listRecent: Cache['listRecent'] = ({ limit, label }) => {
     const rows = label
       ? (db
@@ -169,5 +181,16 @@ export function createCache(opts: { filePath: string }): Cache {
     set.run({ k: 'lastSyncAt', v: String(s.lastSyncAt) })
   }
 
-  return { upsertThreads, upsertMessages, search, getThread, listRecent, stats, setStats, close: () => db.close() }
+  return {
+    upsertThreads,
+    upsertMessages,
+    search,
+    getThread,
+    hasThread,
+    countMessages,
+    listRecent,
+    stats,
+    setStats,
+    close: () => db.close(),
+  }
 }

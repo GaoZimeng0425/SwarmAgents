@@ -164,7 +164,7 @@ export function createGmailApi(deps: GmailApiDeps): GmailApi {
         labelIds: j.labelIds ?? [],
         unread: (j.labelIds ?? []).includes('UNREAD'),
       }
-      log.info({ msg: 'fetchThread done', id, messageCount: messages.length })
+      log.debug({ msg: 'fetchThread done', id, messageCount: messages.length })
       return { thread, messages }
     },
   }

@@ -24,7 +24,7 @@ import type {
 } from './bilibili'
 import type { BudgetConfig } from './budgets'
 import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './calendar'
-import type { GmailClientCreds, GmailConfigView } from './gmail'
+import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } from './gmail'
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
@@ -264,6 +264,12 @@ export type GmailBridge = {
   unlinkAccount(): Promise<unknown>
   syncNow(): Promise<void>
   onStateChanged(cb: (view: GmailConfigView) => void): () => void
+  // Read access to the synced cache (the inbox view consumes these). Mirror the
+  // service/cache method shapes — listRecent newest-first, getThread pulls the
+  // full thread + its messages, search matches subject/snippet/from/body.
+  listRecent(input: { limit: number; label?: string }): Promise<GmailThread[]>
+  getThread(id: string): Promise<{ thread: GmailThread; messages: GmailMessage[] } | null>
+  search(query: string, limit: number): Promise<GmailThread[]>
 }
 
 export type CalendarSetResult = { ok: true } | { ok: false; code: string; message: string }

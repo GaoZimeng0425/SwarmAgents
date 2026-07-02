@@ -1,8 +1,10 @@
 // src/main/gmail/daemon.ts
 //
 // Resident Gmail sync daemon. Polls the inbox on a fixed interval and upserts
-// the threads/messages into the cache. v1 uses re-list + UPSERT (idempotent):
-// it does NOT track deletions or older-thread updates — the `gmail.synced`
+// threads/messages into the cache. Background polls are incremental: threads
+// already in the cache are skipped (no re-fetch). Manual syncNow forces a full
+// re-fetch — the recovery path for new replies landing on a cached thread.
+// v1 does NOT track deletions or older-thread updates — the `gmail.synced`
 // event carries `deletionsNotTracked: true` so the limitation is visible.
 import { createLogger } from '@shared/logger'
 import type { GmailMessage, GmailThread } from '@swarm/protocol'
@@ -24,7 +26,10 @@ export type SyncedPayload = {
 export type Daemon = {
   start(): void
   stop(): void
-  pollOnce(): Promise<void>
+  // force: re-fetch every listed thread even if already cached (used by manual
+  // "Sync now" as the recovery path for new replies on cached threads). The
+  // background timer polls incrementally — it skips threads already in the cache.
+  pollOnce(opts?: { force?: boolean }): Promise<void>
   // Register a sync listener; fired after every pollOnce (background or manual),
   // on both success and error payloads. Returns an unsubscribe.
   onSynced(cb: (payload: SyncedPayload) => void): () => void
@@ -54,21 +59,30 @@ export function createDaemon(deps: DaemonDeps): Daemon {
     }
   }
 
-  const pollOnce: Daemon['pollOnce'] = async () => {
+  const pollOnce: Daemon['pollOnce'] = async (opts) => {
     const ts = Date.now()
+    const force = opts?.force === true
     try {
       const { threadIds } = await deps.api.listThreads({ max: 200 })
       const threads: GmailThread[] = []
       const messages: GmailMessage[] = []
       for (const id of threadIds) {
+        // Incremental: skip threads already in the cache. The background timer
+        // calls this with no opts; manual syncNow passes { force: true } to
+        // re-fetch everything. v1 still does not track deletions or older-thread
+        // label changes either way.
+        if (!force && deps.cache.hasThread(id)) continue
         const full = await deps.api.fetchThread(id)
         threads.push(full.thread)
         messages.push(...full.messages)
       }
-      deps.cache.upsertThreads(threads)
-      deps.cache.upsertMessages(messages)
-      deps.cache.setStats({ messageCount: messages.length, lastSyncAt: ts })
-      log.info({ msg: 'gmail synced', count: threads.length })
+      if (threads.length) deps.cache.upsertThreads(threads)
+      if (messages.length) deps.cache.upsertMessages(messages)
+      // messageCount reflects the true cache total, not just this poll's fetch
+      // volume — otherwise an incremental no-op poll would zero the count out.
+      deps.cache.setStats({ messageCount: deps.cache.countMessages(), lastSyncAt: ts })
+      const skipped = threadIds.length - threads.length
+      log.info({ msg: 'gmail synced', total: threadIds.length, fetched: threads.length, skipped })
       fireSynced({ count: threads.length, ts, deletionsNotTracked: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)

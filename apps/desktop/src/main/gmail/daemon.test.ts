@@ -48,6 +48,30 @@ describe('gmail daemon', () => {
     cache.close()
   })
 
+  it('incremental poll skips cached threads; force re-fetches all', async () => {
+    const cache = createCache({ filePath: ':memory:' })
+    const base = fakeApi(['1', '2'])
+    let fetchCalls = 0
+    const api = {
+      ...base,
+      fetchThread: async (id: string) => {
+        fetchCalls++
+        return base.fetchThread(id)
+      },
+    }
+    const d = createDaemon({ api, cache, intervalMs: 60_000 })
+    await d.pollOnce()
+    expect(fetchCalls).toBe(2) // empty cache -> fetch both
+    expect(cache.countMessages()).toBe(2)
+    await d.pollOnce() // incremental -> both now cached -> skip
+    expect(fetchCalls).toBe(2) // no re-fetch
+    expect(cache.countMessages()).toBe(2) // no-op poll must not zero the count
+    await d.pollOnce({ force: true }) // force -> re-fetch all
+    expect(fetchCalls).toBe(4)
+    d.stop()
+    cache.close()
+  })
+
   it('pollOnce reports error without throwing', async () => {
     const cache = createCache({ filePath: ':memory:' })
     const api = {
