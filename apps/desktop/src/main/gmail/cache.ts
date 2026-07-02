@@ -17,6 +17,10 @@ export type Cache = {
   // Cheap existence check used by the daemon to skip already-cached threads
   // during incremental polls.
   hasThread(id: string): boolean
+  // True when a cached thread has at least one message whose htmlBody is empty
+  // (e.g. cached before the htmlBody column existed) — signals the daemon to
+  // re-fetch and backfill. False for threads with full htmlBody or no messages.
+  threadMissingHtml(id: string): boolean
   // True total cached message count, regardless of the last poll's fetch volume.
   countMessages(): number
   listRecent(input: { limit: number; label?: string }): GmailThread[]
@@ -156,6 +160,9 @@ export function createCache(opts: { filePath: string }): Cache {
 
   const hasThread: Cache['hasThread'] = (id) =>
     db.prepare('SELECT 1 FROM threads WHERE id = ? LIMIT 1').get(id) !== undefined
+  const threadMissingHtml: Cache['threadMissingHtml'] = (id) =>
+    db.prepare(`SELECT 1 FROM messages WHERE threadId = ? AND (htmlBody IS NULL OR htmlBody = '') LIMIT 1`).get(id) !==
+    undefined
   const countMessages: Cache['countMessages'] = () => {
     const r = db.prepare('SELECT COUNT(*) AS n FROM messages').get() as { n?: number } | undefined
     return r?.n ?? 0
@@ -194,6 +201,7 @@ export function createCache(opts: { filePath: string }): Cache {
     search,
     getThread,
     hasThread,
+    threadMissingHtml,
     countMessages,
     listRecent,
     stats,

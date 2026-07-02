@@ -69,9 +69,10 @@ export function createDaemon(deps: DaemonDeps): Daemon {
       for (const id of threadIds) {
         // Incremental: skip threads already in the cache. The background timer
         // calls this with no opts; manual syncNow passes { force: true } to
-        // re-fetch everything. v1 still does not track deletions or older-thread
-        // label changes either way.
-        if (!force && deps.cache.hasThread(id)) continue
+        // re-fetch everything. A cached thread whose messages predate the
+        // htmlBody column is re-fetched once to backfill rich bodies. v1 still
+        // does not track deletions or older-thread label changes either way.
+        if (!force && deps.cache.hasThread(id) && !deps.cache.threadMissingHtml(id)) continue
         const full = await deps.api.fetchThread(id)
         threads.push(full.thread)
         messages.push(...full.messages)

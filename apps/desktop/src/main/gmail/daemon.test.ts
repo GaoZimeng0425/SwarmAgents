@@ -27,7 +27,7 @@ function fakeApi(threadIds: string[]) {
           subject: `Sub ${id}`,
           snippet: 'sn',
           bodyText: 'body',
-          htmlBody: '',
+          htmlBody: '<b>body</b>',
           dateMs: Number(id),
           labelIds: ['INBOX'],
         },
@@ -69,6 +69,40 @@ describe('gmail daemon', () => {
     expect(cache.countMessages()).toBe(2) // no-op poll must not zero the count
     await d.pollOnce({ force: true }) // force -> re-fetch all
     expect(fetchCalls).toBe(4)
+    d.stop()
+    cache.close()
+  })
+
+  it('re-fetches cached threads whose messages lack htmlBody (one-time backfill)', async () => {
+    const cache = createCache({ filePath: ':memory:' })
+    // Seed a cached thread + message WITHOUT htmlBody (pre-migration cache).
+    cache.upsertThreads([
+      { id: '1', snippet: '', fromAddr: '', subject: '', lastDateMs: 1, labelIds: [], unread: false },
+    ])
+    cache.upsertMessages([
+      {
+        id: 'm-1',
+        threadId: '1',
+        fromAddr: '',
+        toAddrs: [],
+        subject: '',
+        snippet: '',
+        bodyText: 'b',
+        htmlBody: '',
+        dateMs: 1,
+        labelIds: [],
+      },
+    ])
+    expect(cache.threadMissingHtml('1')).toBe(true)
+    const base = fakeApi(['1'])
+    let fetchCalls = 0
+    const api = { ...base, fetchThread: async (id: string) => (fetchCalls++, base.fetchThread(id)) }
+    const d = createDaemon({ api, cache, intervalMs: 60_000 })
+    await d.pollOnce()
+    expect(fetchCalls).toBe(1) // missing htmlBody -> re-fetched
+    expect(cache.threadMissingHtml('1')).toBe(false) // backfilled with <b>body</b>
+    await d.pollOnce()
+    expect(fetchCalls).toBe(1) // now complete -> skipped
     d.stop()
     cache.close()
   })
