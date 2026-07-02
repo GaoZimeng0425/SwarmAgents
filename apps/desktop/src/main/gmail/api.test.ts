@@ -1,7 +1,7 @@
 // src/main/gmail/api.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createGmailApi, decodeBase64Url, pickBodyText } from './api'
+import { createGmailApi, decodeBase64Url, pickBodies } from './api'
 
 const okJson = (body: unknown, status = 200): Response =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response
@@ -13,27 +13,35 @@ describe('gmail api helpers', () => {
     expect(decodeBase64Url('SGVsbG8')).toBe('Hello') // "Hello" -> SGVsbG8=
   })
 
-  it('pickBodyText prefers text/plain part', () => {
+  it('pickBodies prefers text/plain and also captures raw html', () => {
     const payload = {
       mimeType: 'multipart/alternative',
       parts: [
         { mimeType: 'text/plain', body: { data: 'SGVsbG8=' } }, // "Hello"
-        { mimeType: 'text/html', body: { data: 'PGI+aGk8L2I+' } },
+        { mimeType: 'text/html', body: { data: 'PGI+aGk8L2I+' } }, // "<b>hi</b>"
       ],
     }
-    expect(pickBodyText(payload as never)).toBe('Hello')
+    const r = pickBodies(payload as never)
+    expect(r.text).toBe('Hello')
+    expect(r.html).toBe('<b>hi</b>')
   })
 
-  it('pickBodyText recurses into multipart', () => {
+  it('pickBodies recurses into multipart', () => {
     const payload = {
       mimeType: 'multipart/mixed',
       parts: [{ mimeType: 'multipart/alternative', parts: [{ mimeType: 'text/plain', body: { data: 'SGk=' } }] }],
     }
-    expect(pickBodyText(payload as never)).toBe('Hi')
+    expect(pickBodies(payload as never).text).toBe('Hi')
   })
 
-  it('pickBodyText returns "" when no text part', () => {
-    expect(pickBodyText({ mimeType: 'application/pdf', body: {} } as never)).toBe('')
+  it('pickBodies strips html to text when there is no text/plain part', () => {
+    const r = pickBodies({ mimeType: 'text/html', body: { data: 'PGI+aGk8L2I+' } } as never)
+    expect(r.text).toBe('hi')
+    expect(r.html).toBe('<b>hi</b>')
+  })
+
+  it('pickBodies returns empty when no text part', () => {
+    expect(pickBodies({ mimeType: 'application/pdf', body: {} } as never)).toEqual({ text: '', html: '' })
   })
 })
 
@@ -76,6 +84,7 @@ describe('gmail api client', () => {
     const full = await api.fetchThread('t1')
     expect(full.thread.id).toBe('t1')
     expect(full.messages[0].bodyText).toBe('Hello')
+    expect(full.messages[0].htmlBody).toBe('')
     expect(full.messages[0].fromAddr).toBe('a@x.com')
     expect(fetchMock).toHaveBeenCalledTimes(2)
     // Authorization header carried.

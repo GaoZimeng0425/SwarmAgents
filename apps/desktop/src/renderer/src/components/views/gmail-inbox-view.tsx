@@ -10,6 +10,7 @@ import { Button, Input, Skeleton } from '@swarm/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Inbox, Loader2, MailOpen, RefreshCw, Search } from 'lucide-react'
 
+import { EmailHtml } from '@/components/email-html'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 
@@ -201,7 +202,11 @@ function MessageCard({ m }: { m: GmailMessage }): React.JSX.Element {
           {m.dateMs ? new Date(m.dateMs).toLocaleString() : ''}
         </time>
       </header>
-      <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-foreground/90 text-sm">{m.bodyText}</pre>
+      {m.htmlBody ? (
+        <EmailHtml html={m.htmlBody} />
+      ) : (
+        <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-foreground/90 text-sm">{m.bodyText}</pre>
+      )}
     </article>
   )
 }

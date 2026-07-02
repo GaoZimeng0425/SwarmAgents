@@ -59,6 +59,7 @@ export const GmailMessageSchema = z.object({
   subject: z.string(),
   snippet: z.string(),
   bodyText: z.string(),
+  htmlBody: z.string(),
   dateMs: z.number().int(),
   labelIds: z.array(z.string()),
 })

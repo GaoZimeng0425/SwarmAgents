@@ -27,6 +27,7 @@ function fakeApi(threadIds: string[]) {
           subject: `Sub ${id}`,
           snippet: 'sn',
           bodyText: 'body',
+          htmlBody: '',
           dateMs: Number(id),
           labelIds: ['INBOX'],
         },

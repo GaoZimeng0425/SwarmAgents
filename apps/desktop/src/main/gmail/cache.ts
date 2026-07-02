@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS threads (
 CREATE INDEX IF NOT EXISTS idx_threads_date ON threads(lastDateMs);
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY, threadId TEXT, fromAddr TEXT, toAddrs TEXT,
-  subject TEXT, snippet TEXT, bodyText TEXT, dateMs INTEGER, labelIds TEXT
+  subject TEXT, snippet TEXT, bodyText TEXT, htmlBody TEXT, dateMs INTEGER, labelIds TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(threadId);
 CREATE INDEX IF NOT EXISTS idx_messages_date ON messages(dateMs);
@@ -61,6 +61,7 @@ function rowToMessage(r: Record<string, unknown>): GmailMessage {
     subject: String(r.subject ?? ''),
     snippet: String(r.snippet ?? ''),
     bodyText: String(r.bodyText ?? ''),
+    htmlBody: String(r.htmlBody ?? ''),
     dateMs: Number(r.dateMs ?? 0),
     labelIds: JSON.parse(String(r.labelIds ?? '[]')) as string[],
   }
@@ -70,6 +71,11 @@ export function createCache(opts: { filePath: string }): Cache {
   const db: DB = new Database(opts.filePath)
   db.pragma('journal_mode = WAL')
   db.exec(SCHEMA)
+  // Idempotent migration: caches created before htmlBody landed lack the column.
+  const cols = db.prepare('PRAGMA table_info(messages)').all() as { name: string }[]
+  if (!cols.some((c) => c.name === 'htmlBody')) {
+    db.exec('ALTER TABLE messages ADD COLUMN htmlBody TEXT')
+  }
 
   const upsertThread = db.prepare(
     `INSERT INTO threads (id, snippet, fromAddr, subject, lastDateMs, labelIds, unread, updatedAt)
@@ -79,11 +85,11 @@ export function createCache(opts: { filePath: string }): Cache {
        labelIds=@labelIds, unread=@unread, updatedAt=@updatedAt`
   )
   const upsertMessage = db.prepare(
-    `INSERT INTO messages (id, threadId, fromAddr, toAddrs, subject, snippet, bodyText, dateMs, labelIds)
-     VALUES (@id, @threadId, @fromAddr, @toAddrs, @subject, @snippet, @bodyText, @dateMs, @labelIds)
+    `INSERT INTO messages (id, threadId, fromAddr, toAddrs, subject, snippet, bodyText, htmlBody, dateMs, labelIds)
+     VALUES (@id, @threadId, @fromAddr, @toAddrs, @subject, @snippet, @bodyText, @htmlBody, @dateMs, @labelIds)
      ON CONFLICT(id) DO UPDATE SET
        threadId=@threadId, fromAddr=@fromAddr, toAddrs=@toAddrs, subject=@subject,
-       snippet=@snippet, bodyText=@bodyText, dateMs=@dateMs, labelIds=@labelIds`
+       snippet=@snippet, bodyText=@bodyText, htmlBody=@htmlBody, dateMs=@dateMs, labelIds=@labelIds`
   )
 
   const upsertThreads: Cache['upsertThreads'] = (rows) => {
@@ -116,6 +122,7 @@ export function createCache(opts: { filePath: string }): Cache {
           subject: m.subject,
           snippet: m.snippet,
           bodyText: m.bodyText,
+          htmlBody: m.htmlBody,
           dateMs: m.dateMs,
           labelIds: JSON.stringify(m.labelIds),
         })

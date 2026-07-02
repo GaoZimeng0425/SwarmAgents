@@ -47,6 +47,7 @@ describe('gmail cache', () => {
         subject: 'S',
         snippet: 'sn',
         bodyText: 'hello',
+        htmlBody: '',
         dateMs: 1,
         labelIds: ['INBOX'],
       },

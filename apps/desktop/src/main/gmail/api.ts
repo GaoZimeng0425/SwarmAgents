@@ -36,26 +36,37 @@ type Payload = {
   headers?: { name: string; value: string }[]
 }
 
-// Walk the MIME tree; prefer the first text/plain part, fall back to text/html
-// (tags stripped). Returns '' when no textual part exists.
-export function pickBodyText(payload: Payload): string {
-  if (!payload) return ''
-  if (payload.mimeType === 'text/plain' && payload.body?.data) {
-    return decodeBase64Url(payload.body.data)
-  }
-  if (payload.mimeType === 'text/html' && payload.body?.data) {
-    return decodeBase64Url(payload.body.data)
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-  }
-  if (payload.parts) {
-    for (const p of payload.parts) {
-      const t = pickBodyText(p)
-      if (t) return t
+// Walk the MIME tree; capture the first text/plain part (-> text) and the
+// first text/html part (-> html, raw, for rich rendering). `text` falls back
+// to a tags-stripped version of `html` so legacy plain-text / agent-tool
+// rendering stays readable when there's no text/plain part.
+export function pickBodies(payload: Payload): { text: string; html: string } {
+  const found = { text: undefined as string | undefined, html: undefined as string | undefined }
+  const walk = (p: Payload): void => {
+    if (!p || (found.text && found.html)) return
+    if (p.mimeType === 'text/plain' && p.body?.data && !found.text) {
+      found.text = decodeBase64Url(p.body.data)
+    } else if (p.mimeType === 'text/html' && p.body?.data && !found.html) {
+      found.html = decodeBase64Url(p.body.data)
+    }
+    if (p.parts) {
+      for (const part of p.parts) {
+        walk(part)
+        if (found.text && found.html) return
+      }
     }
   }
-  return ''
+  walk(payload)
+  const html = found.html ?? ''
+  const text =
+    found.text ??
+    (html
+      ? html
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      : '')
+  return { text, html }
 }
 
 function header(payload: Payload, name: string): string {
@@ -142,6 +153,7 @@ export function createGmailApi(deps: GmailApiDeps): GmailApi {
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean)
+        const { text, html } = pickBodies(m.payload ?? {})
         return {
           id: m.id,
           threadId: m.threadId,
@@ -149,7 +161,8 @@ export function createGmailApi(deps: GmailApiDeps): GmailApi {
           toAddrs: to,
           subject: header(m.payload ?? {}, 'Subject'),
           snippet: m.snippet ?? '',
-          bodyText: pickBodyText(m.payload ?? {}),
+          bodyText: text,
+          htmlBody: html,
           dateMs: m.internalDate ? Number(m.internalDate) : 0,
           labelIds: m.labelIds ?? [],
         }
