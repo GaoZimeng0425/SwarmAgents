@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import type { CronRun, ScheduledTask } from '@swarm/protocol'
+import { useEffect, useMemo, useState } from 'react'
+import type { CalendarEvent, CronRun, ScheduledTask } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   addMonths,
@@ -14,22 +15,40 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { sortBy } from 'es-toolkit'
-import { CalendarClock, Check, ChevronLeft, ChevronRight, Loader2, PanelRightClose, Trash2, X } from 'lucide-react'
+import {
+  CalendarClock,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  PanelRightClose,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useCalendarEvents, useCreateLocalEvent, useDeleteLocalEvent } from '@/hooks/use-calendar'
 import { useAllCronJobs, useAllCronRuns, useCancelCronJob } from '@/hooks/use-cron'
 import { occurrencesInRange } from '@/lib/cron-occurrences'
 import { cn } from '@/lib/utils'
 
-// A calendar entry is either an actual past execution (with status, openable)
-// or a projected future occurrence derived from the cron expression.
+// A calendar entry is an actual past execution (with status, openable), a
+// projected future cron occurrence, or a calendar event (Google cached or
+// app-local).
 type DayItem =
   | { kind: 'run'; at: Date; run: CronRun; task: ScheduledTask | undefined }
   | { kind: 'projection'; at: Date; task: ScheduledTask }
+  | { kind: 'event'; at: Date; event: CalendarEvent }
 
 const itemLabel = (it: DayItem): string =>
-  it.kind === 'run' ? (it.task?.name ?? it.task?.goal ?? '(已删除任务)') : (it.task.name ?? it.task.goal)
+  it.kind === 'run'
+    ? (it.task?.name ?? it.task?.goal ?? '(已删除任务)')
+    : it.kind === 'projection'
+      ? (it.task.name ?? it.task.goal)
+      : it.event.title
 
 // Run status → a colored dot / icon. Past actuals show outcome; projections are hollow.
 const runTone = (status: string): string =>
@@ -44,8 +63,17 @@ const runTone = (status: string): string =>
 const WEEK_OPTS = { weekStartsOn: 1 } as const // Monday-first
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 
+// event pill classes by source.
+const eventPillTone = (ev: CalendarEvent): string =>
+  ev.source === 'google'
+    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+    : 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
+
+const eventDot = (ev: CalendarEvent): string => (ev.source === 'google' ? 'text-blue-500' : 'text-violet-500')
+
 export function ScheduledCalendarView(): React.JSX.Element {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { data: tasks = [] } = useAllCronJobs()
   const { data: runs = [] } = useAllCronRuns()
   const cancel = useCancelCronJob()
@@ -57,10 +85,30 @@ export function ScheduledCalendarView(): React.JSX.Element {
   const gridEnd = endOfWeek(endOfMonth(month), WEEK_OPTS)
   const days = useMemo(() => eachDayOfInterval({ start: gridStart, end: gridEnd }), [gridStart, gridEnd])
 
+  // Calendar events (Google cached + local) for the visible grid range.
+  const { data: events = [] } = useCalendarEvents(gridStart, gridEnd)
+  const createLocal = useCreateLocalEvent()
+  const deleteLocal = useDeleteLocalEvent()
+
+  // Background daemon syncs push calendar:stateChanged; refetch the range.
+  useEffect(
+    () =>
+      window.swarm.calendar.onStateChanged(() => {
+        void qc.invalidateQueries({ queryKey: ['calendar'] })
+      }),
+    [qc]
+  )
+
+  // Inline "new local event" form state (scoped to the selected day).
+  const [showCreate, setShowCreate] = useState(false)
+  const [draftTitle, setDraftTitle] = useState('')
+  const [draftStart, setDraftStart] = useState('')
+  const [draftEnd, setDraftEnd] = useState('')
+
   // Past/today shows what ACTUALLY ran (cron_runs, with outcome); the future
-  // shows projections from the cron expression. A projected slot in the past
-  // that never produced a run is intentionally absent — the calendar reflects
-  // history, not just the schedule.
+  // shows projections from the cron expression. Calendar events merge in by
+  // start time. A projected slot in the past that never produced a run is
+  // intentionally absent — the calendar reflects history, not just the schedule.
   const itemsByDay = useMemo(() => {
     const map = new Map<string, DayItem[]>()
     const push = (at: Date, item: DayItem): void => {
@@ -82,9 +130,14 @@ export function ScheduledCalendarView(): React.JSX.Element {
         push(at, { kind: 'projection', at, task })
       }
     }
+    for (const ev of events) {
+      const at = new Date(ev.startMs)
+      if (at < gridStart || at > gridEnd) continue
+      push(at, { kind: 'event', at, event: ev })
+    }
     for (const [key, list] of map) map.set(key, sortBy(list, [(i) => i.at.getTime()]))
     return map
-  }, [tasks, runs, gridStart, gridEnd])
+  }, [tasks, runs, events, gridStart, gridEnd])
 
   const itemsFor = (d: Date): DayItem[] => itemsByDay.get(format(d, 'yyyy-MM-dd')) ?? []
   const selectedItems = selected ? itemsFor(selected) : []
@@ -106,6 +159,24 @@ export function ScheduledCalendarView(): React.JSX.Element {
   // Clicking the already-selected day toggles the detail panel closed again.
   const pick = (day: Date): void => setSelected((cur) => (cur && isSameDay(cur, day) ? null : day))
 
+  const resetDraft = (): void => {
+    setDraftTitle('')
+    setDraftStart('')
+    setDraftEnd('')
+    setShowCreate(false)
+  }
+
+  const submitDraft = (): void => {
+    const title = draftTitle.trim()
+    if (!title || !draftStart || !selected) return
+    const startMs = Date.parse(`${format(selected, 'yyyy-MM-dd')}T${draftStart}`)
+    if (Number.isNaN(startMs)) return
+    const endMs = draftEnd ? Date.parse(`${format(selected, 'yyyy-MM-dd')}T${draftEnd}`) : startMs + 60 * 60 * 1000
+    if (Number.isNaN(endMs) || endMs < startMs) return
+    createLocal.mutate({ title, startMs, endMs })
+    resetDraft()
+  }
+
   return (
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col px-6 pt-5 pb-4">
@@ -113,7 +184,7 @@ export function ScheduledCalendarView(): React.JSX.Element {
           <div className="flex items-center gap-2.5">
             <CalendarClock className="size-[18px] text-primary" />
             <h1 className="font-semibold text-[17px] tracking-tight">{format(month, 'yyyy 年 M 月')}</h1>
-            <span className="text-muted-foreground text-xs tabular-nums">{totalThisMonth} 次运行</span>
+            <span className="text-muted-foreground text-xs tabular-nums">{totalThisMonth} 个事项</span>
           </div>
           <div className="ml-auto flex items-center gap-1">
             <Button onClick={() => setMonth(startOfMonth(new Date()))} size="sm" variant="ghost">
@@ -183,17 +254,25 @@ export function ScheduledCalendarView(): React.JSX.Element {
                     <span
                       className={cn(
                         'flex items-center gap-1 truncate rounded px-1 text-[10px] leading-tight',
-                        it.kind === 'run' ? 'bg-muted/60 text-foreground/80' : 'bg-primary/5 text-muted-foreground'
+                        it.kind === 'run'
+                          ? 'bg-muted/60 text-foreground/80'
+                          : it.kind === 'projection'
+                            ? 'bg-primary/5 text-muted-foreground'
+                            : eventPillTone(it.event)
                       )}
                       key={`${it.at.getTime()}-${i}`}
                       title={`${format(it.at, 'HH:mm')} · ${itemLabel(it)}`}
                     >
                       {it.kind === 'run' ? (
                         <span className={cn('shrink-0', runTone(it.run.status))}>●</span>
-                      ) : (
+                      ) : it.kind === 'projection' ? (
                         <span className="shrink-0 text-muted-foreground/40">○</span>
+                      ) : (
+                        <span className={cn('shrink-0', eventDot(it.event))}>◆</span>
                       )}
-                      <span className="shrink-0 tabular-nums">{format(it.at, 'HH:mm')}</span>
+                      <span className="shrink-0 tabular-nums">
+                        {it.kind === 'event' && it.event.allDay ? '全天' : format(it.at, 'HH:mm')}
+                      </span>
                       <span className="truncate">{itemLabel(it)}</span>
                     </span>
                   ))}
@@ -213,7 +292,7 @@ export function ScheduledCalendarView(): React.JSX.Element {
             <div className="flex flex-col leading-tight">
               <span className="font-medium text-[13px]">{format(selected, 'M 月 d 日 EEEE')}</span>
               <span className="text-[11px] text-muted-foreground tabular-nums">
-                {selectedItems.length > 0 ? `${selectedItems.length} 个定时任务` : '当天无任务'}
+                {selectedItems.length > 0 ? `${selectedItems.length} 个事项` : '当天无事项'}
               </span>
             </div>
             <Button
@@ -229,13 +308,107 @@ export function ScheduledCalendarView(): React.JSX.Element {
 
           <ScrollArea className="min-h-0 flex-1">
             <div className="flex flex-col gap-2 p-3">
+              <div className="flex flex-col gap-2">
+                <Button
+                  className="w-full justify-start gap-1.5"
+                  onClick={() => {
+                    setShowCreate((v) => !v)
+                    setDraftStart('09:00')
+                    setDraftEnd('10:00')
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Plus className="size-3.5" />
+                  新建本地事件
+                </Button>
+                {showCreate && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/50 p-2.5 text-[12px]">
+                    <Input onChange={(e) => setDraftTitle(e.target.value)} placeholder="标题" value={draftTitle} />
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">起</span>
+                      <Input
+                        className="h-8"
+                        onChange={(e) => setDraftStart(e.target.value)}
+                        type="time"
+                        value={draftStart}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">止</span>
+                      <Input
+                        className="h-8"
+                        onChange={(e) => setDraftEnd(e.target.value)}
+                        type="time"
+                        value={draftEnd}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        disabled={createLocal.isPending || !draftTitle.trim() || !draftStart}
+                        onClick={submitDraft}
+                        size="sm"
+                      >
+                        保存
+                      </Button>
+                      <Button onClick={resetDraft} size="sm" variant="ghost">
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {selectedItems.length === 0 && (
                 <div className="mt-10 flex flex-col items-center gap-2 text-center">
                   <CalendarClock className="size-7 text-muted-foreground/40" />
-                  <p className="text-muted-foreground text-xs">这一天没有定时任务</p>
+                  <p className="text-muted-foreground text-xs">这一天没有事项</p>
                 </div>
               )}
               {selectedItems.map((it, i) => {
+                if (it.kind === 'event') {
+                  const ev = it.event
+                  const when = ev.allDay
+                    ? '全天'
+                    : `${format(new Date(ev.startMs), 'HH:mm')} – ${format(new Date(ev.endMs), 'HH:mm')}`
+                  return (
+                    <div
+                      className="rounded-lg border border-border/60 bg-card/50 p-3 text-[13px]"
+                      key={`${it.at.getTime()}-${i}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-col">
+                          <span className={cn('flex items-center gap-1.5 font-medium tabular-nums', eventDot(ev))}>
+                            <span>◆</span>
+                            {when}
+                            <span className="font-normal text-[10px] text-muted-foreground">
+                              {ev.source === 'google' ? 'Google' : '本地'}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 truncate">{ev.title}</span>
+                          {ev.location && (
+                            <span className="mt-0.5 truncate text-[11px] text-muted-foreground">@ {ev.location}</span>
+                          )}
+                          {ev.description && (
+                            <p className="mt-1 line-clamp-3 text-foreground/70 text-xs">{ev.description}</p>
+                          )}
+                        </div>
+                        {ev.source === 'local' && (
+                          <Button
+                            aria-label="Delete local event"
+                            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                            disabled={deleteLocal.isPending}
+                            onClick={() => deleteLocal.mutate(ev.id)}
+                            size="icon"
+                            variant="ghost"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
                 const task = it.task
                 const jobId = task?.id
                 const goal = task?.goal
