@@ -29,27 +29,27 @@ vi.mock('../session/agent-runner', () => ({
   createAgentRunner: (deps: any) => ({
     run: async () => {
       runs.push({
-        taskId: deps.task.id,
+        taskId: deps.correlationId,
         agent: deps.agentDefinition.id,
         isHead: deps.agentDefinition.teamRole === 'head',
         maxVerifyRounds: deps.maxVerifyRounds ?? 0,
-        criteria: (deps.task.acceptanceCriteria ?? []).length,
-        parent: deps.task.parentId ?? null,
+        criteria: (deps.acceptanceCriteria ?? []).length,
+        parent: null, // parentId not available on deps; child records are matched via task tree
       })
       // CEO: derive top-level criteria, then spawn two Leaders in parallel with
       // verify on + their sliced criteria.
       if (deps.agentDefinition.id === 'ceo') {
         deps.emit('task.criteria', {
-          taskId: deps.task.id,
+          taskId: deps.correlationId,
           criteria: [{ id: 'c1', description: 'goal shipped across teams' }],
           ts: Date.now(),
         })
         await Promise.all([
-          deps.spawnChild(deps.task.id, 'lead dev', undefined, undefined, 'engineering-lead', {
+          deps.spawnChild(deps.correlationId, 'lead dev', undefined, undefined, 'engineering-lead', {
             acceptanceCriteria: [{ id: 'c1', description: 'dev deliverable done' }],
             maxVerifyRounds: 3,
           }),
-          deps.spawnChild(deps.task.id, 'lead qa', undefined, undefined, 'qa-lead', {
+          deps.spawnChild(deps.correlationId, 'lead qa', undefined, undefined, 'qa-lead', {
             acceptanceCriteria: [{ id: 'c1', description: 'qa sign-off' }],
             maxVerifyRounds: 3,
           }),
@@ -60,11 +60,11 @@ vi.mock('../session/agent-runner', () => ({
       // sub-agent WITHOUT maxVerifyRounds (single-shot — the Leader verifies).
       if (deps.agentDefinition.teamRole === 'head') {
         deps.emit('task.delegation_plan', {
-          taskId: deps.task.id,
+          taskId: deps.correlationId,
           plan: [{ id: 'd1', goal: 'leaf work', dependsOn: [] }],
           ts: Date.now(),
         })
-        await deps.spawnChild(deps.task.id, 'leaf work', undefined, undefined, 'engineer', {
+        await deps.spawnChild(deps.correlationId, 'leaf work', undefined, undefined, 'engineer', {
           acceptanceCriteria: [{ id: 'c1', description: 'leaf done' }],
         })
         return { status: 'completed', summary: 'team: done', messages: [], used: {} }
@@ -128,9 +128,19 @@ describe('CEO → Leader → subagent verified pipeline', () => {
     expect(heads.every((h) => h.criteria === 1)).toBe(true)
 
     // Tree shape: heads are children of the CEO; leaves are children of a head.
-    expect(heads.every((h) => h.parent === taskId)).toBe(true)
+    // (parentId not available on deps after runner decoupling; validate via store).
     const headIds = heads.map((h) => h.taskId)
-    expect(leaves.every((l) => headIds.includes(l.parent!))).toBe(true)
+    const ceoTask = store.getTask(taskId)!
+    expect(['completed', 'failed']).toContain(ceoTask.status)
+    for (const h of heads) {
+      const t = store.getTask(h.taskId)
+      expect(t?.parentId).toBe(taskId)
+    }
+    for (const l of leaves) {
+      const t = store.getTask(l.taskId)
+      expect(t?.parentId).toBeDefined()
+      expect(headIds).toContain(t!.parentId)
+    }
 
     // Events persisted on the real tasks.
     expect(store.getTask(taskId)?.acceptanceCriteria).toHaveLength(1)

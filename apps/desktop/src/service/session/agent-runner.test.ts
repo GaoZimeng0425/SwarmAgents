@@ -59,6 +59,18 @@ const mkTask = (id: string): Task => ({
   endedAt: null,
 })
 
+const runCtxFrom = (t: Task) => ({
+  correlationId: t.id,
+  cwd: t.cwd,
+  goal: t.goal,
+  executionMode: t.executionMode,
+  budget: t.budget,
+  toolAllowlist: t.toolAllowlist,
+  attachments: t.attachments,
+  permissionMode: t.permissionMode,
+  acceptanceCriteria: t.acceptanceCriteria,
+})
+
 describe('AgentRunner', () => {
   beforeEach(() => {
     MockAgent.mockReset()
@@ -67,7 +79,7 @@ describe('AgentRunner', () => {
   it('emits task.error and returns { status: failed, summary: "" } when apiKey is empty', async () => {
     const emitted: Array<{ event: string; data: unknown }> = []
     const runner = createAgentRunner({
-      task: mkTask('t-1'),
+      ...runCtxFrom(mkTask('t-1')),
       provider: {
         id: 'anthropic',
         registry: 'anthropic',
@@ -117,7 +129,7 @@ describe('AgentRunner', () => {
     })
 
     const runner = createAgentRunner({
-      task: { ...mkTask('t-2'), goal: 'do it' },
+      ...runCtxFrom({ ...mkTask('t-2'), goal: 'do it' }),
       provider: {
         id: 'anthropic',
         registry: 'anthropic',
@@ -194,7 +206,7 @@ describe('AgentRunner', () => {
   }
 
   const baseDeps = (task: Task) => ({
-    task,
+    ...runCtxFrom(task),
     provider: {
       id: 'anthropic' as const,
       registry: 'anthropic' as const,

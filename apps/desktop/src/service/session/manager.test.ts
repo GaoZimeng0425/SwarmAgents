@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { type AgentDefinition, emptyUsed, type ProviderInjection, type Task } from '@swarm/protocol'
+import { type AgentDefinition, emptyUsed, type ProviderInjection } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -342,7 +342,7 @@ describe('SessionManager', () => {
     let capturedSpawnChild: ((...args: unknown[]) => Promise<unknown>) | null = null
     mockCreate.mockImplementation((deps) => {
       callCount++
-      seenBudgets.push(deps.task.budget)
+      seenBudgets.push(deps.budget!)
       if (callCount === 1) {
         capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
         return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'parent done')))
@@ -529,11 +529,11 @@ describe('SessionManager', () => {
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
         deps.emit('task.progress', {
-          taskId: deps.task.id,
+          taskId: deps.correlationId,
           event: { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 },
           ts: 1,
         })
-        deps.emit('task.complete', { taskId: deps.task.id, result: { summary: 'hi', artifacts: [] }, ts: 2 })
+        deps.emit('task.complete', { taskId: deps.correlationId, result: { summary: 'hi', artifacts: [] }, ts: 2 })
         return runnerReturn('completed', 'hi')
       })
     )
@@ -757,8 +757,8 @@ describe('SessionManager', () => {
     let resolveA: (() => void) | null = null
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
-        ran.push(deps.task.goal)
-        if (deps.task.goal === 'A') {
+        ran.push(deps.goal!)
+        if (deps.goal === 'A') {
           await new Promise<void>((r) => {
             resolveA = r
           })
@@ -866,9 +866,9 @@ describe('SessionManager', () => {
 
   it('stamps composer options on the task and applies the plan read-only allowlist', async () => {
     // Capture the full Task; assert the composer-stamped fields below.
-    let capturedTask = null as Task | null
+    let capturedTask = null as Record<string, unknown> | null
     mockCreate.mockImplementation((deps) => {
-      capturedTask = deps.task
+      capturedTask = deps
       return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
 
@@ -975,9 +975,9 @@ describe('SessionManager', () => {
       runner(
         () =>
           new Promise<RunReturn>((resolve) => {
-            ran.push(deps.task.goal)
-            seeds[deps.task.goal] = deps.initialMessages
-            if (deps.task.goal === 'A') {
+            ran.push(deps.goal!)
+            seeds[deps.goal!] = deps.initialMessages
+            if (deps.goal === 'A') {
               // A stays running until interrupted (aborted). On abort it persists a
               // partial transcript via saveSnapshot before resolving cancelled, so
               // the promoted turn must seed from that partial output.
@@ -1031,7 +1031,7 @@ describe('SessionManager', () => {
     const ran: string[] = []
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
-        ran.push(deps.task.goal)
+        ran.push(deps.goal!)
         deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 })
         return runnerReturn('completed', '')
       })
@@ -1069,7 +1069,7 @@ describe('SessionManager', () => {
         () =>
           new Promise<RunReturn>((resolve) => {
             // Record whether the signal was already aborted when run() started.
-            sawAbortedAtEntry[deps.task.goal] = deps.signal?.aborted ?? false
+            sawAbortedAtEntry[deps.goal!] = deps.signal?.aborted ?? false
             if (deps.signal?.aborted) {
               resolve(runnerReturn('cancelled', ''))
               return
@@ -1242,7 +1242,7 @@ describe('SessionManager', () => {
     const goals: string[] = []
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
-        goals.push(deps.task.goal)
+        goals.push(deps.goal!)
         return runnerReturn('completed', 'ok')
       })
     )

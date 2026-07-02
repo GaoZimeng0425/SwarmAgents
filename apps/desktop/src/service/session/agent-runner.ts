@@ -187,7 +187,7 @@ type EmitFn = (event: string, data: unknown) => void
 
 export type AgentRunnerDeps = {
   /** @deprecated being removed — pass the explicit fields below instead. */
-  task: Task
+  task?: Task
   /** Opaque run id: emitted as `taskId` on every event, used as the spawnChild
    *  parent id. Replaces task.id. The runner does NOT interpret it. */
   correlationId?: string
@@ -373,19 +373,19 @@ function buildAnalyzeImage(
   const vision = chain.find(injectionSupportsImages)
   if (!vision) return undefined
   return async (prompt, image) => {
-    const visionTask: Task = {
-      ...deps.task,
-      id: `${deps.task.id}:vision`,
-      goal: prompt,
-      attachments: [{ data: image.data, mimeType: image.mimeType }],
-      toolAllowlist: [],
-      executionMode: 'goal',
-    }
+    const ctx = resolveRunContext(deps)
     // A silent, tool-less one-shot on the vision model. emit is a no-op so the
     // sub-call's tokens/events don't pollute the parent task's transcript; the
     // visible analyze_image tool.call/result already represents it.
     const runner = createAgentRunner({
-      task: visionTask,
+      correlationId: `${ctx.id}:vision`,
+      cwd: ctx.cwd,
+      goal: prompt,
+      executionMode: 'goal',
+      budget: ctx.budget,
+      toolAllowlist: [],
+      attachments: [{ data: image.data, mimeType: image.mimeType }],
+      permissionMode: ctx.permissionMode,
       provider: vision,
       agentDefinition: {
         id: 'vision',
@@ -1259,18 +1259,16 @@ function defaultVerifyCompletion(deps: AgentRunnerDeps): NonNullable<AgentRunner
   return async ({ criteria, summary, cwd }) => {
     let judgeUsed: ConsumedResources | undefined
     const judge: Judge = async (soft, sum) => {
-      const verifierTask: Task = {
-        ...deps.task,
-        id: `${ctx.id}:verify`,
-        goal: buildJudgePrompt(ctx.goal, soft, sum),
-        attachments: [],
-        toolAllowlist: [],
-        acceptanceCriteria: undefined,
-        verifications: undefined,
-        executionMode: 'goal',
-      }
       const runner = createAgentRunner({
-        task: verifierTask,
+        correlationId: `${ctx.id}:verify`,
+        cwd: ctx.cwd,
+        goal: buildJudgePrompt(ctx.goal, soft, sum),
+        executionMode: 'goal',
+        budget: ctx.budget,
+        toolAllowlist: [],
+        attachments: [],
+        acceptanceCriteria: undefined,
+        permissionMode: ctx.permissionMode,
         provider: deps.provider,
         agentDefinition: {
           id: 'verifier',

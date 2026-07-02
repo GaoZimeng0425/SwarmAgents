@@ -420,7 +420,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       },
     }
     const deps: AgentRunnerDeps = {
-      task,
+      correlationId: task.id,
+      cwd: task.cwd,
+      goal: task.goal,
+      executionMode: task.executionMode,
+      budget: task.budget,
+      toolAllowlist: task.toolAllowlist,
+      attachments: task.attachments,
+      permissionMode: task.permissionMode,
+      acceptanceCriteria: task.acceptanceCriteria,
       provider: applyAgentModel(session.provider, def),
       agentDefinition: withPrompt(def),
       sessionId,
@@ -596,7 +604,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const abort = new AbortController()
         oneShotHandles.set(childTaskId, abort)
         const runner = createAgentRunner({
-          task: childTask,
+          correlationId: childTask.id,
+          cwd: childTask.cwd,
+          goal: childTask.goal,
+          executionMode: childTask.executionMode,
+          budget: childTask.budget,
+          toolAllowlist: childTask.toolAllowlist,
+          attachments: childTask.attachments,
+          permissionMode: childTask.permissionMode,
+          acceptanceCriteria: childTask.acceptanceCriteria,
           provider: resolvedProvider,
           agentDefinition: withPrompt(def),
           sessionId,
@@ -876,7 +892,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         oneShotHandles.set(taskId, abort)
         await acquireSlot()
         const runner = createAgentRunner({
-          task,
+          correlationId: task.id,
+          cwd: task.cwd,
+          goal: task.goal,
+          executionMode: task.executionMode,
+          budget: task.budget,
+          toolAllowlist: task.toolAllowlist,
+          attachments: task.attachments,
+          permissionMode: task.permissionMode,
+          acceptanceCriteria: task.acceptanceCriteria,
           provider: session.provider,
           agentDefinition: withPrompt(agentDef),
           sessionId,

@@ -11,7 +11,7 @@ vi.mock('./agent-runner', () => ({
   createAgentRunner: (deps: any) => ({
     run: async () => ({
       status: 'completed',
-      summary: `ran:${deps.task.goal}`,
+      summary: `ran:${deps.goal}`,
       messages: [],
       used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
     }),
