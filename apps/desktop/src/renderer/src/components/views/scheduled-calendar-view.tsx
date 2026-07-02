@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CalendarEvent, CronRun, ScheduledTask } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
+import { Button, Input } from '@swarm/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -27,8 +28,7 @@ import {
   X,
 } from 'lucide-react'
 
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
+import { HtmlText } from '@/components/html-text'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCalendarEvents, useCreateLocalEvent, useDeleteLocalEvent } from '@/hooks/use-calendar'
 import { useAllCronJobs, useAllCronRuns, useCancelCronJob } from '@/hooks/use-cron'
@@ -390,7 +390,9 @@ export function ScheduledCalendarView(): React.JSX.Element {
                             <span className="mt-0.5 truncate text-[11px] text-muted-foreground">@ {ev.location}</span>
                           )}
                           {ev.description && (
-                            <p className="mt-1 line-clamp-3 text-foreground/70 text-xs">{ev.description}</p>
+                            <HtmlText className="mt-1 line-clamp-3 text-foreground/70 text-xs">
+                              {ev.description}
+                            </HtmlText>
                           )}
                         </div>
                         {ev.source === 'local' && (
