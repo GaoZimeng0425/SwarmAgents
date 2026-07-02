@@ -91,6 +91,15 @@ export default defineConfig({
         '@swarm/shared': resolve('../../packages/shared/src'),
       },
     },
+    optimizeDeps: {
+      // TanStack autoCodeSplitting serves each route as a dynamic import; under
+      // turbo-driven parallel dev (desktop + extension) the renderer window can
+      // open before Vite finishes pre-bundling, surfacing as a stuck 504
+      // "Outdated Optimize Dep" on the lazy route chunk (Electron doesn't
+      // auto-reload through it). Crawl every route file as an optimize entry so
+      // deps reachable only via lazy chunks are pre-bundled at server start.
+      entries: ['src/renderer/index.html', 'src/renderer/src/routes/**/*.tsx'],
+    },
     build: {
       rollupOptions: {
         input: {
