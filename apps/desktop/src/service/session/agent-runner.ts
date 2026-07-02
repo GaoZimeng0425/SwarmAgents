@@ -27,7 +27,6 @@ import {
   type PermissionMode,
   type ResourceBudget,
   type SpawnChildOptions,
-  type Task,
   type TaskEvent,
   type TaskResult,
   type VerificationRound,
@@ -186,20 +185,18 @@ function resolveModel(p: ProviderInjection): Model<Api> {
 type EmitFn = (event: string, data: unknown) => void
 
 export type AgentRunnerDeps = {
-  /** @deprecated being removed — pass the explicit fields below instead. */
-  task?: Task
   /** Opaque run id: emitted as `taskId` on every event, used as the spawnChild
    *  parent id. Replaces task.id. The runner does NOT interpret it. */
-  correlationId?: string
+  correlationId: string
   /** Working directory. Replaces task.cwd. */
   cwd?: string
   /** Objective text — seeds the first user turn and the verify/criteria prompts.
    *  Replaces task.goal. (Phase-3 folds this into initialMessages.) */
-  goal?: string
+  goal: string
   /** Replaces task.executionMode. */
   executionMode?: 'goal' | 'plan'
   /** Replaces task.budget. */
-  budget?: ResourceBudget
+  budget: ResourceBudget
   /** Per-invocation tool override. Replaces task.toolAllowlist. */
   toolAllowlist?: string[]
   /** Replaces task.attachments. */
@@ -594,11 +591,9 @@ function composeSystemPrompt(base: string, ctx: { cwd?: string; executionMode?: 
   return prefix.length ? `${prefix.join('\n\n')}\n\n${base}` : base
 }
 
-// The subset of the legacy Task the runner body reads. Resolved once per entry
-// point from the explicit deps (preferred) with a temporary fallback to the
-// deprecated `task` field. Task 7 removes the fallback and makes the fields
-// required. Keeping the resolved local named `task` means the body's ~73
-// `task.id` / `task.goal` / `task.budget` references need no edits.
+// The run-context the runner body reads, resolved once per entry point from
+// the explicit AgentRunnerDeps fields. The resolved local is named `task` so
+// the body's `task.id` / `task.goal` / `task.budget` references read naturally.
 type RunContext = {
   id: string
   cwd?: string
@@ -612,17 +607,16 @@ type RunContext = {
 }
 
 function resolveRunContext(deps: AgentRunnerDeps): RunContext {
-  const t = deps.task
   return {
-    id: (deps.correlationId ?? t?.id) as string,
-    cwd: deps.cwd ?? t?.cwd,
-    goal: (deps.goal ?? t?.goal) as string,
-    executionMode: deps.executionMode ?? t?.executionMode,
-    budget: (deps.budget ?? t?.budget) as ResourceBudget,
-    toolAllowlist: deps.toolAllowlist ?? t?.toolAllowlist ?? [],
-    attachments: deps.attachments ?? t?.attachments,
-    permissionMode: deps.permissionMode ?? t?.permissionMode,
-    acceptanceCriteria: deps.acceptanceCriteria ?? t?.acceptanceCriteria,
+    id: deps.correlationId,
+    cwd: deps.cwd,
+    goal: deps.goal,
+    executionMode: deps.executionMode,
+    budget: deps.budget,
+    toolAllowlist: deps.toolAllowlist ?? [],
+    attachments: deps.attachments,
+    permissionMode: deps.permissionMode,
+    acceptanceCriteria: deps.acceptanceCriteria,
   }
 }
 
