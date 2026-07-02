@@ -7,13 +7,16 @@
     "src/preload/*.d.ts",
     "src/shared/lib/**/*",
     "../../packages/protocol/src/**/*",
-    "../../packages/shared/src/**/*"
+    "../../packages/shared/src/**/*",
+    "../../packages/ui/src/**/*"
   ],
   "exclude": [
     "../../packages/protocol/src/**/*.test.ts",
     "../../packages/protocol/src/**/*.test.tsx",
     "../../packages/shared/src/**/*.test.ts",
-    "../../packages/shared/src/**/*.test.tsx"
+    "../../packages/shared/src/**/*.test.tsx",
+    "../../packages/ui/src/**/*.test.ts",
+    "../../packages/ui/src/**/*.test.tsx"
   ],
   "compilerOptions": {
     "composite": true,
@@ -23,7 +26,9 @@
       "@/*": ["./src/renderer/src/*"],
       "@shared/*": ["./src/shared/*"],
       "@swarm/protocol": ["../../packages/protocol/src"],
-      "@swarm/shared": ["../../packages/shared/src"]
+      "@swarm/shared": ["../../packages/shared/src"],
+      "@swarm/ui": ["../../packages/ui/src"],
+      "@swarm/ui/*": ["../../packages/ui/src/*"]
     }
   }
 }

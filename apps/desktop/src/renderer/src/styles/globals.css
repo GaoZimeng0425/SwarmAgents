@@ -11,6 +11,9 @@
 /* Streamdown bakes its styling as utility classes; let Tailwind scan its dist. */
 @source "../../../../node_modules/streamdown/dist/*.js";
 
+/* @swarm/ui ships as source TSX; let Tailwind scan it so its utility classes generate. */
+@source "../../../../node_modules/@swarm/ui/src";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

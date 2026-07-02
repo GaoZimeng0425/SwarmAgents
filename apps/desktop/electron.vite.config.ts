@@ -89,6 +89,7 @@ export default defineConfig({
         '@': resolve('src/renderer/src'),
         '@swarm/protocol': resolve('../../packages/protocol/src'),
         '@swarm/shared': resolve('../../packages/shared/src'),
+        '@swarm/ui': resolve('../../packages/ui/src'),
       },
     },
     optimizeDeps: {

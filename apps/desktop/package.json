@@ -66,6 +66,7 @@
     "@streamdown/mermaid": "^1.0.2",
     "@swarm/protocol": "workspace:*",
     "@swarm/shared": "workspace:*",
+    "@swarm/ui": "workspace:*",
     "@tanstack/react-devtools": "^0.10.8",
     "@tanstack/react-form": "^1.33.0",
     "@tanstack/react-hotkeys": "^0.10.0",
