@@ -1,0 +1,8 @@
+# biome: format staged files, then re-stage (biome --staged --write touches the
+# worktree, not the index; the `if` guard keeps it exit-0 for deletion-only or
+# empty staging so it never falsely blocks the commit). Then typecheck the whole
+# workspace; a type error aborts the commit.
+pnpm exec biome check --write --staged --no-errors-on-unmatched &&
+  git diff --cached --name-only --diff-filter=ACMR -z |
+    xargs -0 sh -c 'if [ "$#" -gt 0 ]; then git add -- "$@"; fi' _ &&
+  pnpm run typecheck

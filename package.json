@@ -12,10 +12,12 @@
     "dev": "turbo run dev",
     "format": "biome format --write .",
     "check": "biome check --write .",
-    "check-boundaries": "node tools/check-boundaries.mjs"
+    "check-boundaries": "node tools/check-boundaries.mjs",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",
+    "husky": "^9.1.7",
     "tsx": "^4.22.4",
     "turbo": "^2.10.1",
     "typescript": "^6.0.3"
