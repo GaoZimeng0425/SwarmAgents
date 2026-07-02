@@ -134,6 +134,7 @@ registerBuiltinTools(toolRegistry, {
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
   gmailMainRpc: mainRpc.mainRpc,
+  calendarMainRpc: mainRpc.mainRpc,
 })
 scheduler.start()
 

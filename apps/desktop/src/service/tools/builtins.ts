@@ -1,5 +1,6 @@
 import type { WebSearchInjection } from '@swarm/protocol'
 
+import { calendarSpecs } from '../calendar/tools'
 import type { ClaudeCodeManager } from '../claude-code/manager'
 import type { CronScheduler } from '../cron/scheduler'
 import { gmailSpecs } from '../gmail/tools'
@@ -68,6 +69,8 @@ export function registerBuiltinTools(
     isSkillEnabled?: (name: string) => boolean
     /** Service-side client for gmail.* mainRequest/mainResponse calls. */
     gmailMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
+    /** Service-side client for calendar.* mainRequest/mainResponse calls. */
+    calendarMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
@@ -107,4 +110,6 @@ export function registerBuiltinTools(
   if (deps?.claudeCode) for (const spec of claudeCodeSpecs(deps.claudeCode)) registry.register(spec)
   // gmail.* tools need the service→main rpc to query the cache; registered only when one is injected.
   if (deps?.gmailMainRpc) for (const spec of gmailSpecs(deps.gmailMainRpc)) registry.register(spec)
+  // calendar.* tools need the service→main rpc to query/mutate the cache.
+  if (deps?.calendarMainRpc) for (const spec of calendarSpecs(deps.calendarMainRpc)) registry.register(spec)
 }

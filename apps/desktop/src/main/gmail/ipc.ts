@@ -13,7 +13,7 @@ const log = createLogger({ process: 'main' }).child({ component: 'gmail-ipc' })
 
 const STATE_CHANGED = 'gmail:stateChanged'
 
-export type MainRpcHandlers = Record<MainMethod, (...args: unknown[]) => Promise<unknown>>
+export type MainRpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
 
 export function wireGmailIpc(args: { service: Service }): {
   dispose: () => void

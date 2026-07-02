@@ -6,6 +6,7 @@ import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { initBilibili } from './bilibili'
 import { initBudgets } from './budgets'
+import { initCalendar } from './calendar'
 import { ensureSwarmDirs, paths } from './constants'
 import { initGmail } from './gmail'
 import { startWsHost } from './host'
@@ -75,6 +76,9 @@ app.whenReady().then(async () => {
   const gmail = await initGmail()
   log.info({ msg: 'gmail sidecar initialised' })
 
+  const calendar = await initCalendar()
+  log.info({ msg: 'calendar sidecar initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
     mcpServers.dispose()
@@ -83,6 +87,7 @@ app.whenReady().then(async () => {
     trending.dispose()
     bilibili.dispose()
     gmail.dispose()
+    calendar.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')
@@ -135,6 +140,7 @@ app.whenReady().then(async () => {
     wsHost = await startWsHost({ serviceProcess, userDataDir: app.getPath('userData'), log })
     log.info({ msg: 'ws-host up', port: wsHost.port })
     gmail.registerMainRpc(serviceClient)
+    calendar.registerMainRpc(serviceClient)
 
     wireSwarmIpc({
       serviceClient,
