@@ -622,14 +622,17 @@ In `apps/desktop/src/renderer/src/styles/globals.css`, directly under the existi
 Run: `pnpm install && pnpm --filter @swarm/desktop typecheck`
 Expected: typecheck green (cache may rebuild for the renderer).
 
-- [ ] **Step 6: Verify the full chain renders (temp usage, then revert)**
+- [ ] **Step 6: Verify wiring (static; runtime smoke is in Task 6)**
 
-Temporarily render a shared component in the root layout to prove alias + Tailwind + bundling all work:
-1. Edit `apps/desktop/src/renderer/src/routes/__root.tsx`: add `import { Button } from '@swarm/ui'` and place `<Button variant="default">@swarm/ui smoke</Button>` somewhere visible inside the rendered root tree.
-2. Launch the app (use the `run-desktop` skill) and screenshot. Confirm the button renders with the primary background, rounded radius, and default font — NOT a plain unstyled `<button>`.
-3. Revert both edits to `__root.tsx` (`git checkout -- apps/desktop/src/renderer/src/routes/__root.tsx`).
+Run: `pnpm install && pnpm --filter @swarm/desktop typecheck`
+Expected: typecheck green — this confirms the `tsconfig.web.json` `paths` resolve `@swarm/ui`.
 
-> If the button is unstyled, the `@source` path did not resolve — confirm `ls apps/desktop/node_modules/@swarm/ui/src` lists the components and re-check the relative depth.
+Then confirm the Tailwind `@source` and the runtime vite alias are in place (these are not exercised by typecheck — the full visual proof is the Task 6 `run-desktop` smoke):
+- `grep '@swarm/ui' apps/desktop/src/renderer/src/styles/globals.css` → the `@source "../../../../node_modules/@swarm/ui/src";` line is present.
+- `grep '@swarm/ui' apps/desktop/electron.vite.config.ts` → the renderer `resolve.alias` entry is present.
+- `ls apps/desktop/node_modules/@swarm/ui/src` → resolves (the workspace symlink exists after `pnpm install`).
+
+> If `apps/desktop/node_modules/@swarm/ui` does not exist, `@swarm/ui` is missing from `apps/desktop/package.json` `dependencies` — fix Step 3 and re-install. The end-to-end render (vite alias bundles the package + Tailwind generates its classes) is verified visually in Task 6.
 
 - [ ] **Step 7: Format + commit**
 
