@@ -8,6 +8,7 @@ export type SettingsSection =
   | 'mcp'
   | 'web-search'
   | 'gmail'
+  | 'calendar'
   | 'skills'
   | 'agents'
   | 'bilibili'
@@ -21,6 +22,7 @@ const SECTIONS: SettingsSection[] = [
   'mcp',
   'web-search',
   'gmail',
+  'calendar',
   'skills',
   'agents',
   'bilibili',

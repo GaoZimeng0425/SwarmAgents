@@ -1,6 +1,7 @@
 import {
   Bot,
   Boxes,
+  Calendar,
   DollarSign,
   Info,
   Lock,
@@ -18,6 +19,7 @@ import { AboutView } from '@/components/views/about-view'
 import { AgentsView } from '@/components/views/agents-view'
 import { BilibiliSettingsView } from '@/components/views/bilibili-settings-view'
 import { BudgetsView } from '@/components/views/budgets-view'
+import { CalendarSettingsView } from '@/components/views/calendar-view'
 import { GeneralView } from '@/components/views/general-view'
 import { GmailSettingsView } from '@/components/views/gmail-view'
 import { McpServersView } from '@/components/views/mcp-servers-view'
@@ -34,6 +36,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: typeof SettingsIcon
   { key: 'mcp', label: 'MCP Servers', icon: Boxes, View: McpServersView },
   { key: 'web-search', label: 'Web Search', icon: Search, View: WebSearchView },
   { key: 'gmail', label: 'Gmail', icon: Mail, View: GmailSettingsView },
+  { key: 'calendar', label: 'Calendar', icon: Calendar, View: CalendarSettingsView },
   { key: 'skills', label: 'Skills', icon: Sparkles, View: SkillsView },
   { key: 'agents', label: 'Agents', icon: Users, View: AgentsView },
   { key: 'bilibili', label: 'Bilibili', icon: Tv, View: BilibiliSettingsView },
