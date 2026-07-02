@@ -329,12 +329,13 @@ export type AgentSession = {
  * Exported for unit testing; callers should use createAgentRunner for production use.
  */
 export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
+  const ctx = resolveRunContext(deps)
   return {
     sessionId: deps.sessionId,
-    taskId: deps.task?.id,
-    cwd: deps.task?.cwd,
+    taskId: ctx.id,
+    cwd: ctx.cwd,
     spawnChild: (goal, suggestedTools, providerKey, agentType, options) =>
-      deps.spawnChild(deps.task.id, goal, suggestedTools, providerKey, agentType, options),
+      deps.spawnChild(ctx.id, goal, suggestedTools, providerKey, agentType, options),
     send: () => undefined,
     // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
     // This stub satisfies the ToolRunContext type without creating a second gate.
@@ -1254,13 +1255,14 @@ const sameGaps = (a: string[], b: string[]): boolean => {
 // sub-run on the same provider. The sub-run sets maxVerifyRounds: 0 so it never
 // recurses into another verify loop.
 function defaultVerifyCompletion(deps: AgentRunnerDeps): NonNullable<AgentRunnerDeps['verifyCompletion']> {
+  const ctx = resolveRunContext(deps)
   return async ({ criteria, summary, cwd }) => {
     let judgeUsed: ConsumedResources | undefined
     const judge: Judge = async (soft, sum) => {
       const verifierTask: Task = {
         ...deps.task,
-        id: `${deps.task.id}:verify`,
-        goal: buildJudgePrompt(deps.task.goal, soft, sum),
+        id: `${ctx.id}:verify`,
+        goal: buildJudgePrompt(ctx.goal, soft, sum),
         attachments: [],
         toolAllowlist: [],
         acceptanceCriteria: undefined,
@@ -1292,7 +1294,7 @@ function defaultVerifyCompletion(deps: AgentRunnerDeps): NonNullable<AgentRunner
       judgeUsed = r.used
       const parsed = parseVerdict(r.summary)
       if (!parsed) {
-        log.warn({ msg: 'verifier output unparseable; treating as fail', taskId: deps.task.id })
+        log.warn({ msg: 'verifier output unparseable; treating as fail', taskId: ctx.id })
         return { pass: false, gaps: ['verifier produced no parseable verdict'] }
       }
       return parsed
@@ -1300,7 +1302,7 @@ function defaultVerifyCompletion(deps: AgentRunnerDeps): NonNullable<AgentRunner
     // Model-authored command checks bypass the shell permission gate, so only
     // run them as hard checks when the session is in 'full' permission mode;
     // otherwise verifyTask demotes them to the LLM judge.
-    const allowCommands = (deps.getPermissionMode?.() ?? deps.task.permissionMode ?? 'ask') === 'full'
+    const allowCommands = (deps.getPermissionMode?.() ?? ctx.permissionMode ?? 'ask') === 'full'
     const verdict = await verifyTask({ criteria, summary, cwd, judge, allowCommands })
     return { ...verdict, judgeUsed }
   }
@@ -1403,33 +1405,34 @@ export async function runGoalVerifyLoop(args: {
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
     async run() {
-      const images: ImageContent[] = deps.task.attachments.map((a) => ({
+      const task = resolveRunContext(deps)
+      const images: ImageContent[] = task.attachments!.map((a) => ({
         type: 'image',
         data: a.data,
         mimeType: a.mimeType,
       }))
       const maxRounds = deps.maxVerifyRounds ?? DEFAULT_MAX_VERIFY_ROUNDS
-      const taskLog = log.child({ taskId: deps.task.id })
+      const taskLog = log.child({ taskId: task.id })
 
       // Legacy single-shot: plan mode, or verification disabled (e.g. the
       // verifier sub-run). No criteria derivation, no verify gate.
-      if (deps.task.executionMode === 'plan' || maxRounds === 0) {
+      if (task.executionMode === 'plan' || maxRounds === 0) {
         const session = buildAgentSession(deps)
-        const r = await session.promptOnce(deps.task.goal, images.length > 0 ? images : undefined)
+        const r = await session.promptOnce(task.goal, images.length > 0 ? images : undefined)
         return { status: r.status, summary: r.summary, messages: session.agent.state.messages, used: session.getUsed() }
       }
 
       // Goal mode: define → execute → verify → rework.
-      const criteriaRef: { current: AcceptanceCriterion[] } = { current: deps.task.acceptanceCriteria ?? [] }
+      const criteriaRef: { current: AcceptanceCriterion[] } = { current: task.acceptanceCriteria ?? [] }
       const wrappedDeps: AgentRunnerDeps = {
         ...deps,
         onAcceptanceCriteria: (c) => {
           criteriaRef.current = c
-          deps.emit('task.criteria', { taskId: deps.task.id, criteria: c, ts: Date.now() })
+          deps.emit('task.criteria', { taskId: task.id, criteria: c, ts: Date.now() })
           deps.onAcceptanceCriteria?.(c)
         },
         onDelegationPlan: (plan) => {
-          deps.emit('task.delegation_plan', { taskId: deps.task.id, plan, ts: Date.now() })
+          deps.emit('task.delegation_plan', { taskId: task.id, plan, ts: Date.now() })
           deps.onDelegationPlan?.(plan)
         },
       }
@@ -1439,24 +1442,24 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       // Phase A — derive criteria unless the caller supplied them.
       if (criteriaRef.current.length === 0) {
         taskLog.info({ msg: 'deriving acceptance criteria' })
-        await session.promptOnce(deriveCriteriaPrompt(deps.task.goal))
+        await session.promptOnce(deriveCriteriaPrompt(task.goal))
         if (criteriaRef.current.length === 0) {
           taskLog.warn({ msg: 'agent derived no criteria; using goal as a single soft criterion' })
-          criteriaRef.current = [{ id: 'c1', description: deps.task.goal }]
+          criteriaRef.current = [{ id: 'c1', description: task.goal }]
         }
       }
 
       // Phase B + C.
       return runGoalVerifyLoop({
         session,
-        goal: deps.task.goal,
+        goal: task.goal,
         images,
         criteriaRef,
         verify,
         maxRounds,
-        cwd: deps.task.cwd,
+        cwd: task.cwd,
         emit: deps.emit,
-        taskId: deps.task.id,
+        taskId: task.id,
       })
     },
   }
@@ -1489,8 +1492,9 @@ export async function runResident(
   idleMs: number
 ): Promise<void> {
   const residentLog = log.child({ component: 'actor-runtime' })
+  const task = resolveRunContext(deps)
   const session = buildAgentSession(deps)
-  residentLog.info({ msg: 'resident-start', address: deps.selfAddress, taskId: deps.task.id })
+  residentLog.info({ msg: 'resident-start', address: deps.selfAddress, taskId: task.id })
   for (;;) {
     if (deps.signal?.aborted) {
       residentLog.info({ msg: 'resident aborted', address: deps.selfAddress })
