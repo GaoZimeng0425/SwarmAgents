@@ -18,6 +18,8 @@ import {
   type AcceptanceCriterion,
   ANTHROPIC_MODEL_SUGGESTIONS,
   type ApiStyle,
+  type Attachment,
+  type BudgetConfig,
   type ConsumedResources,
   DEFAULT_CONTEXT_WINDOW,
   type DelegationItem,
@@ -184,7 +186,28 @@ function resolveModel(p: ProviderInjection): Model<Api> {
 type EmitFn = (event: string, data: unknown) => void
 
 export type AgentRunnerDeps = {
-  task: Task
+  /** @deprecated being removed — pass the explicit fields below instead. */
+  task?: Task
+  /** Opaque run id: emitted as `taskId` on every event, used as the spawnChild
+   *  parent id. Replaces task.id. The runner does NOT interpret it. */
+  correlationId?: string
+  /** Working directory. Replaces task.cwd. */
+  cwd?: string
+  /** Objective text — seeds the first user turn and the verify/criteria prompts.
+   *  Replaces task.goal. (Phase-3 folds this into initialMessages.) */
+  goal?: string
+  /** Replaces task.executionMode. */
+  executionMode?: 'goal' | 'plan'
+  /** Replaces task.budget. */
+  budget?: BudgetConfig
+  /** Per-invocation tool override. Replaces task.toolAllowlist. */
+  toolAllowlist?: string[]
+  /** Replaces task.attachments. */
+  attachments?: Attachment[]
+  /** Fallback when getPermissionMode is absent. Replaces task.permissionMode. */
+  permissionMode?: PermissionMode
+  /** Replaces task.acceptanceCriteria. */
+  acceptanceCriteria?: AcceptanceCriterion[]
   provider: ProviderInjection
   agentDefinition: AgentDefinition
   sessionId: string
@@ -570,6 +593,38 @@ function composeSystemPrompt(base: string, task: Task): string {
   return prefix.length ? `${prefix.join('\n\n')}\n\n${base}` : base
 }
 
+// The subset of the legacy Task the runner body reads. Resolved once per entry
+// point from the explicit deps (preferred) with a temporary fallback to the
+// deprecated `task` field. Task 7 removes the fallback and makes the fields
+// required. Keeping the resolved local named `task` means the body's ~73
+// `task.id` / `task.goal` / `task.budget` references need no edits.
+type RunContext = {
+  id: string
+  cwd?: string
+  goal: string
+  executionMode?: 'goal' | 'plan'
+  budget: BudgetConfig
+  toolAllowlist?: string[]
+  attachments?: Attachment[]
+  permissionMode?: PermissionMode
+  acceptanceCriteria?: AcceptanceCriterion[]
+}
+
+function resolveRunContext(deps: AgentRunnerDeps): RunContext {
+  const t = deps.task
+  return {
+    id: (deps.correlationId ?? t?.id) as string,
+    cwd: deps.cwd ?? t?.cwd,
+    goal: (deps.goal ?? t?.goal) as string,
+    executionMode: deps.executionMode ?? t?.executionMode,
+    budget: (deps.budget ?? t?.budget) as BudgetConfig,
+    toolAllowlist: deps.toolAllowlist ?? t?.toolAllowlist,
+    attachments: deps.attachments ?? t?.attachments,
+    permissionMode: deps.permissionMode ?? t?.permissionMode,
+    acceptanceCriteria: deps.acceptanceCriteria ?? t?.acceptanceCriteria,
+  }
+}
+
 /**
  * Build a long-lived agent session from deps. Performs all one-time setup
  * (tool/model resolution, `Agent` construction, signal wiring, subscriptions)
@@ -582,7 +637,8 @@ function composeSystemPrompt(base: string, task: Task): string {
  * unchanged.
  */
 export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
-  const { task, provider, agentDefinition, sessionId, emit, permissionRegistry, initialMessages, toolRegistry } = deps
+  const { provider, agentDefinition, sessionId, emit, permissionRegistry, initialMessages, toolRegistry } = deps
+  const task = resolveRunContext(deps)
   const maxRetries = deps.retry?.maxRetries ?? MAX_PROMPT_RETRIES
   const retryDelayMs = deps.retry?.delayMs ?? RETRY_DELAY_MS
   const taskLog = log.child({ taskId: task.id })
