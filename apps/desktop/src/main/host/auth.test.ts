@@ -33,4 +33,43 @@ describe('ws host auth', () => {
     const second = loadOrCreateHostConfig(dir)
     expect(second).toEqual(first)
   })
+
+  it('loadOrCreateHostConfig honors SWARM_WS_HOST_PORT when creating', () => {
+    const prev = process.env.SWARM_WS_HOST_PORT
+    process.env.SWARM_WS_HOST_PORT = '47877'
+    try {
+      expect(loadOrCreateHostConfig(dir).port).toBe(47877)
+    } finally {
+      if (prev === undefined) delete process.env.SWARM_WS_HOST_PORT
+      else process.env.SWARM_WS_HOST_PORT = prev
+    }
+  })
+
+  it('loadOrCreateHostConfig falls back to default port when env unset', () => {
+    const prev = process.env.SWARM_WS_HOST_PORT
+    delete process.env.SWARM_WS_HOST_PORT
+    try {
+      expect(loadOrCreateHostConfig(dir).port).toBe(47777)
+    } finally {
+      if (prev !== undefined) process.env.SWARM_WS_HOST_PORT = prev
+    }
+  })
+
+  it('loadOrCreateHostConfig ignores invalid SWARM_WS_HOST_PORT', () => {
+    const prev = process.env.SWARM_WS_HOST_PORT
+    try {
+      for (const v of ['not-a-port', '0', '70000', '-1']) {
+        process.env.SWARM_WS_HOST_PORT = v
+        const d = mkdtempSync(join(tmpdir(), 'ws-host-'))
+        try {
+          expect(loadOrCreateHostConfig(d).port).toBe(47777)
+        } finally {
+          rmSync(d, { recursive: true, force: true })
+        }
+      }
+    } finally {
+      if (prev === undefined) delete process.env.SWARM_WS_HOST_PORT
+      else process.env.SWARM_WS_HOST_PORT = prev
+    }
+  })
 })
