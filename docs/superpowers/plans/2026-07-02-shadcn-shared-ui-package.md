@@ -14,6 +14,7 @@
 - **`@swarm/ui` must stay platform-agnostic:** React/web libs allowed; `electron`, `better-sqlite3`, `sqlite-vec`, `sherpa-onnx-node`, node builtins (`node:`, `child_process`, `path`, `fs`, `os`), `react-native`, `@anthropic-ai/*`, `@modelcontextprotocol/*` forbidden. Enforced by `tools/check-boundaries.mjs`.
 - **Source-only package:** no build step. `main`/`types` → `./src/index.ts`. Consumed from source via vite alias + tsconfig paths (mirror `@swarm/shared`).
 - **shadcn framework marker:** `packages/ui/vite.config.ts` (a permanent `export default {}` stub) exists solely so the shadcn CLI's framework detector recognizes the package — without it, `apply`/`add` exit 1 with "could not detect a supported framework". It is NOT a build config: no `build` script, outside the tsconfig `include`, never built by turbo.
+- **Design direction = `base-sera` (user-approved, supersedes Task 1's `base-nova`):** the preset `b1abxEJN2` rethemes `@swarm/ui` to `base-sera` / `zinc` / Montserrat / **Base UI** (`@base-ui/react`, NOT Radix) and is **theme-only** (no components). Keep the preset's `components.json` + `tokens.css` + deps; add components via `shadcn add` (starter set: `button card input label sonner`). The preset's `tokens.css` is the canonical theme (do NOT restore Task 1's native block). Use `npx`, not `bunx --bun` (Bun 1.3.14 lacks `node:sqlite`, which the CLI uses during dep-install). Consequence: the extension becomes base-sera-themed; desktop keeps its own native `globals.css` — divergence accepted by the user.
 - **Versions (copy verbatim):** `tailwindcss@^4.3.2`, `@tailwindcss/vite@^4.3.2`, `tw-animate-css@^1.4.0`, `clsx@^2.1.1`, `tailwind-merge@^3.6.0`, `class-variance-authority@^0.7.1`, `lucide-react@^1.22.0`, `@types/react@19.2.17`, `@types/react-dom@19.2.3`, `vitest@^4.1.9`, `typescript@^6.0.3`.
 - **Test runner for `@swarm/ui`:** plain `vitest run` (no Electron — `cn` is pure TS). Desktop's electron-node test rule does NOT apply to this package.
 - **Commit messages & code comments in English.** Conversation in Chinese. Biome is the formatter (`npx biome check --write <file>` for scoped formatting — `pnpm check` reformats the whole repo).
@@ -346,9 +347,11 @@ populated by the preset in the next commit."
 - Possibly modify: `packages/ui/src/styles/tokens.css`, `packages/ui/package.json` (preset may add Radix deps)
 
 **Interfaces:**
-- Produces: a populated `@swarm/ui` exporting the preset's components + `cn`; a `package.json` whose `dependencies` include every Radix primitive the components need.
+- Produces: a populated `@swarm/ui` exporting `cn` + the starter components (`button`, `card`, `input`, `label`, `sonner`); a `package.json` whose `dependencies` include the Base UI primitives (`@base-ui/react`) the `base-sera` style uses.
 
-- [ ] **Step 1: Create the shadcn framework marker, then apply the preset**
+**User-approved direction (supersedes Task 1's `base-nova`/Radix assumption):** the preset `b1abxEJN2` is **theme-only** and rethemes the package to `base-sera` / `zinc` / Montserrat / **Base UI** (not Radix). The user approved adopting this preset's theme. Therefore: KEEP the preset's `components.json` (base-sera/zinc), KEEP the preset's `tokens.css` (do NOT restore Task 1's native block), KEEP its added deps (`@base-ui/react`, `@fontsource-variable/montserrat`, `tw-animate-css`), and add components separately via `shadcn add`. (Consequence: the extension, which consumes these tokens, becomes base-sera-themed; desktop keeps its own native `globals.css` — divergence accepted.)
+
+- [ ] **Step 1: Create the shadcn framework marker, then apply the preset (KEEP its theme)**
 
 shadcn 4.12.0's framework detector globs the cwd (deep:3) for `vite.config.*|next.config.*|…`. Task 1's package is source-only with no such marker, so `apply` exits 1 with "could not detect a supported framework" **before** fetching the preset (verified during execution). Create a permanent minimal marker first.
 
@@ -361,33 +364,40 @@ Create `packages/ui/vite.config.ts`:
 // typechecked, and turbo never builds it (no `build` script).
 export default {}
 ```
-Then run the preset:
+Then run the preset. `bunx --bun` fails at dep-install (Bun 1.3.14 lacks `node:sqlite`, which the CLI uses), so use `npx` (node runtime):
 ```bash
 cd packages/ui
-bunx --bun shadcn@latest apply --preset b1abxEJN2
+npx shadcn@latest apply --preset b1abxEJN2 --yes
 cd ../..
 ```
-Expected: components are written under `packages/ui/src/components/ui/`. If `bun` is unavailable, substitute `npx shadcn@latest apply --preset b1abxEJN2` and note it. If it still exits non-zero, retry with a `--yes` flag. **The marker is committed permanently — do NOT delete it** (future `shadcn add` calls need it too).
+Expected: the preset writes `src/lib/utils.ts` + `src/styles/tokens.css`, sets `components.json` to `style: base-sera` / `baseColor: zinc`, and adds deps (`@base-ui/react`, `@fontsource-variable/montserrat`, `tw-animate-css`, and a `shadcn` self-dep). **The preset is theme-only — no components are written yet (Step 2 adds them).** KEEP the preset's `tokens.css` and `components.json` (base-sera is intended). **The marker is permanent — do NOT delete it** (future `shadcn add` calls need it too).
 
-- [ ] **Step 2: Verify components landed**
+- [ ] **Step 2: Add the starter component set (`shadcn add`)**
 
-Run: `ls packages/ui/src/components/ui`
-Expected: a non-empty list (e.g. `button.tsx`, `card.tsx`, …). If empty, the preset did not apply — re-run Step 1 with `--yes` (`bunx --bun shadcn@latest apply --preset b1abxEJN2 --yes`) and check the CLI output.
+The preset ships no components. Add the user-approved starter set:
+```bash
+cd packages/ui
+npx shadcn@latest add button card input label sonner --yes
+cd ../..
+```
+Expected: `src/components/ui/{button,card,input,label,sonner}.tsx` are created, each pulling its `@base-ui/react` primitives into `package.json` automatically. Use `npx` (same Bun `node:sqlite` limitation).
 
-- [ ] **Step 3: Verify `components.json` aliases survived**
+- [ ] **Step 3: Verify `components.json` + tokens reflect base-sera**
 
-Run: `cat packages/ui/components.json`
-Expected: `aliases.ui` is still `@/components/ui`, `aliases.utils` still `@/lib/utils`, `tailwind.css` still `src/styles/tokens.css`. If the preset rewrote them (e.g. to a different style or path), restore the Task 1 values via Edit.
+Run: `cat packages/ui/components.json` → `style: base-sera`, `baseColor: zinc`; aliases intact (`ui=@/components/ui`, `utils=@/lib/utils`, `css=src/styles/tokens.css`).
+Run: `grep -E '^\\s*--background:|^\\s*--primary:|^\\.dark|montserrat' packages/ui/src/styles/tokens.css` → matches (base-sera theme + Montserrat). The preset's `tokens.css` is canonical now — do NOT restore Task 1's native block.
 
-- [ ] **Step 4: Ensure tokens.css still has the design tokens**
+- [ ] **Step 4: Clean the bogus `shadcn` self-dep (conditionally)**
 
-Run: `grep -E '^\\s*--background:|^\\s*--primary:|^\\.dark' packages/ui/src/styles/tokens.css`
-Expected: matches for `--background`, `--primary`, and `.dark`. If the preset replaced tokens.css with bare defaults missing `:root`/`.dark`, overwrite the file with the portable block from Task 1 Step 6 (it is the canonical source).
+The preset adds `shadcn@^4.12.0` to `dependencies`. Whether it's needed depends on the theme CSS:
+`grep "shadcn/tailwind" packages/ui/src/styles/tokens.css`
+- If it matches (`@import "shadcn/tailwind.css"` is used): KEEP the `shadcn` dep — it ships that CSS.
+- If no match: remove the self-dep — `pnpm --filter @swarm/ui remove shadcn`.
 
-- [ ] **Step 5: Install any Radix deps the CLI added**
+- [ ] **Step 5: Install deps + verify resolution**
 
 Run: `pnpm install`
-Expected: lockfile + `node_modules` updated for newly added `@radix-ui/*` entries in `packages/ui/package.json`. If the CLI did NOT touch `package.json` but a component imports a missing Radix package, typecheck (Step 8) will fail — add the missing package(s) with `pnpm --filter @swarm/ui add <pkg>` and re-run.
+Expected: lockfile + `node_modules` updated for `@base-ui/react`, the Montserrat fontsource, `tw-animate-css`, and any extra Base UI primitives the components pulled in. If a component import is unresolvable at typecheck (Step 8), add the missing package with `pnpm --filter @swarm/ui add <pkg>` and re-run.
 
 - [ ] **Step 6: Regenerate the barrel to re-export every component**
 
@@ -420,11 +430,12 @@ Expected: test passes; boundary check prints `Boundary check OK` (Task 3 extends
 
 ```bash
 git add packages/ui
-git commit -m "feat(ui): apply shadcn preset b1abxEJN2 to @swarm/ui
+git commit -m "feat(ui): apply preset b1abxEJN2 (base-sera) + starter components
 
-Populate components/ui from the preset, wire the barrel, and pull the
-Radix primitives each component needs. Portable tokens.css is the canonical
-design-token source."
+Theme-only preset rethemes @swarm/ui to base-sera/zinc/Montserrat/Base UI
+(tokens.css + components.json + deps kept). Starter components (button, card,
+input, label, sonner) added via shadcn add, pulling @base-ui/react primitives.
+Permanent vite.config.ts marker enables the shadcn CLI's framework detection."
 ```
 
 ---
@@ -694,8 +705,11 @@ In `apps/extension/tsconfig.json`:
 - [ ] **Step 4: Create `apps/extension/entrypoints/popup/globals.css`**
 
 ```css
-@import "tailwindcss";
-@import "tw-animate-css";
+/* @swarm/ui's tokens.css is the base-sera Tailwind v4 theme entry — it pulls in
+   tailwindcss (or shadcn/tailwind.css) + tw-animate-css + the theme tokens. So
+   import ONLY it here; do NOT also @import "tailwindcss" (duplicate import).
+   If the build errors that tailwind isn't loaded, prepend `@import "tailwindcss";`
+   above — but first confirm the package tokens.css doesn't already import it. */
 @import "@swarm/ui/src/styles/tokens.css";
 
 /* Tailwind v4 does not scan outside this CSS file's subtree; source the shared
@@ -712,13 +726,11 @@ body {
 - [ ] **Step 5: Create `apps/extension/entrypoints/options/globals.css`**
 
 ```css
-@import "tailwindcss";
-@import "tw-animate-css";
 @import "@swarm/ui/src/styles/tokens.css";
 
 @source "../../node_modules/@swarm/ui/src";
 ```
-(The options page is wider; no fixed width. Same tokens + source as popup.)
+(Same single-import-of-package-tokens + source as popup; options is wider, no fixed width.)
 
 - [ ] **Step 6: Import the CSS in each entrypoint's `main.tsx`**
 

@@ -50,6 +50,20 @@ request is "update shadcn + make components shareable" — Option 1 does exactly
 that with the smallest, lowest-risk diff. Re-export shims and full migration
 are available later without rework.
 
+> **Amendment (2026-07-02, user-approved during execution):** the preset
+> `b1abxEJN2` is **theme-only** (no components) and rethemes `@swarm/ui` to
+> `base-sera` / `zinc` / Montserrat / **Base UI** (`@base-ui/react`). This
+> **supersedes** the `base-nova` / `neutral` / Radix assumption elsewhere in
+> this doc (which was inferred from desktop's existing setup). The user
+> approved adopting the preset's theme. Consequences: (1) components come from
+> `shadcn add` (starter set `button card input label sonner`), not `apply`;
+> (2) the preset's `tokens.css` is canonical (Montserrat + zinc + opaque — NOT
+> the native macOS transparent/system-accent block); (3) the extension becomes
+> base-sera-themed, while desktop keeps its own native `globals.css` — a
+> deliberate divergence; (4) `npx` is used instead of `bunx --bun` (Bun lacks
+> `node:sqlite`, which the CLI needs for dep-install). The `base-nova`/Radix
+> text below is retained for history but is stale where it conflicts with this.
+
 ### Rejected alternatives
 - **Option 2 (re-export shim):** desktop's `@/components/ui/<x>` files become
   `export { X } from '@swarm/ui'`. Gives single-source-of-truth for primitives
