@@ -29,7 +29,9 @@ app.setName('SwarmAgents')
 
 // ship-readiness G.64: single-instance on Windows / Linux. Second launch
 // focuses the existing window instead of spawning a new process.
-if (!app.requestSingleInstanceLock()) {
+// E2E runs launch a second instance alongside the user's app; skip the lock
+// only when the e2e harness explicitly opts in. Production is unaffected.
+if (!process.env.SWARM_E2E && !app.requestSingleInstanceLock()) {
   app.quit()
 }
 
