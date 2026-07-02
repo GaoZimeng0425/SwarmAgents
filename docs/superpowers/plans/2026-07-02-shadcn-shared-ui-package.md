@@ -444,9 +444,11 @@ Permanent vite.config.ts marker enables the shadcn CLI's framework detection."
 
 **Files:**
 - Modify: `tools/check-boundaries.mjs`
+- Modify: `biome.json` (exclude vendored `packages/ui/src/components/ui` — mirror the existing `packages/design` + desktop `src/renderer/src/components/ui` convention)
+- Modify: `packages/ui/src/components/ui/label.tsx` (remove the now-moot `biome-ignore` comment)
 
 **Interfaces:**
-- Produces: a boundary gate that fails if `packages/ui/src` imports anything platform-bound while still allowing React/web libs.
+- Produces: a boundary gate that fails if `packages/ui/src` imports anything platform-bound while still allowing React/web libs; vendored shadcn components excluded from biome (consistent with the rest of the repo).
 
 - [ ] **Step 1: Replace `tools/check-boundaries.mjs` with per-package rules**
 
@@ -530,14 +532,26 @@ Run: `node tools/check-boundaries.mjs`
 Expected: exits non-zero with `BOUNDARY VIOLATION: packages/ui/src/lib/utils.ts imports "node:module"`.
 Then revert the sentinel line.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Exclude vendored `@swarm/ui` components from biome**
+
+The repo already excludes vendored shadcn components: `biome.json` has `!src/renderer/src/components/ui/**` and `!**/packages/design/src/components/ui/**` (the `packages/design` pattern is stale/anticipatory; `packages/ui` is the real package). Add `packages/ui` next to every `packages/design` occurrence — there are 4 locations (the `files.include` negation list around line 8, and 3 `overrides` blocks around lines 72, 87, 123). Add the matching variant: `!**/packages/ui/src/components/ui/**` beside each `!**/packages/design/src/components/ui/**`, and `!**/packages/ui/src/components/ui` beside each `!**/packages/design/src/components/ui`.
+
+Verify: `npx biome check packages/ui/src/components/ui` → exits clean (the vendored dir is now ignored, so no a11y false positives).
+
+- [ ] **Step 5: Remove the now-moot `biome-ignore` from `label.tsx`**
+
+Since `packages/ui/src/components/ui` is now excluded, the per-line `biome-ignore lint/a11y/...` comment above the `<label>` in `packages/ui/src/components/ui/label.tsx` (added in Task 2) is dead. Remove just that comment line — leave the `<label>` element and the rest of the file intact. This is the one allowed edit to vendored component code in this task.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add tools/check-boundaries.mjs
-git commit -m "chore(boundaries): enforce @swarm/ui platform-agnosticism
+git add tools/check-boundaries.mjs biome.json packages/ui/src/components/ui/label.tsx
+git commit -m "chore(boundaries,lint): enforce @swarm/ui platform-agnosticism + exclude vendored ui
 
-Per-package rules: protocol/shared forbid React; ui allows React/web libs
-but still forbids Electron, native modules, node builtins, and RN."
+Per-package boundary rules: protocol/shared forbid React; ui allows React/web
+libs but forbids Electron, native modules, node builtins, RN. Mirror the
+existing vendored-components biome exclusion for packages/ui/src/components/ui
+and drop the now-moot label.tsx biome-ignore."
 ```
 
 ---
