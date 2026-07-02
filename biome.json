@@ -9,8 +9,8 @@
       "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
       "!**/.next",
-      "!src/renderer/src/routeTree.gen.ts",
-      "!src/renderer/src/routeTreeSettings.gen.ts"
+      "!**/src/renderer/src/routeTree.gen.ts",
+      "!**/src/renderer/src/routeTreeSettings.gen.ts"
     ],
     "actions": {
       "source": {
@@ -73,8 +73,8 @@
       "!**/packages/design/src/components/ui",
       "!**/packages/ui/src/components/ui",
       "!src/renderer/src/components/ui",
-      "!src/renderer/src/routeTree.gen.ts",
-      "!src/renderer/src/routeTreeSettings.gen.ts"
+      "!**/src/renderer/src/routeTree.gen.ts",
+      "!**/src/renderer/src/routeTreeSettings.gen.ts"
     ]
   },
   "formatter": {
@@ -89,8 +89,8 @@
       "!**/packages/design/src/components/ui/**",
       "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
-      "!src/renderer/src/routeTree.gen.ts",
-      "!src/renderer/src/routeTreeSettings.gen.ts"
+      "!**/src/renderer/src/routeTree.gen.ts",
+      "!**/src/renderer/src/routeTreeSettings.gen.ts"
     ],
     "indentStyle": "space",
     "indentWidth": 2,
@@ -127,8 +127,8 @@
       "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
       "!**/.next",
-      "!src/renderer/src/routeTree.gen.ts",
-      "!src/renderer/src/routeTreeSettings.gen.ts"
+      "!**/src/renderer/src/routeTree.gen.ts",
+      "!**/src/renderer/src/routeTreeSettings.gen.ts"
     ],
     "rules": {
       "recommended": true,
