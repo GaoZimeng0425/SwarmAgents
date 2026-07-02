@@ -49,7 +49,10 @@ describe('agent-runner tool context messaging bridge', () => {
       status: 'active' as const,
     }
     const ctx = buildToolContext({
-      task: { id: 't1', goal: 'g', cwd: undefined, attachments: [] },
+      correlationId: 't1',
+      goal: 'g',
+      cwd: undefined,
+      attachments: [],
       sessionId: 's1',
       findPeers: (q) => (q.role === 'pm' ? [peer] : []),
       spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
@@ -61,7 +64,10 @@ describe('agent-runner tool context messaging bridge', () => {
   it('findPeers returns [] when no delegate is wired', async () => {
     const { buildToolContext } = await import('./agent-runner')
     const ctx = buildToolContext({
-      task: { id: 't1', goal: 'g', cwd: undefined, attachments: [] },
+      correlationId: 't1',
+      goal: 'g',
+      cwd: undefined,
+      attachments: [],
       sessionId: 's1',
       spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
     } as never)

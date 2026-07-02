@@ -51,14 +51,12 @@ const deps = (
   overrides: Partial<AgentRunnerDeps> = {}
 ): AgentRunnerDeps =>
   ({
-    task: {
-      id: 't1',
-      goal: 'hello',
-      cwd: undefined,
-      attachments: [],
-      budget: { calls: 100, wallMs: 60000, usdCents: 1000, tokens: 1e9 },
-      permissionMode: 'full',
-    } as any,
+    correlationId: 't1',
+    goal: 'hello',
+    cwd: undefined,
+    attachments: [],
+    budget: { calls: 100, wallMs: 60000, usdCents: 1000, tokens: 1e9 },
+    permissionMode: 'full',
     provider: { model: 'test', apiStyle: 'anthropic', apiKey: 'k' } as any,
     agentDefinition: { id: 'default', systemPrompt: 'sys', toolScope: 'all', maxIterations: 25 } as any,
     sessionId: 's1',
