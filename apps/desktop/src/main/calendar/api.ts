@@ -9,7 +9,10 @@ import type { GoogleEventRow } from './cache'
 
 const log = createLogger({ process: 'main' }).child({ component: 'calendar-api' })
 
-const BASE = 'https://calendar-json.googleapis.com/calendar/v3'
+// Official Calendar REST host. NOTE: calendar-json.googleapis.com is the
+// legacy Google Data Protocol host and 404s on v3 REST paths
+// (e.g. /users/me/calendarList) — do not use it.
+const BASE = 'https://www.googleapis.com/calendar/v3'
 
 type Auth = { getAccessToken(): Promise<string>; refreshAccessToken(): Promise<void> }
 
