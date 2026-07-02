@@ -6,6 +6,7 @@
       "**",
       "!**/node_modules",
       "!**/packages/design/src/components/ui/**",
+      "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
       "!**/.next",
       "!src/renderer/src/routeTree.gen.ts",
@@ -70,6 +71,7 @@
       "!**/pnpm-lock.yaml",
       "!**/node_modules",
       "!**/packages/design/src/components/ui",
+      "!**/packages/ui/src/components/ui",
       "!src/renderer/src/components/ui",
       "!src/renderer/src/routeTree.gen.ts",
       "!src/renderer/src/routeTreeSettings.gen.ts"
@@ -85,6 +87,7 @@
       "!**/.next",
       "!**/node_modules",
       "!**/packages/design/src/components/ui/**",
+      "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
       "!src/renderer/src/routeTree.gen.ts",
       "!src/renderer/src/routeTreeSettings.gen.ts"
@@ -121,6 +124,7 @@
       "**",
       "!**/node_modules",
       "!**/packages/design/src/components/ui/**",
+      "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
       "!**/.next",
       "!src/renderer/src/routeTree.gen.ts",
