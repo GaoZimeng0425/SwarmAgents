@@ -19,6 +19,12 @@ import type {
   BudgetConfig,
   BudgetsBridge,
   BudgetsSetResult,
+  CalendarBridge,
+  CalendarClientCreds,
+  CalendarConfigView,
+  CalendarEvent,
+  CalendarLocalInput,
+  CalendarSetResult,
   GmailBridge,
   GmailClientCreds,
   GmailConfigView,
@@ -243,6 +249,30 @@ const gmail: GmailBridge = {
   },
 }
 
+const calendar: CalendarBridge = {
+  getStatus: () => ipcRenderer.invoke('calendar:getStatus') as Promise<CalendarConfigView>,
+  setClientCreds: (creds: CalendarClientCreds) =>
+    ipcRenderer.invoke('calendar:setClientCreds', creds) as Promise<CalendarSetResult>,
+  clearClientCreds: () => ipcRenderer.invoke('calendar:clearClientCreds') as Promise<unknown>,
+  linkAccount: () => ipcRenderer.invoke('calendar:linkAccount') as Promise<CalendarSetResult>,
+  unlinkAccount: () => ipcRenderer.invoke('calendar:unlinkAccount') as Promise<unknown>,
+  syncNow: () => ipcRenderer.invoke('calendar:syncNow') as Promise<void>,
+  listInRange: (fromMs: number, toMs: number) =>
+    ipcRenderer.invoke('calendar:listInRange', fromMs, toMs) as Promise<CalendarEvent[]>,
+  createLocal: (input: CalendarLocalInput) =>
+    ipcRenderer.invoke('calendar:createLocal', input) as Promise<CalendarEvent>,
+  updateLocal: (id: string, patch: Partial<CalendarLocalInput>) =>
+    ipcRenderer.invoke('calendar:updateLocal', id, patch) as Promise<CalendarEvent | null>,
+  deleteLocal: (id: string) => ipcRenderer.invoke('calendar:deleteLocal', id) as Promise<boolean>,
+  onStateChanged: (cb: (view: CalendarConfigView) => void) => {
+    const listener = (_e: unknown, view: CalendarConfigView): void => cb(view)
+    ipcRenderer.on('calendar:stateChanged', listener)
+    return () => {
+      ipcRenderer.removeListener('calendar:stateChanged', listener)
+    }
+  },
+}
+
 const swarm: SwarmBridge = {
   submitGoal: (sessionId, goal, attachments, options) =>
     ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
@@ -332,6 +362,7 @@ const swarm: SwarmBridge = {
   agents,
   bilibili,
   gmail,
+  calendar,
 }
 
 if (process.contextIsolated) {
