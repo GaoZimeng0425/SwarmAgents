@@ -48,7 +48,7 @@ const mainExternal: Array<string | RegExp> = [
     .map((d) => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`)),
 ]
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
@@ -93,12 +93,10 @@ export default defineConfig({
       },
     },
     optimizeDeps: {
-      // TanStack autoCodeSplitting serves each route as a dynamic import; under
-      // turbo-driven parallel dev (desktop + extension) the renderer window can
-      // open before Vite finishes pre-bundling, surfacing as a stuck 504
-      // "Outdated Optimize Dep" on the lazy route chunk (Electron doesn't
-      // auto-reload through it). Crawl every route file as an optimize entry so
-      // deps reachable only via lazy chunks are pre-bundled at server start.
+      // Route code-splitting is build-only (see TanStackRouterVite below), so
+      // in dev every route loads through the normal module graph and its deps
+      // are pre-bundled at server start. Keeping route files as optimize
+      // entries is a safety net for any in-route dynamic imports.
       entries: ['src/renderer/index.html', 'src/renderer/src/routes/**/*.tsx'],
     },
     build: {
@@ -111,7 +109,13 @@ export default defineConfig({
     plugins: [
       TanStackRouterVite({
         target: 'react',
-        autoCodeSplitting: true,
+        // Build-only: in dev, splitting each route's component into a lazy
+        // chunk makes its deps (date-fns, lucide, ...) unreachable from the
+        // entry, so Vite discovers them mid-session and re-optimizes deps —
+        // clobbering node_modules/.vite (which vitest also writes to) and
+        // surfacing as a "Failed to fetch dynamically imported module" that
+        // survives refresh in Electron (no Vite self-heal reload here).
+        autoCodeSplitting: command === 'build',
         routesDirectory: resolve('src/renderer/src/routes'),
         generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts'),
       }),
@@ -122,4 +126,4 @@ export default defineConfig({
       tailwindcss(),
     ],
   },
-})
+}))

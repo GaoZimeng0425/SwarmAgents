@@ -2,6 +2,11 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  // Keep vitest's optimize-deps cache separate from `electron-vite dev`, which
+  // uses the default node_modules/.vite. Sharing it lets a test run overwrite
+  // the dev server's pre-bundled deps with a test-only subset, making lazy
+  // route chunks fail to load until the dev cache is rebuilt.
+  cacheDir: 'node_modules/.vitest',
   test: {
     include: ['src/**/*.test.{ts,tsx}', '../../packages/*/src/**/*.test.ts'],
     environment: 'node',
