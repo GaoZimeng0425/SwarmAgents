@@ -1,22 +1,20 @@
 import { useState } from 'react'
-import { Brain, CalendarClock, ListChecks, PanelRightClose, PanelRightOpen, ShieldCheck } from 'lucide-react'
+import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@swarm/ui'
+import { Brain, CalendarClock, ListChecks, PanelRightClose, PanelRightOpen } from 'lucide-react'
 
 import { CronPanel } from '@/components/cron-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { type PlanGroup, PlanPanel } from '@/components/plan-panel'
-import { Button } from '@swarm/ui'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@swarm/ui'
-import { type VerifyGroup, VerifyPanel } from '@/components/verify-panel'
 import { useSessionCronJobs } from '@/hooks/use-cron'
 import { useMemory } from '@/hooks/use-memory'
 import { useSessionsStore } from '@/stores/sessions'
 
-type Props = { planGroups: PlanGroup[]; verifyGroups: VerifyGroup[] }
+type Props = { planGroups: PlanGroup[] }
 
 /** Collapsible right-hand panel hosting the Working Plan and Memory tabs. */
-export function RightPanel({ planGroups, verifyGroups }: Props): React.JSX.Element {
+export function RightPanel({ planGroups }: Props): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(true)
-  const [tab, setTab] = useState<'plan' | 'memory' | 'scheduled' | 'verify'>('plan')
+  const [tab, setTab] = useState<'plan' | 'memory' | 'scheduled'>('plan')
   const { entries, isError, refetch } = useMemory()
   const sessionId = useSessionsStore((s) => s.selectedSessionId)
   const { data: cronJobs = [], isLoading: cronLoading } = useSessionCronJobs(
@@ -77,17 +75,6 @@ export function RightPanel({ planGroups, verifyGroups }: Props): React.JSX.Eleme
         >
           <CalendarClock className="size-5 text-primary/60" />
         </button>
-        <button
-          aria-label="Open verify"
-          className="flex flex-col items-center gap-1"
-          onClick={() => {
-            setTab('verify')
-            setCollapsed(false)
-          }}
-          type="button"
-        >
-          <ShieldCheck className="size-5 text-primary/60" />
-        </button>
       </div>
     )
   }
@@ -96,7 +83,7 @@ export function RightPanel({ planGroups, verifyGroups }: Props): React.JSX.Eleme
     <div className="flex h-full w-80 shrink-0 flex-col border-border/60 border-l bg-[var(--window-content)]">
       <Tabs
         className="flex min-h-0 flex-1 flex-col gap-0"
-        onValueChange={(v) => setTab(v as 'plan' | 'memory' | 'scheduled' | 'verify')}
+        onValueChange={(v) => setTab(v as 'plan' | 'memory' | 'scheduled')}
         value={tab}
       >
         <div className="flex h-11 items-center justify-between border-border/40 border-b px-2">
@@ -104,7 +91,6 @@ export function RightPanel({ planGroups, verifyGroups }: Props): React.JSX.Eleme
             <TabsTrigger value="plan">Plan</TabsTrigger>
             <TabsTrigger value="memory">Memory</TabsTrigger>
             <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="verify">Verify</TabsTrigger>
           </TabsList>
           <Button
             aria-label="Collapse panel"
@@ -124,9 +110,6 @@ export function RightPanel({ planGroups, verifyGroups }: Props): React.JSX.Eleme
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="scheduled">
           <CronPanel isLoading={cronLoading} jobs={cronJobs} />
-        </TabsContent>
-        <TabsContent className="flex min-h-0 flex-1 flex-col" value="verify">
-          <VerifyPanel groups={verifyGroups} />
         </TabsContent>
       </Tabs>
     </div>

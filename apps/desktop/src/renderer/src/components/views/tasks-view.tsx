@@ -50,21 +50,6 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
     sessionTasks.filter((t) => !t.parentTaskId && !t.isConversation && t.plan && t.plan.length > 0),
     ['startedAt']
   ).map((t) => ({ taskId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
-  // Per top-level task that defined acceptance criteria: its criteria + the
-  // latest verify verdict, oldest-first to match the plan history order.
-  const verifyGroups = sortBy(
-    sessionTasks.filter(
-      (t) => !t.parentTaskId && !t.isConversation && t.acceptanceCriteria && t.acceptanceCriteria.length > 0
-    ),
-    ['startedAt']
-  ).map((t) => ({
-    taskId: t.id,
-    goal: t.goal,
-    criteria: t.acceptanceCriteria ?? [],
-    latest: t.verifications && t.verifications.length > 0 ? t.verifications[t.verifications.length - 1] : null,
-    status: t.status,
-    startedAt: t.startedAt,
-  }))
   // The composer's inline todo strip shows only the in-flight turn's plan
   // (the latest group) — a live "what's happening now" strip, not history.
   const activePlan = planGroups[planGroups.length - 1]?.plan
@@ -173,7 +158,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           usdCents={sessionUsage?.usdCents}
         />
       </div>
-      <RightPanel planGroups={planGroups} verifyGroups={verifyGroups} />
+      <RightPanel planGroups={planGroups} />
     </div>
   )
 }

@@ -279,60 +279,6 @@ describe('applyEvent', () => {
     expect(second[0].plan).toHaveLength(2)
     expect(second[0].plan?.[0]).toEqual({ content: 'step one', status: 'completed' })
   })
-})
-
-describe('goal-verify events', () => {
-  const seed: TaskRecord[] = [
-    {
-      id: 't1',
-      sessionId: 'ses-1',
-      goal: 'ship feature',
-      status: 'running',
-      workerId: null,
-      summary: null,
-      startedAt: 1,
-      attachments: [],
-      events: [],
-    },
-  ]
-  const baseEvent = { ts: 1, taskId: 't1' as const, sessionId: 'ses-1' }
-
-  const criteria = [
-    { id: 'c1', description: 'Tests pass' },
-    { id: 'c2', description: 'No lint errors', check: { kind: 'command' as const, command: 'npm run lint' } },
-  ]
-
-  it('sets acceptanceCriteria on task.criteria', () => {
-    const next = applyEvent(seed, { kind: 'task.criteria', ...baseEvent, criteria })
-    expect(next[0].acceptanceCriteria).toEqual(criteria)
-    expect(next[0].status).toBe('running')
-  })
-
-  it('appends verification rounds in order on task.verification', () => {
-    const round0 = {
-      round: 0,
-      verdict: 'fail' as const,
-      results: [{ criterionId: 'c1', pass: false, detail: 'failing' }],
-      gaps: ['fix tests'],
-      ts: 2,
-    }
-    const round1 = {
-      round: 1,
-      verdict: 'pass' as const,
-      results: [{ criterionId: 'c1', pass: true, detail: 'ok' }],
-      gaps: [],
-      ts: 3,
-    }
-
-    const after0 = applyEvent(seed, { kind: 'task.verification', ...baseEvent, round: round0 })
-    expect(after0[0].verifications).toHaveLength(1)
-    expect(after0[0].verifications?.[0].round).toBe(0)
-
-    const after1 = applyEvent(after0, { kind: 'task.verification', ...baseEvent, round: round1 })
-    expect(after1[0].verifications).toHaveLength(2)
-    expect(after1[0].verifications?.[0].round).toBe(0)
-    expect(after1[0].verifications?.[1].round).toBe(1)
-  })
 
   it('stubs + appends for a conversation turn (task.progress under a fresh taskId)', () => {
     // A live conversation turn arrives as task.progress with taskId: turnId and
