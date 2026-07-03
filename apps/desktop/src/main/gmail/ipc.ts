@@ -40,6 +40,10 @@ export function wireGmailIpc(args: { service: Service }): {
   )
   ipcMain.handle('gmail:getThread', (_e, id: string) => service.getThread(String(id)))
   ipcMain.handle('gmail:search', (_e, q: string, limit: number) => service.search(String(q), Number(limit ?? 20)))
+  ipcMain.handle('gmail:saveAnalysis', (_e, messageId: string, analysis: string) =>
+    service.saveAnalysis(String(messageId), String(analysis))
+  )
+  ipcMain.handle('gmail:getAnalyses', (_e, threadId: string) => service.getAnalyses(String(threadId)))
 
   const mainRpcHandlers: MainRpcHandlers = {
     'gmail.search': (q, limit) => Promise.resolve(service.search(String(q), Number(limit ?? 20))),
@@ -65,6 +69,8 @@ export function wireGmailIpc(args: { service: Service }): {
         'gmail:listRecent',
         'gmail:getThread',
         'gmail:search',
+        'gmail:saveAnalysis',
+        'gmail:getAnalyses',
       ]) {
         ipcMain.removeHandler(ch)
       }

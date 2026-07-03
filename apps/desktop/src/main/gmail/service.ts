@@ -27,6 +27,8 @@ export type Service = {
   search(query: string, limit: number): ReturnType<Cache['search']>
   getThread(id: string): ReturnType<Cache['getThread']>
   listRecent(input: { limit: number; label?: string }): ReturnType<Cache['listRecent']>
+  saveAnalysis(messageId: string, analysis: string): void
+  getAnalyses(threadId: string): ReturnType<Cache['getAnalyses']>
   onStateChanged(cb: (view: GmailConfigView) => void): () => void
 }
 
@@ -146,6 +148,8 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
     search: (q, limit) => deps.cache.search(q, limit),
     getThread: (id) => deps.cache.getThread(id),
     listRecent: (input) => deps.cache.listRecent(input),
+    saveAnalysis: (messageId, analysis) => deps.cache.saveAnalysis(messageId, analysis),
+    getAnalyses: (threadId) => deps.cache.getAnalyses(threadId),
     onStateChanged(cb) {
       listeners.add(cb)
       return () => {

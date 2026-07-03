@@ -146,6 +146,15 @@ export function wireSwarmIpc(args: {
     return { sessionId }
   }
 
+  const analyzeEmail = async (
+    _e: Electron.IpcMainInvokeEvent,
+    input: import('@swarm/protocol').AnalyzeEmailInput
+  ): Promise<import('@swarm/protocol').AnalyzeEmailResult> => {
+    const injection = providers.getInjection()
+    if (!injection) return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
+    return serviceClient.analyzeEmail({ ...input, provider: injection })
+  }
+
   const listSessions = (): Promise<import('@swarm/protocol').SessionSummary[]> => serviceClient.listSessions()
 
   const getSessionTasks = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
@@ -234,6 +243,7 @@ export function wireSwarmIpc(args: {
   const cancelCronJob = (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.cancelCronJob(id)
 
   ipcMain.handle('swarm:createSession', () => createSession())
+  ipcMain.handle('swarm:analyzeEmail', analyzeEmail)
   ipcMain.handle('swarm:listSessions', () => listSessions())
   ipcMain.handle('swarm:getSessionTasks', getSessionTasks)
   ipcMain.handle('swarm:getConversationEvents', getConversationEvents)
@@ -362,6 +372,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
       ipcMain.removeHandler('swarm:createSession')
+      ipcMain.removeHandler('swarm:analyzeEmail')
       ipcMain.removeHandler('swarm:listSessions')
       ipcMain.removeHandler('swarm:getSessionTasks')
       ipcMain.removeHandler('swarm:getConversationEvents')
