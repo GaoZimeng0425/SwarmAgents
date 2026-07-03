@@ -250,7 +250,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   const seqCounter = createSeqCounter(
     (sid: string) => store.getSessionTasks(sid),
-    (sid: string) => store.getConversationEvents(sid)
+    (sid: string) => store.getConversationEvents(sid),
+    (sid: string) => store.getRunEvents(sid)
   )
 
   const makeEmit =
@@ -288,22 +289,27 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       broadcaster.broadcast(event, payload)
     }
 
-  // Emit wrapper for a conversation turn (no Task row). Stamps a shared seq on
-  // the inner event, persists content events to the session-conversation stream,
-  // and tags the wire event with taskId: turnId so the renderer's existing
-  // task-id-keyed applyEvent picks it up (no separate turnId namespace).
-  const makeConversationEmit =
-    (sessionId: string, turnId: string) =>
+  // Emit wrapper for a run (conversation/work/spawn). Persists the FULL lifecycle
+  // to run_events as UIEvents (so a replayed run reaches terminal status), stamps
+  // the shared seq, and tags the wire event with taskId: runId so the renderer's
+  // applyEvent (keyed by taskId) picks it up live.
+  const makeRunEmit =
+    (sessionId: string, runId: string, parentRunId: string | null = null) =>
     (event: string, data: unknown): void => {
       const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
       const seq = seqCounter.nextSeq(sessionId)
       const ts = Date.now()
       if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
-      if (event === 'task.progress' && obj?.event) {
-        store.appendConversationEvent(sessionId, turnId, obj.event as TaskEvent)
-      }
-      const payload = obj ? { ...obj, sessionId, taskId: turnId, turnId, seq, ts } : data
-      broadcaster.broadcast(event, payload)
+      const uiEvent = {
+        kind: event,
+        ...(obj ?? {}),
+        sessionId,
+        taskId: runId,
+        seq,
+        ts,
+      } as import('@swarm/protocol').UIEvent
+      store.appendRunEvent(sessionId, runId, parentRunId, uiEvent)
+      broadcaster.broadcast(event, { ...(obj ?? {}), sessionId, taskId: runId, seq, ts })
     }
 
   // Resolve-or-create an addressable identity. With a name, an existing actor in
@@ -936,10 +942,18 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       }
       const agentDef = agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF
 
-      // A conversation turn is NOT a Task: no row, no task.created, no verify
-      // loop. The user message is a first-class, seq'd event on the
-      // session-conversation stream (persisted + rendered in true causal position).
-      makeConversationEmit(sessionId, turnId)('task.progress', {
+      // A conversation turn is NOT a Task: no row, no verify loop. It still emits
+      // task.created on the run stream so the renderer's applyEvent opens the
+      // RunRecord (with goal + agentDefId) before the user-message progress event
+      // appends to it; the user message remains a first-class, seq'd event
+      // rendered in true causal position.
+      makeRunEmit(sessionId, turnId)('task.created', {
+        taskId: turnId,
+        goal,
+        attachments,
+        agentDefId: agentDef.id,
+      })
+      makeRunEmit(sessionId, turnId)('task.progress', {
         event: { kind: 'llm.message', role: 'user', content: goal, ts: Date.now() },
       })
       store.updateSessionLastActive(sessionId)
@@ -981,7 +995,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           agentDefinition: withPrompt(agentDef),
           sessionId,
           getPermissionMode: () => resolvePermissionMode(sessionId),
-          emit: makeConversationEmit(sessionId, turnId),
+          emit: makeRunEmit(sessionId, turnId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
           initialMessages: session.messages,
@@ -1006,7 +1020,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           log.error({ msg: 'conversation turn failed', turnId, err: message })
-          makeConversationEmit(sessionId, turnId)('task.error', {
+          makeRunEmit(sessionId, turnId)('task.error', {
             taskId: turnId,
             error: { code: 'run_failed', message, tier: 'fatal' },
             ts: Date.now(),

@@ -412,21 +412,57 @@ describe('SessionManager', () => {
     manager.submitGoal(sessionId, 'hello world')
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    // No Task row — the user message lives on the session-conversation stream.
+    // No Task row — the conversation turn lives on the run-event stream only.
     expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     const userEvent = store
-      .getConversationEvents(sessionId)
+      .getRunEvents(sessionId)
       .find(
         (r) =>
-          (r.event as { kind?: string; role?: string }).kind === 'llm.message' &&
-          (r.event as { role?: string }).role === 'user'
+          (r.event as { kind?: string }).kind === 'task.progress' &&
+          (r.event as { event?: { kind?: string; role?: string } }).event?.kind === 'llm.message' &&
+          (r.event as { event?: { role?: string } }).event?.role === 'user'
       )
-    // The user message is a first-class event with a real seq.
+    // The user message is a first-class UIEvent with a real seq.
     expect(userEvent).toBeDefined()
-    expect((userEvent!.event as { content?: string }).content).toBe('hello world')
+    expect((userEvent!.event as { event?: { content?: string } }).event?.content).toBe('hello world')
     expect(userEvent!.seq).toBeTypeOf('number')
     expect(userEvent!.seq).toBeGreaterThan(0)
 
+    store.close()
+  })
+
+  it('a conversation turn writes task.created + a terminal event to run_events', async () => {
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        deps.emit('task.progress', {
+          event: { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 },
+          ts: 1,
+        })
+        deps.emit('task.complete', { result: { summary: 'hi', artifacts: [] }, ts: 2 })
+        return runnerReturn('completed', 'hi')
+      })
+    )
+    const store = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 1,
+      getProvider: () => undefined,
+    })
+    const { sessionId } = manager.createSession(providerA)
+    manager.submitGoal(sessionId, '你好')
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    const rows = store.getRunEvents(sessionId)
+    // task.created (carrying the goal) + the runner's task.complete both persist
+    // to the run stream, so a replayed conversation turn reaches terminal status.
+    expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.created')).toBe(true)
+    expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.complete')).toBe(true)
+    const created = rows.find((r) => (r.event as { kind?: string }).kind === 'task.created')?.event as {
+      goal?: string
+    }
+    expect(created?.goal).toBe('你好')
     store.close()
   })
 
@@ -542,7 +578,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('injects sessionId into broadcasts and persists conversation events on completion', async () => {
+  it('injects sessionId into broadcasts and persists run events on completion', async () => {
     const events: Array<{ name: string; data: Record<string, unknown> }> = []
     const broadcaster = {
       broadcast: (name: string, data: unknown) => events.push({ name, data: data as Record<string, unknown> }),
@@ -576,11 +612,14 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(events.every((e) => typeof e.data.sessionId === 'string')).toBe(true)
-    // A conversation turn emits no task.created.
-    expect(events.some((e) => e.name === 'task.created')).toBe(false)
-    // The user + assistant messages persisted to the conversation stream, in order.
-    const conv = store.getConversationEvents(sessionId)
-    expect(conv.map((r) => (r.event as { content?: string }).content)).toEqual(['say hi', 'hi'])
+    // A conversation turn emits task.created so the run-record opens on the run stream.
+    expect(events.some((e) => e.name === 'task.created')).toBe(true)
+    // The user + assistant messages persisted to the run stream, in order.
+    const runRows = store.getRunEvents(sessionId)
+    const messages = runRows
+      .filter((r) => (r.event as { kind?: string }).kind === 'task.progress')
+      .map((r) => (r.event as { event?: { content?: string } }).event?.content)
+    expect(messages).toEqual(['say hi', 'hi'])
     // Each broadcast is tagged with the turnId as taskId.
     expect(events.some((e) => e.data.taskId === turnId)).toBe(true)
     store.close()
@@ -942,9 +981,9 @@ describe('SessionManager', () => {
     })
     manager.submitGoal(sessionId, 'g')
     expect(manager.listSessions().map((s) => s.id)).toContain(sessionId)
-    // A conversation turn produces no Task but does produce a conversation event.
+    // A conversation turn produces no Task but does produce run events.
     expect(manager.getSessionTasks(sessionId)).toHaveLength(0)
-    expect(manager.getConversationEvents(sessionId).length).toBeGreaterThan(0)
+    expect(store.getRunEvents(sessionId).length).toBeGreaterThan(0)
     store.close()
   })
 
@@ -1253,11 +1292,15 @@ describe('SessionManager', () => {
     expect(followUp.taskId).not.toBe(first.taskId)
     expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     expect(goals).toEqual(['do the thing', '继续'])
-    // Both user messages live on the conversation stream, in order.
+    // Both user messages live on the run stream, in order.
     const userContents = store
-      .getConversationEvents(sessionId)
-      .filter((r) => (r.event as { role?: string }).role === 'user')
-      .map((r) => (r.event as { content?: string }).content)
+      .getRunEvents(sessionId)
+      .filter(
+        (r) =>
+          (r.event as { kind?: string }).kind === 'task.progress' &&
+          (r.event as { event?: { role?: string } }).event?.role === 'user'
+      )
+      .map((r) => (r.event as { event?: { content?: string } }).event?.content)
     expect(userContents).toEqual(['do the thing', '继续'])
     store.close()
   })

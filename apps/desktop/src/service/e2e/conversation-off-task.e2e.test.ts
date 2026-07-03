@@ -1,7 +1,7 @@
 // src/service/e2e/conversation-off-task.e2e.test.ts
 //
 // Phase 3a/3b end-to-end guard: a trivial conversation message creates NO Task
-// and runs single-shot; its events land on the session-conversation stream.
+// and runs single-shot; its events land on the session run-event stream.
 // Real work is agent-authored via create_task (driven here through the
 // __runWorkTaskForTest seam), which DOES create a work Task. After Phase 3b
 // every run is single-shot — there is no verify loop distinction anymore.
@@ -55,11 +55,23 @@ describe('conversation off task', () => {
 
     // No Task row for a conversation turn.
     expect(store.getSessionTasks(sessionId)).toHaveLength(0)
-    // The conversation stream carries the user + assistant messages, no verification.
-    const conv = store.getConversationEvents(sessionId)
-    expect(conv.some((r) => (r.event as { role?: string }).role === 'user')).toBe(true)
-    expect(conv.some((r) => (r.event as { role?: string }).role === 'assistant')).toBe(true)
-    expect(conv.some((r) => (r.event as { kind?: string }).kind === 'verification')).toBe(false)
+    // The run stream carries the user + assistant messages, no verification.
+    const rows = store.getRunEvents(sessionId)
+    expect(
+      rows.some(
+        (r) =>
+          (r.event as { kind?: string }).kind === 'task.progress' &&
+          (r.event as { event?: { role?: string } }).event?.role === 'user'
+      )
+    ).toBe(true)
+    expect(
+      rows.some(
+        (r) =>
+          (r.event as { kind?: string }).kind === 'task.progress' &&
+          (r.event as { event?: { role?: string } }).event?.role === 'assistant'
+      )
+    ).toBe(true)
+    expect(rows.some((r) => (r.event as { event?: { kind?: string } }).event?.kind === 'verification')).toBe(false)
     // The conversation turn ran (3b: every run is single-shot).
     expect(seen.length).toBeGreaterThanOrEqual(1)
     // The returned id is the conversation turnId, not a Task id.
