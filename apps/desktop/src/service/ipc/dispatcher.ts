@@ -25,6 +25,7 @@ import type { SessionManager } from '../session/manager'
 
 type DispatcherConfig = {
   manager: SessionManager
+  analyzeEmail(req: import('@swarm/protocol').AnalyzeEmailRequest): import('@swarm/protocol').AnalyzeEmailResult
   registerProvider(provider: ProviderInjection): void
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): McpServerStatus[]
@@ -68,6 +69,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
           import('@swarm/protocol').TaskOptions | undefined,
         ]
         return manager.submitGoal(sessionId, goal, attachments, undefined, undefined, options)
+      }
+      case 'analyzeEmail': {
+        const [req] = args as [import('@swarm/protocol').AnalyzeEmailRequest]
+        return cfg.analyzeEmail(req)
       }
       case 'listSessions':
         return manager.listSessions()

@@ -9,6 +9,7 @@ import { createAgentStore, syncBuiltinAgents } from './agents/store'
 import { createClaudeCodeManager } from './claude-code/manager'
 import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
+import { createAnalyzeEmail } from './gmail/analyze'
 import { createMainRpc } from './gmail/main-rpc'
 import { createBroadcaster } from './ipc/broadcaster'
 import { createDispatcher } from './ipc/dispatcher'
@@ -145,6 +146,7 @@ const mcpManager = createMcpManager({
 
 const dispatch = createDispatcher({
   manager,
+  analyzeEmail: createAnalyzeEmail({ broadcaster, agentStore, toolRegistry, getBudgetConfig: () => budgetConfig }),
   registerProvider: (provider) => {
     providerRegistry.set(provider.id, provider)
   },
