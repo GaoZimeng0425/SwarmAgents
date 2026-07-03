@@ -263,6 +263,21 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       // Persist seq on the TaskEvent that appendTaskEvent stores in Task.history:
       if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
       const taskId = obj?.taskId as string | undefined
+      // Dual-write: tee every run event into run_events (the renderer's replay
+      // source). parentRunId is carried by task.created's parentTaskId (set by
+      // spawnChild); later events don't restate it, but the renderer only needs
+      // it on task.created to nest the sub-agent block.
+      if (taskId) {
+        const parentRunId = (obj?.parentTaskId as string | undefined) ?? null
+        store.appendRunEvent(sessionId, taskId, parentRunId, {
+          kind: event,
+          ...(obj ?? {}),
+          sessionId,
+          taskId,
+          seq,
+          ts,
+        } as import('@swarm/protocol').UIEvent)
+      }
       const payload = obj ? { ...obj, sessionId, seq, ts } : data
 
       if (event === 'task.progress' && taskId && obj?.event) {
@@ -385,13 +400,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     store.saveTask(task, sessionId)
     store.upsertActor({ ...actor, lastTaskId: taskId, updatedAt: now })
-    broadcaster.broadcast('task.created', {
-      sessionId,
+    makeEmit(sessionId)('task.created', {
       taskId,
       goal: task.goal,
       attachments: [],
       agentDefId: def.id,
-      ts: now,
     })
 
     const mailbox = createMailbox()
@@ -600,15 +613,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // A child needs its own task.created so the renderer builds a real task
     // record; without it the child's later events arrive for an unknown taskId
     // and degrade into an "(unknown task)" stub. parentTaskId/agentDefId let the
-    // UI group it as a distinct sub-agent block.
-    broadcaster.broadcast('task.created', {
-      sessionId,
+    // UI group it as a distinct sub-agent block. Routed through makeEmit so the
+    // tee persists it to run_events (with parentRunId) for replay.
+    makeEmit(sessionId)('task.created', {
       taskId: childTaskId,
       goal: newGoal,
       attachments: [],
       parentTaskId,
       agentDefId: def.id,
-      ts: now,
     })
     broadcaster.broadcast('task.handoff.spawned', { sessionId, parentTaskId, childTaskId, ts: now })
 
@@ -863,7 +875,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       executionMode: options.executionMode,
     }
     store.saveTask(task, sessionId)
-    broadcaster.broadcast('task.created', { sessionId, taskId: task.id, goal, attachments, ts: now })
+    makeEmit(sessionId)('task.created', { taskId: task.id, goal, attachments, agentDefId: agentDef.id })
     log.info({ msg: 'work task created', sessionId, taskId: task.id, agentDefId: agentDef.id, goalLen: goal.length })
     // The pump would emit dispatched + markTaskRunning; since we bypass it, do
     // both here so the renderer marks the work task running (not queued).

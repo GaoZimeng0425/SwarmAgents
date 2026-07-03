@@ -466,6 +466,43 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('a create_task work run writes its full lifecycle to run_events (dual-write)', async () => {
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        deps.emit('task.complete', {
+          taskId: deps.correlationId,
+          result: { summary: 'built it', artifacts: [] },
+          ts: 1,
+        })
+        return runnerReturn('completed', 'built it')
+      })
+    )
+    const store = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+    })
+    const { sessionId } = manager.createSession(providerA)
+    const out = await (
+      manager as unknown as {
+        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string }>
+      }
+    ).__runWorkTaskForTest(sessionId, 'build feature X')
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+
+    const rows = store.getRunEvents(sessionId).filter((r) => r.runId === out.taskId)
+    // task.created (routed through makeEmit) + the runner's task.complete both
+    // persist to the run stream (dual-write alongside task_events).
+    expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.created')).toBe(true)
+    expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.complete')).toBe(true)
+    // task_events still written too (wait_for_task/listener consumers).
+    expect(store.getSessionTasks(sessionId).find((t) => t.id === out.taskId)).toBeDefined()
+    store.close()
+  })
+
   it('uses session provider when providerKey is not given', async () => {
     const sessionProvider = {
       id: 'anthropic' as const,
