@@ -47,7 +47,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // order. The agent replaces its plan per turn, but every turn persists its own
   // copy, so grouping by task preserves the whole history.
   const planGroups = sortBy(
-    sessionTasks.filter((t) => !t.parentTaskId && !t.isConversation && t.plan && t.plan.length > 0),
+    sessionTasks.filter((t) => !t.parentTaskId && t.plan && t.plan.length > 0),
     ['startedAt']
   ).map((t) => ({ taskId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
   // The composer's inline todo strip shows only the in-flight turn's plan

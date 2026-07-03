@@ -9,7 +9,7 @@ import * as api from '../lib/api'
 import { usePermissionStore } from '../stores/permission'
 import { useSessionsStore } from '../stores/sessions'
 import { useEventsSubscription } from './use-events-subscription'
-import { useDecidePermission, useSubmitGoal, useTasks } from './use-tasks'
+import { hydrateSession, RUNS_KEY, useDecidePermission, useSubmitGoal, useTasks } from './use-tasks'
 
 // useEventsSubscription now navigates (toast jump) + toasts on background
 // activity; stub both so rendering it here needs no router/Toaster.
@@ -166,5 +166,40 @@ describe('useDecidePermission', () => {
     })
 
     expect(api.swarmApi.decidePermission).toHaveBeenCalledWith('ses-1', 'act-1', 'grant')
+  })
+})
+
+describe('hydrateSession', () => {
+  it('replays run_events into RunRecords via applyEvent', async () => {
+    const rows: import('@swarm/protocol').RunEvent[] = [
+      {
+        runId: 'r1',
+        parentRunId: null,
+        seq: 1,
+        ts: 1,
+        event: { kind: 'task.created', sessionId: 's', taskId: 'r1', goal: 'hi', ts: 1, seq: 1 },
+      },
+      {
+        runId: 'r1',
+        parentRunId: null,
+        seq: 2,
+        ts: 2,
+        event: { kind: 'task.complete', sessionId: 's', taskId: 'r1', summary: 'done', ts: 2, seq: 2 },
+      },
+    ]
+    const qc = new QueryClient({
+      defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } },
+    })
+    // The old adapter sources return nothing so the test fails on the assertion
+    // (status !== 'completed') until hydrateSession reads getRunEvents.
+    vi.spyOn(api.swarmApi, 'getRunEvents').mockResolvedValue(rows)
+    vi.spyOn(api.swarmApi, 'getSessionTasks').mockResolvedValue([])
+    vi.spyOn(api.swarmApi, 'getConversationEvents').mockResolvedValue([])
+
+    await hydrateSession(qc, 's')
+
+    const records = qc.getQueryData<import('@shared/lib/apply-event').RunRecord[]>(RUNS_KEY) ?? []
+    expect(records.find((r) => r.id === 'r1')?.status).toBe('completed')
+    expect(records.find((r) => r.id === 'r1')?.goal).toBe('hi')
   })
 })

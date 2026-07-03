@@ -7,7 +7,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import { MEMORY_KEY } from '@/hooks/use-memory'
-import { TASKS_KEY } from '@/hooks/use-tasks'
+import { RUNS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
 import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
@@ -79,7 +79,7 @@ export function useEventsSubscription(): void {
 
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
-      qc.setQueryData<RunRecord[]>(TASKS_KEY, (prev = []) => applyEvent(prev, e))
+      qc.setQueryData<RunRecord[]>(RUNS_KEY, (prev = []) => applyEvent(prev, e))
 
       // Surface activity in sessions other than the one being viewed: mark the
       // session unread (dot in the list) and toast on milestone events.
