@@ -104,11 +104,15 @@ describe('builtin roster', () => {
     expect(byId.ceo.description).not.toContain('PM')
   })
 
-  it('CEO prompt drives the verified delegation pipeline', () => {
+  it('CEO prompt drives the top-level delegation pipeline', () => {
     const p = byId.ceo.systemPrompt
-    expect(p).toMatch(/set_acceptance_criteria/)
     expect(p).toMatch(/spawn_sub_agent/)
-    expect(p).toMatch(/verify=true/)
+    expect(p).toMatch(/find_agents\(\{ teamRole: 'head' \}\)/)
+    // Post-3b: no system verify loop, no criteria tool. The CEO spot-checks
+    // deliverables and asks Leaders for evidence instead.
+    expect(p).not.toMatch(/set_acceptance_criteria/)
+    expect(p).not.toMatch(/verify=true/)
+    expect(p).toMatch(/spot-check|evidence/)
   })
 
   it('team heads drive delegation-plan + parallel wave dispatch', () => {
