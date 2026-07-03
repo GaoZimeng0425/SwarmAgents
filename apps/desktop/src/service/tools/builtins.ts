@@ -7,7 +7,6 @@ import { gmailSpecs } from '../gmail/tools'
 import type { TaskWaiterService } from '../loop/task-waiters'
 import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
-import { acceptanceCriteriaSpec } from './acceptance-criteria'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
 import { claudeCodeSpecs } from './claude-code'
 import { createTaskSpec } from './create-task'
@@ -84,7 +83,6 @@ export function registerBuiltinTools(
   registry.register(writeAgentSpec())
   registry.register(writeSkillSpec())
   registry.register(updatePlanSpec())
-  registry.register(acceptanceCriteriaSpec())
   registry.register(delegationPlanSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())

@@ -78,7 +78,6 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
       toolRegistry: deps.toolRegistry,
       initialMessages: [],
       spawnChild: () => Promise.reject(new Error('spawnChild unavailable in analyze')),
-      maxVerifyRounds: 0,
       maxIterationsOverride: def.maxIterations,
     }
 

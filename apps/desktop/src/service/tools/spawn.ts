@@ -2,7 +2,6 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import type { AcceptanceCriterion, SpawnChildOptions } from '@swarm/protocol'
 
-import { DEFAULT_MAX_VERIFY_ROUNDS } from '../session/agent-runner'
 import type { ToolRunContext, ToolSpec } from './registry'
 
 const SpawnParams = Type.Object({
@@ -74,7 +73,9 @@ export function spawnAgentSpec(): ToolSpec {
           p.acceptanceCriteria || p.verify
             ? {
                 ...(p.acceptanceCriteria ? { acceptanceCriteria: p.acceptanceCriteria } : {}),
-                ...(p.verify ? { maxVerifyRounds: DEFAULT_MAX_VERIFY_ROUNDS } : {}),
+                // 3 = former DEFAULT_MAX_VERIFY_ROUNDS. Task 2 rips this options
+                // path out entirely; until then the literal keeps spawn.ts compiling.
+                ...(p.verify ? { maxVerifyRounds: 3 } : {}),
               }
             : undefined
         const { childTaskId, result } = await ctx.spawnChild(

@@ -287,7 +287,6 @@ describe('SessionManager', () => {
 
   it('propagates child runner summary through spawnChild', async () => {
     let callCount = 0
-    let childMaxVerifyRounds: number | undefined
     let capturedSpawnChild:
       | ((...args: unknown[]) => Promise<{ childTaskId: string; result: { summary: string; artifacts: unknown[] } }>)
       | null = null
@@ -299,8 +298,7 @@ describe('SessionManager', () => {
         capturedSpawnChild = deps.spawnChild as typeof capturedSpawnChild
         return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'parent done')))
       }
-      // Child runner: capture its verify-round budget; resolves with a non-empty summary
-      childMaxVerifyRounds = deps.maxVerifyRounds
+      // Child runner: resolves with a non-empty summary
       return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'child result text')))
     })
 
@@ -324,8 +322,6 @@ describe('SessionManager', () => {
     expect(capturedSpawnChild).not.toBeNull()
     const childResult = await capturedSpawnChild!(parentTaskId, 'child goal')
     expect(childResult.result.summary).toBe('child result text')
-    // Children verify single-shot: only top-level submitGoal tasks run the verify loop.
-    expect(childMaxVerifyRounds).toBe(0)
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
@@ -1356,37 +1352,36 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('runWorkTask creates a top-level work task and runs the verify runner', async () => {
-    const seen: { max: number }[] = []
-    mockCreate.mockImplementation((deps) => {
-      seen.push({ max: deps.maxVerifyRounds ?? -1 })
+  it('runWorkTask creates a top-level work task and runs it single-shot', async () => {
+    const calls: number[] = []
+    mockCreate.mockImplementation(() => {
+      calls.push(1)
       return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'done')))
     })
     const store = createConversationStore(dbPath)
-    const broadcaster = createBroadcaster()
-    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const manager = createSessionManager({
+      store,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+    })
     const { sessionId } = manager.createSession(providerA)
-
     const out = await (
       manager as unknown as {
         __runWorkTaskForTest: (sid: string, goal: string) => Promise<{ taskId: string; result: { summary: string } }>
       }
     ).__runWorkTaskForTest(sessionId, 'build feature X')
-    expect(out.taskId).toMatch(/^[0-9A-Z]{26}$/)
+    expect(calls).toHaveLength(1)
     expect(out.result.summary).toBe('done')
-    // The work task runs the verify loop (maxVerifyRounds > 0), not single-shot.
-    expect(seen.some((s) => s.max > 0)).toBe(true)
-    // A Task row was persisted with parentId null.
     const task = store.getSessionTasks(sessionId).find((t) => t.id === out.taskId)
-    expect(task).toBeDefined()
     expect(task?.parentId).toBeNull()
     store.close()
   })
 
-  it('submitGoal constructs the runner single-shot (maxVerifyRounds: 0) and saves no Task', async () => {
-    let capturedMax: number | undefined
-    mockCreate.mockImplementation((deps) => {
-      capturedMax = deps.maxVerifyRounds
+  it('submitGoal constructs the runner and saves no Task', async () => {
+    let constructed = false
+    mockCreate.mockImplementation(() => {
+      constructed = true
       return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
     const store = createConversationStore(dbPath)
@@ -1399,7 +1394,7 @@ describe('SessionManager', () => {
     const { sessionId } = manager.createSession(providerA)
     manager.submitGoal(sessionId, 'hi')
     await new Promise((r) => setTimeout(r, 0))
-    expect(capturedMax).toBe(0)
+    expect(constructed).toBe(true)
     expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })

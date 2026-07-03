@@ -9,25 +9,10 @@ describe('create_task', () => {
     const createTask = vi.fn(async () => ({ taskId: 't1', result: { summary: 'done', artifacts: [] } }))
     const tool = createTaskSpec().build(ctx(createTask))
     const res = await tool.execute('id', { goal: 'build it' })
-    expect(createTask).toHaveBeenCalledWith('build it', undefined)
+    expect(createTask).toHaveBeenCalledWith('build it')
     const first = res.content[0]
     expect(first.type === 'text' && first.text).toBe('done')
     expect(res.details).toMatchObject({ taskId: 't1', summary: 'done' })
-  })
-
-  it('passes acceptanceCriteria through to ctx.createTask', async () => {
-    const createTask = vi.fn(
-      async (
-        _goal: string,
-        _criteria?: unknown
-      ): Promise<{ taskId: string; result: { summary: string; artifacts: [] } }> => ({
-        taskId: 't1',
-        result: { summary: 'ok', artifacts: [] },
-      })
-    )
-    const tool = createTaskSpec().build(ctx(createTask))
-    await tool.execute('id', { goal: 'x', acceptanceCriteria: [{ id: 'c1', description: 'ships' }] })
-    expect(createTask.mock.calls[0][1]).toEqual([{ id: 'c1', description: 'ships' }])
   })
 
   it('returns a not-available result when ctx.createTask is unwired', async () => {

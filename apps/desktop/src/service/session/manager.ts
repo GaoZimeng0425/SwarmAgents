@@ -49,10 +49,6 @@ const MAX_RETRIES = 3
 // How long an rpc caller waits for the resident's reply before resolving to ''.
 const RPC_TIMEOUT_MS = 120_000
 
-// Max execute→verify→rework rounds for autonomous ('goal') tasks. Bounded so a
-// task that can't satisfy its criteria fails instead of looping forever.
-const MAX_VERIFY_ROUNDS = 3
-
 // Plan mode is read-only: it grants inspection tools but no shell, no fs writes,
 // and no peekaboo interactions, so the agent physically cannot mutate anything
 // while it produces a plan. Applies to the composer's main task only.
@@ -292,7 +288,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       if (event === 'task.verification' && taskId && obj?.round) {
         const round = obj.round as import('@swarm/protocol').VerificationRound
         // Replace the full audit array each round (read-modify-write keeps it simple
-        // and the array is tiny — bounded by maxVerifyRounds + 1).
+        // and the array is tiny).
         const existing = store.getTask(taskId)?.verifications ?? []
         store.saveTaskVerifications(taskId, [...existing, round])
         log.info({ msg: 'verification round persisted', taskId, round: round.round, verdict: round.verdict })
@@ -456,7 +452,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       toolAllowlist: task.toolAllowlist,
       attachments: task.attachments,
       permissionMode: task.permissionMode,
-      acceptanceCriteria: task.acceptanceCriteria,
       provider: applyAgentModel(session.provider, def),
       agentDefinition: withPrompt(def),
       sessionId,
@@ -640,7 +635,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           toolAllowlist: childTask.toolAllowlist,
           attachments: childTask.attachments,
           permissionMode: childTask.permissionMode,
-          acceptanceCriteria: childTask.acceptanceCriteria,
           provider: resolvedProvider,
           agentDefinition: withPrompt(def),
           sessionId,
@@ -656,9 +650,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-          // Children verify single-shot unless the caller opts in (e.g. a Leader
-          // must self-verify). 0 = leaf, no verify loop.
-          maxVerifyRounds: options?.maxVerifyRounds ?? 0,
           maxIterationsOverride: budgets().maxIterations,
         })
         try {
@@ -778,7 +769,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       toolAllowlist: task.toolAllowlist,
       attachments: task.attachments,
       permissionMode: task.permissionMode,
-      acceptanceCriteria: task.acceptanceCriteria,
       provider: session.provider,
       agentDefinition: withPrompt(agentDef),
       sessionId,
@@ -804,7 +794,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
       writeSkill: (skill) =>
         cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-      maxVerifyRounds: MAX_VERIFY_ROUNDS,
       maxIterationsOverride: budgets().maxIterations,
     })
     try {
@@ -1004,7 +993,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           toolAllowlist,
           attachments,
           permissionMode: options?.permissionMode,
-          acceptanceCriteria: undefined, // conversation never runs the verify loop
           provider: session.provider,
           agentDefinition: withPrompt(agentDef),
           sessionId,
@@ -1020,13 +1008,12 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           },
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
-          createTask: (g, criteria) => runWorkTask(sessionId, g, [], criteria ? { acceptanceCriteria: criteria } : {}),
+          createTask: (g) => runWorkTask(sessionId, g, []),
           findPeers: (q) => directory.find(sessionId, q),
           writeAgent: (def) =>
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
             cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-          maxVerifyRounds: 0, // single-shot — the cutover's key line
           maxIterationsOverride: budgets().maxIterations,
         })
         try {

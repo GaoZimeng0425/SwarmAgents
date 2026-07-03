@@ -1,7 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
-  AcceptanceCriterion,
   AgentDefinition,
   DelegationItem,
   Outbound,
@@ -38,8 +37,8 @@ export interface ToolRunContext {
     agentType?: string,
     options?: SpawnChildOptions
   ): Promise<{ childTaskId: string; result: TaskResult }>
-  /** Agent-authored work: create a top-level work Task (verify loop) and return its result. Absent outside conversation turns. */
-  createTask?(goal: string, criteria?: AcceptanceCriterion[]): Promise<{ taskId: string; result: TaskResult }>
+  /** Agent-authored work: create a top-level work Task (single-shot) and return its result. Absent outside conversation turns. */
+  createTask?(goal: string): Promise<{ taskId: string; result: TaskResult }>
   send: (msg: Outbound) => void
   requestPermission: (args: {
     toolName: string
@@ -73,12 +72,6 @@ export interface ToolRunContext {
    * tool tests.
    */
   reportExternalUsage?(usage: { costUsd?: number; inputTokens?: number; outputTokens?: number }): void
-  /**
-   * Record the task's acceptance criteria (set_acceptance_criteria tool). Wired
-   * in agent-runner's Phase A; absent in standalone tool tests and contexts that
-   * do not verify.
-   */
-  setAcceptanceCriteria?(criteria: AcceptanceCriterion[]): void
   /**
    * Record the task's delegation DAG (set_delegation_plan tool). Wired in
    * agent-runner; absent in standalone tool tests and non-delegating contexts.
