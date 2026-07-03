@@ -123,3 +123,15 @@ describe('builtin roster', () => {
     }
   })
 })
+
+describe('gmail-analyst builtin', () => {
+  it('ships a peekaboo, no-tool analysis agent', () => {
+    const a = defaultAgents.find((d) => d.id === 'gmail-analyst')
+    expect(a).toBeDefined()
+    expect(a?.toolScope).toBe('peekaboo')
+    expect(a?.maxIterations).toBe(2)
+    expect(a?.capabilities).toContain('gmail-analyze')
+    expect(a?.systemPrompt).toMatch(/中文/)
+    expect(a?.systemPrompt).toMatch(/摘要/)
+  })
+})
