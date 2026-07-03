@@ -48,6 +48,8 @@ export const swarmApi = {
   listSessions: (): Promise<SessionSummary[]> => window.swarm.sessions.list(),
   createSession: (): Promise<{ sessionId: string }> => window.swarm.sessions.create(),
   getSessionTasks: (sessionId: string): Promise<Task[]> => window.swarm.sessions.getTasks(sessionId),
+  getConversationEvents: (sessionId: string): Promise<import('@swarm/protocol').ConversationEvent[]> =>
+    window.swarm.sessions.getConversationEvents(sessionId),
   deleteSession: (sessionId: string): Promise<void> => window.swarm.sessions.delete(sessionId),
   renameSession: (sessionId: string, title: string): Promise<void> => window.swarm.sessions.rename(sessionId, title),
   setSessionPinned: (sessionId: string, pinned: boolean): Promise<void> =>

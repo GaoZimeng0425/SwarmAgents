@@ -1,7 +1,7 @@
 import type { Task, TaskEvent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
-import { tasksToRecords } from './replay'
+import { conversationTurnsToRecords, tasksToRecords } from './replay'
 
 const baseTask = (over: Partial<Task>): Task => ({
   id: '01HRX0000000000000000000R1',
@@ -125,5 +125,34 @@ describe('tasksToRecords seq', () => {
     ])
     expect(records[0].events.every((e) => Number.isFinite(e.seq))).toBe(true)
     expect(records[0].events[0]).toMatchObject({ kind: 'task.created' })
+  })
+})
+
+describe('conversationTurnsToRecords', () => {
+  it('groups conversation events by turnId into TaskRecords keyed by turnId', () => {
+    const rows = [
+      { turnId: 't1', seq: 1, ts: 1, event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 1 } },
+      { turnId: 't1', seq: 2, ts: 2, event: { kind: 'llm.message', role: 'assistant', content: 'yo', ts: 2 } },
+      { turnId: 't2', seq: 3, ts: 3, event: { kind: 'llm.message', role: 'user', content: 'again', ts: 3 } },
+    ] as never[]
+    const recs = conversationTurnsToRecords('ses', rows)
+    expect(recs).toHaveLength(2)
+    const t1 = recs.find((r) => r.id === 't1')!
+    expect(t1.sessionId).toBe('ses')
+    // Each row becomes a task.progress event carrying its persisted seq.
+    expect(t1.events.map((e) => e.seq)).toEqual([1, 2])
+    expect(t1.events.every((e) => e.kind === 'task.progress')).toBe(true)
+    expect(t1.isConversation).toBe(true)
+    // goal is derived from the first user message so anything reading .goal works.
+    expect(t1.goal).toBe('hi')
+  })
+
+  it('orders turns newest startedAt first', () => {
+    const rows = [
+      { turnId: 't1', seq: 1, ts: 10, event: { kind: 'llm.message', role: 'user', content: 'old', ts: 10 } },
+      { turnId: 't2', seq: 2, ts: 20, event: { kind: 'llm.message', role: 'user', content: 'new', ts: 20 } },
+    ] as never[]
+    const recs = conversationTurnsToRecords('ses', rows)
+    expect(recs.map((r) => r.id)).toEqual(['t2', 't1'])
   })
 })

@@ -1,7 +1,6 @@
-import type { Task, UIEvent } from '@swarm/protocol'
-import { orderBy } from 'es-toolkit'
-
 import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
+import type { ConversationEvent, Task, UIEvent } from '@swarm/protocol'
+import { orderBy } from 'es-toolkit'
 
 // Keys are the persisted Task['status'] string values, so snake_case is required here.
 // biome-ignore lint/style/useNamingConvention: keys mirror stored status values verbatim
@@ -71,5 +70,52 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
       events,
     }
   })
+  return orderBy(records, ['startedAt'], ['desc'])
+}
+
+/** A persisted conversation-events row (the session-level conversation stream). */
+
+/**
+ * Group session-conversation events by turnId into TaskRecord-shaped turns the
+ * existing taskSegments / buildTimelineItems pipeline renders unchanged. Each
+ * turn is a pseudo-task keyed by its turnId — the SAME id the service stamps on
+ * live conversation events (task.progress with taskId: turnId), so a live
+ * in-flight turn and its replayed record merge into one entry in the cache.
+ */
+export function conversationTurnsToRecords(sessionId: string, rows: ConversationEvent[]): TaskRecord[] {
+  const byTurn = new Map<string, ConversationEvent[]>()
+  for (const r of rows) {
+    const list = byTurn.get(r.turnId) ?? []
+    list.push(r)
+    byTurn.set(r.turnId, list)
+  }
+  const records: TaskRecord[] = []
+  for (const [turnId, evs] of byTurn) {
+    const firstUser = evs.find(
+      (r) => (r.event as { kind?: string }).kind === 'llm.message' && (r.event as { role?: string }).role === 'user'
+    )
+    const events: UIEvent[] = evs.map((r) => ({
+      kind: 'task.progress',
+      sessionId,
+      taskId: turnId,
+      event: r.event,
+      ts: r.ts,
+      seq: r.seq,
+    }))
+    records.push({
+      id: turnId,
+      sessionId,
+      goal: firstUser ? String((firstUser.event as { content?: unknown }).content ?? '') : '',
+      status: 'running',
+      workerId: null,
+      summary: null,
+      startedAt: evs[0]?.ts ?? 0,
+      attachments: [],
+      events,
+      // Marker so the task panel (planGroups/verifyGroups) can exclude
+      // conversation turns — they never carry a plan or acceptance criteria.
+      isConversation: true,
+    })
+  }
   return orderBy(records, ['startedAt'], ['desc'])
 }

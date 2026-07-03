@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { applyEvent, type TaskRecord } from '@shared/lib/apply-event'
+import { describe, expect, it } from 'vitest'
 
 const baseEvent = { ts: 1, taskId: 't1' as const, sessionId: 'ses-1' }
 
@@ -333,5 +332,32 @@ describe('goal-verify events', () => {
     expect(after1[0].verifications).toHaveLength(2)
     expect(after1[0].verifications?.[0].round).toBe(0)
     expect(after1[0].verifications?.[1].round).toBe(1)
+  })
+
+  it('stubs + appends for a conversation turn (task.progress under a fresh taskId)', () => {
+    // A live conversation turn arrives as task.progress with taskId: turnId and
+    // no preceding task.created (there is no Task row). The unknown-task fallback
+    // must stub a record so the inner event renders, and a later progress event
+    // for the same turn appends to the same record (task-id namespace).
+    const ev1 = applyEvent([], {
+      kind: 'task.progress',
+      ts: 1,
+      seq: 1,
+      taskId: 'turn-1',
+      sessionId: 'ses-1',
+      event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 1 },
+    })
+    expect(ev1).toHaveLength(1)
+    expect(ev1[0].id).toBe('turn-1')
+    expect(ev1[0].events).toHaveLength(1)
+    const ev2 = applyEvent(ev1, {
+      kind: 'task.progress',
+      ts: 2,
+      seq: 2,
+      taskId: 'turn-1',
+      sessionId: 'ses-1',
+      event: { kind: 'llm.message', role: 'assistant', content: 'yo', ts: 2 },
+    })
+    expect(ev2[0].events).toHaveLength(2)
   })
 })

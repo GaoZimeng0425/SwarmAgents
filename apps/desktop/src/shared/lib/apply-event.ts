@@ -28,6 +28,8 @@ export type TaskRecord = {
   parentTaskId?: string
   /** Sub-agent definition id, used to label the subagent block. */
   agentDefId?: string
+  /** True for pseudo-records built from session-conversation events (no Task row). */
+  isConversation?: boolean
   events: UIEvent[]
 }
 

@@ -1,9 +1,9 @@
+import type { TaskRecord } from '@shared/lib/apply-event'
 import type { PermissionDecision } from '@swarm/protocol'
 import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
-import type { TaskRecord } from '@shared/lib/apply-event'
-import { tasksToRecords } from '@/lib/replay'
+import { conversationTurnsToRecords, tasksToRecords } from '@/lib/replay'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -71,10 +71,13 @@ export function useLoadSessions() {
   })
 }
 
-/** Replay a session's stored tasks into the tasks cache (idempotent merge by id). */
+/** Replay a session's stored tasks + conversation turns into the tasks cache (idempotent merge by id). */
 export async function hydrateSession(qc: ReturnType<typeof useQueryClient>, sessionId: string): Promise<void> {
-  const tasks = await swarmApi.getSessionTasks(sessionId)
-  const records = tasksToRecords(sessionId, tasks)
+  const [tasks, convRows] = await Promise.all([
+    swarmApi.getSessionTasks(sessionId),
+    swarmApi.getConversationEvents(sessionId),
+  ])
+  const records = [...conversationTurnsToRecords(sessionId, convRows), ...tasksToRecords(sessionId, tasks)]
   qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => {
     const known = new Set(prev.map((t) => t.id))
     const fresh = records.filter((r) => !known.has(r.id))

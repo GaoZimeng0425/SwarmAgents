@@ -151,6 +151,9 @@ export function wireSwarmIpc(args: {
   const getSessionTasks = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
     serviceClient.getSessionTasks(sessionId)
 
+  const getConversationEvents = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
+    serviceClient.getConversationEvents(sessionId)
+
   const getUsageStats = (_e: Electron.IpcMainInvokeEvent, rangeDays: number) => serviceClient.getUsageStats(rangeDays)
 
   const deleteSession = (_e: Electron.IpcMainInvokeEvent, sessionId: string) => serviceClient.deleteSession(sessionId)
@@ -233,6 +236,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:createSession', () => createSession())
   ipcMain.handle('swarm:listSessions', () => listSessions())
   ipcMain.handle('swarm:getSessionTasks', getSessionTasks)
+  ipcMain.handle('swarm:getConversationEvents', getConversationEvents)
   ipcMain.handle('swarm:getUsageStats', getUsageStats)
   ipcMain.handle('swarm:deleteSession', deleteSession)
   ipcMain.handle('swarm:renameSession', renameSession)
@@ -360,6 +364,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:createSession')
       ipcMain.removeHandler('swarm:listSessions')
       ipcMain.removeHandler('swarm:getSessionTasks')
+      ipcMain.removeHandler('swarm:getConversationEvents')
       ipcMain.removeHandler('swarm:getUsageStats')
       ipcMain.removeHandler('swarm:deleteSession')
       ipcMain.removeHandler('swarm:renameSession')

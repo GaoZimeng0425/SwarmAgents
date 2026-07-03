@@ -199,6 +199,14 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
 ])
 export type TaskEvent = z.infer<typeof TaskEventSchema>
 
+/** One row of a session's conversation-event stream (no Task row; keyed by turn). */
+export type ConversationEvent = {
+  turnId: string
+  seq: number
+  ts: number
+  event: TaskEvent
+}
+
 export const ArtifactSchema = z.object({
   kind: z.enum(['file', 'note', 'image']),
   path: z.string().optional(),

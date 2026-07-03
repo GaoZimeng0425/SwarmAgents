@@ -132,6 +132,7 @@ export type SessionManager = {
   reorderSessions(orderedIds: string[]): void
   listSessions(): import('@swarm/protocol').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
+  getConversationEvents(sessionId: string): import('@swarm/protocol').ConversationEvent[]
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
   /** @internal test hook */
   __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor
@@ -1197,6 +1198,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     getSessionTasks(sessionId) {
       return store.getSessionTasks(sessionId)
+    },
+
+    getConversationEvents(sessionId) {
+      return store.getConversationEvents(sessionId)
     },
 
     getUsageStats(rangeDays) {
