@@ -20,7 +20,7 @@ import { createSessionManager } from './manager'
 const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as any
 
 describe('oneShotHandles rename (behavior-preserving)', () => {
-  it('cancelTask aborts a running one-shot task and task.created was broadcast', async () => {
+  it('cancelTask aborts a running conversation turn', async () => {
     const store = createConversationStore(':memory:')
     const events: string[] = []
     const mgr = createSessionManager({
@@ -43,7 +43,8 @@ describe('oneShotHandles rename (behavior-preserving)', () => {
     // Must not throw; should abort the AbortController stored in oneShotHandles
     expect(() => mgr.cancelTask(sessionId, taskId)).not.toThrow()
 
-    // task.created must have been broadcast for the submitted goal
-    expect(events).toContain('task.created')
+    // A conversation turn emits the user message as task.progress (no task.created).
+    expect(events).toContain('task.progress')
+    expect(events).not.toContain('task.created')
   })
 })

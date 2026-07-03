@@ -1,12 +1,16 @@
 // src/service/e2e/multi-level-verify.e2e.test.ts
 //
-// Drives the REAL manager task tree (submitGoal → spawnChild) with a scripted
+// Drives the REAL manager task tree (runWorkTask → spawnChild) with a scripted
 // createAgentRunner mock that calls deps.spawnChild / deps.emit directly. This
 // exercises the integration the unit tests can't: that spawnChild threads
 // acceptanceCriteria + maxVerifyRounds onto real child tasks, that Leaders
 // (verify on) and leaves (single-shot) coexist in one tree, and that the
 // task.criteria / task.delegation_plan events persist. The verify-loop logic
 // itself is unit-tested in agent-runner.verify.test.ts; here it is simulated.
+//
+// After the conversation/task separation (Phase 3a), submitGoal is a single-shot
+// conversation turn with no Task and no verify loop; the verify pipeline lives
+// behind create_task / runWorkTask, so this e2e drives a work task directly.
 
 import { defaultAgents } from '@swarm/shared'
 import { describe, expect, it, vi } from 'vitest'
@@ -98,14 +102,15 @@ describe('CEO → Leader → subagent verified pipeline', () => {
     const { store, mgr } = makeMgr()
     const { sessionId } = mgr.createSession(fakeProvider)
 
-    let resolveDone!: () => void
-    const done = new Promise<void>((r) => {
-      resolveDone = r
-    })
-    const { taskId } = mgr.submitGoal(sessionId, 'ship it', undefined, undefined, () => resolveDone(), {
-      agentType: 'ceo',
-    })
-    await done
+    const { taskId } = await (
+      mgr as unknown as {
+        __runWorkTaskForTest: (
+          s: string,
+          g: string,
+          options?: { agentType?: string }
+        ) => Promise<{ taskId: string; result: unknown }>
+      }
+    ).__runWorkTaskForTest(sessionId, 'ship it', { agentType: 'ceo' })
     // Let any tail child persistence settle.
     await new Promise((r) => setTimeout(r, 30))
 

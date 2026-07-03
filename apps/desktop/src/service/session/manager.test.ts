@@ -406,7 +406,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('emits the user message as a real seq event on a new task', async () => {
+  it('emits the user message as a real seq event on a conversation turn (no Task)', async () => {
     mockCreate.mockImplementationOnce(() => runner(vi.fn().mockResolvedValue(runnerReturn('completed', ''))))
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -416,15 +416,20 @@ describe('SessionManager', () => {
     manager.submitGoal(sessionId, 'hello world')
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    const [task] = store.getSessionTasks(sessionId)
-    const userEvent = task.history.find((e) => e.kind === 'llm.message' && (e as { role?: string }).role === 'user') as
-      | { content?: unknown; seq?: number }
-      | undefined
-    // The user message is a first-class event with a real seq (not just task.goal).
+    // No Task row — the user message lives on the session-conversation stream.
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
+    const userEvent = store
+      .getConversationEvents(sessionId)
+      .find(
+        (r) =>
+          (r.event as { kind?: string; role?: string }).kind === 'llm.message' &&
+          (r.event as { role?: string }).role === 'user'
+      )
+    // The user message is a first-class event with a real seq.
     expect(userEvent).toBeDefined()
-    expect(userEvent!.content).toBe('hello world')
+    expect((userEvent!.event as { content?: string }).content).toBe('hello world')
     expect(userEvent!.seq).toBeTypeOf('number')
-    expect(userEvent!.seq!).toBeGreaterThan(0)
+    expect(userEvent!.seq).toBeGreaterThan(0)
 
     store.close()
   })
@@ -541,7 +546,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('injects sessionId into broadcasts and persists task history on completion', async () => {
+  it('injects sessionId into broadcasts and persists conversation events on completion', async () => {
     const events: Array<{ name: string; data: Record<string, unknown> }> = []
     const broadcaster = {
       broadcast: (name: string, data: unknown) => events.push({ name, data: data as Record<string, unknown> }),
@@ -552,11 +557,10 @@ describe('SessionManager', () => {
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
         deps.emit('task.progress', {
-          taskId: deps.correlationId,
           event: { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 },
           ts: 1,
         })
-        deps.emit('task.complete', { taskId: deps.correlationId, result: { summary: 'hi', artifacts: [] }, ts: 2 })
+        deps.emit('task.complete', { result: { summary: 'hi', artifacts: [] }, ts: 2 })
         return runnerReturn('completed', 'hi')
       })
     )
@@ -570,18 +574,19 @@ describe('SessionManager', () => {
       model: 'claude-haiku-4-5-20251001',
       apiKey: 'k',
     })
-    const { taskId } = manager.submitGoal(sessionId, 'say hi')
+    const { taskId: turnId } = manager.submitGoal(sessionId, 'say hi')
 
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
 
     expect(events.every((e) => typeof e.data.sessionId === 'string')).toBe(true)
-    expect(events.find((e) => e.name === 'task.created')?.data.sessionId).toBe(sessionId)
-    const history = store.getSessionTasks(sessionId).find((t) => t.id === taskId)?.history
-    expect(history).toEqual([
-      { kind: 'llm.message', role: 'user', content: 'say hi', ts: expect.any(Number), seq: expect.any(Number) },
-      { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1, seq: expect.any(Number) },
-    ])
+    // A conversation turn emits no task.created.
+    expect(events.some((e) => e.name === 'task.created')).toBe(false)
+    // The user + assistant messages persisted to the conversation stream, in order.
+    const conv = store.getConversationEvents(sessionId)
+    expect(conv.map((r) => (r.event as { content?: string }).content)).toEqual(['say hi', 'hi'])
+    // Each broadcast is tagged with the turnId as taskId.
+    expect(events.some((e) => e.data.taskId === turnId)).toBe(true)
     store.close()
   })
 
@@ -726,7 +731,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('persists the used returned by the runner to the task row', async () => {
+  it('does not persist a Task for a conversation turn (session-level usage lands in Task 5)', async () => {
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
         deps.saveSnapshot?.([], { tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6, cacheRead: 0, cacheWrite: 0 })
@@ -743,13 +748,13 @@ describe('SessionManager', () => {
       model: 'claude-haiku-4-5-20251001',
       apiKey: 'k',
     })
-    const { taskId } = manager.submitGoal(sessionId, 'g')
+    manager.submitGoal(sessionId, 'g')
 
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
 
-    const task = store.getSessionTasks(sessionId).find((t) => t.id === taskId)
-    expect(task?.used).toEqual({ tokens: 1200, calls: 4, wallMs: 3000, usdCents: 6, cacheRead: 0, cacheWrite: 0 })
+    // A conversation turn creates no Task row.
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -805,9 +810,8 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     manager.cancelTask(sessionId, bId)
-    expect(store.getSessionTasks(sessionId).find((t) => t.id === bId)?.status).toBe('cancelled')
-    // The queued-cancel must surface a task.error with code 'cancelled' so the UI
-    // drops the queued card.
+    // B is a conversation turn (no Task row); only the cancel broadcast is surfaced.
+    expect(store.getSessionTasks(sessionId).find((t) => t.id === bId)).toBeUndefined()
     expect(broadcastSpy).toHaveBeenCalledWith(
       'task.error',
       expect.objectContaining({ taskId: bId, error: expect.objectContaining({ code: 'cancelled' }) })
@@ -928,7 +932,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('lists sessions and returns a session tasks via the manager', () => {
+  it('lists sessions and drives a conversation turn (no Task) via the manager', async () => {
     mockCreate.mockImplementation(() => runner(async () => runnerReturn('completed', '')))
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
@@ -942,14 +946,18 @@ describe('SessionManager', () => {
     })
     manager.submitGoal(sessionId, 'g')
     expect(manager.listSessions().map((s) => s.id)).toContain(sessionId)
-    expect(manager.getSessionTasks(sessionId).length).toBeGreaterThanOrEqual(1)
+    // A conversation turn produces no Task but does produce a conversation event.
+    expect(manager.getSessionTasks(sessionId)).toHaveLength(0)
+    expect(manager.getConversationEvents(sessionId).length).toBeGreaterThan(0)
     store.close()
   })
 
-  it('resolves options.agentType to the registered agent definition', () => {
-    mockCreate.mockImplementation(() => ({
-      run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }),
-    }))
+  it('resolves options.agentType to the registered agent definition for the conversation turn', async () => {
+    let captured: AgentDefinition | undefined
+    mockCreate.mockImplementation((deps) => {
+      captured = deps.agentDefinition
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
+    })
 
     const customDef = {
       id: 'researcher',
@@ -987,10 +995,11 @@ describe('SessionManager', () => {
     })
 
     manager.submitGoal(sessionId, 'research something', [], undefined, undefined, { agentType: 'researcher' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
-    const tasks = store.getSessionTasks(sessionId)
-    expect(tasks).toHaveLength(1)
-    expect(tasks[0].agentDefId).toBe('researcher')
+    expect(captured?.id).toBe('researcher')
+    // No Task row for a conversation turn.
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -1137,14 +1146,17 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(sawAbortedAtEntry.B).toBe(true)
-    expect(store.getSessionTasks(s2).find((t) => t.id === bId)?.status).toBe('cancelled')
+    // B is a conversation turn (no Task row); only the aborted signal matters here.
+    expect(store.getSessionTasks(s2).find((t) => t.id === bId)).toBeUndefined()
     store.close()
   })
 
-  it('falls back to default agent when options.agentType is unknown', () => {
-    mockCreate.mockImplementation(() => ({
-      run: vi.fn().mockResolvedValue({ status: 'completed', summary: '' }),
-    }))
+  it('falls back to default agent when options.agentType is unknown', async () => {
+    let captured: AgentDefinition | undefined
+    mockCreate.mockImplementation((deps) => {
+      captured = deps.agentDefinition
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
+    })
 
     const agentStore = {
       get: (_id: string) => undefined,
@@ -1173,21 +1185,21 @@ describe('SessionManager', () => {
     })
 
     manager.submitGoal(sessionId, 'do something', [], undefined, undefined, { agentType: 'nonexistent-agent' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
-    const tasks = store.getSessionTasks(sessionId)
-    expect(tasks).toHaveLength(1)
-    expect(tasks[0].agentDefId).toBe('default')
+    expect(captured?.id).toBe('default')
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
-  it('persists task.criteria and task.verification emits via the emit handler', async () => {
-    // The emit fn passed to createAgentRunner is makeEmit(sessionId) — we capture
-    // it from the mock and call it directly to exercise the two new branches without
-    // needing a real runner loop. This mirrors the task.plan/saveTaskPlan pattern.
+  it('persists task.criteria and task.verification emits via the work-task emit handler', async () => {
+    // Work tasks (runWorkTask → runTaskTurn) use makeEmit, which persists
+    // task.criteria / task.verification. Conversation turns use makeConversationEmit,
+    // which does not — so drive a work task here.
     let capturedEmit: ((event: string, data: unknown) => void) | null = null
     mockCreate.mockImplementation((deps) => {
       capturedEmit = deps.emit
-      return runner(() => new Promise<RunReturn>(() => {}))
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
 
     const store = createConversationStore(dbPath)
@@ -1200,9 +1212,11 @@ describe('SessionManager', () => {
       model: 'claude-haiku-4-5-20251001',
       apiKey: 'k',
     })
-    const { taskId } = manager.submitGoal(sessionId, 'solve it')
-    // Flush microtasks so the runner starts and capturedEmit is set.
-    await new Promise((r) => setTimeout(r, 0))
+    const { taskId } = await (
+      manager as unknown as {
+        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string; result: unknown }>
+      }
+    ).__runWorkTaskForTest(sessionId, 'solve it')
 
     expect(capturedEmit).not.toBeNull()
     const emit = capturedEmit!
@@ -1227,11 +1241,11 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('persists task.delegation_plan emits via the emit handler', async () => {
+  it('persists task.delegation_plan emits via the work-task emit handler', async () => {
     let capturedEmit: ((event: string, data: unknown) => void) | null = null
     mockCreate.mockImplementation((deps) => {
       capturedEmit = deps.emit
-      return runner(() => new Promise<RunReturn>(() => {}))
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
     })
 
     const store = createConversationStore(dbPath)
@@ -1244,8 +1258,11 @@ describe('SessionManager', () => {
       model: 'claude-haiku-4-5-20251001',
       apiKey: 'k',
     })
-    const { taskId } = manager.submitGoal(sessionId, 'solve it')
-    await new Promise((r) => setTimeout(r, 0))
+    const { taskId } = await (
+      manager as unknown as {
+        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string; result: unknown }>
+      }
+    ).__runWorkTaskForTest(sessionId, 'solve it')
 
     const emit = capturedEmit!
     const spy = vi.spyOn(store, 'saveTaskDelegationPlan')
@@ -1264,7 +1281,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('continues the most-recent root task on an idle follow-up instead of creating a new one', async () => {
+  it('starts a fresh conversation turn per goal (no Task continuation)', async () => {
     const goals: string[] = []
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
@@ -1282,25 +1299,20 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
 
-    // The first turn has finished; the session is idle. A follow-up continues it.
+    // The session is idle; a follow-up starts a NEW turn (no task continuation).
     const followUp = manager.submitGoal(sessionId, '继续')
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
 
-    // Same task is reused — no second top-level "继续" card.
-    expect(followUp.taskId).toBe(first.taskId)
-    const roots = store.getSessionTasks(sessionId).filter((t) => t.parentId === null)
-    expect(roots).toHaveLength(1)
-    // The follow-up text drove the second turn and is recorded as a user message.
+    expect(followUp.taskId).not.toBe(first.taskId)
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     expect(goals).toEqual(['do the thing', '继续'])
-    const history = store.getSessionTasks(sessionId)[0].history
-    expect(history).toContainEqual({
-      kind: 'llm.message',
-      role: 'user',
-      content: '继续',
-      ts: expect.any(Number),
-      seq: expect.any(Number),
-    })
+    // Both user messages live on the conversation stream, in order.
+    const userContents = store
+      .getConversationEvents(sessionId)
+      .filter((r) => (r.event as { role?: string }).role === 'user')
+      .map((r) => (r.event as { content?: string }).content)
+    expect(userContents).toEqual(['do the thing', '继续'])
     store.close()
   })
 
@@ -1335,7 +1347,8 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(second.taskId).not.toBe(first.taskId)
-    expect(store.getSessionTasks(sessionId).filter((t) => t.parentId === null)).toHaveLength(2)
+    // Both are conversation turns (no Task rows).
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
 
     releaseFirstNow()
     await new Promise((r) => setTimeout(r, 0))
@@ -1367,6 +1380,27 @@ describe('SessionManager', () => {
     const task = store.getSessionTasks(sessionId).find((t) => t.id === out.taskId)
     expect(task).toBeDefined()
     expect(task?.parentId).toBeNull()
+    store.close()
+  })
+
+  it('submitGoal constructs the runner single-shot (maxVerifyRounds: 0) and saves no Task', async () => {
+    let capturedMax: number | undefined
+    mockCreate.mockImplementation((deps) => {
+      capturedMax = deps.maxVerifyRounds
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
+    })
+    const store = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+    })
+    const { sessionId } = manager.createSession(providerA)
+    manager.submitGoal(sessionId, 'hi')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(capturedMax).toBe(0)
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 })

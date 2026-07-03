@@ -147,7 +147,11 @@ export type SessionManager = {
   /** @internal test hook */
   __enqueueWithoutPumpForTest?(sessionId: string, goal: string): string
   /** @internal test hook: drive runWorkTask (agent-authored work task) directly. */
-  __runWorkTaskForTest?(sessionId: string, goal: string): Promise<{ taskId: string; result: TaskResult }>
+  __runWorkTaskForTest?(
+    sessionId: string,
+    goal: string,
+    options?: TaskOptions
+  ): Promise<{ taskId: string; result: TaskResult }>
 }
 
 // session-manager owns sensible defaults for the agent-execution subsystem
@@ -298,6 +302,24 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         store.saveTaskDelegationPlan(taskId, plan)
         log.info({ msg: 'delegation plan persisted', taskId, items: plan.length })
       }
+      broadcaster.broadcast(event, payload)
+    }
+
+  // Emit wrapper for a conversation turn (no Task row). Stamps a shared seq on
+  // the inner event, persists content events to the session-conversation stream,
+  // and tags the wire event with taskId: turnId so the renderer's existing
+  // task-id-keyed applyEvent picks it up (no separate turnId namespace).
+  const makeConversationEmit =
+    (sessionId: string, turnId: string) =>
+    (event: string, data: unknown): void => {
+      const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
+      const seq = seqCounter.nextSeq(sessionId)
+      const ts = Date.now()
+      if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
+      if (event === 'task.progress' && obj?.event) {
+        store.appendConversationEvent(sessionId, turnId, obj.event as TaskEvent)
+      }
+      const payload = obj ? { ...obj, sessionId, taskId: turnId, turnId, seq, ts } : data
       broadcaster.broadcast(event, payload)
     }
 
@@ -931,124 +953,102 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       if (!session) throw new Error(`session ${sessionId} not found`)
 
       const attachments = attachmentsArg ?? []
-      const now = Date.now()
-      const existingTasks = store.getSessionTasks(sessionId)
-      const isFirst = existingTasks.length === 0
+      const turnId = ulid()
 
-      // Follow-up continuation: when the session is idle (no top-level turn
-      // running or queued), a new goal continues the most-recent top-level task
-      // instead of spawning a new one. A session is one conversation thread —
-      // session.messages already carries the full prior context — so a fresh root
-      // task per follow-up would clutter the transcript with sibling cards (e.g. a
-      // "继续" card). Whether the follow-up is really a continuation or a new
-      // objective is left to the agent's own judgment mid-turn (it sees the full
-      // history and can reset its acceptance criteria if it decides the request is
-      // new). While a turn IS running/queued, submissions still queue as distinct
-      // tasks so the queue/interrupt feature is preserved.
-      const busy = session.running !== null || session.pending.length > 0
-      const roots = existingTasks.filter((t) => t.parentId == null).sort((a, b) => a.createdAt - b.createdAt)
-      const lastRoot = roots[roots.length - 1]
-      const continuing = !busy && lastRoot ? lastRoot : undefined
-
-      // Resolve agent definition: a continuation keeps the original task's agent
-      // so the system prompt doesn't change mid-conversation. Otherwise explicit
-      // arg wins, then options.agentType lookup, then DEFAULT_AGENT_DEF (mirrors
-      // spawnChild's resolution logic).
+      // Resolve agent definition: explicit arg wins, then options.agentType, then
+      // DEFAULT_AGENT_DEF (mirrors spawnChild / runWorkTask resolution).
       const resolvedByType = options?.agentType ? cfg.agentStore?.get(options.agentType) : undefined
       if (options?.agentType && !resolvedByType) {
         log.warn({ msg: 'agentType not found, falling back to default', agentType: options.agentType })
       }
-      const agentDef = continuing
-        ? (cfg.agentStore?.get(continuing.agentDefId) ?? agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF)
-        : (agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF)
+      const agentDef = agentDefArg ?? resolvedByType ?? DEFAULT_AGENT_DEF
 
-      const taskId = continuing ? continuing.id : ulid()
-      // Plan mode forces the read-only tool set regardless of the agent's scope,
-      // so the agent can investigate but not mutate while planning.
-      const toolAllowlist = options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
-      // The task object the runner drives this turn. A continuation reuses the
-      // existing row's id and carries its acceptance criteria (so the runner
-      // skips Phase A and continues toward the same criteria), but prompts with
-      // the new follow-up text and gets a fresh budget envelope for the turn.
-      const task: Task = continuing
-        ? {
-            ...continuing,
-            goal,
-            attachments,
-            budget: budgets().main,
-            history: [],
-            result: null,
-            endedAt: null,
-            status: 'pending',
-          }
-        : {
-            id: taskId,
-            parentId: null,
-            agentDefId: agentDef.id,
-            plan: [],
-            goal,
-            status: 'pending',
-            assignedWorkerId: null,
-            toolAllowlist,
-            budget: budgets().main,
-            used: emptyUsed(),
-            history: [],
-            attachments,
-            result: null,
-            createdAt: now,
-            startedAt: null,
-            endedAt: null,
-            cwd: options?.cwd,
-            permissionMode: options?.permissionMode,
-            executionMode: options?.executionMode,
-            acceptanceCriteria: options?.acceptanceCriteria,
-          }
+      // A conversation turn is NOT a Task: no row, no task.created, no verify
+      // loop. The user message is a first-class, seq'd event on the
+      // session-conversation stream (persisted + rendered in true causal position).
+      makeConversationEmit(sessionId, turnId)('task.progress', {
+        event: { kind: 'llm.message', role: 'user', content: goal, ts: Date.now() },
+      })
+      store.updateSessionLastActive(sessionId)
 
-      if (continuing) {
-        // No new row: append the follow-up as a user message on the existing
-        // task so the transcript shows it (the runner feeds it to the LLM but
-        // emits no user-message event of its own), then re-open the card.
-        makeEmit(sessionId)('task.progress', {
-          taskId,
-          event: { kind: 'llm.message', role: 'user', content: goal, ts: now },
-        })
-        store.updateSessionLastActive(sessionId)
-        log.info({ msg: 'goal continues task', sessionId, taskId, goalLen: goal.length, agentDefId: task.agentDefId })
-      } else {
-        store.saveTask(task, sessionId)
-        broadcaster.broadcast('task.created', { sessionId, taskId, goal, attachments, ts: now })
-        // The user's message is a first-class event with a real seq, so it renders
-        // in true causal position (fixes first-message-renders-last). Symmetric with
-        // the continuation path above.
-        makeEmit(sessionId)('task.progress', {
-          taskId,
-          event: { kind: 'llm.message', role: 'user', content: goal, ts: now },
-        })
-        store.updateSessionLastActive(sessionId)
-        log.info({
-          msg: 'goal submitted',
+      // First goal titles the session (replaces the legacy first-task title).
+      if (!store.getSession(sessionId)?.title) {
+        const title = goal.slice(0, 60)
+        store.setSessionTitle(sessionId, title)
+        broadcaster.broadcast('session.updated', { sessionId, title, lastActiveAt: Date.now(), ts: Date.now() })
+      }
+      log.info({
+        msg: 'conversation turn submitted',
+        sessionId,
+        turnId,
+        agentDefId: agentDef.id,
+        cwd: options?.cwd ?? null,
+        permissionMode: options?.permissionMode ?? 'ask',
+        executionMode: options?.executionMode ?? 'goal',
+      })
+
+      const runTurn = async (): Promise<void> => {
+        // Register the abort handle BEFORE awaiting a slot (see runTaskTurn): a
+        // cancel issued while we wait for a slot must find this turn.
+        const abort = new AbortController()
+        oneShotHandles.set(turnId, abort)
+        await acquireSlot()
+        // Plan mode forces the read-only tool set even for a conversation turn.
+        const toolAllowlist = options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
+        const runner = createAgentRunner({
+          correlationId: turnId,
+          cwd: options?.cwd,
+          goal,
+          executionMode: options?.executionMode,
+          budget: budgets().main,
+          toolAllowlist,
+          attachments,
+          permissionMode: options?.permissionMode,
+          acceptanceCriteria: undefined, // conversation never runs the verify loop
+          provider: session.provider,
+          agentDefinition: withPrompt(agentDef),
           sessionId,
-          taskId,
-          agentDefId: agentDef.id,
-          cwd: options?.cwd ?? null,
-          permissionMode: options?.permissionMode ?? 'ask',
-          executionMode: options?.executionMode ?? 'goal',
+          getPermissionMode: () => resolvePermissionMode(sessionId),
+          emit: makeConversationEmit(sessionId, turnId),
+          permissionRegistry: session.permissionRegistry,
+          toolRegistry,
+          initialMessages: session.messages,
+          saveSnapshot: (messages) => {
+            session.messages = messages
+            store.saveAgentSnapshot(sessionId, messages)
+          },
+          signal: abort.signal,
+          spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
+          createTask: (g, criteria) => runWorkTask(sessionId, g, [], criteria ? { acceptanceCriteria: criteria } : {}),
+          findPeers: (q) => directory.find(sessionId, q),
+          writeAgent: (def) =>
+            cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+          writeSkill: (skill) =>
+            cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
+          maxVerifyRounds: 0, // single-shot — the cutover's key line
+          maxIterationsOverride: budgets().maxIterations,
         })
-
-        if (isFirst) {
-          const title = goal.slice(0, 60)
-          store.setSessionTitle(sessionId, title)
-          broadcaster.broadcast('session.updated', { sessionId, title, lastActiveAt: now, ts: now })
+        try {
+          const { status } = await runner.run()
+          onComplete?.(status)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          log.error({ msg: 'conversation turn failed', turnId, err: message })
+          makeConversationEmit(sessionId, turnId)('task.error', {
+            taskId: turnId,
+            error: { code: 'run_failed', message, tier: 'fatal' },
+            ts: Date.now(),
+          })
+          onComplete?.('failed', message)
+        } finally {
+          oneShotHandles.delete(turnId)
+          releaseSlot()
         }
       }
 
-      const runTurn = async (): Promise<void> => {
-        await runTaskTurn({ sessionId, task, agentDef, onComplete, messageSource: 'session' })
-      }
-
-      session.pending.push({ taskId, runTurn })
+      session.pending.push({ taskId: turnId, runTurn })
       pump(session)
-      return { taskId }
+      return { taskId: turnId }
     },
 
     async startCompany(sessionId, goal) {
@@ -1094,15 +1094,25 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const idx = session ? session.pending.findIndex((q) => q.taskId === taskId) : -1
       if (session && idx !== -1) {
         session.pending.splice(idx, 1)
-        store.updateTaskStatus(taskId, 'cancelled')
-        // Surface to the UI so the queued card is dropped; reducer maps a
-        // task.error with code 'cancelled' to the cancelled status.
-        makeEmit(sessionId)('task.error', {
-          taskId,
-          error: { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' },
-          ts: Date.now(),
-        })
-        log.info({ msg: 'queued task cancelled', sessionId, taskId })
+        const error = { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' as const }
+        if (store.getTask(taskId)) {
+          // Work task: persist cancelled status + task.error to its history.
+          store.updateTaskStatus(taskId, 'cancelled')
+          makeEmit(sessionId)('task.error', { taskId, error, ts: Date.now() })
+        } else {
+          // Conversation turn (no Task row): appendTaskEvent would FK-violate on
+          // the missing task_id, so broadcast the cancel directly with a seq so
+          // the renderer still drops the queued card.
+          broadcaster.broadcast('task.error', {
+            sessionId,
+            taskId,
+            turnId: taskId,
+            error,
+            ts: Date.now(),
+            seq: seqCounter.nextSeq(sessionId),
+          })
+        }
+        log.info({ msg: 'queued turn cancelled', sessionId, taskId })
         return
       }
       // No in-memory session (e.g. an interrupted session reopened in the UI
@@ -1227,8 +1237,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       return taskId
     },
 
-    __runWorkTaskForTest(sessionId: string, goal: string) {
-      return runWorkTask(sessionId, goal)
+    __runWorkTaskForTest(sessionId: string, goal: string, options?: TaskOptions) {
+      return runWorkTask(sessionId, goal, [], options)
     },
 
     deliverToActor(sessionId, address, goal) {
