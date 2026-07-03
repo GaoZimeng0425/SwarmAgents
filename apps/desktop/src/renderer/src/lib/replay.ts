@@ -116,7 +116,7 @@ export function conversationTurnsToRecords(sessionId: string, rows: Conversation
       startedAt: evs[0]?.ts ?? 0,
       attachments: [],
       events,
-      // Marker so the task panel (planGroups/verifyGroups) can exclude
+      // Marker so the task panel (planGroups) can exclude
       // conversation turns — they never carry a plan or acceptance criteria.
       isConversation: true,
     })

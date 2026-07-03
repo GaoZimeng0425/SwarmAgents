@@ -186,7 +186,7 @@ export type AgentRunnerDeps = {
   correlationId: string
   /** Working directory. Replaces task.cwd. */
   cwd?: string
-  /** Objective text — seeds the first user turn and the verify/criteria prompts.
+  /** Objective text — seeds the first user turn.
    *  Replaces task.goal. (Phase-3 folds this into initialMessages.) */
   goal: string
   /** Replaces task.executionMode. */
