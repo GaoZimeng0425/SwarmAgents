@@ -561,8 +561,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     newGoal: string,
     suggestedTools?: string[],
     providerKey?: string,
-    agentType?: string,
-    options?: import('@swarm/protocol').SpawnChildOptions
+    agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }> => {
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
@@ -593,7 +592,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       status: 'pending',
       assignedWorkerId: null,
       toolAllowlist: suggestedTools ?? allowlistForAgent(def),
-      acceptanceCriteria: options?.acceptanceCriteria,
       budget: budgets().sub,
       used: emptyUsed(),
       history: [],
@@ -644,7 +642,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           toolRegistry,
           initialMessages: [],
           signal: abort.signal,
-          spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
+          spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
           writeAgent: (def) =>
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
@@ -788,7 +786,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
               store.saveTaskUsage(task.id, used, contextWindow)
             },
       signal: abort.signal,
-      spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
+      spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
       findPeers: (q) => directory.find(sessionId, q),
       writeAgent: (def) =>
         cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
@@ -1007,7 +1005,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
             if (used) store.saveSessionUsage(sessionId, used, contextWindow)
           },
           signal: abort.signal,
-          spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
+          spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           createTask: (g) => runWorkTask(sessionId, g, []),
           findPeers: (q) => directory.find(sessionId, q),
           writeAgent: (def) =>

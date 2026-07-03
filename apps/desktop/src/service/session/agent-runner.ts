@@ -25,7 +25,6 @@ import {
   OPENAI_MODEL_SUGGESTIONS,
   type PermissionMode,
   type ResourceBudget,
-  type SpawnChildOptions,
   type TaskEvent,
   type TaskResult,
 } from '@swarm/protocol'
@@ -223,8 +222,7 @@ export type AgentRunnerDeps = {
     newGoal: string,
     suggestedTools?: string[],
     providerKey?: string,
-    agentType?: string,
-    options?: SpawnChildOptions
+    agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
   /** Agent-authored work: create a top-level work Task (single-shot), await, return result. */
   createTask?(goal: string): Promise<{ taskId: string; result: TaskResult }>
@@ -309,8 +307,8 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
     sessionId: deps.sessionId,
     taskId: ctx.id,
     cwd: ctx.cwd,
-    spawnChild: (goal, suggestedTools, providerKey, agentType, options) =>
-      deps.spawnChild(ctx.id, goal, suggestedTools, providerKey, agentType, options),
+    spawnChild: (goal, suggestedTools, providerKey, agentType) =>
+      deps.spawnChild(ctx.id, goal, suggestedTools, providerKey, agentType),
     createTask: deps.createTask,
     send: () => undefined,
     // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.

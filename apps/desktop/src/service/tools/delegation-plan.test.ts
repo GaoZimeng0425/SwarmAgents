@@ -18,7 +18,7 @@ describe('set_delegation_plan tool', () => {
     const tool = delegationPlanSpec().build(c)
     const res = (await tool.execute('id', {
       items: [
-        { goal: 'build api', ownerAgentType: 'engineer', acceptanceCriteria: [{ description: 'tests pass' }] },
+        { goal: 'build api', ownerAgentType: 'engineer' },
         { goal: 'review api', dependsOn: ['d1'] },
       ],
     })) as { details: { plan?: unknown } }
@@ -28,7 +28,6 @@ describe('set_delegation_plan tool', () => {
         goal: 'build api',
         ownerAgentType: 'engineer',
         dependsOn: [],
-        acceptanceCriteria: [{ id: 'c1', description: 'tests pass' }],
       },
       { id: 'd2', goal: 'review api', dependsOn: ['d1'] },
     ])
