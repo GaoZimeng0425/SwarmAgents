@@ -307,6 +307,8 @@ const swarm: SwarmBridge = {
       ipcRenderer.invoke('swarm:getConversationEvents', sessionId) as Promise<
         import('@swarm/protocol').ConversationEvent[]
       >,
+    getRunEvents: (sessionId: string) =>
+      ipcRenderer.invoke('swarm:getRunEvents', sessionId) as Promise<import('@swarm/protocol').RunEvent[]>,
     delete: (sessionId: string) => ipcRenderer.invoke('swarm:deleteSession', sessionId) as Promise<void>,
     rename: (sessionId: string, title: string) =>
       ipcRenderer.invoke('swarm:renameSession', sessionId, title) as Promise<void>,

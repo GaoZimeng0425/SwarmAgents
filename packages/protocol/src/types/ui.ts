@@ -429,6 +429,7 @@ export type SwarmBridge = {
     create(): Promise<{ sessionId: string }>
     getTasks(sessionId: string): Promise<import('./task').Task[]>
     getConversationEvents(sessionId: string): Promise<import('./task').ConversationEvent[]>
+    getRunEvents(sessionId: string): Promise<import('./task').RunEvent[]>
     delete(sessionId: string): Promise<void>
     rename(sessionId: string, title: string): Promise<void>
     setPinned(sessionId: string, pinned: boolean): Promise<void>

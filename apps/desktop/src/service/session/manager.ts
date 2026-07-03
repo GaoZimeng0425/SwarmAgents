@@ -129,6 +129,7 @@ export type SessionManager = {
   listSessions(): import('@swarm/protocol').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
   getConversationEvents(sessionId: string): import('@swarm/protocol').ConversationEvent[]
+  getRunEvents(sessionId: string): import('@swarm/protocol').RunEvent[]
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
   /** @internal test hook */
   __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor
@@ -1210,6 +1211,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     getConversationEvents(sessionId) {
       return store.getConversationEvents(sessionId)
+    },
+    getRunEvents(sessionId) {
+      return store.getRunEvents(sessionId)
     },
 
     getUsageStats(rangeDays) {

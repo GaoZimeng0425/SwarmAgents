@@ -41,6 +41,7 @@ export type ServiceClient = {
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
   getSessionTasks(sessionId: string): Promise<import('./types/task').Task[]>
   getConversationEvents(sessionId: string): Promise<import('./types/task').ConversationEvent[]>
+  getRunEvents(sessionId: string): Promise<import('./types/task').RunEvent[]>
   deleteSession(sessionId: string): Promise<void>
   renameSession(sessionId: string, title: string): Promise<void>
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>
@@ -154,6 +155,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     getConversationEvents(sessionId) {
       return call('getConversationEvents', [sessionId])
+    },
+    getRunEvents(sessionId) {
+      return call('getRunEvents', [sessionId])
     },
     async deleteSession(sessionId) {
       await call('deleteSession', [sessionId])

@@ -8,6 +8,7 @@ export type ServiceMethod =
   | 'listSessions'
   | 'getSessionTasks'
   | 'getConversationEvents'
+  | 'getRunEvents'
   | 'deleteSession'
   | 'renameSession'
   | 'setSessionPinned'

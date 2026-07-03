@@ -84,6 +84,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         const [sessionId] = args as [string]
         return manager.getConversationEvents(sessionId)
       }
+      case 'getRunEvents': {
+        const [sessionId] = args as [string]
+        return manager.getRunEvents(sessionId)
+      }
       case 'deleteSession': {
         const [sessionId] = args as [string]
         manager.deleteSession(sessionId)
