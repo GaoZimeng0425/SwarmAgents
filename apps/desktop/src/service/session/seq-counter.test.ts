@@ -57,4 +57,16 @@ describe('createSeqCounter', () => {
     const c = createSeqCounter(() => [task([undefined, 7, undefined])])
     expect(c.nextSeq('s')).toBe(8)
   })
+
+  it('inits the seq from both task history and conversation events', () => {
+    // A session whose max task-event seq is 5 and max conversation-event seq is 9
+    // must continue from 10 (the shared counter takes the max of both).
+    const tasks = [{ history: [{ seq: 5 }] }] as never
+    const conv = [{ seq: 9 }] as never
+    const c = createSeqCounter(
+      () => tasks,
+      () => conv
+    )
+    expect(c.nextSeq('s')).toBe(10)
+  })
 })

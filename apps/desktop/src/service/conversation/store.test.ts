@@ -513,6 +513,71 @@ describe('ConversationStore', () => {
     store.close()
   })
 
+  describe('conversation events', () => {
+    it('appendConversationEvent persists and re-reads session conversation events', () => {
+      const store = createConversationStore(dbPath)
+      store.appendConversationEvent('s1', 'turn-1', {
+        kind: 'llm.message',
+        role: 'user',
+        content: 'hi',
+        ts: 1,
+        seq: 1,
+      } as never)
+      store.appendConversationEvent('s1', 'turn-1', {
+        kind: 'llm.message',
+        role: 'assistant',
+        content: 'yo',
+        ts: 2,
+        seq: 2,
+      } as never)
+      store.appendConversationEvent('s1', 'turn-2', {
+        kind: 'llm.message',
+        role: 'user',
+        content: 'again',
+        ts: 3,
+        seq: 3,
+      } as never)
+      const rows = store.getConversationEvents('s1')
+      expect(rows).toHaveLength(3)
+      // Ordered by insertion id; grouped by turn.
+      expect(rows.map((r) => r.turnId)).toEqual(['turn-1', 'turn-1', 'turn-2'])
+      expect(rows.map((r) => r.seq)).toEqual([1, 2, 3])
+      expect(rows.map((r) => (r.event as { content?: string }).content)).toEqual(['hi', 'yo', 'again'])
+      store.close()
+    })
+
+    it('survives a reopen (events persisted to disk)', () => {
+      const store1 = createConversationStore(dbPath)
+      store1.appendConversationEvent('s1', 'turn-1', {
+        kind: 'llm.message',
+        role: 'user',
+        content: 'hi',
+        ts: 1,
+        seq: 1,
+      } as never)
+      store1.close()
+      const store2 = createConversationStore(dbPath)
+      expect(store2.getConversationEvents('s1')).toHaveLength(1)
+      store2.close()
+    })
+
+    it('deletes conversation_events when its session is deleted', () => {
+      const store = createConversationStore(dbPath)
+      const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
+      store.createSession('ses-c', provider)
+      store.appendConversationEvent('ses-c', 'turn-1', {
+        kind: 'llm.message',
+        role: 'user',
+        content: 'hi',
+        ts: 1,
+        seq: 1,
+      } as never)
+      store.deleteSession('ses-c')
+      expect(store.getConversationEvents('ses-c')).toEqual([])
+      store.close()
+    })
+  })
+
   it('persists and reloads a task plan', () => {
     const store = createConversationStore(dbPath)
     const provider = {

@@ -245,7 +245,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(s.id, 'interrupted')
   }
 
-  const seqCounter = createSeqCounter((sid: string) => store.getSessionTasks(sid))
+  const seqCounter = createSeqCounter(
+    (sid: string) => store.getSessionTasks(sid),
+    (sid: string) => store.getConversationEvents(sid)
+  )
 
   const makeEmit =
     (sessionId: string) =>
