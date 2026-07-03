@@ -10,6 +10,7 @@ import type { SkillStore } from '../skills/store'
 import { acceptanceCriteriaSpec } from './acceptance-criteria'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
 import { claudeCodeSpecs } from './claude-code'
+import { createTaskSpec } from './create-task'
 import { cronSpecs } from './cron'
 import { delegationPlanSpec } from './delegation-plan'
 import { fsSpecs } from './fs'
@@ -75,6 +76,7 @@ export function registerBuiltinTools(
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(spawnAgentSpec())
+  registry.register(createTaskSpec())
   registry.register(sendMessageSpec())
   registry.register(sendAndWaitSpec())
   registry.register(whoamiSpec())

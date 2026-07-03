@@ -1342,4 +1342,31 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
     store.close()
   })
+
+  it('runWorkTask creates a top-level work task and runs the verify runner', async () => {
+    const seen: { max: number }[] = []
+    mockCreate.mockImplementation((deps) => {
+      seen.push({ max: deps.maxVerifyRounds ?? -1 })
+      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', 'done')))
+    })
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
+    const { sessionId } = manager.createSession(providerA)
+
+    const out = await (
+      manager as unknown as {
+        __runWorkTaskForTest: (sid: string, goal: string) => Promise<{ taskId: string; result: { summary: string } }>
+      }
+    ).__runWorkTaskForTest(sessionId, 'build feature X')
+    expect(out.taskId).toMatch(/^[0-9A-Z]{26}$/)
+    expect(out.result.summary).toBe('done')
+    // The work task runs the verify loop (maxVerifyRounds > 0), not single-shot.
+    expect(seen.some((s) => s.max > 0)).toBe(true)
+    // A Task row was persisted with parentId null.
+    const task = store.getSessionTasks(sessionId).find((t) => t.id === out.taskId)
+    expect(task).toBeDefined()
+    expect(task?.parentId).toBeNull()
+    store.close()
+  })
 })

@@ -231,6 +231,11 @@ export type AgentRunnerDeps = {
     agentType?: string,
     options?: SpawnChildOptions
   ): Promise<{ childTaskId: string; result: TaskResult }>
+  /** Agent-authored work: create a top-level work Task (verify loop), await, return result. Absent for non-conversation runs. */
+  createTask?(
+    goal: string,
+    criteria?: import('@swarm/protocol').AcceptanceCriterion[]
+  ): Promise<{ taskId: string; result: TaskResult }>
   /** This run's actor address, when run as a resident actor. */
   selfAddress?: string
   /** Deliver a message to another actor. rpc awaits a reply; send is fire-and-forget. */
@@ -333,6 +338,7 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
     cwd: ctx.cwd,
     spawnChild: (goal, suggestedTools, providerKey, agentType, options) =>
       deps.spawnChild(ctx.id, goal, suggestedTools, providerKey, agentType, options),
+    createTask: deps.createTask,
     send: () => undefined,
     // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
     // This stub satisfies the ToolRunContext type without creating a second gate.

@@ -145,6 +145,8 @@ export type SessionManager = {
   ): Promise<{ reply: string } | { delivered: true }>
   /** @internal test hook */
   __enqueueWithoutPumpForTest?(sessionId: string, goal: string): string
+  /** @internal test hook: drive runWorkTask (agent-authored work task) directly. */
+  __runWorkTaskForTest?(sessionId: string, goal: string): Promise<{ taskId: string; result: TaskResult }>
 }
 
 // session-manager owns sensible defaults for the agent-execution subsystem
@@ -722,6 +724,153 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     redrainAddress(address)
   }
 
+  // Run one task turn under an acquired concurrency slot: build the runner,
+  // drive it to a terminal status, persist it, and surface the result. Shared by
+  // submitGoal (messageSource 'session' — seeds from and writes back the
+  // session's conversation buffer) and runWorkTask (messageSource 'isolated' — a
+  // self-contained work-task run that does not touch the session buffer, like
+  // spawnChild). The caller owns saveTask / task.created / dispatched.
+  const runTaskTurn = async (args: {
+    sessionId: string
+    task: Task
+    agentDef: AgentDefinition
+    onComplete?: (status: TaskStatus, error?: string) => void
+    messageSource: 'session' | 'isolated'
+  }): Promise<TaskResult> => {
+    const { sessionId, task, agentDef, onComplete, messageSource } = args
+    const session = sessions.get(sessionId)
+    if (!session) throw new Error(`session ${sessionId} not found`)
+    // Register the abort handle BEFORE awaiting a slot: pump() (or runWorkTask)
+    // has already marked this turn running, so until the handle exists a cancel
+    // issued while we wait for a slot would find the turn nowhere and no-op.
+    const abort = new AbortController()
+    oneShotHandles.set(task.id, abort)
+    await acquireSlot()
+    const runner = createAgentRunner({
+      correlationId: task.id,
+      cwd: task.cwd,
+      goal: task.goal,
+      executionMode: task.executionMode,
+      budget: task.budget,
+      toolAllowlist: task.toolAllowlist,
+      attachments: task.attachments,
+      permissionMode: task.permissionMode,
+      acceptanceCriteria: task.acceptanceCriteria,
+      provider: session.provider,
+      agentDefinition: withPrompt(agentDef),
+      sessionId,
+      getPermissionMode: () => resolvePermissionMode(sessionId),
+      emit: makeEmit(sessionId),
+      permissionRegistry: session.permissionRegistry,
+      toolRegistry,
+      initialMessages: messageSource === 'session' ? session.messages : [],
+      saveSnapshot:
+        messageSource === 'session'
+          ? (messages, used, contextWindow) => {
+              session.messages = messages
+              store.saveAgentSnapshot(sessionId, messages)
+              store.saveTaskUsage(task.id, used, contextWindow)
+            }
+          : (_messages, used, contextWindow) => {
+              store.saveTaskUsage(task.id, used, contextWindow)
+            },
+      signal: abort.signal,
+      spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
+      findPeers: (q) => directory.find(sessionId, q),
+      writeAgent: (def) =>
+        cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+      writeSkill: (skill) =>
+        cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
+      maxVerifyRounds: MAX_VERIFY_ROUNDS,
+      maxIterationsOverride: budgets().maxIterations,
+    })
+    try {
+      const { status, summary } = await runner.run()
+      store.updateTaskStatus(task.id, status)
+      onComplete?.(status)
+      return { summary, artifacts: [] }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.error({ msg: 'runTaskTurn failed', taskId: task.id, err: message })
+      try {
+        store.appendTaskEvent(task.id, {
+          kind: 'error',
+          error: { code: 'run_failed', message, tier: 'fatal' },
+          ts: Date.now(),
+        })
+      } catch (appendErr) {
+        log.error({ msg: 'failed to persist error event', taskId: task.id, err: String(appendErr) })
+      }
+      try {
+        store.updateTaskStatus(task.id, 'failed')
+      } catch (statusErr) {
+        log.error({ msg: 'failed to mark task failed', taskId: task.id, err: String(statusErr) })
+      }
+      onComplete?.('failed', message)
+      return { summary: '', artifacts: [] }
+    } finally {
+      oneShotHandles.delete(task.id)
+      releaseSlot()
+    }
+  }
+
+  // Create a top-level work Task (parentId null) and run the verify runner
+  // directly — bypassing the session's one-at-a-time turn pump — so a
+  // conversation turn calling create_task can await it without deadlocking the
+  // pump. Used by the create_task tool (agent-authored work) and the
+  // __runWorkTaskForTest seam. NOTE: spec §8 says nested runs "do not re-acquire"
+  // the slot, but spawnChild (which this mirrors) in fact acquires its own slot
+  // today; under the production maxConcurrent this is safe and is the precedent
+  // followed here.
+  const runWorkTask = async (
+    sessionId: string,
+    goal: string,
+    attachments: import('@swarm/protocol').Attachment[] = [],
+    options: TaskOptions = {},
+    agentDefOverride?: AgentDefinition
+  ): Promise<{ taskId: string; result: TaskResult }> => {
+    const session = getOrRehydrate(sessionId)
+    if (!session) throw new Error(`session ${sessionId} not found`)
+    const resolvedByType = options.agentType ? cfg.agentStore?.get(options.agentType) : undefined
+    if (options.agentType && !resolvedByType) {
+      log.warn({ msg: 'agentType not found, falling back to default', agentType: options.agentType })
+    }
+    const agentDef = agentDefOverride ?? resolvedByType ?? DEFAULT_AGENT_DEF
+    const toolAllowlist = options.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
+    const now = Date.now()
+    const task: Task = {
+      id: ulid(),
+      parentId: null,
+      agentDefId: agentDef.id,
+      plan: [],
+      goal,
+      status: 'pending',
+      assignedWorkerId: null,
+      toolAllowlist,
+      budget: budgets().main,
+      used: emptyUsed(),
+      history: [],
+      attachments,
+      result: null,
+      createdAt: now,
+      startedAt: null,
+      endedAt: null,
+      cwd: options.cwd,
+      permissionMode: options.permissionMode,
+      executionMode: options.executionMode,
+      acceptanceCriteria: options.acceptanceCriteria,
+    }
+    store.saveTask(task, sessionId)
+    broadcaster.broadcast('task.created', { sessionId, taskId: task.id, goal, attachments, ts: now })
+    log.info({ msg: 'work task created', sessionId, taskId: task.id, agentDefId: agentDef.id, goalLen: goal.length })
+    // The pump would emit dispatched + markTaskRunning; since we bypass it, do
+    // both here so the renderer marks the work task running (not queued).
+    makeEmit(sessionId)('task.dispatched', { taskId: task.id, workerId: '', ts: Date.now() })
+    store.markTaskRunning(task.id)
+    const result = await runTaskTurn({ sessionId, task, agentDef, messageSource: 'isolated' })
+    return { taskId: task.id, result }
+  }
+
   return {
     createSession(provider) {
       const sessionId = ulid()
@@ -893,73 +1042,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       }
 
       const runTurn = async (): Promise<void> => {
-        // Register the abort handle BEFORE awaiting a slot: pump() has already
-        // set session.running and shifted this turn out of pending, so until the
-        // handle exists a cancel/interrupt issued while we wait for a slot would
-        // find the turn nowhere and silently no-op. Registering first latches the
-        // signal; the runner short-circuits to 'cancelled' once it starts.
-        const abort = new AbortController()
-        oneShotHandles.set(taskId, abort)
-        await acquireSlot()
-        const runner = createAgentRunner({
-          correlationId: task.id,
-          cwd: task.cwd,
-          goal: task.goal,
-          executionMode: task.executionMode,
-          budget: task.budget,
-          toolAllowlist: task.toolAllowlist,
-          attachments: task.attachments,
-          permissionMode: task.permissionMode,
-          acceptanceCriteria: task.acceptanceCriteria,
-          provider: session.provider,
-          agentDefinition: withPrompt(agentDef),
-          sessionId,
-          getPermissionMode: () => resolvePermissionMode(sessionId),
-          emit: makeEmit(sessionId),
-          permissionRegistry: session.permissionRegistry,
-          toolRegistry,
-          initialMessages: session.messages,
-          saveSnapshot: (messages, used, contextWindow) => {
-            session.messages = messages
-            store.saveAgentSnapshot(sessionId, messages)
-            store.saveTaskUsage(taskId, used, contextWindow)
-          },
-          signal: abort.signal,
-          spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),
-          findPeers: (q) => directory.find(sessionId, q),
-          writeAgent: (def) =>
-            cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
-          writeSkill: (skill) =>
-            cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-          maxVerifyRounds: MAX_VERIFY_ROUNDS,
-          maxIterationsOverride: budgets().maxIterations,
-        })
-        try {
-          const { status } = await runner.run()
-          store.updateTaskStatus(taskId, status)
-          onComplete?.(status)
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          log.error({ msg: 'runTurn failed', taskId, err: message })
-          try {
-            store.appendTaskEvent(taskId, {
-              kind: 'error',
-              error: { code: 'run_failed', message, tier: 'fatal' },
-              ts: Date.now(),
-            })
-          } catch (appendErr) {
-            log.error({ msg: 'failed to persist error event', taskId, err: String(appendErr) })
-          }
-          try {
-            store.updateTaskStatus(taskId, 'failed')
-          } catch (statusErr) {
-            log.error({ msg: 'failed to mark task failed', taskId, err: String(statusErr) })
-          }
-          onComplete?.('failed', message)
-        } finally {
-          oneShotHandles.delete(taskId)
-          releaseSlot()
-        }
+        await runTaskTurn({ sessionId, task, agentDef, onComplete, messageSource: 'session' })
       }
 
       session.pending.push({ taskId, runTurn })
@@ -1137,6 +1220,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const { taskId } = this.submitGoal(sessionId, goal)
       session.running = prevRunning
       return taskId
+    },
+
+    __runWorkTaskForTest(sessionId: string, goal: string) {
+      return runWorkTask(sessionId, goal)
     },
 
     deliverToActor(sessionId, address, goal) {

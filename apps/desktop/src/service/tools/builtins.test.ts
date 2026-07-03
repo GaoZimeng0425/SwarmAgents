@@ -38,6 +38,7 @@ describe('registerBuiltinTools', () => {
       .map((s) => `${s.group}.${s.name}`)
       .sort()
     expect(ids).toEqual([
+      'agent.create_task',
       'agent.find_agents',
       'agent.send_and_wait',
       'agent.send_message',

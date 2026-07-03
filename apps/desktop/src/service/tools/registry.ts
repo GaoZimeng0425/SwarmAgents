@@ -38,6 +38,8 @@ export interface ToolRunContext {
     agentType?: string,
     options?: SpawnChildOptions
   ): Promise<{ childTaskId: string; result: TaskResult }>
+  /** Agent-authored work: create a top-level work Task (verify loop) and return its result. Absent outside conversation turns. */
+  createTask?(goal: string, criteria?: AcceptanceCriterion[]): Promise<{ taskId: string; result: TaskResult }>
   send: (msg: Outbound) => void
   requestPermission: (args: {
     toolName: string
