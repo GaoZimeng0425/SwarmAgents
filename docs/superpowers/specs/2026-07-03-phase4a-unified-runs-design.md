@@ -1,36 +1,37 @@
-# Conversation / Task Separation — Phase 4a: Unified Runs (Fully Derived, Task Table Removed)
+# Conversation / Task Separation — Phase 4a: Unified Run Rendering (Core)
 
 - **Date:** 2026-07-03
-- **Status:** Design (pending review) — revises the earlier Option-1 (manifest) sketch; the user chose **fully derived** (no Task table) on first-principles grounds.
+- **Status:** Design (revised to the split: 4a = unified rendering core, `Task` table retained; 4b = drop `Task` table + migrate cron/waiters + tool merge + 3c). The earlier "fully-derived in 4a" framing was rescoped after planning found the `Task` table is also consumed by the cron scheduler, `wait_for_task`, and the terminal listener — migrating those is deferred to 4b.
 - **Branch:** worktree `phase4a-unified-runs` off `develop` (`34249ad`).
-- **Scope (large — bigger than 3b):** service (`manager.ts`, `conversation/store.ts`, `agent-runner.ts` emit wiring, resident/cron/gmail run paths), protocol (`UIEvent` gains `parentRunId`; the `Task` type is removed), IPC (`getSessionTasks` → `getRunEvents`), renderer (`replay.ts`, `use-tasks.ts`, `apply-event.ts`, `build-timeline-items.ts`, `task-segments.ts`, `TaskRecord`→`RunRecord`, `tasksToRecords` removed). Schema: rename `conversation_events` → `run_events` (+ `parent_run_id`); **drop the `tasks` and `task_events` tables**.
+- **Scope:** service (`manager.ts` emit wiring — `makeRunEmit` for all main runs), store (`conversation/store.ts` — rename `conversation_events` → `run_events` + `parent_run_id`; add run-events API alongside the retained `tasks`/`task_events` API), IPC (`getConversationEvents` → `getRunEvents`), renderer (`replay.ts`, `use-tasks.ts`, `apply-event.ts`, `build-timeline-items.ts`, `task-segments.ts`; `TaskRecord`→`RunRecord`; drop the `conversationTurnsToRecords` adapter + `isConversation`).
 - **Predecessors:** Phases 1–3b on `develop`.
-- **Hard guardrail (user-stated, first-principles):** "task is agent-authored data, not an execution unit; the transcript is conversation-only + work artifacts. No historical migration — old history is disposable. Best practice, don't be lazy." This spec removes the `Task` persistence entity entirely: a single session run-event stream (`run_events`) is the only source of truth, and every run view is derived from it. No denormalized manifest table, no compat shim.
+- **Hard guardrail (user-stated):** first-principles, best practice, no lazy compat shims for OLD data (history disposable). 4a makes `run_events` the single RENDERING source (every main run — conversation / `create_task` / spawn — emits its full lifecycle there) and drops the adapter that forced conversation into `TaskRecord` shape. The `Task`/`task_events` tables are RETAINED in 4a (still written by work/spawn for `wait_for_task` + the terminal listener + cron's internal tracking; no longer read by the renderer). Removing them is 4b.
 
 ## 1. Background & goal
 
-After 3a/3b there are two event streams (`task_events` for work/delegation, `conversation_events` for conversation) and `Task` rows that anchor persistence, status, cancel, and UI for work/delegation. The runner is already decoupled from `Task` (Phase 1). The remaining "Task-as-execution-unit" is pure persistence/UI anchoring — and the `Task` row itself is a denormalized projection of data already in the events (goal/status/agentDefId/plan/used are all derivable from `task.created`/`task.plan`/`task.usage`/terminal events).
+After 3a/3b there are two event streams (`task_events` for work/delegation, `conversation_events` for conversation) and the renderer bridges them with a `conversationTurnsToRecords` adapter that forces conversation into a `TaskRecord` shape (with an `isConversation` marker hack). 3a's `makeConversationEmit` also persists only `task.progress`, so replayed conversation turns never reach a terminal status (the adapter hardcodes `status: 'running'`).
 
-**Phase 4a goes first-principles: ONE session run-event stream, no Task table.** Every run — conversation turn, `create_task` work, spawned sub-agent, cron-fired run, resident actor — emits its full lifecycle to `run_events`, keyed by `runId` (+ `parentRunId` for spawns). The `tasks` and `task_events` tables are **dropped**. The renderer's `RunRecord` (renamed from `TaskRecord`) is **derived entirely from `run_events`** (live via `applyEvent`, replay via `runEventsToRecords`). Run configuration (budget, cwd, permissionMode, executionMode, toolAllowlist) is **in-memory only** — constructed at submit time from session settings + composer options; single-shot runs do not persist it. `create_task` becomes "start a tracked work run" (mints a `runId`, emits `task.created`); `spawn_sub_agent` is a child run (`parentRunId`); a conversation turn is a run. There is no `Task` concept in the persistence layer — only runs and events.
+**Phase 4a unifies the RENDERING onto one session run-event stream.** Every main run — conversation turn, `create_task` work, spawned sub-agent — emits its **full lifecycle** to `run_events` (renamed from `conversation_events` + `parent_run_id`), keyed by `runId` (the runner's `correlationId`); spawned children carry `parent_run_id` (reusing the existing `UIEvent.task.created.parentTaskId` — no new wire field). The renderer reads `run_events` exclusively and derives `RunRecord` (renamed from `TaskRecord`) — live via `applyEvent`, replay via `runEventsToRecords`. The adapter and `isConversation` marker are gone. Replayed runs reach terminal status (the full lifecycle now persists).
 
-Old `task_events`/`tasks` data is **disposable** (dropped — no dual-read, no backfill). Conversation history is preserved (the `conversation_events` table is renamed to `run_events`, carrying its data over).
+The `Task` and `task_events` tables STAY in 4a: work/spawn runs **dual-write** (their existing `task_events` rows for `wait_for_task` + the terminal listener + cron's bookkeeping, AND new `run_events` rows for rendering). Conversation turns write only `run_events`. The dual-write is a temporary scaffold — 4b migrates `wait_for_task`/listener/cron off the `Task` table and removes it.
 
-This is the largest phase of the redesign. It removes the `Task` type and every `tasks`-table consumer.
+This delivers the user's core goal — a unified, derived, first-principles run model for rendering — without the orthogonal cron/waiter surgery bloating 4a.
 
 ## 2. Removal path
 
-| Stage | Persistence | Rendering |
+| Stage | Rendering source | `Task` / `task_events` tables |
 |---|---|---|
-| today (after 3b) | `task_events` (work) + `conversation_events` (conv) + `tasks` (manifest) | adapter (`conversationTurnsToRecords`) + `tasksToRecords` |
-| **after 4a (this spec)** | `run_events` ONLY (`tasks` + `task_events` dropped; conversation carried over via rename) | `RunRecord` derived wholly from `run_events`; adapter gone |
-| after 4b | (unchanged) | `create_task`/`spawn_sub_agent` merge; `goal` folds into `initialMessages` (3c) |
+| today (after 3b) | adapter (`conversationTurnsToRecords`) + `tasksToRecords` (two streams) | present; anchor work/delegation |
+| **after 4a (this spec)** | `run_events` ONLY — `RunRecord` derived; adapter gone | RETAINED — dual-written by work/spawn; consumed by `wait_for_task`/listener/cron; NOT read by renderer |
+| after 4b | (unchanged) | DROPPED — cron/waiters/listener migrated to runId; main paths stop dual-writing; `Task` type removed; `create_task`/`spawn` merge; `goal`→`initialMessages` |
 
 ## 3. Non-goals
 
-- **`create_task` / `spawn_sub_agent` merge** + **3c** (`goal`→`initialMessages`) — 4b.
-- **Old history migration** — disposable (the user authorized deleting it). No dual-read, no backfill.
-- **Multi-client wire rename** — `UIEvent.taskId` stays (it is the run id); only `task.created` adds `parentRunId`. Extension/mobile unaffected.
-- **Run-config persistence** — single-shot runs do not persist budget/cwd/permissionMode per-run (session-level settings remain on the session row).
+- **Dropping the `Task`/`task_events` tables + `Task` type** (4b) — they stay in 4a.
+- **Migrating cron scheduler / `wait_for_task` / terminal listener off `Task`** (4b).
+- **`create_task` / `spawn_sub_agent` merge + 3c** (`goal`→`initialMessages`) — 4b.
+- **Old history migration** — disposable (no dual-read for old `task_events`; old work history simply won't appear in the new `run_events`-based renderer — acceptable per user).
+- **Multi-client wire rename** — `UIEvent.taskId` and `task.created.parentTaskId` are reused as the run correlation id / parent-run link. No new wire field.
 
 ## 4. Data model
 
@@ -43,106 +44,100 @@ ALTER TABLE run_events ADD COLUMN parent_run_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_run_events_session ON run_events(session_id, id);
 ```
 
-`run_id` is the run's correlation id (the runner's `correlationId`; for conversation it is the `turnId`). `parent_run_id` is NULL for top-level runs and set for spawned children. `event` is the JSON `UIEvent` payload.
+`run_id` is the run's correlation id (the runner's `correlationId`; for conversation it is the `turnId`). `parent_run_id` is NULL for top-level runs (conversation, `create_task` work) and set for spawned children. `event` is the JSON `UIEvent` payload.
 
-### 4.2 `tasks` and `task_events` dropped
+### 4.2 `tasks` / `task_events` retained (unchanged schema)
 
-```sql
-DROP TABLE task_events;   -- old work/delegation event store; data disposable
-DROP TABLE tasks;         -- the manifest/execution-anchor table; fully derived now
-```
+Both tables stay exactly as today. Work/spawn runs continue to write `task_events` (via the existing `makeEmit`/`appendTaskEvent` path) AND broadcast `task.created`/lifecycle as today — so `wait_for_task`, the terminal listener, cron's `attachCronRunTask`, and `getTask` keep working unchanged. The renderer simply stops reading these tables. (4b removes them.)
 
-There is no `Task` persistence entity. Everything that lived on the `Task` row is either derived from `run_events` (goal, status, agentDefId, plan, used, parentRunId) or held in-memory (budget, cwd, permissionMode, executionMode, toolAllowlist). The protocol `Task` type is removed; the renderer's run view is `RunRecord`.
+### 4.3 `UIEvent` (no wire change)
 
-### 4.3 `UIEvent` (additive + semantics)
-
-`task.created` is now emitted for EVERY run start (conversation, work, spawn, cron, resident) and gains `parentRunId?: string`. Semantically it is "run started"; the name is kept (cross-client wire compat; a `run.started` rename is a 4b-or-later fast-follow). `task.created` carries `runId` (as `taskId`), `goal`, `agentDefId`, `attachments`, and `parentRunId`. All other `UIEvent` variants keep `taskId` (= the run id).
+`task.created` already carries `parentTaskId` (used today for sub-agent linking). 4a reuses it as the parent-run link in `run_events` (stored as `parent_run_id`). No new `UIEvent` field. The run correlation id remains `taskId` on the wire (for conversation it is the `turnId`).
 
 ## 5. Changes
 
-### 5.1 Service — every run emits to `run_events`; no Task rows
+### 5.1 Service — every main run emits its full lifecycle to `run_events`
 
 - **`makeRunEmit(sessionId, runId, parentRunId?)`** (renamed from `makeConversationEmit`) persists the **full run lifecycle** to `run_events` — every event kind (`task.created`, `task.progress`, `task.complete`, `task.error`, `task.dispatched`, `task.usage`, `task.plan`, `task.permission_request`, `task.delegation_plan`), each row stamped with `run_id` + `parent_run_id`. (3a's `makeConversationEmit` persisted only `task.progress`; 4a fixes that so replayed runs reach terminal status.)
-- **`submitGoal`** (conversation): mints `turnId = runId`, emits `task.created { runId, goal, attachments, agentDefId }`, then runs the runner (`correlationId = runId`, `emit = makeRunEmit`). No Task row.
-- **`runWorkTask`** (the `create_task` path): mints `runId`, emits `task.created { runId, goal, agentDefId }` (the work-run marker), then runs the runner. No Task row, no Task id.
-- **`spawnChild`**: mints `runId` + `parentRunId = <calling run's correlationId>`, emits `task.created { runId, parentRunId, goal, agentDefId }`, runs the runner. No Task row.
-- **`task_events` writes retired** — nothing calls `appendTaskEvent`. **`saveTask`/`updateTaskStatus`/`markTaskRunning`/`saveTaskPlan`/`saveTaskUsage`/`saveTaskDelegationPlan` retired** — no Task rows to update. Status/plan/usage live in `run_events` events.
-- **Cancel/status/usage by `runId`**: `oneShotHandles` (already keyed by an opaque string id) aborts runs; the pump/queue key off `runId`. Live status derives from the run's last event; the renderer's `RunRecord` reflects it.
-- **Resident actors + cron-fired runs + gmail analyze** (the other `createAgentRunner` callers): each must emit to `run_events` via `makeRunEmit` and stop creating Task rows. `spawnResident` (which today creates a residency Task) is migrated to a run, or — if the actor-model path is confirmed dormant (see [[project_actor_model_direction]]) — left flagged. This is verified per-consumer during impl (each is a named task in the plan).
+- **Conversation (`submitGoal`)**: emit `task.created { runId, goal, agentDefId, attachments }` at turn submit (so the run-record is created with the goal/agentDefId, not synthesized), then run with `correlationId = runId`, `emit = makeRunEmit(sessionId, turnId)`. Writes only `run_events`.
+- **Work (`runWorkTask`)** and **spawn (`spawnChild`)**: keep their existing `makeEmit` (writes `task_events` + broadcasts, unchanged) AND additionally pipe every emitted event through `makeRunEmit` so the same lifecycle lands in `run_events` (`run_id = task.id`, `parent_run_id = parentTaskId ?? null`). This is the dual-write scaffold. (A single combined emit that tees to both is the cleanest wiring — see plan.)
+- **Cron-fired runs / resident / gmail analyze**: these continue using `makeEmit` (Task-based) as today. In 4a they are NOT required to emit `run_events` (cron runs render via their existing Task path... — see §5.4 note: the renderer reads only `run_events`, so cron-fired runs WILL need to emit `run_events` to render. This is a 4a task: tee cron/resident/gmail emits into `run_events` too, exactly like work/spawn.) The terminal listener + `wait_for_task` keep using the Task table (unchanged).
 
-### 5.2 Store — `run_events` API only
+### 5.2 Store — `run_events` API alongside the retained Task API
 
-- `appendRunEvent(sessionId, runId, parentRunId, event)`, `getRunEvents(sessionId): RunEventRow[]` (`{ runId, parentRunId, seq, ts, event }`, ordered by id).
-- **Delete** the Task API: `saveTask`, `getSessionTasks`, `getTask`, `updateTaskStatus`, `markTaskRunning`, `saveTaskPlan`, `saveTaskUsage`, `saveTaskDelegationPlan`, `appendTaskEvent`, and the `tasks`/`task_events` prepared statements + schema (per §4.2).
-- `getUsageStats`: aggregate `task.usage` events from `run_events` (was: from Task rows).
-- Session delete cascade: drop the `task_events` cleanup; ensure `run_events` cleanup runs.
+- Add `appendRunEvent(sessionId, runId, parentRunId, event)` and `getRunEvents(sessionId): RunEventRow[]` (`{ runId, parentRunId, seq, ts, event }`, ordered by id). Rename the existing `appendConversationEvent`/`getConversationEvents` to these (the `turnId` param becomes `runId`; add `parentRunId`).
+- KEEP `appendTaskEvent`, `saveTask`, `getSessionTasks`, `getTask`, `updateTaskStatus`, `markTaskRunning`, `saveTaskPlan`, `saveTaskUsage`, `saveTaskDelegationPlan`, `getUsageStats` exactly as today (still used by work/spawn writes + cron/waiters/listener).
+- Session delete cascade: the existing `run_events` cleanup (renamed from `conversation_events`) covers the new stream.
 
 ### 5.3 IPC
 
-`getSessionTasks` → `getRunEvents` (returns `RunEventRow[]`). `swarmApi.getSessionTasks` → `swarmApi.getRunEvents`. `hydrateSession` calls the new IPC.
+`swarm:getConversationEvents` → `swarm:getRunEvents` (preload `getConversationEvents` → `getRunEvents`; `swarmApi.getConversationEvents` → `swarmApi.getRunEvents`; service-client + dispatcher method renamed). `swarm:getSessionTasks` STAYS (still used elsewhere — e.g. tests, future 4b). The renderer calls `getRunEvents`.
 
-### 5.4 Renderer — `RunRecord` fully derived
+### 5.4 Renderer — `RunRecord` derived wholly from `run_events`
 
-- **`replay.ts`**: replace `conversationTurnsToRecords` + `tasksToRecords` with ONE `runEventsToRecords(sessionId, rows): RunRecord[]` — groups `run_events` by `runId`, derives `goal` (from `task.created`/first user message), `status` (from the terminal event), `agentDefId`/`plan`/`used` (from the relevant events), `parentRunId`. No `isConversation` marker. Drop `STORED_TO_UI_STATUS` (status derives from events).
-- **`apply-event.ts`**: `applyEvent` keys by `runId`; `task.created` (with `parentRunId`) creates a run-record; the full event lifecycle drives status. Rename `TaskRecord` → `RunRecord`. Drop `isConversation`.
-- **`use-tasks.ts` `hydrateSession`**: reads `getRunEvents` → `runEventsToRecords` → `RUNS_KEY` cache (renamed from `TASKS_KEY`). `TaskRecord` → `RunRecord` everywhere.
+- **`replay.ts`**: replace `conversationTurnsToRecords` + `tasksToRecords` with ONE `runEventsToRecords(sessionId, rows): RunRecord[]` — groups `run_events` by `runId`, derives `goal` (from the `task.created` event), `status` (from the terminal event), `agentDefId`/`plan`/`used` (from the relevant events), `parentRunId` (from `task.created.parentTaskId`). Drop `STORED_TO_UI_STATUS` (status derives from events). No `isConversation` marker.
+- **`apply-event.ts`**: `applyEvent` already keys by `taskId` (= runId) and handles the full lifecycle — keep its logic; rename `TaskRecord` → `RunRecord`; the `parentTaskId` field becomes the renderer's parent-run link (rename to `parentRunId` for clarity, or keep — see plan). Drop the `isConversation` field.
+- **`use-tasks.ts` `hydrateSession`**: reads `swarmApi.getRunEvents` → `runEventsToRecords` → cache (renamed `RUNS_KEY`, was `TASKS_KEY`). `TaskRecord` → `RunRecord` across the hook.
 - **`build-timeline-items.ts`**: sub-agent blocks keyed off `parentRunId` (was `parentTaskId`). Seq interleave + day dividers unchanged.
-- **`tasks-view.tsx`**: `planGroups` derived from `RunRecord`s (runs with `task.plan` events). No Task records.
+- **`tasks-view.tsx`**: `planGroups` derived from `RunRecord`s (runs with `task.plan` events). The right-hand plan panel keeps working (plans are in `run_events`).
+- **Cron-fired runs render too**: because cron runs now tee into `run_events` (§5.1), they appear in the transcript via the same `runEventsToRecords` path.
 
 ### 5.5 Protocol
 
-Remove the `Task` type (and `TaskSchema`). `UIEvent.task.created` gains `parentRunId?: string`. (The `tasks`/`task_events`-only fields like `acceptanceCriteria`/`verifications` are already gone from 3b.)
+No `UIEvent` change (§4.3). The `Task` type stays (4b removes it). `ConversationEvent` type → `RunEvent` (`turnId` → `runId`, add `parentRunId`).
 
-## 6. Data flow (`create_task` work run, post-4a, fully derived)
+## 6. Data flow (`create_task` work run, post-4a)
 
 1. Conversation run calls `create_task(goal)`.
-2. Manager `runWorkTask`: mints `runId = ulid()`; emits `task.created { runId, goal, agentDefId }` via `makeRunEmit` (→ `run_events`); constructs the runner in-memory (`correlationId = runId`, budget/cwd/permissionMode from session settings, `emit = makeRunEmit`).
-3. Runner runs single-shot (3b); the agent does the work and self-verifies; events stream to `run_events` (`run_id = runId`), including terminal `task.complete`/`task.error` and `task.usage`.
-4. Renderer (live): `applyEvent` builds/updates the `RunRecord` for `runId` from each event; the work run's segments render inline in the transcript; its plan (if any) appears in the plan panel (derived from its `task.plan` events).
-5. Renderer (replay on session switch): `hydrateSession` reads `getRunEvents` → `runEventsToRecords` → the same `RunRecord`, reaching the same terminal status.
-6. No `Task` row, no `task_events`, no manifest. The run IS its events.
+2. `runWorkTask`: mints `runId = task.id`; `saveTask` + `task.created` broadcast (unchanged — for `wait_for_task`/listener/cron); runs the runner with a **teed emit** that writes `task_events` (existing) AND `run_events` (new, `run_id = runId`, `parent_run_id = null`).
+3. The runner's full lifecycle (`task.created`→`task.progress`→...→`task.complete`/`task.error`, `task.usage`, `task.plan`) lands in BOTH `task_events` and `run_events`.
+4. Renderer (live): `applyEvent` builds/updates the `RunRecord` for `runId` from each `run_events`-sourced event (it already does this for the broadcast events; the teed `run_events` write is the replay source). The work run renders inline in the transcript; its plan appears in the plan panel.
+5. Renderer (replay): `hydrateSession` reads `getRunEvents` → `runEventsToRecords` → the same `RunRecord`, reaching the same terminal status (because the full lifecycle persisted).
+6. `wait_for_task` / terminal listener / cron continue reading the `Task` table — unaffected.
 
 ## 7. Invariants
 
-- **One stream, single source of truth.** `run_events` is the only persistence for run activity. No `tasks`/`task_events` table, no Task manifest.
-- **Everything derived.** `RunRecord` (goal/status/agentDefId/plan/used/parentRunId) is derived from `run_events` — live and replay identically.
-- **Replay reaches terminal status.** The full lifecycle (incl. `task.complete`/`task.error`) persists, so a replayed run shows the same status as live (fixes 3a's conversation-replay gap).
-- **Run config is in-memory.** Budget/cwd/permissionMode/executionMode/toolAllowlist are constructed at submit time; not persisted per-run.
-- **Wire compat.** `UIEvent.taskId` stays; only `task.created` adds `parentRunId`.
+- **`run_events` is the only RENDERING source.** The renderer reads no other table for run activity. Conversation/work/spawn/cron all render from `run_events`.
+- **Full lifecycle persists to `run_events`.** Replay reaches the same terminal status as live (fixes 3a's conversation-replay gap).
+- **`Task`/`task_events` retained, dual-written by work/spawn/cron.** They serve `wait_for_task`/listener/cron internals; the renderer ignores them. The dual-write is temporary (4b removes it).
+- **No wire change.** `UIEvent.taskId` + `task.created.parentTaskId` are reused.
+- **Old work history** (in `task_events`, never written to `run_events`) does not render. Acceptable (disposable).
 
 ## 8. Cancel / status / usage
 
-- Cancel: `cancelTask(sessionId, runId)` aborts via `oneShotHandles.get(runId)`; `interruptWith` promotes a queued run by `runId`. Both already key off an opaque string id.
-- Status: live + replay derive from the run's last event in `run_events`. No persisted status field.
-- Usage: `task.usage` events in `run_events`; `getUsageStats` aggregates them. Session-level usage stays on the session row (3a).
+- Cancel/interrupt: unchanged (keyed by the run/task id; `oneShotHandles`).
+- Status: the renderer derives from `run_events` events (live + replay). The `Task` row's persisted status still exists (used by `wait_for_task`/listener) — it is NOT the renderer's source.
+- Usage: `task.usage` events in `run_events` drive the renderer's usage display; `getUsageStats` still reads the `Task` table (4b migrates it).
 
 ## 9. Behavior changes
 
-- **Intended:** one unified transcript (conversation + work + delegation + cron all from `run_events`); no adapter, no `isConversation`, no `tasks`/`task_events` tables, no `Task` type. Replayed runs reach correct terminal status.
-- **`create_task`** starts a tracked work run (no Task row); **`spawn_sub_agent`** is a child run (no Task row); conversation is a run. Sub-agent blocks link via `parentRunId`.
-- **Old sessions:** conversation history renders (carried via the `conversation_events` → `run_events` rename); old work/delegation history (was in `task_events`) is gone (disposable, per user). No data migration.
+- **Intended:** one unified transcript (conversation + work + delegation + cron all from `run_events`); no adapter, no `isConversation`; replayed runs reach correct terminal status. `TaskRecord` → `RunRecord`.
+- **`Task`/`task_events` tables retained** (dual-written; not rendered). `wait_for_task`/listener/cron unaffected.
+- **Old sessions:** conversation history renders (renamed into `run_events`); old work history (only in `task_events`) does NOT render in the new pipeline (disposable).
 - **Side benefit:** 3a's "replayed conversation turn always shows running" is fixed.
 
 ## 10. Test strategy
 
-- **store** — `appendRunEvent`/`getRunEvents` round-trip; `parent_run_id` persistence; rename migration preserves conversation data; `getUsageStats` from `task.usage` events; the `tasks`/`task_events` API is gone (compile-clean).
-- **manager** — `submitGoal`/`runWorkTask`/`spawnChild`: each emits `task.created` + full lifecycle to `run_events`, no `saveTask`. cancel by runId. resident/cron/gmail paths emit to `run_events` (one test each, or a verified no-op if dormant).
-- **renderer** — `runEventsToRecords`: groups by runId, derives goal/status/agentDefId/plan/used, sets `parentRunId`. `applyEvent` keys by runId, full lifecycle → terminal status. `buildTimelineItems` nests sub-agent blocks by `parentRunId`. `planGroups` from RunRecords. `TaskRecord`→`RunRecord` across all callers.
-- **e2e** — a `create_task` work run: no Task row, events in `run_events`, renders inline + plan panel, reaches completed. A `spawn_sub_agent` child: no Task row, sub-agent block via `parentRunId`. A conversation turn: replays to completed. An OLD session: conversation renders (renamed), work history absent (acceptable).
-- **protocol** — `Task` type removal typechecks clean across consumers.
+- **store** — `appendRunEvent`/`getRunEvents` round-trip; `parent_run_id` persistence; rename preserves conversation data; the `tasks`/`task_events` API is unchanged (existing tests still pass).
+- **manager** — conversation: emits `task.created` + full lifecycle to `run_events`, no `task_events`. work/spawn: dual-write (`task_events` AND `run_events`). cron-fired/resident/gmail: tee into `run_events`. cancel unchanged.
+- **renderer** — `runEventsToRecords`: groups by runId, derives goal/status/agentDefId/plan/used, sets parentRunId. `applyEvent` keys by runId. `buildTimelineItems` nests sub-agent blocks by parentRunId. `TaskRecord`→`RunRecord` across callers. `planGroups` from RunRecords.
+- **IPC** — `getRunEvents` returns the stream; `getSessionTasks` still works.
+- **e2e** — a `create_task` work run renders inline + plan panel (from `run_events`) and reaches completed on replay; a `spawn_sub_agent` child renders as a sub-agent block via parentRunId; a conversation turn replays to completed; `wait_for_task` still resolves (Task table intact).
 
 ## 11. Verification
 
 - `npm test` green (Electron node runner; never bare `npx vitest`; never `pnpm rebuild better-sqlite3`). Pre-existing: `gmail.test` (htmlBody) + `host.test` (EADDRINUSE :47777).
-- `npx tsc -b` clean; delete stale `**/*.tsbuildinfo`. The `Task`-type + `tasks`-table removal is the widest surface yet — a clean typecheck is the key gate.
+- `npx tsc -b` clean; delete stale `**/*.tsbuildinfo`. The `TaskRecord`→`RunRecord` rename touches ~59 callers — a clean typecheck is a key gate.
 - `npx biome check --write <file>` per touched file.
-- Manual smoke (needs configured provider + no single-instance lock): a `create_task` work run renders inline + plan panel and completes; CEO delegation renders single-shot sub-agent blocks; a conversation turn replays to completed on session switch; an old session's conversation still shows.
+- Manual smoke (needs configured provider + no single-instance lock): a `create_task` work run renders inline + plan panel and completes; CEO delegation renders single-shot sub-agent blocks; a conversation turn replays to completed on session switch; a cron-fired run renders in the transcript.
 
 ## 12. Rollback
 
-4a lands as a series of commits on this worktree, integrated via `git rebase develop` + `git merge --ff-only`. The schema changes (rename + `DROP TABLE tasks`/`task_events`) are **one-way** — old work history is gone (authorized). A revert restores the tables/types from git history; the dropped `task_events`/`tasks` data is not recoverable (acceptable per the user's "history disposable" directive). The `run_events` rename is reversible (`ALTER TABLE run_events RENAME TO conversation_events`).
+4a lands as a series of commits on this worktree, integrated via `git rebase develop` + `git merge --ff-only`. The schema change is additive (rename + new column; `tasks`/`task_events` retained). A revert restores `makeConversationEmit`/the adapter; `run_events` renames back to `conversation_events`. No data loss on revert (the dual-write preserved `task_events` throughout).
 
-## 13. Forward pointers (what 4a does NOT do)
+## 13. Forward pointers (what 4a does NOT do — all 4b)
 
-- **4b:** `create_task` / `spawn_sub_agent` merge (both are now "runs"; the distinction is only the work-marker + delegation lineage); fold `goal` into `initialMessages` (3c); optionally rename `task.created` → `run.started` on the wire.
-- **Resident actor model:** if `spawnResident` is reactivated ([[project_actor_model_direction]]), it lives on `run_events` like every other run (no Task row) — its mailbox/state stays in the actor store.
+- **Drop the `Task`/`task_events` tables + `Task` type:** migrate `wait_for_task`, the terminal listener, cron's `attachCronRunTask`/`getTask` usage, and `getUsageStats` to runId-keyed reads off `run_events`; stop the work/spawn/cron dual-write; then drop the tables + type.
+- **`create_task` / `spawn_sub_agent` merge** (both are runs now).
+- **3c:** `goal` folds into `initialMessages`.
+- **Optional wire rename:** `task.created` → `run.started`; `parentTaskId` → `parentRunId`.
