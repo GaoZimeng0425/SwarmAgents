@@ -88,3 +88,69 @@ describe('gmail cache', () => {
     expect(cache.stats()).toEqual({ messageCount: 7, lastSyncAt: 123 })
   })
 })
+
+describe('analyses cache', () => {
+  it('round-trips an analysis keyed by message id', () => {
+    cache = createCache({ filePath: ':memory:' })
+    cache.upsertThreads([
+      { id: 't1', snippet: '', fromAddr: '', subject: '', lastDateMs: 1, labelIds: [], unread: false },
+    ])
+    cache.upsertMessages([
+      {
+        id: 'm1',
+        threadId: 't1',
+        fromAddr: '',
+        toAddrs: [],
+        subject: '',
+        snippet: '',
+        bodyText: '',
+        htmlBody: '',
+        dateMs: 1,
+        labelIds: [],
+      },
+    ])
+    cache.saveAnalysis('m1', '## 摘要\nhi')
+    const map = cache.getAnalyses('t1')
+    expect(map.m1.analysis).toBe('## 摘要\nhi')
+    expect(map.m1.updatedAt).toBeGreaterThan(0)
+  })
+
+  it('overwrites on re-analyze and only returns the thread’s messages', () => {
+    cache = createCache({ filePath: ':memory:' })
+    cache.upsertThreads([
+      { id: 't1', snippet: '', fromAddr: '', subject: '', lastDateMs: 1, labelIds: [], unread: false },
+      { id: 't2', snippet: '', fromAddr: '', subject: '', lastDateMs: 1, labelIds: [], unread: false },
+    ])
+    cache.upsertMessages([
+      {
+        id: 'm1',
+        threadId: 't1',
+        fromAddr: '',
+        toAddrs: [],
+        subject: '',
+        snippet: '',
+        bodyText: '',
+        htmlBody: '',
+        dateMs: 1,
+        labelIds: [],
+      },
+      {
+        id: 'm2',
+        threadId: 't2',
+        fromAddr: '',
+        toAddrs: [],
+        subject: '',
+        snippet: '',
+        bodyText: '',
+        htmlBody: '',
+        dateMs: 1,
+        labelIds: [],
+      },
+    ])
+    cache.saveAnalysis('m1', 'old')
+    cache.saveAnalysis('m1', 'new')
+    cache.saveAnalysis('m2', 'other thread')
+    expect(cache.getAnalyses('t1').m1.analysis).toBe('new')
+    expect(cache.getAnalyses('t1').m2).toBeUndefined()
+  })
+})

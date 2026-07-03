@@ -23,6 +23,8 @@ export type Cache = {
   threadMissingHtml(id: string): boolean
   // True total cached message count, regardless of the last poll's fetch volume.
   countMessages(): number
+  saveAnalysis(messageId: string, analysis: string): void
+  getAnalyses(threadId: string): Record<string, import('@swarm/protocol').GmailAnalysis>
   listRecent(input: { limit: number; label?: string }): GmailThread[]
   stats(): ThreadStats
   setStats(stats: ThreadStats): void
@@ -41,6 +43,9 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(threadId);
 CREATE INDEX IF NOT EXISTS idx_messages_date ON messages(dateMs);
+CREATE TABLE IF NOT EXISTS analyses (
+  messageId TEXT PRIMARY KEY, analysis TEXT, updatedAt INTEGER
+);
 CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value TEXT);
 `
 
@@ -195,6 +200,26 @@ export function createCache(opts: { filePath: string }): Cache {
     set.run({ k: 'lastSyncAt', v: String(s.lastSyncAt) })
   }
 
+  const upsertAnalysis = db.prepare(
+    `INSERT INTO analyses (messageId, analysis, updatedAt) VALUES (@messageId, @analysis, @updatedAt)
+     ON CONFLICT(messageId) DO UPDATE SET analysis=@analysis, updatedAt=@updatedAt`
+  )
+  const saveAnalysis: Cache['saveAnalysis'] = (messageId, analysis) => {
+    upsertAnalysis.run({ messageId, analysis, updatedAt: Date.now() })
+  }
+  const getAnalyses: Cache['getAnalyses'] = (threadId) => {
+    const rows = db
+      .prepare(
+        `SELECT a.messageId AS messageId, a.analysis AS analysis, a.updatedAt AS updatedAt
+         FROM analyses a JOIN messages m ON a.messageId = m.id
+         WHERE m.threadId = ?`
+      )
+      .all(threadId) as { messageId: string; analysis: string; updatedAt: number }[]
+    const out: Record<string, import('@swarm/protocol').GmailAnalysis> = {}
+    for (const r of rows) out[r.messageId] = { analysis: r.analysis, updatedAt: r.updatedAt }
+    return out
+  }
+
   return {
     upsertThreads,
     upsertMessages,
@@ -203,6 +228,8 @@ export function createCache(opts: { filePath: string }): Cache {
     hasThread,
     threadMissingHtml,
     countMessages,
+    saveAnalysis,
+    getAnalyses,
     listRecent,
     stats,
     setStats,
