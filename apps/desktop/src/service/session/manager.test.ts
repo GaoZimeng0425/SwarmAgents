@@ -1188,55 +1188,6 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('persists task.criteria and task.verification emits via the work-task emit handler', async () => {
-    // Work tasks (runWorkTask → runTaskTurn) use makeEmit, which persists
-    // task.criteria / task.verification. Conversation turns use makeConversationEmit,
-    // which does not — so drive a work task here.
-    let capturedEmit: ((event: string, data: unknown) => void) | null = null
-    mockCreate.mockImplementation((deps) => {
-      capturedEmit = deps.emit
-      return runner(vi.fn().mockResolvedValue(runnerReturn('completed', '')))
-    })
-
-    const store = createConversationStore(dbPath)
-    const broadcaster = createBroadcaster()
-    const manager = createSessionManager({ store, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
-    const { sessionId } = manager.createSession({
-      id: 'anthropic' as const,
-      registry: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-haiku-4-5-20251001',
-      apiKey: 'k',
-    })
-    const { taskId } = await (
-      manager as unknown as {
-        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string; result: unknown }>
-      }
-    ).__runWorkTaskForTest(sessionId, 'solve it')
-
-    expect(capturedEmit).not.toBeNull()
-    const emit = capturedEmit!
-
-    const saveCriteriaSpy = vi.spyOn(store, 'saveTaskCriteria')
-    const saveVerifSpy = vi.spyOn(store, 'saveTaskVerifications')
-
-    // Exercise task.criteria branch.
-    const criteria = [{ id: 'c1', description: 'Output must be correct' }]
-    emit('task.criteria', { taskId, criteria, ts: Date.now() })
-    expect(saveCriteriaSpy).toHaveBeenCalledWith(taskId, criteria)
-
-    // Exercise task.verification branch (read-modify-write: second round appends).
-    const round1 = { round: 1, verdict: 'pass' as const, results: [], gaps: [], ts: Date.now() }
-    emit('task.verification', { taskId, round: round1, ts: Date.now() })
-    expect(saveVerifSpy).toHaveBeenCalledWith(taskId, [round1])
-
-    const round2 = { round: 2, verdict: 'fail' as const, results: [], gaps: ['missing output'], ts: Date.now() }
-    emit('task.verification', { taskId, round: round2, ts: Date.now() })
-    expect(saveVerifSpy).toHaveBeenCalledWith(taskId, [round1, round2])
-
-    store.close()
-  })
-
   it('persists task.delegation_plan emits via the work-task emit handler', async () => {
     let capturedEmit: ((event: string, data: unknown) => void) | null = null
     mockCreate.mockImplementation((deps) => {

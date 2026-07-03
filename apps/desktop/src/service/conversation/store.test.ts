@@ -1294,46 +1294,6 @@ describe('ConversationStore', () => {
     endedAt: null,
   })
 
-  describe('acceptance criteria & verifications persistence', () => {
-    it('round-trips criteria and verifications on a task', () => {
-      const store = createConversationStore(':memory:')
-      store.createSession('s1', { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' })
-      const task = {
-        id: '01HZZZZZZZZZZZZZZZZZZZZZZ01',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 1, calls: 1, wallMs: 1, usdCents: 1 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: 1,
-        startedAt: null,
-        endedAt: null,
-      } as never
-      store.saveTask(task, 's1')
-
-      const criteria: import('@swarm/protocol').AcceptanceCriterion[] = [
-        { id: 'c1', description: 'tests pass', check: { kind: 'command', command: 'npm test' } },
-      ]
-      const rounds: import('@swarm/protocol').VerificationRound[] = [
-        { round: 0, verdict: 'pass', results: [{ criterionId: 'c1', pass: true, detail: 'exit 0' }], gaps: [], ts: 5 },
-      ]
-      store.saveTaskCriteria('01HZZZZZZZZZZZZZZZZZZZZZZ01', criteria)
-      store.saveTaskVerifications('01HZZZZZZZZZZZZZZZZZZZZZZ01', rounds)
-
-      const got = store.getTask('01HZZZZZZZZZZZZZZZZZZZZZZ01')
-      expect(got?.acceptanceCriteria).toEqual(criteria)
-      expect(got?.verifications).toEqual(rounds)
-      store.close()
-    })
-  })
-
   describe('task waiters', () => {
     it('saves, lists by task, and deletes a waiter', () => {
       const store = createConversationStore(tmpDb())

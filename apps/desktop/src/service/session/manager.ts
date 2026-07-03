@@ -280,19 +280,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         store.saveTaskPlan(taskId, todos)
         log.debug({ msg: 'plan persisted', taskId, steps: todos.length })
       }
-      if (event === 'task.criteria' && taskId && Array.isArray(obj?.criteria)) {
-        const criteria = obj.criteria as import('@swarm/protocol').AcceptanceCriterion[]
-        store.saveTaskCriteria(taskId, criteria)
-        log.info({ msg: 'acceptance criteria persisted', taskId, count: criteria.length })
-      }
-      if (event === 'task.verification' && taskId && obj?.round) {
-        const round = obj.round as import('@swarm/protocol').VerificationRound
-        // Replace the full audit array each round (read-modify-write keeps it simple
-        // and the array is tiny).
-        const existing = store.getTask(taskId)?.verifications ?? []
-        store.saveTaskVerifications(taskId, [...existing, round])
-        log.info({ msg: 'verification round persisted', taskId, round: round.round, verdict: round.verdict })
-      }
       if (event === 'task.delegation_plan' && taskId && Array.isArray(obj?.plan)) {
         const plan = obj.plan as import('@swarm/protocol').DelegationItem[]
         store.saveTaskDelegationPlan(taskId, plan)

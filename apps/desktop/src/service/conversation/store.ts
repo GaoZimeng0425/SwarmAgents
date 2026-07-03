@@ -82,8 +82,6 @@ export type ConversationStore = {
     event: import('@swarm/protocol').TaskEvent
   }[]
   saveTaskPlan(taskId: string, plan: Task['plan']): void
-  saveTaskCriteria(taskId: string, criteria: Task['acceptanceCriteria']): void
-  saveTaskVerifications(taskId: string, rounds: Task['verifications']): void
   saveTaskDelegationPlan(taskId: string, plan: Task['delegationPlan']): void
   saveTask(task: Task, sessionId: string): void
   updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
@@ -332,8 +330,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     ) as Task['history'],
     attachments: JSON.parse((row.attachments as string) ?? '[]') as Task['attachments'],
     plan: JSON.parse((row.plan as string) ?? '[]') as Task['plan'],
-    acceptanceCriteria: JSON.parse((row.acceptance_criteria as string) ?? '[]') as Task['acceptanceCriteria'],
-    verifications: JSON.parse((row.verifications as string) ?? '[]') as Task['verifications'],
     delegationPlan: JSON.parse((row.delegation_plan as string) ?? '[]') as Task['delegationPlan'],
     result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
     createdAt: row.created_at as number,
@@ -520,9 +516,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
     `INSERT OR REPLACE INTO tasks
      (id, session_id, parent_id, goal, status, result, budget, used,
       agent_def_id, assigned_worker_id, tool_allowlist, history, attachments, plan,
-      acceptance_criteria, verifications, delegation_plan,
+      delegation_plan,
       created_at, started_at, ended_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
   // COALESCE keeps the first dispatch's started_at across continuation turns on
@@ -625,8 +621,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
   }
 
   const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
-  const stmtSetTaskCriteria = db.prepare('UPDATE tasks SET acceptance_criteria = ? WHERE id = ?')
-  const stmtSetTaskVerifications = db.prepare('UPDATE tasks SET verifications = ? WHERE id = ?')
   const stmtSetTaskDelegationPlan = db.prepare('UPDATE tasks SET delegation_plan = ? WHERE id = ?')
 
   const stmtInsertTaskWaiter = db.prepare(
@@ -826,12 +820,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     saveTaskPlan(taskId, plan) {
       stmtSetTaskPlan.run(JSON.stringify(plan), taskId)
     },
-    saveTaskCriteria(taskId, criteria) {
-      stmtSetTaskCriteria.run(JSON.stringify(criteria), taskId)
-    },
-    saveTaskVerifications(taskId, rounds) {
-      stmtSetTaskVerifications.run(JSON.stringify(rounds), taskId)
-    },
     saveTaskDelegationPlan(taskId, plan) {
       stmtSetTaskDelegationPlan.run(JSON.stringify(plan), taskId)
     },
@@ -851,8 +839,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
         JSON.stringify(task.history),
         JSON.stringify(task.attachments ?? []),
         JSON.stringify(task.plan ?? []),
-        JSON.stringify(task.acceptanceCriteria ?? []),
-        JSON.stringify(task.verifications ?? []),
         JSON.stringify(task.delegationPlan ?? []),
         task.createdAt,
         task.startedAt ?? null,
