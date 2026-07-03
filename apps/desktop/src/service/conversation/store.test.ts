@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Task, TaskEvent } from '@swarm/protocol'
+import type { Task, TaskEvent, UIEvent } from '@swarm/protocol'
 import { emptyUsed } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -574,6 +574,44 @@ describe('ConversationStore', () => {
       } as never)
       store.deleteSession('ses-c')
       expect(store.getConversationEvents('ses-c')).toEqual([])
+      store.close()
+    })
+  })
+
+  describe('run events', () => {
+    it('appendRunEvent persists UIEvents and re-reads them with runId/parentRunId', () => {
+      const store = createConversationStore(dbPath)
+      const ev: UIEvent = {
+        kind: 'task.progress',
+        sessionId: 's1',
+        taskId: 'r1',
+        event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 1 },
+        ts: 1,
+        seq: 1,
+      }
+      store.appendRunEvent('s1', 'r1', null, ev)
+      store.appendRunEvent('s1', 'r1', null, {
+        kind: 'task.complete',
+        sessionId: 's1',
+        taskId: 'r1',
+        summary: 'done',
+        ts: 2,
+        seq: 2,
+      })
+      store.appendRunEvent('s1', 'r2', 'r1', {
+        kind: 'task.created',
+        sessionId: 's1',
+        taskId: 'r2',
+        goal: 'child',
+        parentTaskId: 'r1',
+        ts: 3,
+        seq: 3,
+      })
+      const rows = store.getRunEvents('s1')
+      expect(rows).toHaveLength(3)
+      expect(rows.map((r) => r.runId)).toEqual(['r1', 'r1', 'r2'])
+      expect(rows[2].parentRunId).toBe('r1')
+      expect((rows[0].event as UIEvent).kind).toBe('task.progress')
       store.close()
     })
   })

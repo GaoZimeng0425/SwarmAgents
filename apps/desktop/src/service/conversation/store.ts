@@ -81,6 +81,21 @@ export type ConversationStore = {
     ts: number
     event: import('@swarm/protocol').TaskEvent
   }[]
+  /** Persist a run-lifecycle UIEvent on the session run stream. */
+  appendRunEvent(
+    sessionId: string,
+    runId: string,
+    parentRunId: string | null,
+    event: import('@swarm/protocol').UIEvent
+  ): void
+  /** Read a session's run events in insertion order. */
+  getRunEvents(sessionId: string): {
+    runId: string
+    parentRunId: string | null
+    seq: number
+    ts: number
+    event: import('@swarm/protocol').UIEvent
+  }[]
   saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTaskDelegationPlan(taskId: string, plan: Task['delegationPlan']): void
   saveTask(task: Task, sessionId: string): void
@@ -196,6 +211,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
       event      TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_conversation_events_session ON conversation_events(session_id, id);
+    CREATE TABLE IF NOT EXISTS run_events (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id    TEXT NOT NULL,
+      run_id        TEXT NOT NULL,
+      parent_run_id TEXT,
+      seq           INTEGER NOT NULL,
+      ts            INTEGER NOT NULL,
+      event         TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_run_events_session ON run_events(session_id, id);
     CREATE TABLE IF NOT EXISTS tool_state_snapshots (
       session_id  TEXT NOT NULL REFERENCES sessions(id),
       key         TEXT NOT NULL,
@@ -559,6 +584,12 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtGetConversationEvents = db.prepare(
     'SELECT turn_id AS turnId, seq, ts, event FROM conversation_events WHERE session_id = ? ORDER BY id'
   )
+  const stmtInsertRunEvent = db.prepare(
+    'INSERT INTO run_events (session_id, run_id, parent_run_id, seq, ts, event) VALUES (?, ?, ?, ?, ?, ?)'
+  )
+  const stmtGetRunEvents = db.prepare(
+    'SELECT run_id AS runId, parent_run_id AS parentRunId, seq, ts, event FROM run_events WHERE session_id = ? ORDER BY id'
+  )
 
   // Append a synthetic ok=false tool.result for every tool.call left without a
   // matching tool.result (e.g. spawn_sub_agent interrupted mid-run, whose
@@ -676,6 +707,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM task_events WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)').run(id)
     db.prepare('DELETE FROM conversation_events WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM run_events WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
@@ -815,6 +847,28 @@ export function createConversationStore(dbPath: string): ConversationStore {
         seq: r.seq,
         ts: r.ts,
         event: JSON.parse(r.event) as import('@swarm/protocol').TaskEvent,
+      }))
+    },
+    appendRunEvent(sessionId, runId, parentRunId, event) {
+      // seq is stamped upstream by makeRunEmit; fall back to 0 if absent.
+      const seq = typeof (event as { seq?: number }).seq === 'number' ? (event as { seq: number }).seq : 0
+      stmtInsertRunEvent.run(sessionId, runId, parentRunId, seq, event.ts ?? Date.now(), JSON.stringify(event))
+    },
+    getRunEvents(sessionId) {
+      return (
+        stmtGetRunEvents.all(sessionId) as {
+          runId: string
+          parentRunId: string | null
+          seq: number
+          ts: number
+          event: string
+        }[]
+      ).map((r) => ({
+        runId: r.runId,
+        parentRunId: r.parentRunId,
+        seq: r.seq,
+        ts: r.ts,
+        event: JSON.parse(r.event) as import('@swarm/protocol').UIEvent,
       }))
     },
     saveTaskPlan(taskId, plan) {

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import type { UIEvent } from './ui'
+
 export const taskStatusValues = [
   'pending',
   'planning',
@@ -147,6 +149,15 @@ export type ConversationEvent = {
   seq: number
   ts: number
   event: TaskEvent
+}
+
+/** One row of a session's run-event stream (UIEvent-shaped; the renderer's replay source). */
+export type RunEvent = {
+  runId: string
+  parentRunId: string | null
+  seq: number
+  ts: number
+  event: UIEvent
 }
 
 export const ArtifactSchema = z.object({
