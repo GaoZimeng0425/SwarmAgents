@@ -2,7 +2,7 @@ import type { Attachment, ConsumedResources, PlanTodo, UIEvent } from '@swarm/pr
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
 
-export type TaskRecord = {
+export type RunRecord = {
   id: string
   sessionId: string
   goal: string
@@ -24,16 +24,16 @@ export type TaskRecord = {
   events: UIEvent[]
 }
 
-function setStatus(task: TaskRecord, status: TaskStatus): TaskRecord {
+function setStatus(task: RunRecord, status: TaskStatus): RunRecord {
   return { ...task, status }
 }
 
-export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
+export function applyEvent(tasks: RunRecord[], e: UIEvent): RunRecord[] {
   const taskId = 'taskId' in e ? e.taskId : null
   if (!taskId) return tasks
 
   if (e.kind === 'task.created') {
-    const created: TaskRecord = {
+    const created: RunRecord = {
       id: e.taskId,
       sessionId: e.sessionId,
       goal: e.goal,
@@ -58,7 +58,7 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
   let workingTasks = tasks
   let idx = tasks.findIndex((t) => t.id === taskId)
   if (idx === -1) {
-    const stub: TaskRecord = {
+    const stub: RunRecord = {
       id: taskId,
       sessionId: 'sessionId' in e ? (e.sessionId as string) : '',
       goal: '(unknown task)',
@@ -73,7 +73,7 @@ export function applyEvent(tasks: TaskRecord[], e: UIEvent): TaskRecord[] {
     idx = 0
   }
 
-  let updated: TaskRecord = { ...workingTasks[idx], events: [...workingTasks[idx].events, e] }
+  let updated: RunRecord = { ...workingTasks[idx], events: [...workingTasks[idx].events, e] }
 
   switch (e.kind) {
     case 'task.dispatched':

@@ -1,9 +1,9 @@
+import type { RunRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { classifyComposerTurns } from './composer-turns'
 
-const rec = (over: Partial<TaskRecord>): TaskRecord => ({
+const rec = (over: Partial<RunRecord>): RunRecord => ({
   id: 'x',
   sessionId: 's',
   goal: 'g',

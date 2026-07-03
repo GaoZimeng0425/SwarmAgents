@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { applyEvent, type RunRecord } from '@shared/lib/apply-event'
 import type { UIEvent } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import { useQueryClient } from '@tanstack/react-query'
@@ -8,7 +9,6 @@ import { toast } from 'sonner'
 import { MEMORY_KEY } from '@/hooks/use-memory'
 import { TASKS_KEY } from '@/hooks/use-tasks'
 import { swarmApi } from '@/lib/api'
-import { applyEvent, type TaskRecord } from '@shared/lib/apply-event'
 import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
@@ -79,7 +79,7 @@ export function useEventsSubscription(): void {
 
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
-      qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => applyEvent(prev, e))
+      qc.setQueryData<RunRecord[]>(TASKS_KEY, (prev = []) => applyEvent(prev, e))
 
       // Surface activity in sessions other than the one being viewed: mark the
       // session unread (dot in the list) and toast on milestone events.

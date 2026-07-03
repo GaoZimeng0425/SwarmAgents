@@ -1,4 +1,4 @@
-import { applyEvent, type TaskRecord } from '@shared/lib/apply-event'
+import { applyEvent, type RunRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
 const baseEvent = { ts: 1, taskId: 't1' as const, sessionId: 'ses-1' }
@@ -22,7 +22,7 @@ describe('applyEvent', () => {
   })
 
   it('marks running on task.dispatched', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -41,7 +41,7 @@ describe('applyEvent', () => {
   })
 
   it('sets summary + completed on task.complete', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -60,7 +60,7 @@ describe('applyEvent', () => {
   })
 
   it('flips to failed on task.error', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -82,7 +82,7 @@ describe('applyEvent', () => {
   })
 
   it('flips to cancelled on task.error with code "cancelled"', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -104,7 +104,7 @@ describe('applyEvent', () => {
   })
 
   it('stays failed on task.error with a non-cancelled code', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -126,7 +126,7 @@ describe('applyEvent', () => {
   })
 
   it('flips to awaiting_user on task.permission_request', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -152,7 +152,7 @@ describe('applyEvent', () => {
   })
 
   it('resets awaiting_user back to running on the next task.progress', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -174,7 +174,7 @@ describe('applyEvent', () => {
   })
 
   it('does not resurrect a finished task on a late task.progress', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -219,7 +219,7 @@ describe('applyEvent', () => {
   })
 
   it('records resource usage on task.usage without changing status', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',
@@ -247,7 +247,7 @@ describe('applyEvent', () => {
   })
 
   it('stores the plan on task.plan and replaces it wholesale on the next plan', () => {
-    const seed: TaskRecord[] = [
+    const seed: RunRecord[] = [
       {
         id: 't1',
         sessionId: 'ses-1',

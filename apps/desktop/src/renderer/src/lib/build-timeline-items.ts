@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
+import type { RunRecord } from '@shared/lib/apply-event'
 import { sortBy } from 'es-toolkit'
 
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { groupSegments } from './group-segments'
 import { type Segment, taskSegments } from './task-segments'
 import { dayKey } from './timeline'
@@ -21,7 +21,7 @@ type RenderSegment = (seg: Segment, isLiveTail: boolean, nested?: boolean) => Re
 // caller (task-transcript.tsx) supplies real components; tests supply stubs.
 type Render = {
   segment: RenderSegment
-  subagent: (t: TaskRecord, segs: Segment[], lastKey: string | undefined) => ReactNode
+  subagent: (t: RunRecord, segs: Segment[], lastKey: string | undefined) => ReactNode
   toolGroup: (segs: Segment[]) => ReactNode
   dayDivider: (ts: number) => ReactNode
 }
@@ -36,7 +36,7 @@ type Opts = {
 // contributes one grouped SubagentBlock at its spawn point. Optional day
 // dividers. Extracted from TaskTimeline so the chat thread and the read-only
 // results card share one source of truth, ordered by seq not ts.
-export function buildTimelineItems(tasks: TaskRecord[], render: Render, opts: Opts): TimelineItem[] {
+export function buildTimelineItems(tasks: RunRecord[], render: Render, opts: Opts): TimelineItem[] {
   const ordered = sortBy(tasks, [(t) => t.events[0]?.seq ?? t.startedAt])
 
   // The live tail = the segment with the largest seq (gets the pulsing state).

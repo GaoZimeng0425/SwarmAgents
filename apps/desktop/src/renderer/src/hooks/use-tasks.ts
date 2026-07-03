@@ -1,4 +1,4 @@
-import type { TaskRecord } from '@shared/lib/apply-event'
+import type { RunRecord } from '@shared/lib/apply-event'
 import type { PermissionDecision } from '@swarm/protocol'
 import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
 
@@ -9,8 +9,8 @@ import { useSessionsStore } from '@/stores/sessions'
 
 export const TASKS_KEY = ['tasks'] as const
 
-export function useTasks(): TaskRecord[] {
-  const { data } = useQuery<TaskRecord[]>({
+export function useTasks(): RunRecord[] {
+  const { data } = useQuery<RunRecord[]>({
     queryKey: TASKS_KEY,
     queryFn: () => [],
     staleTime: Number.POSITIVE_INFINITY,
@@ -78,7 +78,7 @@ export async function hydrateSession(qc: ReturnType<typeof useQueryClient>, sess
     swarmApi.getConversationEvents(sessionId),
   ])
   const records = [...conversationTurnsToRecords(sessionId, convRows), ...tasksToRecords(sessionId, tasks)]
-  qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => {
+  qc.setQueryData<RunRecord[]>(TASKS_KEY, (prev = []) => {
     const known = new Set(prev.map((t) => t.id))
     const fresh = records.filter((r) => !known.has(r.id))
     return [...fresh, ...prev]

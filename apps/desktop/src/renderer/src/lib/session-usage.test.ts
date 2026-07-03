@@ -1,9 +1,9 @@
+import type { RunRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { latestTopLevelTask, sessionDisplayUsage } from './session-usage'
 
-const used = (tokens: number, usdCents: number): TaskRecord['used'] => ({
+const used = (tokens: number, usdCents: number): RunRecord['used'] => ({
   tokens,
   calls: 1,
   wallMs: 0,
@@ -12,7 +12,7 @@ const used = (tokens: number, usdCents: number): TaskRecord['used'] => ({
   cacheWrite: 0,
 })
 
-const rec = (over: Partial<TaskRecord>): TaskRecord => ({
+const rec = (over: Partial<RunRecord>): RunRecord => ({
   id: 'x',
   sessionId: 's',
   goal: 'g',
@@ -49,7 +49,7 @@ describe('latestTopLevelTask', () => {
   })
 })
 
-const usedFull = (tokens: number, calls: number, usdCents: number): TaskRecord['used'] => ({
+const usedFull = (tokens: number, calls: number, usdCents: number): RunRecord['used'] => ({
   tokens,
   calls,
   wallMs: 0,

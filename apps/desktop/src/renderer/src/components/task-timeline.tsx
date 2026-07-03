@@ -1,10 +1,9 @@
+import type { RunRecord } from '@shared/lib/apply-event'
 import type { UIEvent } from '@swarm/protocol'
+import { Badge, Separator } from '@swarm/ui'
 import { formatDistanceToNow } from 'date-fns'
 
-import { Badge } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@swarm/ui'
-import type { TaskRecord } from '@shared/lib/apply-event'
 
 function eventLabel(e: UIEvent): string {
   switch (e.kind) {
@@ -27,7 +26,7 @@ function eventLabel(e: UIEvent): string {
   }
 }
 
-type Props = { task: TaskRecord | undefined }
+type Props = { task: RunRecord | undefined }
 
 export function TaskTimeline({ task }: Props): React.JSX.Element {
   if (!task) {

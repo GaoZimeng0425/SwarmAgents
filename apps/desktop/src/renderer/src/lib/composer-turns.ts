@@ -1,6 +1,5 @@
+import type { RunRecord } from '@shared/lib/apply-event'
 import { sortBy } from 'es-toolkit'
-
-import type { TaskRecord } from '@shared/lib/apply-event'
 
 export type ComposerTurns = {
   /**
@@ -8,16 +7,16 @@ export type ComposerTurns = {
    * awaiting_user turn, or — when nothing is running yet — the earliest pending
    * turn that is about to be dispatched.
    */
-  activeTask: TaskRecord | undefined
+  activeTask: RunRecord | undefined
   /** Turns genuinely waiting behind the active turn, FIFO (oldest first). */
-  queuedTasks: TaskRecord[]
+  queuedTasks: RunRecord[]
   /**
    * Tasks belonging in the conversation transcript: every session task except
    * the queued ones, which are staged as pending cards in the composer and not
    * yet part of the conversation. Keeps a message submitted mid-run out of the
    * message list (it shows only in the pending list until it starts).
    */
-  transcriptTasks: TaskRecord[]
+  transcriptTasks: RunRecord[]
 }
 
 /**
@@ -34,7 +33,7 @@ export type ComposerTurns = {
  * sub-agent children belong in the transcript, not the composer queue.
  */
 export function classifyComposerTurns(
-  sessionTasks: TaskRecord[],
+  sessionTasks: RunRecord[],
   // Mirrors SessionSummary['status']. A non-active (interrupted/ended) session
   // can't resume any turn, so its pending turns are stale zombies — render them
   // in the transcript instead of as phantom queued cards.

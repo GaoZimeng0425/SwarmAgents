@@ -1,7 +1,6 @@
+import type { RunRecord, TaskStatus } from '@shared/lib/apply-event'
 import type { CronRun } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
-
-import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
 
 // One scheduled run, flattened for the read-only results list. Derived from the
 // run's top-level task, enriched with cron metadata (job name, run error) when a
@@ -21,7 +20,7 @@ export type ScheduledRow = {
 // cron_run whose taskId matches; a missing/null name falls back to task.goal so
 // manual or legacy tasks still render.
 export function buildScheduledRows(
-  tasks: TaskRecord[],
+  tasks: RunRecord[],
   runs: CronRun[],
   jobs: ReadonlyArray<{ id: string; name: string | null }>
 ): ScheduledRow[] {
@@ -49,17 +48,17 @@ export function buildScheduledRows(
 
 // A run's full task set: the root plus every spawned sub-agent descendant
 // (transitive), so the expanded transcript shows sub-agent blocks too.
-export function collectSubtree(tasks: TaskRecord[], rootId: string): TaskRecord[] {
+export function collectSubtree(tasks: RunRecord[], rootId: string): RunRecord[] {
   const root = tasks.find((t) => t.id === rootId)
   if (!root) return []
-  const byParent = new Map<string, TaskRecord[]>()
+  const byParent = new Map<string, RunRecord[]>()
   for (const t of tasks) {
     if (!t.parentTaskId) continue
     const arr = byParent.get(t.parentTaskId) ?? []
     arr.push(t)
     byParent.set(t.parentTaskId, arr)
   }
-  const out: TaskRecord[] = [root]
+  const out: RunRecord[] = [root]
   const stack = [rootId]
   while (stack.length > 0) {
     const id = stack.pop() as string

@@ -1,8 +1,7 @@
+import type { RunRecord, TaskStatus } from '@shared/lib/apply-event'
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@swarm/ui'
 import { formatDistanceToNow } from 'date-fns'
 
-import { Badge } from '@swarm/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@swarm/ui'
-import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
 
 const STATUS_VARIANT: Record<TaskStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -16,7 +15,7 @@ const STATUS_VARIANT: Record<TaskStatus, 'default' | 'secondary' | 'destructive'
 }
 
 type Props = {
-  task: TaskRecord
+  task: RunRecord
   selected: boolean
   onSelect: (id: string) => void
 }

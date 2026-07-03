@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-
+import type { RunRecord } from '@shared/lib/apply-event'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
-import type { TaskRecord } from '@shared/lib/apply-event'
+
 import { minimapItems } from '@/lib/minimap-items'
 import { cn } from '@/lib/utils'
 
-type Props = { tasks: TaskRecord[] }
+type Props = { tasks: RunRecord[] }
 
 // A left-edge vertical rail: one tick per user turn. Click a tick to jump to
 // that turn; hover to preview its text; the in-view turn's tick is highlighted.

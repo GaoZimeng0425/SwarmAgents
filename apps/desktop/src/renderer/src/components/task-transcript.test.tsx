@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
+import type { RunRecord } from '@shared/lib/apply-event'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { TaskTimeline } from './task-transcript'
 
 afterEach(() => {
@@ -15,7 +15,7 @@ afterEach(() => {
 // legacy or corrupt task can reach the renderer with a non-finite startedAt /
 // event ts. One such value must not take down <TaskTimeline>; it degrades to a
 // harmless row (see safeTs in lib/timeline.ts).
-function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
+function task(overrides: Partial<RunRecord> = {}): RunRecord {
   return {
     id: 't1',
     sessionId: 's1',

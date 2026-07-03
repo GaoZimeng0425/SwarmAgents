@@ -1,6 +1,5 @@
+import type { RunRecord } from '@shared/lib/apply-event'
 import type { ConsumedResources } from '@swarm/protocol'
-
-import type { TaskRecord } from '@shared/lib/apply-event'
 
 /**
  * The usage display (context ring, cost, transcript footer) reflects the
@@ -10,8 +9,8 @@ import type { TaskRecord } from '@shared/lib/apply-event'
  * is rehydrated from disk on restart. Returns the most recent top-level task, or
  * undefined if the session has none yet.
  */
-export function latestTopLevelTask(records: TaskRecord[]): TaskRecord | undefined {
-  let latest: TaskRecord | undefined
+export function latestTopLevelTask(records: RunRecord[]): RunRecord | undefined {
+  let latest: RunRecord | undefined
   for (const r of records) {
     if (r.parentTaskId) continue
     if (!latest || r.startedAt > latest.startedAt) latest = r
@@ -30,7 +29,7 @@ export function latestTopLevelTask(records: TaskRecord[]): TaskRecord | undefine
  *    persist zeroed usage, so summing top-level turns equals summing every task.
  * Returns undefined when the session has no top-level turn yet.
  */
-export function sessionDisplayUsage(records: TaskRecord[]): ConsumedResources | undefined {
+export function sessionDisplayUsage(records: RunRecord[]): ConsumedResources | undefined {
   const latest = latestTopLevelTask(records)
   if (!latest) return undefined
   let usdCents = 0

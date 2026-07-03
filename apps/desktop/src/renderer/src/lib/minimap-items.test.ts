@@ -1,10 +1,11 @@
 // @vitest-environment node
+
+import type { RunRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { minimapItems } from './minimap-items'
 
-function task(over: Partial<TaskRecord>): TaskRecord {
+function task(over: Partial<RunRecord>): RunRecord {
   return {
     id: 't',
     sessionId: 's1',

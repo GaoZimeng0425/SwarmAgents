@@ -149,7 +149,7 @@ describe('tasksToRecords seq', () => {
 })
 
 describe('conversationTurnsToRecords', () => {
-  it('groups conversation events by turnId into TaskRecords keyed by turnId', () => {
+  it('groups conversation events by turnId into RunRecords keyed by turnId', () => {
     const rows = [
       { turnId: 't1', seq: 1, ts: 1, event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 1 } },
       { turnId: 't1', seq: 2, ts: 2, event: { kind: 'llm.message', role: 'assistant', content: 'yo', ts: 2 } },

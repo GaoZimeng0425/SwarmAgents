@@ -1,10 +1,10 @@
+import type { RunRecord } from '@shared/lib/apply-event'
 import type { CronRun } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { buildScheduledRows, collectSubtree, formatDuration } from './scheduled-rows'
 
-const task = (over: Partial<TaskRecord> & { id: string }): TaskRecord => ({
+const task = (over: Partial<RunRecord> & { id: string }): RunRecord => ({
   sessionId: '__system__',
   goal: 'goal',
   status: 'completed',

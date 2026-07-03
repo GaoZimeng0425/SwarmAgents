@@ -1,9 +1,9 @@
-import type { TaskRecord } from '@shared/lib/apply-event'
+import type { RunRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
 import { taskSegments } from './task-segments'
 
-function rec(events: TaskRecord['events'], attachments: TaskRecord['attachments'] = []): TaskRecord {
+function rec(events: RunRecord['events'], attachments: RunRecord['attachments'] = []): RunRecord {
   return {
     id: 't1',
     sessionId: 's1',
@@ -17,7 +17,7 @@ function rec(events: TaskRecord['events'], attachments: TaskRecord['attachments'
   }
 }
 const prog = (event: unknown) =>
-  ({ kind: 'task.progress', sessionId: 's1', taskId: 't1', event, ts: 1 }) as TaskRecord['events'][number]
+  ({ kind: 'task.progress', sessionId: 's1', taskId: 't1', event, ts: 1 }) as RunRecord['events'][number]
 
 describe('taskSegments', () => {
   it('emits the goal as the first user segment when there is no user-message event (sub-agent path)', () => {
@@ -81,7 +81,7 @@ describe('taskSegments', () => {
           event: { kind: 'llm.message', role: 'user', content: 'hello', ts: 5 },
           ts: 5,
           seq: 7,
-        } as TaskRecord['events'][number],
+        } as RunRecord['events'][number],
       ])
     )
     const users = segs.filter((s) => s.kind === 'user')
@@ -288,7 +288,7 @@ describe('taskSegments seq', () => {
           event: { kind: 'tool.call', server: 'fs', tool: 'read_file', args: {}, ts: 5 },
           ts: 1,
           seq: 42,
-        } as TaskRecord['events'][number],
+        } as RunRecord['events'][number],
       ])
     )
     const tool = segs.find((s) => s.kind === 'tool') as unknown as { seq?: number }
@@ -305,7 +305,7 @@ describe('taskSegments seq', () => {
           goal: 'do x',
           ts: 10,
           seq: 7,
-        } as TaskRecord['events'][number],
+        } as RunRecord['events'][number],
       ])
     )
     expect((segs[0] as unknown as { seq?: number }).seq).toBe(7)

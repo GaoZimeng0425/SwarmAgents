@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { RunRecord, TaskStatus } from '@shared/lib/apply-event'
 import { format } from 'date-fns'
 import { CalendarClock, Check, ChevronRight, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -6,7 +7,6 @@ import { toast } from 'sonner'
 import { TaskTimeline } from '@/components/task-transcript'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAllCronJobs, useAllCronRuns } from '@/hooks/use-cron'
-import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
 import { buildScheduledRows, collectSubtree, formatDuration } from '@/lib/scheduled-rows'
 import { cn } from '@/lib/utils'
 
@@ -22,7 +22,7 @@ export function ScheduledResultsView({
   tasks,
   focusTaskId,
 }: {
-  tasks: TaskRecord[]
+  tasks: RunRecord[]
   focusTaskId?: string
 }): React.JSX.Element {
   const { data: jobs = [] } = useAllCronJobs()

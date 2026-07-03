@@ -1,4 +1,6 @@
 import { useEffect, useMemo } from 'react'
+import type { RunRecord } from '@shared/lib/apply-event'
+import { Button, Spinner } from '@swarm/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { sortBy } from 'es-toolkit'
 import { ArrowDown, MessagesSquare } from 'lucide-react'
@@ -6,17 +8,14 @@ import { toast } from 'sonner'
 
 import { ConversationMinimap } from '@/components/conversation-minimap'
 import { buildThreadItems, useTimelineRenderer } from '@/components/task-transcript'
-import { Button } from '@swarm/ui'
-import { Spinner } from '@swarm/ui'
 import { StickToBottomList, useStickToBottomList } from '@/components/viewers/stick-to-bottom-list'
 import { TASKS_KEY } from '@/hooks/use-tasks'
-import type { TaskRecord } from '@shared/lib/apply-event'
 import type { TimelineItem } from '@/lib/build-timeline-items'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
 import { sessionDisplayUsage } from '@/lib/session-usage'
 
 type Props = {
-  tasks: TaskRecord[]
+  tasks: RunRecord[]
   /** Start a new user turn with the given text (used by interactive UI cards). */
   onSend?: (text: string) => void
   /** Deep-link target: scroll to and briefly highlight this task's turn (e.g. a scheduled run). */
@@ -69,7 +68,7 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
     toast.success('Message copied to clipboard')
   }
   const onDelete = (taskId: string): void => {
-    qc.setQueryData<TaskRecord[]>(TASKS_KEY, (prev = []) => prev.filter((t) => t.id !== taskId))
+    qc.setQueryData<RunRecord[]>(TASKS_KEY, (prev = []) => prev.filter((t) => t.id !== taskId))
     toast.info('Message removed from view')
   }
 

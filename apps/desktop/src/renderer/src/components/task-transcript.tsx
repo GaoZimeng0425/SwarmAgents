@@ -31,9 +31,10 @@ const AttachmentViewerSheet = lazy(() =>
   import('@/components/attachment-viewer-sheet').then((m) => ({ default: m.AttachmentViewerSheet }))
 )
 
+import type { RunRecord } from '@shared/lib/apply-event'
 import { Spinner } from '@swarm/ui'
+
 import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
-import type { TaskRecord } from '@shared/lib/apply-event'
 import { buildTimelineItems, type TimelineItem } from '@/lib/build-timeline-items'
 import { extractImagePaths } from '@/lib/file-paths'
 import { groupSegments } from '@/lib/group-segments'
@@ -122,7 +123,7 @@ function SubagentBlock({
   lastKey,
   renderSegment,
 }: {
-  task: TaskRecord
+  task: RunRecord
   segs: Segment[]
   lastKey: string | undefined
   renderSegment: (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element
@@ -410,7 +411,7 @@ function createSegmentRenderer(opts: {
 }
 
 type TaskTimelineProps = {
-  tasks: TaskRecord[]
+  tasks: RunRecord[]
   busy: boolean
   onSend?: (text: string) => void
   onCopy: (text: string) => void
@@ -441,7 +442,7 @@ export function useTimelineRenderer(opts: {
 // ToolGroupBlock / DayDivider) so both TaskTimeline and the chat thread share
 // one render path. `renderSegment` comes from useTimelineRenderer.
 export function buildThreadItems(
-  tasks: TaskRecord[],
+  tasks: RunRecord[],
   renderSegment: ReturnType<typeof createSegmentRenderer>,
   opts: { busy: boolean; showDayDividers?: boolean }
 ): TimelineItem[] {

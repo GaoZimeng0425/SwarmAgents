@@ -1,4 +1,4 @@
-import type { TaskRecord, TaskStatus } from '@shared/lib/apply-event'
+import type { RunRecord, TaskStatus } from '@shared/lib/apply-event'
 import type { ConversationEvent, Task, UIEvent } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 
@@ -17,9 +17,9 @@ const STORED_TO_UI_STATUS: Partial<Record<Task['status'], TaskStatus>> = {
   interrupted: 'failed',
 }
 
-/** Rebuild renderer TaskRecords from persisted tasks (for session replay on switch). */
-export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
-  const records = tasks.map((t): TaskRecord => {
+/** Rebuild renderer RunRecords from persisted tasks (for session replay on switch). */
+export function tasksToRecords(sessionId: string, tasks: Task[]): RunRecord[] {
+  const records = tasks.map((t): RunRecord => {
     const events: UIEvent[] = [
       {
         kind: 'task.created',
@@ -80,20 +80,20 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
 /** A persisted conversation-events row (the session-level conversation stream). */
 
 /**
- * Group session-conversation events by turnId into TaskRecord-shaped turns the
+ * Group session-conversation events by turnId into RunRecord-shaped turns the
  * existing taskSegments / buildTimelineItems pipeline renders unchanged. Each
  * turn is a pseudo-task keyed by its turnId — the SAME id the service stamps on
  * live conversation events (task.progress with taskId: turnId), so a live
  * in-flight turn and its replayed record merge into one entry in the cache.
  */
-export function conversationTurnsToRecords(sessionId: string, rows: ConversationEvent[]): TaskRecord[] {
+export function conversationTurnsToRecords(sessionId: string, rows: ConversationEvent[]): RunRecord[] {
   const byTurn = new Map<string, ConversationEvent[]>()
   for (const r of rows) {
     const list = byTurn.get(r.turnId) ?? []
     list.push(r)
     byTurn.set(r.turnId, list)
   }
-  const records: TaskRecord[] = []
+  const records: RunRecord[] = []
   for (const [turnId, evs] of byTurn) {
     const firstUser = evs.find(
       (r) => (r.event as { kind?: string }).kind === 'llm.message' && (r.event as { role?: string }).role === 'user'

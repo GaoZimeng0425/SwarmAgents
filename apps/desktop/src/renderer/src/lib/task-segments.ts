@@ -1,4 +1,4 @@
-import type { TaskRecord } from '@shared/lib/apply-event'
+import type { RunRecord } from '@shared/lib/apply-event'
 import type { Attachment, UIEvent } from '@swarm/protocol'
 
 // Every segment carries a global per-session seq (the timeline sort key, so the
@@ -35,7 +35,7 @@ function toolImagePath(payload: unknown): string | undefined {
 }
 
 /** Flatten a task's UIEvents into ordered render segments. Pure; unit-tested. */
-export function taskSegments(task: TaskRecord): Segment[] {
+export function taskSegments(task: RunRecord): Segment[] {
   const out: Segment[] = []
 
   // A top-level conversation turn carries its user message as a real seq'd event
