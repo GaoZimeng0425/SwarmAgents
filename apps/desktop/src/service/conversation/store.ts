@@ -90,6 +90,10 @@ export type ConversationStore = {
   /** Mark a task as actively running and stamp started_at (kept if already set). */
   markTaskRunning(taskId: string): void
   saveTaskUsage(taskId: string, used: Task['used'], contextWindow?: number): void
+  /** Persist a conversation turn's usage at the session level (no Task row). Stores the latest snapshot. */
+  saveSessionUsage(sessionId: string, used: Task['used'], contextWindow?: number): void
+  /** Read a session's stored conversation usage, if any was persisted. */
+  getSessionUsage(sessionId: string): { used: Task['used']; contextWindow: number | null } | undefined
   getSessionTasks(sessionId: string): Task[]
   getUsageStats(rangeDays: number): UsageStats
   saveToolState(sessionId: string, key: string, value: unknown): void
@@ -150,7 +154,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
       sort_order        INTEGER NOT NULL DEFAULT 0,
       cwd               TEXT,
       permission_mode   TEXT,
-      execution_mode    TEXT
+      execution_mode    TEXT,
+      session_used      TEXT,
+      session_context_window INTEGER
     );
     CREATE TABLE IF NOT EXISTS tasks (
       id                  TEXT PRIMARY KEY,
@@ -267,6 +273,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
     'ALTER TABLE sessions ADD COLUMN permission_mode TEXT',
     'ALTER TABLE sessions ADD COLUMN execution_mode TEXT',
     'ALTER TABLE sessions ADD COLUMN agent_type TEXT',
+    'ALTER TABLE sessions ADD COLUMN session_used TEXT',
+    'ALTER TABLE sessions ADD COLUMN session_context_window INTEGER',
     `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE tasks ADD COLUMN acceptance_criteria TEXT NOT NULL DEFAULT '[]'`,
@@ -527,6 +535,13 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtUpdateTaskUsage = db.prepare(
     'UPDATE tasks SET used = ?, context_window = COALESCE(?, context_window) WHERE id = ?'
   )
+  // COALESCE keeps a previously-stored window when this call has none.
+  const stmtUpdateSessionUsage = db.prepare(
+    'UPDATE sessions SET session_used = ?, session_context_window = COALESCE(?, session_context_window) WHERE id = ?'
+  )
+  const stmtGetSessionUsage = db.prepare(
+    'SELECT session_used AS used, session_context_window AS contextWindow FROM sessions WHERE id = ?'
+  )
   const stmtGetTasks = db.prepare('SELECT * FROM tasks WHERE session_id = ?')
   const stmtUpsertToolState = db.prepare(
     `INSERT OR REPLACE INTO tool_state_snapshots (session_id, key, value, updated_at)
@@ -642,8 +657,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
             s.cwd, s.permission_mode AS permissionMode, s.execution_mode AS executionMode,
             s.agent_type AS agentType,
             (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount,
-            (SELECT COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) FROM tasks t WHERE t.session_id = s.id) AS tokensUsed,
-            (SELECT COALESCE(SUM(json_extract(t.used, '$.usdCents')), 0) FROM tasks t WHERE t.session_id = s.id) AS usdCents
+            ((SELECT COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) FROM tasks t WHERE t.session_id = s.id)
+              + COALESCE(json_extract(s.session_used, '$.tokens'), 0)) AS tokensUsed,
+            ((SELECT COALESCE(SUM(json_extract(t.used, '$.usdCents')), 0) FROM tasks t WHERE t.session_id = s.id)
+              + COALESCE(json_extract(s.session_used, '$.usdCents'), 0)) AS usdCents
      FROM sessions s
      WHERE s.status != 'ended'
      ORDER BY s.pinned DESC, s.sort_order ASC`
@@ -853,6 +870,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
     saveTaskUsage(taskId, used, contextWindow) {
       stmtUpdateTaskUsage.run(JSON.stringify(used), contextWindow ?? null, taskId)
     },
+    saveSessionUsage(sessionId, used, contextWindow) {
+      stmtUpdateSessionUsage.run(JSON.stringify(used), contextWindow ?? null, sessionId)
+    },
+    getSessionUsage(sessionId) {
+      const row = stmtGetSessionUsage.get(sessionId) as
+        | { used: string | null; contextWindow: number | null }
+        | undefined
+      if (!row || !row.used) return undefined
+      return { used: JSON.parse(row.used) as Task['used'], contextWindow: row.contextWindow }
+    },
     getSessionTasks(sessionId) {
       return (stmtGetTasks.all(sessionId) as Record<string, unknown>[]).map(rowToTask)
     },
@@ -880,6 +907,26 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const messagesRow = db
           .prepare(
             `SELECT COUNT(*) AS n FROM task_events
+             WHERE ts >= ? AND json_extract(event, '$.kind') = 'llm.message'`
+          )
+          .get(cutoff) as { n: number }
+
+        // Conversation turns have no Task row; their usage lives on the session
+        // (latest snapshot) and their messages in conversation_events. Folded into
+        // the range totals below. NOTE: per-model / per-day attribution is not
+        // available for conversation usage (no per-snapshot model/timestamp), so
+        // those breakdowns remain task-only — a known imprecision.
+        const convTotals = db
+          .prepare(
+            `SELECT COALESCE(SUM(json_extract(session_used, '$.tokens')), 0)    AS tokens,
+                    COALESCE(SUM(json_extract(session_used, '$.cacheRead')), 0) AS cacheRead,
+                    COALESCE(SUM(json_extract(session_used, '$.usdCents')), 0)  AS usdCents
+             FROM sessions WHERE session_used IS NOT NULL AND last_active_at >= ?`
+          )
+          .get(cutoff) as { tokens: number; cacheRead: number; usdCents: number }
+        const convMessages = db
+          .prepare(
+            `SELECT COUNT(*) AS n FROM conversation_events
              WHERE ts >= ? AND json_extract(event, '$.kind') = 'llm.message'`
           )
           .get(cutoff) as { n: number }
@@ -919,7 +966,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
           )
           .all(cutoff) as { date: string; model: string; tokens: number }[]
 
-        const totalTokens = totalsRow.tokens
+        const totalTokens = totalsRow.tokens + convTotals.tokens
         const byModel = modelRows.map((r) => ({
           model: r.model ?? 'unknown',
           tokens: r.tokens,
@@ -939,10 +986,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
           rangeDays: range,
           totals: {
             tokens: totalTokens,
-            cacheRead: totalsRow.cacheRead,
-            usdCents: totalsRow.usdCents,
+            cacheRead: totalsRow.cacheRead + convTotals.cacheRead,
+            usdCents: totalsRow.usdCents + convTotals.usdCents,
             sessions: totalsRow.sessions,
-            messages: messagesRow.n,
+            messages: messagesRow.n + convMessages.n,
             activeDays: totalsRow.activeDays,
             currentStreak: currentStreak(activeKeys, now),
             topModel: byModel[0] ?? null,

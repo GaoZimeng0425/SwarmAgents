@@ -1013,9 +1013,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
           initialMessages: session.messages,
-          saveSnapshot: (messages) => {
+          saveSnapshot: (messages, used, contextWindow) => {
             session.messages = messages
             store.saveAgentSnapshot(sessionId, messages)
+            if (used) store.saveSessionUsage(sessionId, used, contextWindow)
           },
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at, opt) => spawnChild(sessionId, pt, ng, st, pk, at, opt),

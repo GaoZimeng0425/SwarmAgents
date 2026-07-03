@@ -578,6 +578,27 @@ describe('ConversationStore', () => {
     })
   })
 
+  it('saveSessionUsage round-trips conversation usage on the session row', () => {
+    const store = createConversationStore(dbPath)
+    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
+    store.createSession('ses-su', provider)
+    expect(store.getSessionUsage('ses-su')).toBeUndefined()
+    store.saveSessionUsage(
+      'ses-su',
+      { tokens: 900, calls: 3, wallMs: 1000, usdCents: 5, cacheRead: 200, cacheWrite: 0 },
+      200_000
+    )
+    const got = store.getSessionUsage('ses-su')
+    expect(got?.used.tokens).toBe(900)
+    expect(got?.used.cacheRead).toBe(200)
+    expect(got?.contextWindow).toBe(200_000)
+    // listSessions folds conversation usage into the session totals.
+    const s = store.listSessions().find((x) => x.id === 'ses-su')
+    expect(s?.tokensUsed).toBe(900)
+    expect(s?.usdCents).toBe(5)
+    store.close()
+  })
+
   it('persists and reloads a task plan', () => {
     const store = createConversationStore(dbPath)
     const provider = {

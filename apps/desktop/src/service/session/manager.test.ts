@@ -1403,4 +1403,78 @@ describe('SessionManager', () => {
     expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
+
+  it('cancelTask aborts an in-flight conversation turn by turnId', async () => {
+    let capturedSignal: AbortSignal | undefined
+    let release: () => void = () => {}
+    mockCreate.mockImplementation((deps) => {
+      capturedSignal = deps.signal
+      return runner(
+        () =>
+          new Promise<RunReturn>((r) => {
+            release = () => r(runnerReturn('cancelled', ''))
+          })
+      )
+    })
+    const store = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 1,
+      getProvider: () => undefined,
+    })
+    const { sessionId } = manager.createSession(providerA)
+    const { taskId: turnId } = manager.submitGoal(sessionId, 'hi')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(capturedSignal?.aborted).toBe(false)
+    manager.cancelTask(sessionId, turnId) // turnId, not a Task id
+    expect(capturedSignal?.aborted).toBe(true)
+
+    release()
+    await new Promise((r) => setTimeout(r, 0))
+    // A conversation turn leaves no Task row.
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
+    store.close()
+  })
+
+  it('cancelTask drops a queued conversation turn without FK-violating', async () => {
+    // A queued conversation turn has no Task row; cancelling it must broadcast a
+    // task.error directly (not appendTaskEvent, which FK-violates on the missing
+    // task_id) and leave no Task behind.
+    let releaseFirst: () => void = () => {}
+    mockCreate.mockImplementation(() =>
+      runner(
+        () =>
+          new Promise<RunReturn>((r) => {
+            releaseFirst = () => r(runnerReturn('completed', ''))
+          })
+      )
+    )
+    const store = createConversationStore(dbPath)
+    const broadcaster = createBroadcaster()
+    const broadcastSpy = vi.spyOn(broadcaster, 'broadcast')
+    const manager = createSessionManager({
+      store,
+      broadcaster,
+      maxConcurrent: 1,
+      getProvider: () => undefined,
+    })
+    const { sessionId } = manager.createSession(providerA)
+    manager.submitGoal(sessionId, 'first') // running, holds the only slot
+    await new Promise((r) => setTimeout(r, 0))
+    const { taskId: secondId } = manager.submitGoal(sessionId, 'second') // queued
+
+    // Must not throw (no FK violation) and must surface the cancel.
+    expect(() => manager.cancelTask(sessionId, secondId)).not.toThrow()
+    expect(broadcastSpy).toHaveBeenCalledWith(
+      'task.error',
+      expect.objectContaining({ taskId: secondId, error: expect.objectContaining({ code: 'cancelled' }) })
+    )
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
+
+    releaseFirst()
+    await new Promise((r) => setTimeout(r, 0))
+    store.close()
+  })
 })
