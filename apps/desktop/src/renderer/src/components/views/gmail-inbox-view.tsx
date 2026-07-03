@@ -5,10 +5,11 @@
 // = the selected thread's messages (getThread). The daemon broadcasts
 // gmail:stateChanged after every poll, so the list refetches live.
 import { useEffect, useState } from 'react'
-import type { GmailMessage } from '@swarm/protocol'
+import type { GmailAnalysis, GmailMessage, UIEvent } from '@swarm/protocol'
 import { Button, Input, Skeleton } from '@swarm/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Inbox, Loader2, MailOpen, RefreshCw, Search } from 'lucide-react'
+import { Inbox, Loader2, MailOpen, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { Streamdown } from 'streamdown'
 
 import { EmailHtml } from '@/components/email-html'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -63,6 +64,12 @@ export function GmailInboxView(): React.JSX.Element {
   const detail = useQuery({
     queryKey: ['gmail', 'thread', selectedId],
     queryFn: () => window.swarm.gmail.getThread(selectedId!),
+    enabled: linked && selectedId !== null,
+  })
+
+  const analyses = useQuery({
+    queryKey: ['gmail', 'analyses', selectedId],
+    queryFn: () => window.swarm.gmail.getAnalyses(selectedId!),
     enabled: linked && selectedId !== null,
   })
 
@@ -179,7 +186,7 @@ export function GmailInboxView(): React.JSX.Element {
                   <p className="mt-1 text-muted-foreground text-xs">{detail.data.messages.length} 条消息</p>
                 </div>
                 {detail.data.messages.map((m) => (
-                  <MessageCard key={m.id} m={m} />
+                  <MessageCard analyses={analyses.data} key={m.id} m={m} />
                 ))}
               </div>
             </ScrollArea>
@@ -190,7 +197,13 @@ export function GmailInboxView(): React.JSX.Element {
   )
 }
 
-function MessageCard({ m }: { m: GmailMessage }): React.JSX.Element {
+function MessageCard({
+  m,
+  analyses,
+}: {
+  m: GmailMessage
+  analyses?: Record<string, GmailAnalysis>
+}): React.JSX.Element {
   return (
     <article className="rounded-lg border border-border bg-card/60 p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
@@ -207,7 +220,79 @@ function MessageCard({ m }: { m: GmailMessage }): React.JSX.Element {
       ) : (
         <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-foreground/90 text-sm">{m.bodyText}</pre>
       )}
+      <MessageAnalysis cached={analyses?.[m.id]} message={m} />
     </article>
+  )
+}
+
+export function MessageAnalysis({
+  message,
+  cached,
+}: {
+  message: GmailMessage
+  cached?: GmailAnalysis
+}): React.JSX.Element {
+  const [phase, setPhase] = useState<'idle' | 'streaming' | 'done' | 'error'>(cached ? 'done' : 'idle')
+  const [text, setText] = useState<string>(cached?.analysis ?? '')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Subscribe once per message; events for other message ids are ignored.
+    return window.swarm.subscribeEvents((e: UIEvent) => {
+      if (e.kind === 'gmail.analysisDelta' && e.messageId === message.id) {
+        setText((prev) => prev + e.text)
+        setPhase('streaming')
+      } else if (e.kind === 'gmail.analysisComplete' && e.messageId === message.id) {
+        setText(e.markdown)
+        setPhase('done')
+        void window.swarm.gmail.saveAnalysis(message.id, e.markdown)
+      } else if (e.kind === 'gmail.analysisError' && e.messageId === message.id) {
+        setError(e.error)
+        setPhase('error')
+      }
+    })
+  }, [message.id])
+
+  const analyze = (): void => {
+    if (!message.bodyText.trim()) return
+    setError(null)
+    setText('')
+    setPhase('streaming')
+    void window.swarm.analyzeEmail({
+      messageId: message.id,
+      subject: message.subject,
+      from: message.fromAddr,
+      content: message.bodyText,
+    })
+  }
+
+  return (
+    <div className="mt-3 rounded-md border border-border/40 bg-background/40 p-3">
+      {phase === 'idle' && (
+        <Button disabled={!message.bodyText.trim()} onClick={analyze} size="sm" variant="outline">
+          <Sparkles className="size-3.5" /> 分析
+        </Button>
+      )}
+      {phase === 'error' && (
+        <div className="flex items-center gap-2">
+          <span className="text-destructive text-xs">{error ?? '分析失败'}</span>
+          <Button onClick={analyze} size="sm" variant="outline">
+            重试
+          </Button>
+        </div>
+      )}
+      {(phase === 'streaming' || phase === 'done') && (
+        <div className="flex flex-col gap-2">
+          {phase === 'streaming' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          <Streamdown className="text-foreground/90 text-sm">{text}</Streamdown>
+          {phase === 'done' && (
+            <Button onClick={analyze} size="sm" variant="ghost">
+              ↻ 重新分析
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
