@@ -28,7 +28,7 @@ import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } fro
 import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
-import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './provider'
+import type { ApiStyle, ModelThinkingLevel, ProviderInjection, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type {
   AcceptanceCriterion,
@@ -45,6 +45,23 @@ import type {
 } from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
+
+/** Renderer→Main: analyze one email. Main injects the active provider before
+ *  forwarding to the service, so the renderer never handles a provider here. */
+export type AnalyzeEmailInput = {
+  messageId: string
+  subject: string
+  from: string
+  content: string
+}
+
+/** Main→Service: the input plus the resolved active provider. */
+export type AnalyzeEmailRequest = AnalyzeEmailInput & { provider: ProviderInjection }
+
+export type AnalyzeEmailResult = { ok: true } | { ok: false; code: 'no_provider' | 'no_agent'; message: string }
+
+/** A cached analysis row, keyed by message id. */
+export type GmailAnalysis = { analysis: string; updatedAt: number }
 
 export type UIEvent =
   | {
@@ -138,6 +155,9 @@ export type UIEvent =
   | { kind: 'memory.changed'; ts: number; seq?: number }
   | { kind: 'skills.changed'; ts: number; seq?: number }
   | { kind: 'agents.changed'; ts: number; seq?: number }
+  | { kind: 'gmail.analysisDelta'; messageId: string; text: string; ts: number; seq?: number }
+  | { kind: 'gmail.analysisComplete'; messageId: string; markdown: string; ts: number; seq?: number }
+  | { kind: 'gmail.analysisError'; messageId: string; error: string; ts: number; seq?: number }
 
 export type SessionSummary = {
   id: string
@@ -270,6 +290,8 @@ export type GmailBridge = {
   listRecent(input: { limit: number; label?: string }): Promise<GmailThread[]>
   getThread(id: string): Promise<{ thread: GmailThread; messages: GmailMessage[] } | null>
   search(query: string, limit: number): Promise<GmailThread[]>
+  saveAnalysis(messageId: string, analysis: string): Promise<void>
+  getAnalyses(threadId: string): Promise<Record<string, GmailAnalysis>>
 }
 
 export type CalendarSetResult = { ok: true } | { ok: false; code: string; message: string }
@@ -409,6 +431,7 @@ export type SwarmBridge = {
     attachments?: Attachment[],
     options?: TaskOptions
   ): Promise<SubmitGoalResult>
+  analyzeEmail(input: AnalyzeEmailInput): Promise<AnalyzeEmailResult>
   cancelTask(sessionId: string, taskId: string): Promise<void>
   interruptWith(sessionId: string, taskId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>

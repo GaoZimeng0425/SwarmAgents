@@ -37,6 +37,7 @@ export type ServiceClient = {
     attachments?: import('./types/task').Attachment[],
     options?: import('./types/task').TaskOptions
   ): Promise<{ taskId: string }>
+  analyzeEmail(req: import('./types/ui').AnalyzeEmailRequest): Promise<import('./types/ui').AnalyzeEmailResult>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
   getSessionTasks(sessionId: string): Promise<import('./types/task').Task[]>
   getConversationEvents(sessionId: string): Promise<import('./types/task').ConversationEvent[]>
@@ -141,6 +142,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     submitGoal(sessionId, goal, attachments, options) {
       return call('submitGoal', [sessionId, goal, attachments, options])
+    },
+    analyzeEmail(req) {
+      return call('analyzeEmail', [req])
     },
     listSessions() {
       return call('listSessions', [])
