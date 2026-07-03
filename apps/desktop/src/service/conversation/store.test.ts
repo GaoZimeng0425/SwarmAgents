@@ -1379,7 +1379,6 @@ describe('ConversationStore', () => {
           goal: 'build',
           ownerAgentType: 'engineer',
           dependsOn: [],
-          acceptanceCriteria: [{ id: 'c1', description: 'tests pass' }],
         },
         { id: 'd2', goal: 'review', dependsOn: ['d1'] },
       ]

@@ -31,7 +31,6 @@ import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProviderInjection, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type {
-  AcceptanceCriterion,
   Attachment,
   ConsumedResources,
   DelegationItem,
@@ -41,7 +40,6 @@ import type {
   TaskEvent,
   TaskOptions,
   TaskResult,
-  VerificationRound,
 } from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
@@ -116,15 +114,6 @@ export type UIEvent =
       seq?: number
     }
   | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number; seq?: number }
-  | {
-      kind: 'task.criteria'
-      sessionId: string
-      taskId: string
-      criteria: AcceptanceCriterion[]
-      ts: number
-      seq?: number
-    }
-  | { kind: 'task.verification'; sessionId: string; taskId: string; round: VerificationRound; ts: number; seq?: number }
   | {
       kind: 'task.delegation_plan'
       sessionId: string

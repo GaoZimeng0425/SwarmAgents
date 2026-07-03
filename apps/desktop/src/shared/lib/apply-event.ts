@@ -1,4 +1,4 @@
-import type { AcceptanceCriterion, Attachment, ConsumedResources, PlanTodo, UIEvent } from '@swarm/protocol'
+import type { Attachment, ConsumedResources, PlanTodo, UIEvent } from '@swarm/protocol'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
 
@@ -15,7 +15,6 @@ export type TaskRecord = {
   contextTokens?: number
   contextWindow?: number
   plan?: PlanTodo[]
-  acceptanceCriteria?: AcceptanceCriterion[]
   /** Set when this task is a spawned sub-agent (links to its parent). */
   parentTaskId?: string
   /** Sub-agent definition id, used to label the subagent block. */

@@ -21,8 +21,6 @@ const task = (seqs: Array<number | undefined>): Task =>
       ...(seq === undefined ? {} : { seq }),
     })),
     plan: [],
-    acceptanceCriteria: [],
-    verifications: [],
     delegationPlan: [],
     result: null,
     used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },

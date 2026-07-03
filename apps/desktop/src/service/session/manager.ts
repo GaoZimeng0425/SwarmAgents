@@ -855,7 +855,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       cwd: options.cwd,
       permissionMode: options.permissionMode,
       executionMode: options.executionMode,
-      acceptanceCriteria: options.acceptanceCriteria,
     }
     store.saveTask(task, sessionId)
     broadcaster.broadcast('task.created', { sessionId, taskId: task.id, goal, attachments, ts: now })

@@ -1219,7 +1219,6 @@ describe('SessionManager', () => {
         goal: 'build',
         ownerAgentType: 'engineer',
         dependsOn: [],
-        acceptanceCriteria: [{ id: 'c1', description: 'ships' }],
       },
       { id: 'd2', goal: 'review', dependsOn: ['d1'] },
     ]
