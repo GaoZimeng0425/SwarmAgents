@@ -30,7 +30,11 @@ export function tasksToRecords(sessionId: string, tasks: Task[]): TaskRecord[] {
         parentTaskId: t.parentId ?? undefined,
         agentDefId: t.agentDefId,
         ts: t.createdAt,
-        seq: t.createdAt,
+        // Order the task at its first real event (the persisted stamped seq), not
+        // at wall-clock createdAt. buildTimelineItems keys sub-agent blocks off
+        // events[0].seq; using createdAt (ms) would sort reloaded blocks far past
+        // the conversation turn's small counter seqs, shoving them to the end.
+        seq: t.history[0]?.seq ?? t.createdAt,
       },
     ]
     for (const ev of t.history) {

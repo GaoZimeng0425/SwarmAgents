@@ -126,6 +126,26 @@ describe('tasksToRecords seq', () => {
     expect(records[0].events.every((e) => Number.isFinite(e.seq))).toBe(true)
     expect(records[0].events[0]).toMatchObject({ kind: 'task.created' })
   })
+
+  it('synthesizes task.created at the first history seq, not wall-clock createdAt', () => {
+    // Reloaded sub-agent blocks order by events[0].seq. Using createdAt (wall-clock
+    // ms) would shove them past the conversation turn's small counter seqs.
+    const records = tasksToRecords('ses-1', [
+      baseTask({
+        createdAt: 1783062008917,
+        history: [
+          { kind: 'llm.message', role: 'assistant', content: 'first', ts: 5, seq: 41 },
+          { kind: 'llm.message', role: 'assistant', content: 'second', ts: 6, seq: 42 },
+        ],
+      }),
+    ])
+    expect(records[0].events[0]).toMatchObject({ kind: 'task.created', seq: 41 })
+  })
+
+  it('falls back to createdAt for the task.created seq when there is no history', () => {
+    const records = tasksToRecords('ses-1', [baseTask({ createdAt: 999 })])
+    expect(records[0].events[0]).toMatchObject({ kind: 'task.created', seq: 999 })
+  })
 })
 
 describe('conversationTurnsToRecords', () => {
