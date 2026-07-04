@@ -47,21 +47,29 @@ vi.mock('../session/agent-runner', () => ({
           deps.spawnChild(deps.correlationId, 'lead dev', undefined, undefined, 'engineering-lead'),
           deps.spawnChild(deps.correlationId, 'lead qa', undefined, undefined, 'qa-lead'),
         ])
-        return { status: 'completed', summary: 'CEO: shipped', messages: [], used: {} }
-      }
-      // Leader (team head): record a delegation plan, then spawn a leaf.
-      // The Leader self-reports — no verify loop runs over the leaf.
-      if (deps.agentDefinition.teamRole === 'head') {
+      } else if (deps.agentDefinition.teamRole === 'head') {
+        // Leader (team head): record a delegation plan, then spawn a leaf.
+        // The Leader self-reports — no verify loop runs over the leaf.
         deps.emit('task.delegation_plan', {
           taskId: deps.correlationId,
           plan: [{ id: 'd1', goal: 'leaf work', dependsOn: [] }],
           ts: Date.now(),
         })
         await deps.spawnChild(deps.correlationId, 'leaf work', undefined, undefined, 'engineer')
-        return { status: 'completed', summary: `${deps.agentDefinition.id}: delivered`, messages: [], used: {} }
       }
-      // Leaf sub-agent: single-shot, returns its summary.
-      return { status: 'completed', summary: 'leaf: done', messages: [], used: {} }
+      // Post-4b the translator emits task.complete (→ run_events); the mock
+      // stands in for it so every run reaches a terminal event.
+      deps.emit('task.complete', {
+        taskId: deps.correlationId,
+        result: { summary: `${deps.agentDefinition.id}: done`, artifacts: [] },
+        ts: Date.now(),
+      })
+      return {
+        status: 'completed',
+        summary: `${deps.agentDefinition.id}: delivered`,
+        messages: [],
+        used: {},
+      }
     },
   }),
   buildAgentSession: () => ({}),
@@ -116,31 +124,31 @@ describe('CEO → Leader → subagent pipeline (single-shot, agent-driven)', () 
     // for CEO, Leaders, and leaves alike.
     for (const r of runs) expect(r.maxVerifyRounds).toBeUndefined()
 
+    // Post-4b: no Task rows — the tree shape lives in run_events.parentRunId.
+    const allEvents = store.getRunEvents(sessionId)
+    const parentOf = (runId: string): string | null => allEvents.find((r) => r.runId === runId)?.parentRunId ?? null
+    const isTerminal = (runId: string): boolean =>
+      allEvents.some(
+        (r) =>
+          r.runId === runId &&
+          ((r.event as { kind?: string }).kind === 'task.complete' ||
+            (r.event as { kind?: string }).kind === 'task.error')
+      )
+
     // Tree shape: heads parented by the CEO, leaves parented by a head.
-    for (const h of heads) {
-      expect(store.getTask(h.taskId)?.parentId).toBe(taskId)
-    }
     const headIds = heads.map((h) => h.taskId)
-    for (const l of leaves) {
-      const t = store.getTask(l.taskId)
-      expect(t?.parentId).toBeDefined()
-      expect(headIds).toContain(t!.parentId)
-    }
+    for (const h of heads) expect(parentOf(h.taskId)).toBe(taskId)
+    for (const l of leaves) expect(headIds).toContain(parentOf(l.taskId))
 
-    // Post-3b: the typed Task no longer carries acceptanceCriteria/verifications.
-    // Assert their absence on every task in the tree (regression guard for the
-    // protocol type cleanup in Task 5).
-    const allTasks = [taskId, ...headIds, ...leaves.map((l) => l.taskId)].map((id) => store.getTask(id)!)
-    for (const t of allTasks) {
-      expect((t as { acceptanceCriteria?: unknown }).acceptanceCriteria).toBeUndefined()
-      expect((t as { verifications?: unknown }).verifications).toBeUndefined()
-      // Single-shot — every task reaches a terminal status, no verify stall.
-      expect(['completed', 'failed']).toContain(t.status)
-    }
+    // Single-shot — every run reaches a terminal event, no verify stall.
+    for (const r of runs) expect(isTerminal(r.taskId)).toBe(true)
 
-    // Leaders that declared a delegation plan persist it for audit + UI.
+    // Leaders that declared a delegation plan emit it on the run stream.
     for (const h of heads) {
-      expect(store.getTask(h.taskId)?.delegationPlan ?? []).toHaveLength(1)
+      const planEvt = allEvents.find(
+        (r) => r.runId === h.taskId && (r.event as { kind?: string }).kind === 'task.delegation_plan'
+      )
+      expect((planEvt?.event as { plan?: unknown[] } | undefined)?.plan ?? []).toHaveLength(1)
     }
 
     store.close()

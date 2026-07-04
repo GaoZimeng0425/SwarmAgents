@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
 import { createBroadcaster } from '../ipc/broadcaster'
+import { createTaskWaiterService } from '../loop/task-waiters'
 import type { AgentRunner } from './agent-runner'
 import { createSessionManager } from './manager'
 
@@ -144,6 +145,79 @@ describe('SessionManager', () => {
     createSessionManager({ store: store2, broadcaster, maxConcurrent: 2, getProvider: () => undefined })
 
     expect(store2.getSession('old-ses')?.status).toBe('interrupted')
+    store2.close()
+  })
+
+  it('markInterruptedRunsTerminal closes orphaned runs and wakes their waiters', () => {
+    // Seed a session + a dispatched run that never reached a terminal event
+    // (the previous process died mid-flight) + a wait_for_task waiter on it.
+    const store = createConversationStore(dbPath)
+    store.createSession('ses-orphan', providerA)
+    store.updateSessionStatus('ses-orphan', 'interrupted')
+    const orphanRunId = '01ORPHANRUN000000000000000'
+    store.appendRunEvent('ses-orphan', orphanRunId, null, {
+      kind: 'task.created',
+      sessionId: 'ses-orphan',
+      taskId: orphanRunId,
+      goal: 'in flight',
+      attachments: [],
+      agentDefId: 'default',
+      seq: 1,
+      ts: 1,
+    } as never)
+    store.appendRunEvent('ses-orphan', orphanRunId, null, {
+      kind: 'task.dispatched',
+      sessionId: 'ses-orphan',
+      taskId: orphanRunId,
+      workerId: '',
+      seq: 2,
+      ts: 2,
+    } as never)
+    store.saveTaskWaiter({
+      id: 'waiter-1',
+      sessionId: 'ses-orphan',
+      waiterAddress: 'actor-waiter',
+      taskId: orphanRunId,
+      goal: null,
+      createdAt: 3,
+    })
+    store.close()
+
+    // Reopen (simulating restart) and construct the manager — the terminal
+    // registry loads from run_events and does NOT include the orphaned run.
+    const store2 = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store: store2,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+    })
+    expect(manager.terminalRegistry.isTerminal(orphanRunId)).toBe(false)
+
+    // Wire taskWaiters exactly as service/index.ts does.
+    const delivered: Array<{ address: string; goal: string }> = []
+    const taskWaiters = createTaskWaiterService({
+      store: store2,
+      deliver: (_sid, address, goal) => delivered.push({ address, goal }),
+      terminalRegistry: manager.terminalRegistry,
+    })
+    manager.registerTerminalListener((runId, status) => taskWaiters.onTaskTerminal(runId, status))
+
+    // The fix: close orphaned runs before arming the start sweep.
+    manager.markInterruptedRunsTerminal()
+    // markTerminal fired the listener, which woke the matching waiter.
+    expect(manager.terminalRegistry.isTerminal(orphanRunId)).toBe(true)
+    expect(delivered).toEqual([{ address: 'actor-waiter', goal: expect.stringMatching(/task you were waiting on/) }])
+
+    // taskWaiters.start() is now a no-op for this waiter (already fired+deleted).
+    taskWaiters.start()
+    expect(delivered).toHaveLength(1)
+
+    // The synthetic task.error landed in run_events so replay reaches terminal.
+    const events = store2.getRunEvents('ses-orphan').filter((r) => r.runId === orphanRunId)
+    const err = events.find((r) => (r.event as { kind?: string }).kind === 'task.error')
+    expect(err).toBeDefined()
+    expect((err!.event as { error?: { code?: string } }).error?.code).toBe('interrupted')
     store2.close()
   })
 
@@ -495,11 +569,42 @@ describe('SessionManager', () => {
 
     const rows = store.getRunEvents(sessionId).filter((r) => r.runId === out.taskId)
     // task.created (routed through makeEmit) + the runner's task.complete both
-    // persist to the run stream (dual-write alongside task_events).
+    // persist to the run stream.
     expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.created')).toBe(true)
     expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.complete')).toBe(true)
-    // task_events still written too (wait_for_task/listener consumers).
-    expect(store.getSessionTasks(sessionId).find((t) => t.id === out.taskId)).toBeDefined()
+    store.close()
+  })
+
+  it('a work run reaches terminal in run_events and leaves NO Task row', async () => {
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        deps.emit('task.complete', { taskId: deps.correlationId, result: { summary: 'built', artifacts: [] }, ts: 1 })
+        return runnerReturn('completed', 'built')
+      })
+    )
+    const store = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+    })
+    const { sessionId } = manager.createSession(providerA)
+    const out = await (
+      manager as unknown as {
+        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string }>
+      }
+    ).__runWorkTaskForTest(sessionId, 'build it')
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    // Run reached terminal in run_events...
+    expect(
+      store
+        .getRunEvents(sessionId)
+        .some((r) => r.runId === out.taskId && (r.event as { kind?: string }).kind === 'task.complete')
+    ).toBe(true)
+    // ...and left no Task row.
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -897,17 +1002,17 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('cancelTask marks a zombie task cancelled when its session is not in memory', () => {
-    // An interrupted session reopened in the UI is never re-dispatched, so it is
-    // absent from the in-memory sessions Map. Cancelling its phantom queued task
-    // must still flip it to 'cancelled' and emit so the UI drops the card.
+  it('cancelTask on a session not in memory is a no-op (zombie cleanup is the store restart pass)', () => {
+    // Post-4b: the manager no longer touches Task rows, so a phantom queued
+    // task left by a pre-4b interrupted session (never in the in-memory Map)
+    // is not cancelled by cancelTask — its run is not in flight (no abort
+    // handle) and not in the session's pending queue. The store's restart
+    // cleanup (markAndGetInterrupted) is what eventually settles such rows.
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const broadcastSpy = vi.spyOn(broadcaster, 'broadcast')
     const manager = createSessionManager({ store, broadcaster, maxConcurrent: 4, getProvider: () => undefined })
 
-    // Seed a session + pending task directly in the store, bypassing
-    // manager.createSession so the session never enters the in-memory Map.
     store.createSession('ses-ghost', providerA)
     store.updateSessionStatus('ses-ghost', 'interrupted')
     store.saveTask(
@@ -933,11 +1038,9 @@ describe('SessionManager', () => {
     )
 
     manager.cancelTask('ses-ghost', 'task-ghost')
-    expect(store.getTask('task-ghost')?.status).toBe('cancelled')
-    expect(broadcastSpy).toHaveBeenCalledWith(
-      'task.error',
-      expect.objectContaining({ taskId: 'task-ghost', error: expect.objectContaining({ code: 'cancelled' }) })
-    )
+    // The legacy Task row is untouched by the manager; no spurious broadcast.
+    expect(store.getTask('task-ghost')?.status).toBe('pending')
+    expect(broadcastSpy).not.toHaveBeenCalledWith('task.error', expect.anything())
     store.close()
   })
 
@@ -1264,7 +1367,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('persists task.delegation_plan emits via the work-task emit handler', async () => {
+  it('routes task.delegation_plan emits onto the run stream (no Task-row write)', async () => {
     let capturedEmit: ((event: string, data: unknown) => void) | null = null
     mockCreate.mockImplementation((deps) => {
       capturedEmit = deps.emit
@@ -1299,7 +1402,14 @@ describe('SessionManager', () => {
       { id: 'd2', goal: 'review', dependsOn: ['d1'] },
     ]
     emit('task.delegation_plan', { taskId, plan, ts: Date.now() })
-    expect(spy).toHaveBeenCalledWith(taskId, plan)
+    // Post-4b the manager writes no Task rows, so the plan is no longer
+    // persisted via saveTaskDelegationPlan — it lives on the run stream.
+    expect(spy).not.toHaveBeenCalled()
+    const rows = store
+      .getRunEvents(sessionId)
+      .filter((r) => r.runId === taskId && (r.event as { kind?: string }).kind === 'task.delegation_plan')
+    expect(rows).toHaveLength(1)
+    expect((rows[0]!.event as { plan?: { id: string }[] }).plan?.map((p) => p.id)).toEqual(['d1', 'd2'])
     store.close()
   })
 
@@ -1382,7 +1492,7 @@ describe('SessionManager', () => {
     store.close()
   })
 
-  it('runWorkTask creates a top-level work task and runs it single-shot', async () => {
+  it('runWorkTask creates a top-level work run and runs it single-shot (no Task row)', async () => {
     const calls: number[] = []
     mockCreate.mockImplementation(() => {
       calls.push(1)
@@ -1403,8 +1513,13 @@ describe('SessionManager', () => {
     ).__runWorkTaskForTest(sessionId, 'build feature X')
     expect(calls).toHaveLength(1)
     expect(out.result.summary).toBe('done')
-    const task = store.getSessionTasks(sessionId).find((t) => t.id === out.taskId)
-    expect(task?.parentId).toBeNull()
+    // Post-4b a work run leaves no Task row — it is a top-level (no parent)
+    // run on the run-event stream.
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
+    const created = store
+      .getRunEvents(sessionId)
+      .find((r) => r.runId === out.taskId && (r.event as { kind?: string }).kind === 'task.created')
+    expect(created?.parentRunId).toBeNull()
     store.close()
   })
 

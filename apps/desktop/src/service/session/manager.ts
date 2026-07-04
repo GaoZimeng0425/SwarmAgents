@@ -6,13 +6,13 @@ import type {
   PermissionDecision,
   PermissionMode,
   ProviderInjection,
+  ResourceBudget,
   Task,
-  TaskEvent,
   TaskOptions,
   TaskResult,
   TaskStatus,
 } from '@swarm/protocol'
-import { allowlistForAgent, type BudgetConfig, defaultBudgetConfig, emptyUsed } from '@swarm/protocol'
+import { allowlistForAgent, type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 import { applyAgentModel, DEFAULT_AGENT_DEF, defaultAgents, SYSTEM_SESSION_ID } from '@swarm/shared'
 import { ulid } from 'ulid'
 
@@ -135,6 +135,16 @@ export type SessionManager = {
   registerTerminalListener(fn: (runId: string, status: TerminalStatus) => void): void
   /** In-memory terminal-status registry (query directly: isTerminal/getStatus). */
   terminalRegistry: TerminalRegistry
+  /**
+   * Startup pass for interrupted-on-restart recovery: for every session marked
+   * interrupted by the store's restart cleanup, find runs that were dispatched
+   * but never reached a terminal event in run_events (the process died
+   * mid-flight), append a synthetic task.error to run_events (so replay reaches
+   * terminal instead of stuck-running), and mark each terminal in the registry
+   * (so any wait_for_task waiter on that runId wakes). Must be called AFTER
+   * registerTerminalListener and BEFORE taskWaiters.start().
+   */
+  markInterruptedRunsTerminal(): void
   /** @internal test hook */
   __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor
   /** @internal test hook */
@@ -234,12 +244,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // Mark this turn as the active run in the UI. The renderer reducer maps
     // task.dispatched -> status 'running'; without it the turn stays 'pending'
     // and is misclassified as a queued card. workerId is vestigial in the
-    // single-process model, so it is left empty.
+    // single-process model, so it is left empty. The dispatched event also
+    // persists to run_events, so a turn interrupted before reaching a terminal
+    // status replays from the DB as 'running' (the interrupted-on-restart
+    // startup pass appends a synthetic task.error to close it out).
     makeEmit(session.id)('task.dispatched', { taskId: next.taskId, workerId: '', ts: Date.now() })
-    // Persist the running state too: live events only reach connected renderers,
-    // so without this a task that is interrupted before reaching a terminal
-    // status replays from the DB as 'pending' and reappears as a queued card.
-    store.markTaskRunning(next.taskId)
     void next.runTurn().finally(() => {
       session.running = null
       pump(session)
@@ -260,9 +269,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   // In-memory terminal-status registry. Loaded once at construction from the
   // last terminal run_event per runId (one SQL scan), then maintained
-  // incrementally by the emit path (makeEmit/makeRunEmit) below. The
-  // updateTaskStatus-fired listener (service/index.ts) still fires during the
-  // 4b transition; markTerminal is idempotent so the dual-trigger is safe.
+  // incrementally by the emit path (makeEmit/makeRunEmit) below.
   const terminalRegistry = createTerminalRegistry(store.getTerminalRunStatuses())
 
   // Map a terminal emit's (event, obj) to a TerminalStatus (mirrors applyEvent).
@@ -284,10 +291,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
       const seq = seqCounter.nextSeq(sessionId)
       const ts = Date.now()
-      // Persist seq on the TaskEvent that appendTaskEvent stores in Task.history:
+      // Persist seq on the TaskEvent payload (task.progress events carry one)
+      // so the per-event seq travels with it into run_events.
       if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
       const taskId = obj?.taskId as string | undefined
-      // Dual-write: tee every run event into run_events (the renderer's replay
+      // Tee every run event into run_events (the renderer's only replay
       // source). parentRunId is carried by task.created's parentTaskId (set by
       // spawnChild); later events don't restate it, but the renderer only needs
       // it on task.created to nest the sub-agent block.
@@ -302,33 +310,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           ts,
         } as import('@swarm/protocol').UIEvent)
       }
-      // Mark terminal on the emit path (alongside the updateTaskStatus-fired
-      // listener during the 4b transition). Idempotent: first terminal wins.
+      // Mark terminal on the emit path. Idempotent: first terminal wins. This
+      // is the only terminal signal for runs post-4b (the registry is loaded
+      // from run_events terminal events; the store listener is gone).
       const term = terminalStatusFor(event, obj)
       if (taskId && term) terminalRegistry.markTerminal(taskId, term)
       const payload = obj ? { ...obj, sessionId, seq, ts } : data
 
-      if (event === 'task.progress' && taskId && obj?.event) {
-        store.appendTaskEvent(taskId, obj.event as TaskEvent)
-      }
-      if (event === 'task.error' && taskId && obj?.error) {
-        store.appendTaskEvent(taskId, {
-          kind: 'error',
-          error: obj.error as Extract<TaskEvent, { kind: 'error' }>['error'],
-          ts,
-          seq,
-        })
-      }
-      if (event === 'task.plan' && taskId && Array.isArray(obj?.todos)) {
-        const todos = obj.todos as import('@swarm/protocol').PlanTodo[]
-        store.saveTaskPlan(taskId, todos)
-        log.debug({ msg: 'plan persisted', taskId, steps: todos.length })
-      }
-      if (event === 'task.delegation_plan' && taskId && Array.isArray(obj?.plan)) {
-        const plan = obj.plan as import('@swarm/protocol').DelegationItem[]
-        store.saveTaskDelegationPlan(taskId, plan)
-        log.info({ msg: 'delegation plan persisted', taskId, items: plan.length })
-      }
       broadcaster.broadcast(event, payload)
     }
 
@@ -409,32 +397,17 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       })
     }
     const def = resolved ?? DEFAULT_AGENT_DEF
-    // One Task per residency (not per message).
-    const taskId = ulid()
+    // One residency run per actor (not per message). The runId is the
+    // correlationId for the runner and the actor's lastTaskId; the lifecycle
+    // lives on the run-event stream (task.created), with no Task row.
+    const runId = ulid()
+    const residencyGoal = `actor:${actor.address}`
+    const toolAllowlist = allowlistForAgent(def)
     const now = Date.now()
-    const task: Task = {
-      id: taskId,
-      parentId: null,
-      agentDefId: def.id,
-      goal: `actor:${actor.address}`,
-      plan: [],
-      status: 'pending',
-      assignedWorkerId: null,
-      toolAllowlist: allowlistForAgent(def),
-      budget: budgets().sub,
-      used: emptyUsed(),
-      history: [],
-      attachments: [],
-      result: null,
-      createdAt: now,
-      startedAt: null,
-      endedAt: null,
-    }
-    store.saveTask(task, sessionId)
-    store.upsertActor({ ...actor, lastTaskId: taskId, updatedAt: now })
+    store.upsertActor({ ...actor, lastTaskId: runId, updatedAt: now })
     makeEmit(sessionId)('task.created', {
-      taskId,
-      goal: task.goal,
+      taskId: runId,
+      goal: residencyGoal,
       attachments: [],
       agentDefId: def.id,
     })
@@ -444,7 +417,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const handle = { abort: () => abort.abort(), deliver: (m: ActorMessage) => mailbox.deliver(m) }
     // Register synchronously so the immediately-following deliver is queued.
     residentHandles.set(actor.address, handle)
-    log.info({ msg: 'resident spawned', sessionId, address: actor.address, taskId })
+    log.info({ msg: 'resident spawned', sessionId, address: actor.address, runId })
 
     const restored = decodeActorState(actor.state)
     if (actor.state && restored.length === 0) {
@@ -482,14 +455,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       },
     }
     const deps: AgentRunnerDeps = {
-      correlationId: task.id,
-      cwd: task.cwd,
-      goal: task.goal,
-      executionMode: task.executionMode,
-      budget: task.budget,
-      toolAllowlist: task.toolAllowlist,
-      attachments: task.attachments,
-      permissionMode: task.permissionMode,
+      correlationId: runId,
+      cwd: undefined,
+      goal: residencyGoal,
+      executionMode: undefined,
+      budget: budgets().sub,
+      toolAllowlist,
+      attachments: [],
+      permissionMode: undefined,
       provider: applyAgentModel(session.provider, def),
       agentDefinition: withPrompt(def),
       sessionId,
@@ -509,10 +482,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
     }
     void runResident(deps, mailbox, hooks, IDLE_TIMEOUT_MS)
-      .then(() => store.updateTaskStatus(taskId, 'completed'))
       .catch((err) => {
-        log.error({ msg: 'resident loop failed', sessionId, address: actor.address, taskId, err: String(err) })
-        store.updateTaskStatus(taskId, 'failed')
+        log.error({ msg: 'resident loop failed', sessionId, address: actor.address, runId, err: String(err) })
       })
       .finally(() => {
         // Close the idle-sleep vs live-deliver race: a sendMessage can fetch
@@ -619,57 +590,39 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const baseProvider = lookedUp ?? session.provider
     const resolvedProvider = applyAgentModel(baseProvider, def)
 
-    const childTaskId = ulid()
+    const childRunId = ulid()
     const now = Date.now()
-    const childTask: Task = {
-      id: childTaskId,
-      parentId: parentTaskId,
-      agentDefId: def.id,
-      goal: newGoal,
-      plan: [],
-      status: 'pending',
-      assignedWorkerId: null,
-      toolAllowlist: suggestedTools ?? allowlistForAgent(def),
-      budget: budgets().sub,
-      used: emptyUsed(),
-      history: [],
-      attachments: [],
-      result: null,
-      createdAt: now,
-      startedAt: null,
-      endedAt: null,
-    }
-    store.saveTask(childTask, sessionId)
-    log.info({ msg: 'child spawned', sessionId, parentTaskId, childTaskId, agentDefId: def.id })
+    const childToolAllowlist = suggestedTools ?? allowlistForAgent(def)
+    log.info({ msg: 'child spawned', sessionId, parentTaskId, childRunId, agentDefId: def.id })
 
-    // A child needs its own task.created so the renderer builds a real task
-    // record; without it the child's later events arrive for an unknown taskId
+    // A child needs its own task.created so the renderer opens a real run
+    // record; without it the child's later events arrive for an unknown runId
     // and degrade into an "(unknown task)" stub. parentTaskId/agentDefId let the
     // UI group it as a distinct sub-agent block. Routed through makeEmit so the
     // tee persists it to run_events (with parentRunId) for replay.
     makeEmit(sessionId)('task.created', {
-      taskId: childTaskId,
+      taskId: childRunId,
       goal: newGoal,
       attachments: [],
       parentTaskId,
       agentDefId: def.id,
     })
-    broadcaster.broadcast('task.handoff.spawned', { sessionId, parentTaskId, childTaskId, ts: now })
+    broadcaster.broadcast('task.handoff.spawned', { sessionId, parentTaskId, childRunId, ts: now })
 
     return new Promise<{ childTaskId: string; result: TaskResult }>((resolve) => {
       const startChild = async (): Promise<void> => {
         await acquireSlot()
         const abort = new AbortController()
-        oneShotHandles.set(childTaskId, abort)
+        oneShotHandles.set(childRunId, abort)
         const runner = createAgentRunner({
-          correlationId: childTask.id,
-          cwd: childTask.cwd,
-          goal: childTask.goal,
-          executionMode: childTask.executionMode,
-          budget: childTask.budget,
-          toolAllowlist: childTask.toolAllowlist,
-          attachments: childTask.attachments,
-          permissionMode: childTask.permissionMode,
+          correlationId: childRunId,
+          cwd: undefined,
+          goal: newGoal,
+          executionMode: undefined,
+          budget: budgets().sub,
+          toolAllowlist: childToolAllowlist,
+          attachments: [],
+          permissionMode: undefined,
           provider: resolvedProvider,
           agentDefinition: withPrompt(def),
           sessionId,
@@ -688,37 +641,24 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           maxIterationsOverride: budgets().maxIterations,
         })
         try {
-          const { status, summary } = await runner.run()
-          // Persist the child's terminal status. Without this the child row stays
-          // 'pending' forever (only submitGoal updated status before), so on
-          // rehydrate the finished sub-agent reads as still-running and the chat
-          // looks stuck executing.
-          store.updateTaskStatus(childTaskId, status)
-          resolve({ childTaskId, result: { summary, artifacts: [] } })
+          const { summary } = await runner.run()
+          // The runner's translator emits task.complete/task.error (→ run_events
+          // + terminalRegistry), so the child run reaches a terminal status
+          // without a Task-row update.
+          resolve({ childTaskId: childRunId, result: { summary, artifacts: [] } })
         } catch (err) {
-          log.error({
-            msg: 'spawnChild run failed',
-            childTaskId,
-            err: err instanceof Error ? err.message : String(err),
+          const message = err instanceof Error ? err.message : String(err)
+          log.error({ msg: 'spawnChild run failed', childRunId, err: message })
+          // Surface the failure on the run stream so replay reaches terminal.
+          makeEmit(sessionId)('task.error', {
+            taskId: childRunId,
+            error: { code: 'run_failed', message, tier: 'fatal' },
+            ts: Date.now(),
           })
-          try {
-            store.appendTaskEvent(childTaskId, {
-              kind: 'error',
-              error: { code: 'run_failed', message: err instanceof Error ? err.message : String(err), tier: 'fatal' },
-              ts: Date.now(),
-            })
-          } catch (appendErr) {
-            log.error({ msg: 'failed to persist child error event', childTaskId, err: String(appendErr) })
-          }
-          try {
-            store.updateTaskStatus(childTaskId, 'failed')
-          } catch (statusErr) {
-            log.error({ msg: 'failed to mark child failed', childTaskId, err: String(statusErr) })
-          }
           // Resolve (not reject) so the parent's spawn tool gets a result and continues.
-          resolve({ childTaskId, result: { summary: '', artifacts: [] } })
+          resolve({ childTaskId: childRunId, result: { summary: '', artifacts: [] } })
         } finally {
-          oneShotHandles.delete(childTaskId)
+          oneShotHandles.delete(childRunId)
           releaseSlot()
         }
       }
@@ -773,37 +713,57 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     redrainAddress(address)
   }
 
-  // Run one task turn under an acquired concurrency slot: build the runner,
-  // drive it to a terminal status, persist it, and surface the result. Shared by
-  // submitGoal (messageSource 'session' — seeds from and writes back the
-  // session's conversation buffer) and runWorkTask (messageSource 'isolated' — a
-  // self-contained work-task run that does not touch the session buffer, like
-  // spawnChild). The caller owns saveTask / task.created / dispatched.
+  // Run one task turn under an acquired concurrency slot: build the runner and
+  // drive it to a terminal status, which the runner's translator emits as
+  // task.complete/task.error (→ run_events + the terminal registry). Used by
+  // runWorkTask (messageSource 'isolated' — a self-contained work run that does
+  // not touch the session buffer). The caller owns task.created/dispatched and
+  // supplies the explicit fields the runner needs (resolved upstream).
   const runTaskTurn = async (args: {
     sessionId: string
-    task: Task
+    runId: string
     agentDef: AgentDefinition
+    cwd?: string
+    goal: string
+    executionMode?: import('@swarm/protocol').ExecutionMode
+    budget: ResourceBudget
+    toolAllowlist: string[]
+    attachments?: import('@swarm/protocol').Attachment[]
+    permissionMode?: PermissionMode
     onComplete?: (status: TaskStatus, error?: string) => void
     messageSource: 'session' | 'isolated'
   }): Promise<TaskResult> => {
-    const { sessionId, task, agentDef, onComplete, messageSource } = args
+    const {
+      sessionId,
+      runId,
+      agentDef,
+      cwd,
+      goal,
+      executionMode,
+      budget,
+      toolAllowlist,
+      attachments,
+      permissionMode,
+      onComplete,
+      messageSource,
+    } = args
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
     // Register the abort handle BEFORE awaiting a slot: pump() (or runWorkTask)
     // has already marked this turn running, so until the handle exists a cancel
     // issued while we wait for a slot would find the turn nowhere and no-op.
     const abort = new AbortController()
-    oneShotHandles.set(task.id, abort)
+    oneShotHandles.set(runId, abort)
     await acquireSlot()
     const runner = createAgentRunner({
-      correlationId: task.id,
-      cwd: task.cwd,
-      goal: task.goal,
-      executionMode: task.executionMode,
-      budget: task.budget,
-      toolAllowlist: task.toolAllowlist,
-      attachments: task.attachments,
-      permissionMode: task.permissionMode,
+      correlationId: runId,
+      cwd,
+      goal,
+      executionMode,
+      budget,
+      toolAllowlist,
+      attachments,
+      permissionMode,
       provider: session.provider,
       agentDefinition: withPrompt(agentDef),
       sessionId,
@@ -812,16 +772,16 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
       initialMessages: messageSource === 'session' ? session.messages : [],
+      // saveSnapshot persists the conversation buffer for 'session' turns. The
+      // runner's task.usage emit carries usage to run_events (the single source
+      // of truth post-4b), so per-Task usage is no longer saved here.
       saveSnapshot:
         messageSource === 'session'
-          ? (messages, used, contextWindow) => {
+          ? (messages: AgentMessage[]) => {
               session.messages = messages
               store.saveAgentSnapshot(sessionId, messages)
-              store.saveTaskUsage(task.id, used, contextWindow)
             }
-          : (_messages, used, contextWindow) => {
-              store.saveTaskUsage(task.id, used, contextWindow)
-            },
+          : undefined,
       signal: abort.signal,
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
       findPeers: (q) => directory.find(sessionId, q),
@@ -833,42 +793,35 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     })
     try {
       const { status, summary } = await runner.run()
-      store.updateTaskStatus(task.id, status)
+      // The runner's translator emits task.complete/task.error (→ run_events +
+      // the terminal registry), so no explicit status write is needed.
       onComplete?.(status)
       return { summary, artifacts: [] }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      log.error({ msg: 'runTaskTurn failed', taskId: task.id, err: message })
-      try {
-        store.appendTaskEvent(task.id, {
-          kind: 'error',
-          error: { code: 'run_failed', message, tier: 'fatal' },
-          ts: Date.now(),
-        })
-      } catch (appendErr) {
-        log.error({ msg: 'failed to persist error event', taskId: task.id, err: String(appendErr) })
-      }
-      try {
-        store.updateTaskStatus(task.id, 'failed')
-      } catch (statusErr) {
-        log.error({ msg: 'failed to mark task failed', taskId: task.id, err: String(statusErr) })
-      }
+      log.error({ msg: 'runTaskTurn failed', runId, err: message })
+      // Surface the failure on the run stream so replay reaches terminal.
+      makeEmit(sessionId)('task.error', {
+        taskId: runId,
+        error: { code: 'run_failed', message, tier: 'fatal' },
+        ts: Date.now(),
+      })
       onComplete?.('failed', message)
       return { summary: '', artifacts: [] }
     } finally {
-      oneShotHandles.delete(task.id)
+      oneShotHandles.delete(runId)
       releaseSlot()
     }
   }
 
-  // Create a top-level work Task (parentId null) and run the verify runner
-  // directly — bypassing the session's one-at-a-time turn pump — so a
-  // conversation turn calling create_task can await it without deadlocking the
-  // pump. Used by the create_task tool (agent-authored work) and the
-  // __runWorkTaskForTest seam. NOTE: spec §8 says nested runs "do not re-acquire"
-  // the slot, but spawnChild (which this mirrors) in fact acquires its own slot
-  // today; under the production maxConcurrent this is safe and is the precedent
-  // followed here.
+  // Create a top-level work run (no Task row; lives entirely in run_events)
+  // and drive the runner directly — bypassing the session's one-at-a-time turn
+  // pump — so a conversation turn calling create_task can await it without
+  // deadlocking the pump. Used by the create_task tool (agent-authored work)
+  // and the __runWorkTaskForTest seam. NOTE: spec §8 says nested runs "do not
+  // re-acquire" the slot, but spawnChild (which this mirrors) in fact acquires
+  // its own slot today; under the production maxConcurrent this is safe and is
+  // the precedent followed here.
   const runWorkTask = async (
     sessionId: string,
     goal: string,
@@ -884,37 +837,79 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     }
     const agentDef = agentDefOverride ?? resolvedByType ?? DEFAULT_AGENT_DEF
     const toolAllowlist = options.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
-    const now = Date.now()
-    const task: Task = {
-      id: ulid(),
-      parentId: null,
-      agentDefId: agentDef.id,
-      plan: [],
-      goal,
-      status: 'pending',
-      assignedWorkerId: null,
-      toolAllowlist,
-      budget: budgets().main,
-      used: emptyUsed(),
-      history: [],
-      attachments,
-      result: null,
-      createdAt: now,
-      startedAt: null,
-      endedAt: null,
+    const runId = ulid()
+    makeEmit(sessionId)('task.created', { taskId: runId, goal, attachments, agentDefId: agentDef.id })
+    log.info({ msg: 'work run created', sessionId, runId, agentDefId: agentDef.id, goalLen: goal.length })
+    // The pump would emit dispatched; since we bypass it, do so here so the
+    // renderer marks the work run running (not queued). The dispatched event
+    // also persists to run_events, so the run is discoverable as 'running' on
+    // replay (the interrupted-on-restart pass closes it out if need be).
+    makeEmit(sessionId)('task.dispatched', { taskId: runId, workerId: '', ts: Date.now() })
+    const result = await runTaskTurn({
+      sessionId,
+      runId,
+      agentDef,
       cwd: options.cwd,
-      permissionMode: options.permissionMode,
+      goal,
       executionMode: options.executionMode,
+      budget: budgets().main,
+      toolAllowlist,
+      attachments,
+      permissionMode: options.permissionMode,
+      messageSource: 'isolated',
+    })
+    return { taskId: runId, result }
+  }
+
+  // Interrupted-on-restart recovery. Pre-4b the store's restart cleanup fired
+  // the task-terminal listener via updateTaskStatus; post-4b that listener is
+  // rewired to the registry (loaded from run_events terminal events), which
+  // does NOT include runs that were dispatched but never reached a terminal
+  // event (the process died mid-flight). Without this pass, a wait_for_task
+  // waiter on such an orphaned run waits forever, and renderer replay shows the
+  // run stuck 'running'. Fix: synthesize a terminal task.error per orphan in
+  // run_events (so replay reaches terminal) and mark each terminal in the
+  // registry (so waiters wake). Idempotent: a run with a terminal event is
+  // skipped by construction (it isn't an orphan).
+  //
+  // Queries sessions already in the 'interrupted' state — by the time this
+  // runs, the manager constructor + store's markAndGetInterrupted have already
+  // flipped active→interrupted, so getInterruptedSessions() (which returns only
+  // the newly-flipped) would be empty.
+  const markInterruptedRunsTerminal = (): void => {
+    const interrupted = store.listSessions().filter((s) => s.status === 'interrupted')
+    if (interrupted.length === 0) return
+    let closed = 0
+    for (const s of interrupted) {
+      const rows = store.getRunEvents(s.id)
+      const dispatched = new Set<string>()
+      const terminal = new Set<string>()
+      for (const r of rows) {
+        const kind = (r.event as { kind?: string }).kind
+        if (kind === 'task.dispatched') dispatched.add(r.runId)
+        else if (kind === 'task.complete' || kind === 'task.error') terminal.add(r.runId)
+      }
+      for (const runId of dispatched) {
+        if (terminal.has(runId)) continue
+        const seq = seqCounter.nextSeq(s.id)
+        const ts = Date.now()
+        store.appendRunEvent(s.id, runId, null, {
+          kind: 'task.error',
+          sessionId: s.id,
+          taskId: runId,
+          error: { code: 'interrupted', message: 'run interrupted by restart', tier: 'fatal' },
+          seq,
+          ts,
+        } as import('@swarm/protocol').UIEvent)
+        // Mark terminal cancelled so waiters (and the listener wired in
+        // service/index.ts) fire. Idempotent: first terminal wins.
+        terminalRegistry.markTerminal(runId, 'cancelled')
+        closed += 1
+      }
     }
-    store.saveTask(task, sessionId)
-    makeEmit(sessionId)('task.created', { taskId: task.id, goal, attachments, agentDefId: agentDef.id })
-    log.info({ msg: 'work task created', sessionId, taskId: task.id, agentDefId: agentDef.id, goalLen: goal.length })
-    // The pump would emit dispatched + markTaskRunning; since we bypass it, do
-    // both here so the renderer marks the work task running (not queued).
-    makeEmit(sessionId)('task.dispatched', { taskId: task.id, workerId: '', ts: Date.now() })
-    store.markTaskRunning(task.id)
-    const result = await runTaskTurn({ sessionId, task, agentDef, messageSource: 'isolated' })
-    return { taskId: task.id, result }
+    if (closed > 0) {
+      log.info({ msg: 'interrupted runs closed on restart', count: closed })
+    }
   }
 
   return {
@@ -1119,45 +1114,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         handle.abort()
         return
       }
-      // Queued but not yet started: remove from the queue and mark cancelled.
+      // Queued but not yet started: remove from the queue and emit task.error
+      // (routed through makeEmit so it tees to run_events AND broadcasts). The
+      // runner never started, so no translator emit will fire — this is the
+      // sole terminal signal for the cancelled queued turn.
       const session = sessions.get(sessionId)
       const idx = session ? session.pending.findIndex((q) => q.taskId === taskId) : -1
       if (session && idx !== -1) {
         session.pending.splice(idx, 1)
-        const error = { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' as const }
-        if (store.getTask(taskId)) {
-          // Work task: persist cancelled status + task.error to its history.
-          store.updateTaskStatus(taskId, 'cancelled')
-          makeEmit(sessionId)('task.error', { taskId, error, ts: Date.now() })
-        } else {
-          // Conversation turn (no Task row): appendTaskEvent would FK-violate on
-          // the missing task_id, so broadcast the cancel directly with a seq so
-          // the renderer still drops the queued card.
-          broadcaster.broadcast('task.error', {
-            sessionId,
-            taskId,
-            turnId: taskId,
-            error,
-            ts: Date.now(),
-            seq: seqCounter.nextSeq(sessionId),
-          })
-        }
-        log.info({ msg: 'queued turn cancelled', sessionId, taskId })
-        return
-      }
-      // No in-memory session (e.g. an interrupted session reopened in the UI
-      // but never re-dispatched). A non-terminal task here is a zombie — mark
-      // it cancelled and emit so the UI drops the phantom queued card. Terminal
-      // tasks are left alone.
-      const task = store.getTask(taskId)
-      if (task && !['completed', 'failed', 'cancelled', 'interrupted'].includes(task.status)) {
-        store.updateTaskStatus(taskId, 'cancelled')
         makeEmit(sessionId)('task.error', {
           taskId,
           error: { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' },
           ts: Date.now(),
         })
-        log.info({ msg: 'zombie task cancelled (no in-memory session)', sessionId, taskId })
+        log.info({ msg: 'queued turn cancelled', sessionId, taskId })
         return
       }
       log.warn({ msg: 'cancelTask: unknown or already-finished task', sessionId, taskId })
@@ -1199,7 +1169,15 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     deleteSession(sessionId) {
       log.info({ msg: 'session deleted', sessionId })
       // Abort any in-flight runs for this session before dropping its rows.
-      for (const t of store.getSessionTasks(sessionId)) oneShotHandles.get(t.id)?.abort()
+      // Post-4b there are no Task rows to enumerate (runs live in run_events),
+      // so drive the aborts from the in-memory queue + the running turn; any
+      // background spawnChild/runWorkTask run will complete and its writes to
+      // the deleted session are no-ops.
+      const session = sessions.get(sessionId)
+      if (session) {
+        if (session.running) oneShotHandles.get(session.running)?.abort()
+        for (const q of session.pending) oneShotHandles.get(q.taskId)?.abort()
+      }
       sessions.delete(sessionId)
       store.deleteSession(sessionId)
     },
@@ -1253,6 +1231,8 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     },
 
     terminalRegistry,
+
+    markInterruptedRunsTerminal,
 
     // Test-only: exercise actor resolution without driving a full run.
     __ensureActorForTest(sessionId: string, agentDefId: string, name?: string) {

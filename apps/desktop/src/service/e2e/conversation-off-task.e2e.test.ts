@@ -1,10 +1,11 @@
 // src/service/e2e/conversation-off-task.e2e.test.ts
 //
-// Phase 3a/3b end-to-end guard: a trivial conversation message creates NO Task
-// and runs single-shot; its events land on the session run-event stream.
+// Phase 3a/3b/4b end-to-end guard: a trivial conversation message creates NO
+// Task and runs single-shot; its events land on the session run-event stream.
 // Real work is agent-authored via create_task (driven here through the
-// __runWorkTaskForTest seam), which DOES create a work Task. After Phase 3b
-// every run is single-shot — there is no verify loop distinction anymore.
+// __runWorkTaskForTest seam), which post-4b is also Task-less — just a run on
+// the run-event stream. After 3b every run is single-shot — there is no verify
+// loop distinction anymore.
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -77,13 +78,14 @@ describe('conversation off task', () => {
     // The returned id is the conversation turnId, not a Task id.
     expect(turnId).toMatch(/^[0-9A-Z]{26}$/)
 
-    // Agent-authored work via create_task DOES make a Task (also single-shot now).
+    // Agent-authored work via create_task also creates no Task row post-4b —
+    // it is a top-level run on the run-event stream.
     const work = await (
       manager as unknown as {
         __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string }>
       }
     ).__runWorkTaskForTest(sessionId, 'build it')
-    expect(store.getSessionTasks(sessionId).find((t) => t.id === work.taskId)).toBeDefined()
+    expect(store.getRunEvents(sessionId).some((r) => r.runId === work.taskId)).toBe(true)
 
     store.close()
   })

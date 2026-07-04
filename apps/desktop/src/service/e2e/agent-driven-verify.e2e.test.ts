@@ -16,8 +16,17 @@ import { createConversationStore } from '../conversation/store'
 import { createSessionManager } from '../session/manager'
 
 vi.mock('../session/agent-runner', () => ({
-  createAgentRunner: () => ({
-    run: async () => ({ status: 'completed', summary: 'done', messages: [], used: {} }),
+  createAgentRunner: (deps: any) => ({
+    run: async () => {
+      // Post-4b the runner's translator emits task.complete (→ run_events);
+      // the mock stands in for the translator.
+      deps.emit('task.complete', {
+        taskId: deps.correlationId,
+        result: { summary: 'done', artifacts: [] },
+        ts: Date.now(),
+      })
+      return { status: 'completed', summary: 'done', messages: [], used: {} }
+    },
   }),
   buildAgentSession: () => ({}),
   runResident: async () => {},
@@ -41,17 +50,13 @@ describe('agent-driven verify — single-shot work task', () => {
         __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string; result: unknown }>
       }
     ).__runWorkTaskForTest(sessionId, 'build it')
-    const task = store.getSessionTasks(sessionId).find((t) => t.id === work.taskId)
 
-    expect(task).toBeDefined()
-    // Post-3b: the typed Task no longer carries verifications/acceptanceCriteria
-    // fields (Task 5 dropped them from the schema). Regression guard: if either
-    // field were re-added without re-wiring persistence, this would silently
-    // flip to a non-undefined value.
-    expect((task as { verifications?: unknown } | undefined)?.verifications ?? []).toHaveLength(0)
-    expect((task as { acceptanceCriteria?: unknown } | undefined)?.acceptanceCriteria ?? []).toHaveLength(0)
-    // Single-shot: the work task reached a terminal status with no verify loop.
-    expect(['completed', 'failed']).toContain(task?.status)
+    // Post-4b: no Task row for a work run — assert against the run stream.
+    const events = store.getRunEvents(sessionId).filter((r) => r.runId === work.taskId)
+    const isTerminal = (r: { event: { kind?: string } }): boolean =>
+      r.event.kind === 'task.complete' || r.event.kind === 'task.error'
+    expect(events.some(isTerminal)).toBe(true)
+    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
 
     store.close()
   })

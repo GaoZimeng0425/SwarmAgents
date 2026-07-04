@@ -1,9 +1,9 @@
 // src/service/e2e/unified-runs.e2e.test.ts
 //
-// Phase 4a end-to-end guard: a conversation turn AND an agent-authored work run
-// both write their full lifecycle to run_events (the renderer's only replay
-// source), so each reaches a terminal status on replay. The work run still
-// dual-writes its Task row (wait_for_task / listener / cron consumers).
+// Phase 4a/4b end-to-end guard: a conversation turn AND an agent-authored work
+// run both write their full lifecycle to run_events (the renderer's only replay
+// source), so each reaches a terminal status on replay. Post-4b the work run
+// leaves no Task row — it lives entirely in run_events.
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -64,8 +64,6 @@ describe('unified runs', () => {
     // Both runs reached a terminal event in run_events.
     expect(rows.filter((r) => r.runId === work.taskId).some(isTerminal)).toBe(true) // work
     expect(rows.filter((r) => r.runId !== work.taskId).some(isTerminal)).toBe(true) // conversation
-    // task_events still written for the work run (dual-write; wait_for_task/listener).
-    expect(store.getSessionTasks(sessionId).find((t) => t.id === work.taskId)).toBeDefined()
 
     store.close()
   })

@@ -112,6 +112,12 @@ const taskWaiters = createTaskWaiterService({
   terminalRegistry: manager.terminalRegistry,
 })
 manager.registerTerminalListener((runId, status) => taskWaiters.onTaskTerminal(runId, status))
+// Close out runs dispatched-but-never-terminal from a previous process: append
+// a synthetic task.error to run_events (replay reaches terminal) and mark each
+// terminal in the registry. Order matters — this runs AFTER the listener is
+// wired (so markTerminal wakes any matching waiter) and BEFORE taskWaiters.start()
+// (so the start sweep sees the now-terminal runs and fires the rest).
+manager.markInterruptedRunsTerminal()
 taskWaiters.start()
 
 // Service-side main-rpc client: gmail.* tools call mainRpc('gmail.search', [...]),
