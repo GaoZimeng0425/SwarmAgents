@@ -96,6 +96,8 @@ export type ConversationStore = {
     ts: number
     event: import('@swarm/protocol').UIEvent
   }[]
+  /** The last terminal status per runId across ALL sessions (for registry boot). */
+  getTerminalRunStatuses(): Array<{ runId: string; status: 'completed' | 'failed' | 'cancelled' }>
   saveTaskPlan(taskId: string, plan: Task['plan']): void
   saveTaskDelegationPlan(taskId: string, plan: Task['delegationPlan']): void
   saveTask(task: Task, sessionId: string): void
@@ -590,6 +592,20 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtGetRunEvents = db.prepare(
     'SELECT run_id AS runId, parent_run_id AS parentRunId, seq, ts, event FROM run_events WHERE session_id = ? ORDER BY id'
   )
+  // Last terminal event per runId across all sessions — boots the session
+  // manager's terminal registry at construction (one scan of run_events).
+  const stmtGetTerminalRunStatuses = db.prepare(
+    `SELECT run_id AS runId,
+       CASE
+         WHEN json_extract(event, '$.kind') = 'task.complete' THEN 'completed'
+         WHEN json_extract(event, '$.error.code') = 'cancelled' THEN 'cancelled'
+         ELSE 'failed'
+       END AS status
+     FROM run_events
+     WHERE json_extract(event, '$.kind') IN ('task.complete', 'task.error')
+     GROUP BY run_id
+     HAVING id = MAX(id)`
+  )
 
   // Append a synthetic ok=false tool.result for every tool.call left without a
   // matching tool.result (e.g. spawn_sub_agent interrupted mid-run, whose
@@ -870,6 +886,12 @@ export function createConversationStore(dbPath: string): ConversationStore {
         ts: r.ts,
         event: JSON.parse(r.event) as import('@swarm/protocol').UIEvent,
       }))
+    },
+    getTerminalRunStatuses() {
+      return stmtGetTerminalRunStatuses.all() as Array<{
+        runId: string
+        status: 'completed' | 'failed' | 'cancelled'
+      }>
     },
     saveTaskPlan(taskId, plan) {
       stmtSetTaskPlan.run(JSON.stringify(plan), taskId)

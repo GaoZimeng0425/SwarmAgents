@@ -31,6 +31,7 @@ import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResiden
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
 import { createReplyRegistry } from './reply-registry'
 import { createSeqCounter } from './seq-counter'
+import { createTerminalRegistry, type TerminalRegistry, type TerminalStatus } from './terminal-registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
 
@@ -131,6 +132,10 @@ export type SessionManager = {
   getConversationEvents(sessionId: string): import('@swarm/protocol').ConversationEvent[]
   getRunEvents(sessionId: string): import('@swarm/protocol').RunEvent[]
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
+  /** Register the terminal-status listener (fires once per runId). */
+  registerTerminalListener(fn: (runId: string, status: TerminalStatus) => void): void
+  /** In-memory terminal-status registry (query directly: isTerminal/getStatus). */
+  terminalRegistry: TerminalRegistry
   /** @internal test hook */
   __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor
   /** @internal test hook */
@@ -255,6 +260,26 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     (sid: string) => store.getRunEvents(sid)
   )
 
+  // In-memory terminal-status registry. Loaded once at construction from the
+  // last terminal run_event per runId (one SQL scan), then maintained
+  // incrementally by the emit path (makeEmit/makeRunEmit) below. The
+  // updateTaskStatus-fired listener (service/index.ts) still fires during the
+  // 4b transition; markTerminal is idempotent so the dual-trigger is safe.
+  const terminalRegistry = createTerminalRegistry(store.getTerminalRunStatuses())
+
+  // Map a terminal emit's (event, obj) to a TerminalStatus (mirrors applyEvent).
+  const terminalStatusFor = (event: string, obj: Record<string, unknown> | undefined): TerminalStatus | undefined => {
+    if (event === 'task.complete') return 'completed'
+    if (event === 'task.error') {
+      const code =
+        typeof obj?.error === 'object' && obj.error && 'code' in obj.error
+          ? (obj.error as { code: unknown }).code
+          : undefined
+      return code === 'cancelled' ? 'cancelled' : 'failed'
+    }
+    return undefined
+  }
+
   const makeEmit =
     (sessionId: string) =>
     (event: string, data: unknown): void => {
@@ -279,6 +304,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           ts,
         } as import('@swarm/protocol').UIEvent)
       }
+      // Mark terminal on the emit path (alongside the updateTaskStatus-fired
+      // listener during the 4b transition). Idempotent: first terminal wins.
+      const term = terminalStatusFor(event, obj)
+      if (taskId && term) terminalRegistry.markTerminal(taskId, term)
       const payload = obj ? { ...obj, sessionId, seq, ts } : data
 
       if (event === 'task.progress' && taskId && obj?.event) {
@@ -325,6 +354,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         ts,
       } as import('@swarm/protocol').UIEvent
       store.appendRunEvent(sessionId, runId, parentRunId, uiEvent)
+      // Mark terminal on the emit path (run-level emits have no Task row, so
+      // this is the only terminal signal for conversation/work/spawn runs).
+      const term = terminalStatusFor(event, obj)
+      if (term) terminalRegistry.markTerminal(runId, term)
       broadcaster.broadcast(event, { ...(obj ?? {}), sessionId, taskId: runId, seq, ts })
     }
 
@@ -1219,6 +1252,12 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     getUsageStats(rangeDays) {
       return store.getUsageStats(rangeDays)
     },
+
+    registerTerminalListener(fn) {
+      terminalRegistry.onTerminal(fn)
+    },
+
+    terminalRegistry,
 
     // Test-only: exercise actor resolution without driving a full run.
     __ensureActorForTest(sessionId: string, agentDefId: string, name?: string) {
