@@ -667,8 +667,10 @@ describe('SessionManager', () => {
     // belongs to the conversation). Pre-fix, runTaskTurn's runner was
     // constructed with a saveSnapshot that wrote store.saveAgentSnapshot,
     // so a work-run restart overwrote the conversation buffer.
-    mockCreate.mockImplementation((deps) =>
-      runner(async () => {
+    let capturedDeps: { saveSnapshot?: unknown } | undefined
+    mockCreate.mockImplementation((deps) => {
+      capturedDeps = deps as { saveSnapshot?: unknown }
+      return runner(async () => {
         // Simulate the runner mid-run persistence path: even if it tries to
         // save its work-run transcript, the snapshot must stay untouched.
         deps.saveSnapshot?.(
@@ -677,7 +679,7 @@ describe('SessionManager', () => {
         )
         return runnerReturn('completed', 'built')
       })
-    )
+    })
     const store = createConversationStore(dbPath)
     const manager = createSessionManager({
       store,
@@ -698,6 +700,9 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
     // The conversation snapshot is unchanged — work-run saveSnapshot is a no-op.
     expect(store.getAgentSnapshot(sessionId)).toEqual(conversationMessages)
+    // Structural guard: runTaskTurn wires NO saveSnapshot for work runs (a
+    // no-op — work runs are isolated from the conversation buffer).
+    expect(capturedDeps?.saveSnapshot).toBeUndefined()
     store.close()
   })
 

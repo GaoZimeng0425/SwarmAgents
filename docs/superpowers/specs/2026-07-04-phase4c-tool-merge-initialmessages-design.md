@@ -58,9 +58,9 @@ The backends (`runWorkTask` vs `spawnChild`) are unchanged — top-level vs chil
 - `spawnChild` (delegation): `initialMessages = [{ role: 'user', content: newGoal }]`.
 - `buildAnalyzeImage` (vision sub-call): `initialMessages = [{ role: 'user', content: prompt }]` (was `goal: prompt` + `initialMessages: []`).
 
-The runner's one-shot `run()` path seeds the agent from `initialMessages` and runs one turn — it no longer passes a separate `goal`. The `AgentSession.promptOnce(goal?, images?)` signature changes: `goal` becomes OPTIONAL — omitted on the one-shot path (the goal is already the last `initialMessages` entry, so `promptOnce()` just runs one turn against the seeded state); passed by the resident loop per delivered message. The internal `task.goal` (used only for the `buildAgentSession` log line) is derived best-effort from the last user message of `initialMessages` (empty string if there is none).
+The runner's one-shot `run()` path extracts the goal from the last `initialMessages` user turn, **strips it from the pi seed** (so pi's append-prompt doesn't double it — `[...prior, {user, goal}, {user, goal}]`), and calls `promptOnce(goal)` to run one turn. `AgentSession.promptOnce(goal, images?)` stays REQUIRED — pi's `agent.prompt(goal)` needs a goal; the one-shot path passes the extracted goal, the resident loop passes the delivered message per turn. (The plan corrected the spec's earlier "goal becomes optional" framing — the goal is always passed to `promptOnce`; only its SOURCE changed from a separate `deps.goal` field to the last `initialMessages` entry.)
 
-**Resident actors are unchanged in behavior:** `runResident` still calls `promptOnce(goal)` once per delivered message (each message is a new turn's goal). The only change to the resident path is that `promptOnce`'s `goal` is now optional in the type — the resident loop keeps passing it. The 3c change must NOT alter resident run-loop semantics.
+**Resident actors are unchanged in behavior:** `runResident` still calls `promptOnce(goal)` once per delivered message (each message is a new turn's goal). `promptOnce(goal, images?)`'s `goal` stays required (pi needs it); 3c only changes one-shot seeding (the goal's source + the seed-strip), not the resident run-loop.
 
 ### 2.3 Cleanup batch (4b Minors)
 
