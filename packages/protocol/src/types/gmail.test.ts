@@ -40,6 +40,7 @@ describe('gmail types', () => {
       subject: 'S',
       snippet: 'snip',
       bodyText: 'body',
+      htmlBody: '<p>body</p>',
       dateMs: 2,
       labelIds: ['INBOX'],
     })
