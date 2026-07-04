@@ -44,7 +44,6 @@ import { runResident } from './agent-runner'
 
 const deps = (): AgentRunnerDeps => ({
   correlationId: 't1',
-  goal: '',
   cwd: undefined,
   attachments: [],
   budget: { calls: 1000, wallMs: 600000, usdCents: 100000, tokens: 1e9 },

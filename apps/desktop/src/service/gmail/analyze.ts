@@ -3,6 +3,7 @@
 // allowlist, but its `emit` is wired to broadcast progress so the renderer's
 // MessageAnalysis panel can stream. The gmail-analyst agent (a visible builtin)
 // supplies the Chinese structured-Markdown prompt.
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type { AnalyzeEmailRequest, AnalyzeEmailResult, BudgetConfig } from '@swarm/protocol'
 import { applyAgentModel, defaultAgents } from '@swarm/shared'
@@ -64,9 +65,9 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
       }
     }
 
+    const analyzePrompt = `分析下面这封邮件。\n\nSubject: ${req.subject}\nFrom: ${req.from}\n\n${req.content}`
     const runnerDeps: AgentRunnerDeps = {
       correlationId: messageId,
-      goal: `分析下面这封邮件。\n\nSubject: ${req.subject}\nFrom: ${req.from}\n\n${req.content}`,
       executionMode: 'goal',
       budget: deps.getBudgetConfig().sub,
       toolAllowlist: [],
@@ -76,7 +77,7 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
       emit,
       permissionRegistry: createPermissionRegistry(() => undefined),
       toolRegistry: deps.toolRegistry,
-      initialMessages: [],
+      initialMessages: [{ role: 'user', content: analyzePrompt }] as AgentMessage[],
       spawnChild: () => Promise.reject(new Error('spawnChild unavailable in analyze')),
       maxIterationsOverride: def.maxIterations,
     }

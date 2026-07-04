@@ -432,7 +432,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const deps: AgentRunnerDeps = {
       correlationId: runId,
       cwd: undefined,
-      goal: residencyGoal,
       executionMode: undefined,
       budget: budgets().sub,
       toolAllowlist,
@@ -596,7 +595,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const runner = createAgentRunner({
           correlationId: childRunId,
           cwd: undefined,
-          goal: newGoal,
           executionMode: undefined,
           budget: budgets().sub,
           toolAllowlist: childToolAllowlist,
@@ -609,7 +607,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           emit: makeRunEmit(sessionId, childRunId, parentTaskId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
-          initialMessages: [],
+          initialMessages: [{ role: 'user', content: newGoal }] as AgentMessage[],
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           findPeers: (q) => directory.find(sessionId, q),
@@ -739,7 +737,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const runner = createAgentRunner({
       correlationId: runId,
       cwd,
-      goal,
       executionMode,
       budget,
       toolAllowlist,
@@ -752,7 +749,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       emit: makeRunEmit(sessionId, runId),
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
-      initialMessages: [],
+      initialMessages: [{ role: 'user', content: goal }] as AgentMessage[],
       // Work runs are isolated: they must NOT overwrite the session's shared
       // agent_snapshot buffer (which belongs to the conversation). Omitting
       // saveSnapshot is safe — the runner calls it via optional chaining — so
@@ -1006,7 +1003,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         const runner = createAgentRunner({
           correlationId: turnId,
           cwd: options?.cwd,
-          goal,
           executionMode: options?.executionMode,
           budget: budgets().main,
           toolAllowlist,
@@ -1019,7 +1015,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           emit: makeRunEmit(sessionId, turnId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
-          initialMessages: session.messages,
+          initialMessages: [...session.messages, { role: 'user', content: goal }] as AgentMessage[],
           saveSnapshot: (messages) => {
             session.messages = messages
             store.saveAgentSnapshot(sessionId, messages)

@@ -37,7 +37,6 @@ import { buildAgentSession } from './agent-runner'
 const deps = (emit: (event: string, data: unknown) => void): AgentRunnerDeps =>
   ({
     correlationId: 't1',
-    goal: 'hello',
     cwd: undefined,
     attachments: [],
     budget: { calls: 100, wallMs: 60000, usdCents: 1000, tokens: 1e9 },

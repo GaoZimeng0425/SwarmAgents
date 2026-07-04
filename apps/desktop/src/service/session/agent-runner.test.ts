@@ -74,10 +74,12 @@ const mkTask = (id: string): TaskShape => ({
   attachments: [],
 })
 
+// Post-3c the runner no longer takes a `goal` field: the one-shot goal is the
+// last user message in `initialMessages`. `runCtxFrom` carries the remaining
+// run-context fields; `baseDeps` (below) bakes `task.goal` into initialMessages.
 const runCtxFrom = (t: TaskShape) => ({
   correlationId: t.id,
   cwd: t.cwd,
-  goal: t.goal,
   executionMode: t.executionMode,
   budget: t.budget,
   toolAllowlist: t.toolAllowlist,
@@ -127,7 +129,11 @@ describe('AgentRunner', () => {
   })
 
   it('seeds the agent with initialMessages and returns final messages', async () => {
-    const seed = [{ role: 'user', content: 'earlier turn' }] as unknown as AgentMessage[]
+    // Post-3c the goal is the LAST initialMessages user turn — bake 'do it' in.
+    const seed = [
+      { role: 'user', content: 'earlier turn' },
+      { role: 'user', content: 'do it' },
+    ] as unknown as AgentMessage[]
     let capturedInitial: unknown
 
     MockAgent.mockImplementation(function (this: unknown, opts: { initialState?: { messages?: unknown } }) {
@@ -143,7 +149,7 @@ describe('AgentRunner', () => {
     })
 
     const runner = createAgentRunner({
-      ...runCtxFrom({ ...mkTask('t-2'), goal: 'do it' }),
+      ...runCtxFrom(mkTask('t-2')),
       provider: {
         id: 'anthropic',
         registry: 'anthropic',
@@ -170,6 +176,62 @@ describe('AgentRunner', () => {
     const out = await runner.run()
     expect(capturedInitial).toEqual(seed)
     expect(out.messages).toEqual([{ role: 'assistant', content: 'reply' }])
+  })
+
+  it('one-shot run seeds the goal from the last initialMessages user turn', async () => {
+    // 3c: the runner extracts the one-shot goal from initialMessages — no `goal`
+    // field on AgentRunnerDeps. The agent must be prompted with the LAST user
+    // message ('do the thing'), not the earlier context.
+    const prompts: string[] = []
+    MockAgent.mockImplementation(function (this: Record<string, unknown>) {
+      this.state = { messages: [] as Array<{ role: string; content: string }> }
+      this.subscribe = () => undefined
+      this.abort = () => undefined
+      this.prompt = async (goal: string) => {
+        prompts.push(goal)
+        this.state = {
+          messages: [
+            { role: 'user', content: goal },
+            { role: 'assistant', content: `ack:${goal}` },
+          ],
+        }
+      }
+    })
+
+    const runner = createAgentRunner({
+      correlationId: 'r1',
+      cwd: undefined,
+      executionMode: 'goal',
+      budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
+      attachments: [],
+      provider: {
+        id: 'anthropic',
+        registry: 'anthropic',
+        apiStyle: 'anthropic',
+        model: 'claude-haiku-4-5-20251001',
+        apiKey: 'k',
+      },
+      agentDefinition: {
+        id: 'default',
+        name: 'D',
+        description: '',
+        systemPrompt: '',
+        toolScope: 'all',
+        maxIterations: 5,
+      },
+      sessionId: 's',
+      emit: () => undefined,
+      permissionRegistry: { request: vi.fn(), resolve: vi.fn() },
+      toolRegistry: createToolRegistry(),
+      initialMessages: [
+        { role: 'user', content: 'earlier context' },
+        { role: 'user', content: 'do the thing' },
+      ] as unknown as AgentMessage[],
+      spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
+    })
+    const out = await runner.run()
+    expect(out.status).toBe('completed')
+    expect(prompts).toEqual(['do the thing'])
   })
 
   type BeforeToolCall = (ctx: { toolCall: { name: string }; args: unknown }) => Promise<{ block?: boolean } | undefined>
@@ -237,7 +299,7 @@ describe('AgentRunner', () => {
     emit: () => undefined,
     permissionRegistry: { request: vi.fn(async () => 'grant' as const), resolve: vi.fn() },
     spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
-    initialMessages: [],
+    initialMessages: [{ role: 'user', content: task.goal }] as unknown as AgentMessage[],
     toolRegistry: createToolRegistry(),
   })
 

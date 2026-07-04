@@ -50,7 +50,6 @@ describe('agent-runner tool context messaging bridge', () => {
     }
     const ctx = buildToolContext({
       correlationId: 't1',
-      goal: 'g',
       cwd: undefined,
       attachments: [],
       sessionId: 's1',
@@ -65,7 +64,6 @@ describe('agent-runner tool context messaging bridge', () => {
     const { buildToolContext } = await import('./agent-runner')
     const ctx = buildToolContext({
       correlationId: 't1',
-      goal: 'g',
       cwd: undefined,
       attachments: [],
       sessionId: 's1',

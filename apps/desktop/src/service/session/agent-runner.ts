@@ -186,9 +186,6 @@ export type AgentRunnerDeps = {
   correlationId: string
   /** Working directory. Replaces task.cwd. */
   cwd?: string
-  /** Objective text — seeds the first user turn.
-   *  Replaces task.goal. (Phase-3 folds this into initialMessages.) */
-  goal: string
   /** Replaces task.executionMode. */
   executionMode?: 'goal' | 'plan'
   /** Replaces task.budget. */
@@ -353,7 +350,6 @@ function buildAnalyzeImage(
     const runner = createAgentRunner({
       correlationId: `${ctx.id}:vision`,
       cwd: ctx.cwd,
-      goal: prompt,
       executionMode: 'goal',
       budget: ctx.budget,
       toolAllowlist: [],
@@ -372,7 +368,7 @@ function buildAnalyzeImage(
       emit: () => undefined,
       permissionRegistry: deps.permissionRegistry,
       toolRegistry: deps.toolRegistry,
-      initialMessages: [],
+      initialMessages: [{ role: 'user', content: prompt }] as AgentMessage[],
       spawnChild: deps.spawnChild,
       signal: deps.signal,
     })
@@ -581,11 +577,24 @@ type RunContext = {
   permissionMode?: PermissionMode
 }
 
+// The one-shot goal is the last initialMessages user turn (callers bake it in);
+// the runner seeds the rest as prior context and prompts the agent with it.
+// Resident runs don't use this — they pass a per-turn goal to promptOnce.
+// Tolerates a missing array (partial deps in tool-context tests) by returning ''.
+function extractOneShotGoal(initialMessages: AgentMessage[] | undefined): string {
+  const last = initialMessages?.[initialMessages.length - 1]
+  if (last && last.role === 'user') {
+    const content = last.content
+    return typeof content === 'string' ? content : ''
+  }
+  return ''
+}
+
 function resolveRunContext(deps: AgentRunnerDeps): RunContext {
   return {
     id: deps.correlationId,
     cwd: deps.cwd,
-    goal: deps.goal,
+    goal: extractOneShotGoal(deps.initialMessages),
     executionMode: deps.executionMode,
     budget: deps.budget,
     toolAllowlist: deps.toolAllowlist ?? [],

@@ -33,6 +33,15 @@ const runnerReturn = (
 // callbacks stay loosely-typed while satisfying the AgentRunner contract.
 const runner = (run: AgentRunner['run']): AgentRunner => ({ run })
 
+// Post-3c the runner deps carry no `goal` field — the one-shot goal is the last
+// initialMessages user turn. Mirrors the runner's extractOneShotGoal for tests
+// that need to identify which turn reached the mocked runner.
+const goalOf = (deps: { initialMessages?: Array<{ role: string; content: unknown }> }): string => {
+  const m = deps.initialMessages ?? []
+  const last = m[m.length - 1]
+  return last && last.role === 'user' && typeof last.content === 'string' ? last.content : ''
+}
+
 const tmpDb = () => join(tmpdir(), `swarm-ses-test-${Date.now()}.db`)
 
 describe('SessionManager', () => {
@@ -901,14 +910,21 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(seeds).toHaveLength(1)
-    expect(seeds[0]).toEqual([])
+    // Post-3c: submitGoal bakes the goal into initialMessages as the last user
+    // turn (the runner extracts it). First turn has no prior history.
+    expect(seeds[0]).toEqual([{ role: 'user', content: 'first' }])
 
     resolveFirst!()
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
 
     expect(seeds).toHaveLength(2)
-    expect(seeds[1]).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'a' }] }])
+    // Second turn seeds from the first turn's persisted assistant reply, then
+    // appends the new goal as the final user turn.
+    expect(seeds[1]).toEqual([
+      { role: 'assistant', content: [{ type: 'text', text: 'a' }] },
+      { role: 'user', content: 'second' },
+    ])
     expect(store.getAgentSnapshot(sessionId)).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'b' }] }])
     store.close()
   })
@@ -1048,8 +1064,9 @@ describe('SessionManager', () => {
     let resolveA: (() => void) | null = null
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
-        ran.push(deps.goal!)
-        if (deps.goal === 'A') {
+        const goal = goalOf(deps as never)
+        ran.push(goal)
+        if (goal === 'A') {
           await new Promise<void>((r) => {
             resolveA = r
           })
@@ -1244,9 +1261,10 @@ describe('SessionManager', () => {
       runner(
         () =>
           new Promise<RunReturn>((resolve) => {
-            ran.push(deps.goal!)
-            seeds[deps.goal!] = deps.initialMessages
-            if (deps.goal === 'A') {
+            const goal = goalOf(deps as never)
+            ran.push(goal)
+            seeds[goal] = deps.initialMessages
+            if (goal === 'A') {
               // A stays running until interrupted (aborted). On abort it persists a
               // partial transcript via saveSnapshot before resolving cancelled, so
               // the promoted turn must seed from that partial output.
@@ -1287,8 +1305,12 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(ran).toEqual(['A', 'C', 'B'])
-    // The promoted turn C seeds from the partial output A saved on abort.
-    expect(seeds.C).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'partial-A' }] }])
+    // The promoted turn C seeds from the partial output A saved on abort, then
+    // appends C's goal as the final user turn (post-3c caller-side baking).
+    expect(seeds.C).toEqual([
+      { role: 'assistant', content: [{ type: 'text', text: 'partial-A' }] },
+      { role: 'user', content: 'C' },
+    ])
     store.close()
   })
 
@@ -1300,7 +1322,7 @@ describe('SessionManager', () => {
     const ran: string[] = []
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
-        ran.push(deps.goal!)
+        ran.push(goalOf(deps as never))
         deps.saveSnapshot?.([], { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 })
         return runnerReturn('completed', '')
       })
@@ -1338,7 +1360,7 @@ describe('SessionManager', () => {
         () =>
           new Promise<RunReturn>((resolve) => {
             // Record whether the signal was already aborted when run() started.
-            sawAbortedAtEntry[deps.goal!] = deps.signal?.aborted ?? false
+            sawAbortedAtEntry[goalOf(deps as never)] = deps.signal?.aborted ?? false
             if (deps.signal?.aborted) {
               resolve(runnerReturn('cancelled', ''))
               return
@@ -1471,7 +1493,7 @@ describe('SessionManager', () => {
     const goals: string[] = []
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
-        goals.push(deps.goal!)
+        goals.push(goalOf(deps as never))
         return runnerReturn('completed', 'ok')
       })
     )
