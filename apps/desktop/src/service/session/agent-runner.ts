@@ -410,6 +410,11 @@ function createEventTranslator(
   // Capture it here so the run reports the real error instead of a silent,
   // empty "completed" turn.
   let errorMessage: string | null = null
+  // pi stamps aborted runs' messages with stopReason 'aborted'. The terminal
+  // for every abort cause (cancel/budget/iterations/context) is owned by
+  // promptOnce's stopCause branches — the translator must emit NEITHER
+  // task.complete NOR task.error for an aborted turn.
+  let sawAborted = false
 
   const flushText = (): void => {
     if (!textBuffer) return
@@ -434,6 +439,8 @@ function createEventTranslator(
   const captureFailure = (m: { stopReason?: string; errorMessage?: string } | undefined): void => {
     if (m?.stopReason === 'error') {
       errorMessage = m.errorMessage ?? 'The model request failed without a message.'
+    } else if (m?.stopReason === 'aborted') {
+      sawAborted = true
     }
   }
 
@@ -521,6 +528,10 @@ function createEventTranslator(
           }
           return
         }
+        // An aborted run's terminal is emitted by promptOnce (with the real
+        // cause); emitting a completion here double-terminates the run and
+        // poisons the first-wins terminal registry.
+        if (sawAborted) return
         const summary = assembledSummary.trim() || `Completed task ${taskId}.`
         emit('task.complete', { taskId, summary, ts: Date.now() })
         return
@@ -536,6 +547,7 @@ function createEventTranslator(
   // an earlier turn must not condemn a later successful one.
   const resetError = (): void => {
     errorMessage = null
+    sawAborted = false
   }
 
   const setSuppressError = (suppress: boolean): void => {

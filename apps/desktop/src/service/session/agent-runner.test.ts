@@ -545,6 +545,34 @@ describe('AgentRunner', () => {
     expect(out.status).toBe('cancelled')
   })
 
+  it('emits exactly one terminal event when the run is aborted (no task.complete before task.error)', async () => {
+    const h = installAgent()
+    const emitted: Array<{ event: string; data: unknown }> = []
+    const ac = new AbortController()
+    const runner = createAgentRunner({
+      ...baseDeps(mkTask('t-abort-once')),
+      signal: ac.signal,
+      emit: (event, data) => emitted.push({ event, data }),
+    })
+    const p = runner.run()
+    await Promise.resolve()
+
+    ac.abort()
+    // Real pi ends an aborted run with agent_end whose messages carry
+    // stopReason 'aborted' (agent-loop.js) — the mock must reproduce that,
+    // because this is exactly what production sees and the old tests never
+    // simulated.
+    h.emitEvent({ type: 'agent_end', messages: [{ role: 'assistant', content: [], stopReason: 'aborted' }] })
+    h.resolvePrompt()
+
+    const out = await p
+    expect(out.status).toBe('cancelled')
+    const terminals = emitted.filter((e) => e.event === 'task.complete' || e.event === 'task.error')
+    expect(terminals).toHaveLength(1)
+    expect(terminals[0].event).toBe('task.error')
+    expect((terminals[0].data as { error: { code: string } }).error.code).toBe('cancelled')
+  })
+
   it('emits task.usage on turn_end and returns final used', async () => {
     const h = installAgent()
     const emitted: Array<{ event: string; data: Record<string, unknown> }> = []
