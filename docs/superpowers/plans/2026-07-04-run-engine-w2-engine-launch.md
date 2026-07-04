@@ -1378,6 +1378,11 @@ describe('launchRun', () => {
       ports
     )
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
+    // Release the hold for NEW prompts: the outer run's prompt is already
+    // parked on its own promise (unaffected), but the nested vision run must
+    // complete — a module-level hold would park it too AND clobber the outer
+    // run's resolver, deadlocking the test.
+    holdPrompt = false
     expect(getCtx().analyzeImage).toBeDefined()
     const before = s.events.length
     const text = await getCtx().analyzeImage!('what is this', { data: 'AA==', mimeType: 'image/png' })
