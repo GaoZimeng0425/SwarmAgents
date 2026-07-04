@@ -105,6 +105,12 @@ Kind-specific behavior is declared in one table inside `launch.ts`: `turn` → q
 | 13 | emit factory dual-mode + mutates caller payload + double `ts` (manager.ts:293-323) | emit.ts single mode, no mutation |
 | 14 | `budget.tokens` accepted, never enforced | knob deleted |
 
+**Residual on #1 (found in the W0 final review):** the W0 hotfix suppresses the translator terminal only when pi stamps `stopReason: 'aborted'`. When `maxTurns` trips on a natural-finish turn with no further tool calls (and in the narrow cancel race between the last `turn_end` and `agent_end`), pi ends WITHOUT the aborted stamp and the old translator still double-terminates. Pre-existing behavior, not a W0 regression; structurally eliminated when W2 adopts the terminal-free translator — W2's parity tests must cover the iterations-on-natural-finish case.
+
+**W2 carry-overs (from the W1 final review):** (a) v1 returns the untrimmed summary and the `Completed task X.` empty-summary fallback — both move to the engine; pin trimmed+fallback behavior deliberately in parity tests. (b) `outcome()` can carry both `errorMessage` and `sawAborted` in one run — the engine's terminal decision defines precedence explicitly (engine-owned `stopCause` first, as v1 does). (c) Port the subscription-level "Operation aborted" transcript rewrite (agent-runner.ts:956-962) — it lives outside the translator; easy to lose.
+
+**§6 addendum:** the dormant nested `task.complete` declarations — `shared/events.ts` `DomainEvent` (dies with EventBus) and `packages/protocol/src/types/ipc.ts` `OutboundSchema`'s task.* members (zero references outside the definition) — fold into the W4 wire cleanup.
+
 ## 8. Delivery plan
 
 - **W0 (hotfix, ships first, old engine):** three surgical fixes on develop via worktree — gmail `attachments` crash, translator `'aborted'` capture (double-terminal), `task.complete` flat-summary shim at the emit site. Keeps production usable while the rewrite proceeds.
