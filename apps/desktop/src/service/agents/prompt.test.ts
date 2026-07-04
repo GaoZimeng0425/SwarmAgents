@@ -17,11 +17,11 @@ describe('withAgentTypes', () => {
     expect(withAgentTypes('base', [])).toBe('base')
   })
 
-  it('appends a catalog of id: description lines and the spawn guidance', () => {
+  it('appends a catalog of id: description lines and the create_task guidance', () => {
     const out = withAgentTypes('base', [def('researcher', 'Use when investigating.')])
     expect(out).toContain('base')
     expect(out).toContain('# Sub-agent types')
-    expect(out).toContain('spawn_sub_agent')
+    expect(out).toContain('create_task')
     expect(out).toContain('- researcher: Use when investigating.')
   })
 

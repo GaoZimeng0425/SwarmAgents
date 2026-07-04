@@ -105,12 +105,12 @@ Never create a second agent that does what an existing one already does.
 ## Step 2 — Pick a team architecture pattern
 
 Choose the coordination shape deliberately instead of defaulting to head→IC. Map
-each pattern to our primitives (\`send_and_wait\`, \`spawn_sub_agent\`, \`find_agents\`):
+each pattern to our primitives (\`send_and_wait\`, \`create_task\`, \`find_agents\`):
 
 | Pattern | When | SwarmAgents shape |
 |---|---|---|
 | Pipeline | sequential, each step depends on the last | head chains \`send_and_wait\` IC→IC |
-| Fan-out / Fan-in | independent parallel sub-tasks | head \`spawn_sub_agent\`s in parallel, then integrates |
+| Fan-out / Fan-in | independent parallel sub-tasks | head \`create_task\`s in parallel (default spawn path), then integrates |
 | Expert Pool | one of several specialists fits per request | head selects an IC by \`capability\` via \`find_agents\` |
 | Producer-Reviewer | output needs a quality gate | IC produces, reviewer reviews, head loops (= the dev team) |
 | Supervisor | dynamic, stateful task distribution | head holds state and dispatches as work emerges |

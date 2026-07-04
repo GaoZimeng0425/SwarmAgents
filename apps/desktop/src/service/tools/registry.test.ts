@@ -36,7 +36,7 @@ describe('ToolRegistry', () => {
     const r = createToolRegistry()
     r.register(spec('peekaboo', 'see_screen', 'low'))
     r.register(spec('peekaboo', 'list_apps', 'low'))
-    r.register(spec('agent', 'spawn_sub_agent', 'medium'))
+    r.register(spec('agent', 'create_task', 'medium'))
     return r
   }
 
@@ -58,7 +58,7 @@ describe('ToolRegistry', () => {
   it('riskOf returns spec risk, defaulting unknown to medium', () => {
     const { riskOf } = make().resolve(['*'], ctx)
     expect(riskOf('see_screen')).toBe('low')
-    expect(riskOf('spawn_sub_agent')).toBe('medium')
+    expect(riskOf('create_task')).toBe('medium')
     expect(riskOf('does_not_exist')).toBe('medium')
   })
 

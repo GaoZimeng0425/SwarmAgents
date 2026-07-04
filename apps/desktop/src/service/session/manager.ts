@@ -61,7 +61,7 @@ const PLAN_READONLY_ALLOWLIST = [
   'web.search',
   'peekaboo.see_screen',
   'peekaboo.list_apps',
-  // update_plan only — exclude spawn_sub_agent, whose child could mutate.
+  // update_plan only — exclude create_task, whose child could mutate.
   'agent.update_plan',
 ]
 
@@ -1022,7 +1022,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           },
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
-          createTask: (g) => runWorkTask(sessionId, g, []),
+          createTask: (g, agentType) => runWorkTask(sessionId, g, [], agentType ? { agentType } : {}),
           findPeers: (q) => directory.find(sessionId, q),
           writeAgent: (def) =>
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },

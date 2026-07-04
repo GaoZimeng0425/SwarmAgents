@@ -32,7 +32,7 @@ describe('registerBuiltinTools', () => {
     return r
   }
 
-  it('registers the peekaboo, spawn, and messaging agent tools', () => {
+  it('registers the peekaboo, agent, and messaging tools', () => {
     const ids = make()
       .list()
       .map((s) => `${s.group}.${s.name}`)
@@ -43,7 +43,6 @@ describe('registerBuiltinTools', () => {
       'agent.send_and_wait',
       'agent.send_message',
       'agent.set_delegation_plan',
-      'agent.spawn_sub_agent',
       'agent.update_plan',
       'agent.whoami',
       'authoring.write_agent',
@@ -81,11 +80,11 @@ describe('registerBuiltinTools', () => {
     expect(riskOf('hotkey')).toBe('high')
   })
 
-  it('spawn tool delegates to ctx.spawnChild and returns its summary', async () => {
+  it('create_task spawn path delegates to ctx.spawnChild and returns its summary', async () => {
     const { tools } = make().resolve(['agent.*'], ctx)
-    const spawn = tools.find((t) => t.name === 'spawn_sub_agent')
-    expect(spawn).toBeDefined()
-    const result = await spawn!.execute('call-1', { goal: 'do a thing' })
+    const createTask = tools.find((t) => t.name === 'create_task')
+    expect(createTask).toBeDefined()
+    const result = await createTask!.execute('call-1', { goal: 'do a thing' })
     expect(result.content[0]).toEqual({ type: 'text', text: 'done' })
   })
 

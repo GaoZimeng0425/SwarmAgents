@@ -36,7 +36,7 @@ export interface ToolRunContext {
     agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
   /** Agent-authored work: create a top-level work Task (single-shot) and return its result. Absent outside conversation turns. */
-  createTask?(goal: string): Promise<{ taskId: string; result: TaskResult }>
+  createTask?(goal: string, agentType?: string): Promise<{ taskId: string; result: TaskResult }>
   send: (msg: Outbound) => void
   requestPermission: (args: {
     toolName: string

@@ -35,7 +35,7 @@ const Params = Type.Object({
 // here (d1..dn) so dependsOn can reference items stably. dependsOn is validated
 // against earlier item ids (forward references are rejected). Routed to the runner
 // via ctx.setDelegationPlan. Dispatch itself is prompt-driven (the Leader calls
-// spawn_sub_agent per item); this tool only records the plan for audit + UI.
+// create_task per item); this tool only records the plan for audit + UI.
 export function delegationPlanSpec(): ToolSpec {
   return {
     group: 'agent',

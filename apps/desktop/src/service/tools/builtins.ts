@@ -21,7 +21,6 @@ import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { renderUiSpec } from './render-ui'
 import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
-import { spawnAgentSpec } from './spawn'
 import { currentTimeSpec } from './time'
 import { analyzeImageSpec, ocrImageSpec } from './vision'
 import { waitForTaskSpecs } from './wait-for-task'
@@ -74,7 +73,6 @@ export function registerBuiltinTools(
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
-  registry.register(spawnAgentSpec())
   registry.register(createTaskSpec())
   registry.register(sendMessageSpec())
   registry.register(sendAndWaitSpec())

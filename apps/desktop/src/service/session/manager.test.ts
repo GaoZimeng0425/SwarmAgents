@@ -1176,12 +1176,12 @@ describe('SessionManager', () => {
     expect(capturedTask?.cwd).toBe('/work/dir')
     expect(capturedTask?.permissionMode).toBe('full')
     expect(capturedTask?.executionMode).toBe('plan')
-    // Plan mode is read-only: no shell, no fs writes, no spawn.
+    // Plan mode is read-only: no shell, no fs writes, no spawn (create_task spawn path).
     expect(capturedTask?.toolAllowlist).not.toContain('*')
     expect(capturedTask?.toolAllowlist).toContain('fs.read_file')
     expect(capturedTask?.toolAllowlist).not.toContain('shell.run_shell')
     expect(capturedTask?.toolAllowlist).not.toContain('fs.write_file')
-    expect(capturedTask?.toolAllowlist).not.toContain('agent.spawn_sub_agent')
+    expect(capturedTask?.toolAllowlist).not.toContain('agent.create_task')
     store.close()
   })
 

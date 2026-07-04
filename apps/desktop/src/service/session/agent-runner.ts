@@ -222,7 +222,7 @@ export type AgentRunnerDeps = {
     agentType?: string
   ): Promise<{ childTaskId: string; result: TaskResult }>
   /** Agent-authored work: create a top-level work Task (single-shot), await, return result. */
-  createTask?(goal: string): Promise<{ taskId: string; result: TaskResult }>
+  createTask?(goal: string, agentType?: string): Promise<{ taskId: string; result: TaskResult }>
   /** This run's actor address, when run as a resident actor. */
   selfAddress?: string
   /** Deliver a message to another actor. rpc awaits a reply; send is fire-and-forget. */

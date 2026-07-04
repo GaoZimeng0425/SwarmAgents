@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ResourceBudget } from '@swarm/protocol'
 import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
+import { Button, Input } from '@swarm/ui'
 
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
 import { useBudgets } from '@/hooks/use-budgets'
 import { SettingsHeader } from './settings-primitives'
 
@@ -63,7 +62,7 @@ export function BudgetsView(): React.JSX.Element {
         description={
           <>
             Per-task spending caps. A task stops once it hits any limit. <strong>Main agent</strong> applies to tasks
-            you start; <strong>Sub-agent</strong> applies to each agent spawned via <code>spawn_sub_agent</code>.
+            you start; <strong>Sub-agent</strong> applies to each agent spawned via <code>create_task</code>.
           </>
         }
         title="Budgets"
