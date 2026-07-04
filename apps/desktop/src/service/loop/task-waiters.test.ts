@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ConversationStore, StoredTaskWaiter } from '../conversation/store'
-import { createTerminalRegistry, type TerminalStatus } from '../session/terminal-registry'
+import { createTerminalRegistry } from '../session/terminal-registry'
 import { createTaskWaiterService } from './task-waiters'
 
 // Minimal in-memory fake of the store surface the service uses. Post-4b the
@@ -85,7 +85,7 @@ describe('TaskWaiterService', () => {
       goal: null,
       createdAt: 2,
     })
-    const registry = createTerminalRegistry([{ runId: 'r-done', status: 'completed' as TerminalStatus }])
+    const registry = createTerminalRegistry([{ runId: 'r-done', status: 'completed' }])
     const deliver = vi.fn()
     const svc = createTaskWaiterService({ store, deliver, terminalRegistry: registry })
     svc.start()

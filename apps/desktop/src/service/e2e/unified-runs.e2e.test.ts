@@ -12,7 +12,7 @@ import { createSessionManager } from '../session/manager'
 
 vi.mock('../session/agent-runner', () => ({
   // Stub runner: emits task.complete so the terminal event reaches run_events
-  // via makeEmit/makeRunEmit, then resolves completed.
+  // via makeRunEmit, then resolves completed.
   createAgentRunner: (deps: any) => ({
     run: async () => {
       deps.emit('task.complete', {

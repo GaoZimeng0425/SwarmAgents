@@ -1,15 +1,15 @@
 // Per-session monotonic seq counter. Lazily initializes from the max persisted
 // run_event seq so a resumed session continues past its history (no collision
-// across service restarts). Centralized so makeEmit/makeRunEmit share one
+// across service restarts). Centralized so makeRunEmit shares one
 // seq-assignment point.
 export type SeqCounter = {
   nextSeq: (sessionId: string) => number
 }
 
 /** Minimal shape createSeqCounter reads from a session's run event rows. */
-export type ConversationEventRow = { seq: number }
+export type RunEventRow = { seq: number }
 
-export function createSeqCounter(getRunEvents: (sessionId: string) => ConversationEventRow[] = () => []): SeqCounter {
+export function createSeqCounter(getRunEvents: (sessionId: string) => RunEventRow[] = () => []): SeqCounter {
   const counters = new Map<string, number>()
 
   const initMax = (sessionId: string): number => {

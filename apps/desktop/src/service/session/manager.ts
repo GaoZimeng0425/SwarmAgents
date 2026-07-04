@@ -699,9 +699,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   // Run one task turn under an acquired concurrency slot: build the runner and
   // drive it to a terminal status, which the runner's translator emits as
   // task.complete/task.error (→ run_events + the terminal registry). Used by
-  // runWorkTask (messageSource 'isolated' — a self-contained work run that does
-  // not touch the session buffer). The caller owns task.created/dispatched and
-  // supplies the explicit fields the runner needs (resolved upstream).
+  // runWorkTask (a self-contained work run that does not touch the session
+  // buffer). The caller owns task.created/dispatched and supplies the explicit
+  // fields the runner needs (resolved upstream).
   const runTaskTurn = async (args: {
     sessionId: string
     runId: string
@@ -714,7 +714,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     attachments?: import('@swarm/protocol').Attachment[]
     permissionMode?: PermissionMode
     onComplete?: (status: TaskStatus, error?: string) => void
-    messageSource: 'session' | 'isolated'
   }): Promise<TaskResult> => {
     const {
       sessionId,
@@ -728,7 +727,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       attachments,
       permissionMode,
       onComplete,
-      messageSource,
     } = args
     const session = sessions.get(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
@@ -754,17 +752,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       emit: makeRunEmit(sessionId, runId),
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
-      initialMessages: messageSource === 'session' ? session.messages : [],
-      // saveSnapshot persists the conversation buffer for 'session' turns. The
-      // runner's task.usage emit carries usage to run_events (the single source
-      // of truth post-4b), so per-Task usage is no longer saved here.
-      saveSnapshot:
-        messageSource === 'session'
-          ? (messages: AgentMessage[]) => {
-              session.messages = messages
-              store.saveAgentSnapshot(sessionId, messages)
-            }
-          : undefined,
+      initialMessages: [],
+      // The runner's task.usage emit carries usage to run_events (the single
+      // source of truth post-4b); the agent snapshot is saved here so a
+      // mid-run interrupt leaves the runner's last message buffer persisted.
+      saveSnapshot: (messages) => {
+        store.saveAgentSnapshot(sessionId, messages)
+      },
       signal: abort.signal,
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
       findPeers: (q) => directory.find(sessionId, q),
@@ -839,7 +833,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       toolAllowlist,
       attachments,
       permissionMode: options.permissionMode,
-      messageSource: 'isolated',
     })
     return { taskId: runId, result }
   }
@@ -880,7 +873,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         if (terminal.has(runId)) continue
         const seq = seqCounter.nextSeq(s.id)
         const ts = Date.now()
-        store.appendRunEvent(s.id, runId, null, {
+        const event: import('@swarm/protocol').UIEvent = {
           kind: 'task.error',
           sessionId: s.id,
           taskId: runId,
@@ -888,9 +881,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           // (next restart) all in sync. 'interrupted' was never a status the
           // renderer maps; using it drifted to 'failed' on replay.
           error: { code: 'cancelled', message: 'run interrupted by restart', tier: 'fatal' },
-          seq,
           ts,
-        } as import('@swarm/protocol').UIEvent)
+          seq,
+        }
+        store.appendRunEvent(s.id, runId, null, event)
         // Mark terminal cancelled so waiters (and the listener wired in
         // service/index.ts) fire. Idempotent: first terminal wins.
         terminalRegistry.markTerminal(runId, 'cancelled')

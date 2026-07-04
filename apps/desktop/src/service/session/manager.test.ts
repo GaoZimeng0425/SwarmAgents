@@ -613,7 +613,7 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     const rows = store.getRunEvents(sessionId).filter((r) => r.runId === out.taskId)
-    // task.created (routed through makeEmit) + the runner's task.complete both
+    // task.created (routed through makeRunEmit) + the runner's task.complete both
     // persist to the run stream.
     expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.created')).toBe(true)
     expect(rows.some((r) => (r.event as { kind?: string }).kind === 'task.complete')).toBe(true)

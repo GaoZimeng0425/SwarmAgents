@@ -100,7 +100,7 @@ const scheduler = createCronScheduler({
   // they survive that conversation's deletion.
   resolveJobSession: (fromSessionId) => manager.ensureSystemSession(fromSessionId),
   isRunTerminal: (runId) => manager.terminalRegistry.isTerminal(runId),
-  runTerminalStatus: (runId) => manager.terminalRegistry.getStatus(runId) ?? undefined,
+  runTerminalStatus: (runId) => manager.terminalRegistry.getStatus(runId),
 })
 // Drives Claude Code sessions the agent operates via cc_* tools. The SDK is
 // loaded lazily on first cc_start, so constructing it here is cheap.

@@ -87,7 +87,7 @@ export function taskSegments(task: RunRecord): Segment[] {
 
   task.events.forEach((e: UIEvent, i) => {
     const key = `${task.id}-${i}`
-    // Per-event seq for ordering (makeEmit/replay always set it; ts is a defensive fallback).
+    // Per-event seq for ordering (makeRunEmit/replay always set it; ts is a defensive fallback).
     const seq = e.seq ?? e.ts
     if (e.kind === 'task.progress') {
       const ev = e.event
