@@ -753,12 +753,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
       initialMessages: [],
-      // The runner's task.usage emit carries usage to run_events (the single
-      // source of truth post-4b); the agent snapshot is saved here so a
-      // mid-run interrupt leaves the runner's last message buffer persisted.
-      saveSnapshot: (messages) => {
-        store.saveAgentSnapshot(sessionId, messages)
-      },
+      // Work runs are isolated: they must NOT overwrite the session's shared
+      // agent_snapshot buffer (which belongs to the conversation). Omitting
+      // saveSnapshot is safe — the runner calls it via optional chaining — so
+      // the work run's transcript lives only in run_events.
       signal: abort.signal,
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
       findPeers: (q) => directory.find(sessionId, q),

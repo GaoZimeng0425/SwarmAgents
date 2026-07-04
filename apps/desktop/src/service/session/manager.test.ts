@@ -652,6 +652,46 @@ describe('SessionManager', () => {
     store.close()
   })
 
+  it('a work run does NOT overwrite the conversation agent_snapshot (regression)', async () => {
+    // Work runs are isolated: their transcript lives in run_events only and
+    // must never clobber the session's shared agent_snapshot buffer (which
+    // belongs to the conversation). Pre-fix, runTaskTurn's runner was
+    // constructed with a saveSnapshot that wrote store.saveAgentSnapshot,
+    // so a work-run restart overwrote the conversation buffer.
+    mockCreate.mockImplementation((deps) =>
+      runner(async () => {
+        // Simulate the runner mid-run persistence path: even if it tries to
+        // save its work-run transcript, the snapshot must stay untouched.
+        deps.saveSnapshot?.(
+          [{ role: 'assistant', content: [{ type: 'text', text: 'work-run msg' }] }] as AgentMessage[],
+          { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 }
+        )
+        return runnerReturn('completed', 'built')
+      })
+    )
+    const store = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+    })
+    const { sessionId } = manager.createSession(providerA)
+    // Seed a conversation snapshot that the work run must not disturb.
+    const conversationMessages = [{ role: 'user', content: 'conversation msg' }] as unknown as AgentMessage[]
+    store.saveAgentSnapshot(sessionId, conversationMessages)
+    await (
+      manager as unknown as {
+        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string }>
+      }
+    ).__runWorkTaskForTest(sessionId, 'build feature X')
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    // The conversation snapshot is unchanged — work-run saveSnapshot is a no-op.
+    expect(store.getAgentSnapshot(sessionId)).toEqual(conversationMessages)
+    store.close()
+  })
+
   it('uses session provider when providerKey is not given', async () => {
     const sessionProvider = {
       id: 'anthropic' as const,
