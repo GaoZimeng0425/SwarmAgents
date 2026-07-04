@@ -471,6 +471,9 @@ describe('AgentRunner', () => {
     expect(used.tokens).toBe(1500)
     expect(used.usdCents).toBe(5) // round(0.05 * 100)
     expect(used.calls).toBe(1)
+    // The resolved run model id is emitted on every task.usage for per-model
+    // attribution in run_events (replaces the pre-4b session-snapshot join).
+    expect(usage!.data.model).toBe('claude-haiku-4-5-20251001')
 
     h.resolvePrompt()
     const out = await p

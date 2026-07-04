@@ -110,6 +110,9 @@ export type UIEvent =
       /** Latest turn's context occupancy and the model's context-window size (for the composer ring). */
       contextTokens?: number
       contextWindow?: number
+      /** Resolved run model id, for per-model usage attribution (replaces the
+       *  pre-4b session-snapshot join). */
+      model?: string
       ts: number
       seq?: number
     }

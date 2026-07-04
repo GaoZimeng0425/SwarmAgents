@@ -5,7 +5,7 @@ import { HEATMAP_DAYS } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import Database from 'better-sqlite3'
 
-import { currentStreak, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './usage-stats'
+import { currentStreak, dayKey, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './usage-stats'
 
 const log = createLogger({ process: 'service' }).child({ component: 'conversation-store' })
 
@@ -690,21 +690,33 @@ export function createConversationStore(dbPath: string): ConversationStore {
   let taskTerminalListener: ((taskId: string, status: string) => void) | null = null
 
   const stmtListSessions = db.prepare(
-    // tokensUsed / usdCents sum the per-task `used` snapshots (same method as
-    // getUsageStats), so the list shows each session's cumulative cost without
-    // hydrating its tasks into the renderer. Sub-agent children persist zeroed
-    // usage, so summing all tasks equals summing the top-level turns.
-    `SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
+    // tokensUsed / usdCents sum the LATEST task.usage per run_id in the session
+    // (each run emits usage at every turn boundary; the last is the final
+    // snapshot). Post-4b the source is run_events only — conversation turns
+    // also emit task.usage via makeRunEmit, so they're already included and
+    // adding session_used would double-count. Sub-agent runs emit their own
+    // task.usage (their parent's snapshot does NOT include child cost), so
+    // every run_id — top-level, conversation, and sub-agent — contributes.
+    // `session_used` writes are left in place but no longer read here.
+    `WITH latest_usage AS (
+        SELECT session_id, run_id,
+               json_extract(event, '$.used.tokens')   AS tokens,
+               json_extract(event, '$.used.usdCents') AS usdCents
+          FROM run_events
+         WHERE json_extract(event, '$.kind') = 'task.usage'
+           AND id IN (SELECT MAX(id) FROM run_events
+                       WHERE json_extract(event, '$.kind') = 'task.usage'
+                       GROUP BY run_id)
+     )
+     SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
             s.cwd, s.permission_mode AS permissionMode, s.execution_mode AS executionMode,
             s.agent_type AS agentType,
-            (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id) AS taskCount,
-            ((SELECT COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) FROM tasks t WHERE t.session_id = s.id)
-              + COALESCE(json_extract(s.session_used, '$.tokens'), 0)) AS tokensUsed,
-            ((SELECT COALESCE(SUM(json_extract(t.used, '$.usdCents')), 0) FROM tasks t WHERE t.session_id = s.id)
-              + COALESCE(json_extract(s.session_used, '$.usdCents'), 0)) AS usdCents
-     FROM sessions s
-     WHERE s.status != 'ended'
-     ORDER BY s.pinned DESC, s.sort_order ASC`
+            (SELECT COUNT(DISTINCT run_id) FROM run_events re WHERE re.session_id = s.id) AS taskCount,
+            COALESCE((SELECT SUM(lu.tokens)   FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS tokensUsed,
+            COALESCE((SELECT SUM(lu.usdCents) FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS usdCents
+       FROM sessions s
+      WHERE s.status != 'ended'
+      ORDER BY s.pinned DESC, s.sort_order ASC`
   )
   const stmtSetSessionSettings = db.prepare(
     'UPDATE sessions SET cwd = ?, permission_mode = ?, execution_mode = ?, agent_type = ? WHERE id = ?'
@@ -954,119 +966,130 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const cutoff = rangeCutoffMs(now, range)
         const heatmapCutoff = rangeCutoffMs(now, HEATMAP_DAYS)
 
-        const totalsRow = db
+        // Latest task.usage per run_id across all time (no range filter — we
+        // slice by ts in JS). Post-4b this is the single source of truth for
+        // both work runs and conversation turns (both emit task.usage via
+        // makeRunEmit), so the pre-4b convTotals/session_used fold-in is gone
+        // — it would double-count. Sub-agent runs emit their own usage (the
+        // parent's snapshot does NOT include child cost), so every run_id —
+        // top-level, conversation, and sub-agent — now contributes; this is
+        // intentionally more inclusive than the pre-4b zeroed-child behavior
+        // and produces slightly higher totals.
+        const usageRows = db
           .prepare(
-            `SELECT
-               COALESCE(SUM(json_extract(used, '$.tokens')), 0)     AS tokens,
-               COALESCE(SUM(json_extract(used, '$.cacheRead')), 0)  AS cacheRead,
-               COALESCE(SUM(json_extract(used, '$.usdCents')), 0)   AS usdCents,
-               COUNT(DISTINCT session_id)                           AS sessions,
-               COUNT(DISTINCT date(created_at/1000,'unixepoch','localtime')) AS activeDays
-             FROM tasks WHERE created_at >= ?`
+            `SELECT json_extract(re.event, '$.used.tokens')    AS tokens,
+                    json_extract(re.event, '$.used.cacheRead') AS cacheRead,
+                    json_extract(re.event, '$.used.usdCents')  AS usdCents,
+                    json_extract(re.event, '$.model')          AS model,
+                    re.session_id                               AS sessionId,
+                    re.ts                                        AS ts
+               FROM run_events re
+              WHERE json_extract(re.event, '$.kind') = 'task.usage'
+                AND re.id IN (SELECT MAX(id) FROM run_events
+                               WHERE json_extract(event, '$.kind') = 'task.usage'
+                               GROUP BY run_id)`
           )
-          .get(cutoff) as { tokens: number; cacheRead: number; usdCents: number; sessions: number; activeDays: number }
+          .all() as Array<{
+          tokens: number
+          cacheRead: number
+          usdCents: number
+          model: string | null
+          sessionId: string
+          ts: number
+        }>
 
+        // Messages: one unified count over run_events. Work + conversation
+        // both surface as task.progress wrapping an llm.message inner event,
+        // so the pre-4b task_events+conversation_events split collapses.
         const messagesRow = db
           .prepare(
-            `SELECT COUNT(*) AS n FROM task_events
-             WHERE ts >= ? AND json_extract(event, '$.kind') = 'llm.message'`
+            `SELECT COUNT(*) AS n FROM run_events
+              WHERE ts >= ? AND json_extract(event, '$.kind') = 'task.progress'
+                AND json_extract(event, '$.event.kind') = 'llm.message'`
           )
           .get(cutoff) as { n: number }
 
-        // Conversation turns have no Task row; their usage lives on the session
-        // (latest snapshot) and their messages in conversation_events. Folded into
-        // the range totals below. NOTE: per-model / per-day attribution is not
-        // available for conversation usage (no per-snapshot model/timestamp), so
-        // those breakdowns remain task-only — a known imprecision.
-        const convTotals = db
+        // Active days (any run_events task.usage, all time) for currentStreak.
+        const activeDateRows = db
           .prepare(
-            `SELECT COALESCE(SUM(json_extract(session_used, '$.tokens')), 0)    AS tokens,
-                    COALESCE(SUM(json_extract(session_used, '$.cacheRead')), 0) AS cacheRead,
-                    COALESCE(SUM(json_extract(session_used, '$.usdCents')), 0)  AS usdCents
-             FROM sessions WHERE session_used IS NOT NULL AND last_active_at >= ?`
+            `SELECT DISTINCT date(ts/1000, 'unixepoch', 'localtime') AS date
+               FROM run_events
+              WHERE json_extract(event, '$.kind') = 'task.usage'`
           )
-          .get(cutoff) as { tokens: number; cacheRead: number; usdCents: number }
-        const convMessages = db
-          .prepare(
-            `SELECT COUNT(*) AS n FROM conversation_events
-             WHERE ts >= ? AND json_extract(event, '$.kind') = 'llm.message'`
-          )
-          .get(cutoff) as { n: number }
+          .all() as { date: string }[]
+        const activeKeys = new Set(activeDateRows.map((r) => r.date))
 
-        const modelRows = db
-          .prepare(
-            `SELECT json_extract(s.provider_snapshot, '$.model') AS model,
-                    COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) AS tokens,
-                    COALESCE(SUM(json_extract(t.used, '$.usdCents')), 0) AS usdCents
-             FROM tasks t JOIN sessions s ON s.id = t.session_id
-             WHERE t.created_at >= ?
-             GROUP BY model
-             HAVING tokens > 0
-             ORDER BY tokens DESC`
-          )
-          .all(cutoff) as { model: string; tokens: number; usdCents: number }[]
+        const inRange = usageRows.filter((r) => r.ts >= cutoff)
+        const inHeatmap = usageRows.filter((r) => r.ts >= heatmapCutoff)
 
-        const dailyRows = db
-          .prepare(
-            `SELECT date(created_at/1000,'unixepoch','localtime') AS date,
-                    COALESCE(SUM(json_extract(used, '$.tokens')), 0) AS tokens
-             FROM tasks WHERE created_at >= ? GROUP BY date`
-          )
-          .all(heatmapCutoff) as { date: string; tokens: number }[]
+        const totalTokens = inRange.reduce((s, r) => s + (r.tokens ?? 0), 0)
+        const totalCacheRead = inRange.reduce((s, r) => s + (r.cacheRead ?? 0), 0)
+        const totalUsd = inRange.reduce((s, r) => s + (r.usdCents ?? 0), 0)
 
-        // Sparse per-day, per-model totals over the range; the renderer pivots
-        // these into a multi-line "tokens by model" trend.
-        const dailyModelRows = db
-          .prepare(
-            `SELECT date(t.created_at/1000,'unixepoch','localtime') AS date,
-                    json_extract(s.provider_snapshot, '$.model') AS model,
-                    COALESCE(SUM(json_extract(t.used, '$.tokens')), 0) AS tokens
-             FROM tasks t JOIN sessions s ON s.id = t.session_id
-             WHERE t.created_at >= ?
-             GROUP BY date, model
-             HAVING tokens > 0`
-          )
-          .all(cutoff) as { date: string; model: string; tokens: number }[]
+        // byModel: group inRange rows by task.usage.model (fallback 'unknown'); tokens > 0 only.
+        const byModelMap = new Map<string, { tokens: number; usdCents: number }>()
+        for (const r of inRange) {
+          const key = r.model ?? 'unknown'
+          const acc = byModelMap.get(key) ?? { tokens: 0, usdCents: 0 }
+          acc.tokens += r.tokens ?? 0
+          acc.usdCents += r.usdCents ?? 0
+          byModelMap.set(key, acc)
+        }
+        const byModel = [...byModelMap.entries()]
+          .map(([model, v]) => ({
+            model,
+            tokens: v.tokens,
+            usdCents: v.usdCents,
+            pct: totalTokens > 0 ? Math.round((v.tokens / totalTokens) * 1000) / 10 : 0,
+          }))
+          .filter((m) => m.tokens > 0)
+          .sort((a, b) => b.tokens - a.tokens)
 
-        const totalTokens = totalsRow.tokens + convTotals.tokens
-        const byModel = modelRows.map((r) => ({
-          model: r.model ?? 'unknown',
-          tokens: r.tokens,
-          usdCents: r.usdCents,
-          pct: totalTokens > 0 ? Math.round((r.tokens / totalTokens) * 1000) / 10 : 0,
-        }))
+        // Per-day token totals across the heatmap range; pivoted into daily
+        // (range slice) and heatmap (full 364d) below.
+        const dailyMap = new Map<string, number>()
+        for (const r of inHeatmap) {
+          const key = dayKey(new Date(r.ts))
+          dailyMap.set(key, (dailyMap.get(key) ?? 0) + (r.tokens ?? 0))
+        }
+        const dailyBuckets = [...dailyMap.entries()].map(([date, tokens]) => ({ date, tokens }))
+
+        // Sparse per-day, per-model over the range; renderer pivots into a
+        // multi-line "tokens by model" trend.
+        const dailyModelMap = new Map<string, { date: string; model: string; tokens: number }>()
+        for (const r of inRange) {
+          const date = dayKey(new Date(r.ts))
+          const model = r.model ?? 'unknown'
+          const key = `${date}|${model}`
+          const acc = dailyModelMap.get(key) ?? { date, model, tokens: 0 }
+          acc.tokens += r.tokens ?? 0
+          dailyModelMap.set(key, acc)
+        }
+        const dailyByModel = [...dailyModelMap.values()].filter((r) => r.tokens > 0)
 
         const rangeKeys = dayKeysEndingAt(now, range)
         const rangeKeySet = new Set(rangeKeys)
         const heatmapKeys = dayKeysEndingAt(now, HEATMAP_DAYS)
-        const activeDateRows = db
-          .prepare(`SELECT DISTINCT date(created_at/1000,'unixepoch','localtime') AS date FROM tasks`)
-          .all() as { date: string }[]
-        const activeKeys = new Set(activeDateRows.map((r) => r.date))
 
         const result: UsageStats = {
           rangeDays: range,
           totals: {
             tokens: totalTokens,
-            cacheRead: totalsRow.cacheRead + convTotals.cacheRead,
-            usdCents: totalsRow.usdCents + convTotals.usdCents,
-            sessions: totalsRow.sessions,
-            messages: messagesRow.n + convMessages.n,
-            activeDays: totalsRow.activeDays,
+            cacheRead: totalCacheRead,
+            usdCents: totalUsd,
+            sessions: new Set(inRange.map((r) => r.sessionId)).size,
+            messages: messagesRow.n,
+            activeDays: new Set(inRange.map((r) => dayKey(new Date(r.ts)))).size,
             currentStreak: currentStreak(activeKeys, now),
             topModel: byModel[0] ?? null,
           },
           daily: zeroFillDaily(
-            dailyRows.filter((r) => rangeKeySet.has(r.date)),
+            dailyBuckets.filter((r) => rangeKeySet.has(r.date)),
             rangeKeys
           ),
-          dailyByModel: dailyModelRows.map((r) => ({
-            date: r.date,
-            model: r.model ?? 'unknown',
-            tokens: r.tokens,
-          })),
+          dailyByModel,
           byModel,
-          heatmap: zeroFillDaily(dailyRows, heatmapKeys),
+          heatmap: zeroFillDaily(dailyBuckets, heatmapKeys),
         }
         log.info({ msg: 'getUsageStats ok', rangeDays: range, tokens: totalTokens, durationMs: Date.now() - t0 })
         return result

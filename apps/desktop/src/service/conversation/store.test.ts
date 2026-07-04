@@ -385,6 +385,16 @@ describe('ConversationStore', () => {
       },
       'ses-b'
     )
+    // taskCount is now derived from distinct run_id in run_events (post-4b the
+    // tasks table is no longer read for usage/listing). Seed one run for ses-b.
+    store.appendRunEvent('ses-b', 'r-b', null, {
+      kind: 'task.created',
+      sessionId: 'ses-b',
+      taskId: 'r-b',
+      goal: 'g',
+      ts: now,
+      seq: 1,
+    })
 
     const list = store.listSessions()
     const ids = list.map((s) => s.id)
@@ -405,32 +415,83 @@ describe('ConversationStore', () => {
       apiKey: 'k',
     }
     store.createSession('ses-u', provider)
-    const mk = (id: string, parentId: string | null, tokens: number, usdCents: number) => ({
-      id,
-      parentId,
-      agentDefId: 'default',
-      goal: 'g',
-      status: 'completed' as const,
-      assignedWorkerId: null,
-      toolAllowlist: [] as string[],
-      budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-      used: { tokens, calls: 1, wallMs: 0, usdCents, cacheRead: 0, cacheWrite: 0 },
-      history: [],
-      attachments: [],
-      plan: [],
-      result: null,
-      createdAt: 1,
-      startedAt: null,
-      endedAt: null,
+    const usageEvent = (
+      sessionId: string,
+      runId: string,
+      used: { tokens: number; calls: number; wallMs: number; usdCents: number; cacheRead: number; cacheWrite: number },
+      model: string,
+      ts: number
+    ) => ({
+      kind: 'task.usage' as const,
+      sessionId,
+      taskId: runId,
+      used,
+      model,
+      ts,
+      seq: 1,
     })
-    store.saveTask(mk('01HRX0000000000000000000U1', null, 5000, 6), 'ses-u')
-    store.saveTask(mk('01HRX0000000000000000000U2', null, 3000, 4), 'ses-u')
-    // A sub-agent child persists zeroed usage — it must not change the totals.
-    store.saveTask(mk('01HRX0000000000000000000U3', '01HRX0000000000000000000U1', 0, 0), 'ses-u')
+
+    // Two top-level runs in the session.
+    store.appendRunEvent(
+      'ses-u',
+      'r1',
+      null,
+      usageEvent(
+        'ses-u',
+        'r1',
+        { tokens: 5000, calls: 1, wallMs: 0, usdCents: 6, cacheRead: 0, cacheWrite: 0 },
+        'claude-sonnet-4-5',
+        1
+      )
+    )
+    store.appendRunEvent(
+      'ses-u',
+      'r2',
+      null,
+      usageEvent(
+        'ses-u',
+        'r2',
+        { tokens: 3000, calls: 1, wallMs: 0, usdCents: 4, cacheRead: 0, cacheWrite: 0 },
+        'claude-sonnet-4-5',
+        1
+      )
+    )
+    // A sub-agent child run emits its own task.usage — post-4a each runner
+    // tracks its own cost (the parent's snapshot does NOT include the child),
+    // so the child's usage is now COUNTED (pre-4b children were zeroed).
+    store.appendRunEvent(
+      'ses-u',
+      'r3',
+      'r1',
+      usageEvent(
+        'ses-u',
+        'r3',
+        { tokens: 1000, calls: 1, wallMs: 0, usdCents: 2, cacheRead: 0, cacheWrite: 0 },
+        'claude-haiku-4-5-20251001',
+        1
+      )
+    )
+    // A run may emit task.usage multiple times (per-turn snapshots); only the
+    // LATEST per run_id contributes — earlier emissions are superseded.
+    store.appendRunEvent(
+      'ses-u',
+      'r1',
+      null,
+      usageEvent(
+        'ses-u',
+        'r1',
+        { tokens: 7000, calls: 2, wallMs: 0, usdCents: 9, cacheRead: 0, cacheWrite: 0 },
+        'claude-sonnet-4-5',
+        2
+      )
+    )
 
     const s = store.listSessions().find((x) => x.id === 'ses-u')
-    expect(s?.tokensUsed).toBe(8000)
-    expect(s?.usdCents).toBe(10)
+    // Latest per run: r1=7000/9, r2=3000/4, r3=1000/2 → 11000 tokens, 15 cents.
+    expect(s?.tokensUsed).toBe(11000)
+    expect(s?.usdCents).toBe(15)
+    // Three distinct run_ids — top-level + sub-agent all count.
+    expect(s?.taskCount).toBe(3)
     store.close()
   })
 
@@ -630,10 +691,13 @@ describe('ConversationStore', () => {
     expect(got?.used.tokens).toBe(900)
     expect(got?.used.cacheRead).toBe(200)
     expect(got?.contextWindow).toBe(200_000)
-    // listSessions folds conversation usage into the session totals.
+    // Post-4b listSessions no longer folds session_used into its totals —
+    // conversation usage comes from run_events.task.usage instead. The
+    // session_used column is now write-only dead data on the read side
+    // (still persisted here, cleaned up in a later task).
     const s = store.listSessions().find((x) => x.id === 'ses-su')
-    expect(s?.tokensUsed).toBe(900)
-    expect(s?.usdCents).toBe(5)
+    expect(s?.tokensUsed).toBe(0)
+    expect(s?.usdCents).toBe(0)
     store.close()
   })
 
@@ -977,55 +1041,100 @@ describe('ConversationStore', () => {
 
     const now = Date.now()
     const day = 86_400_000
-    const mkTask = (id: string, sessionId: string, tokens: number, usdCents: number, createdAt: number) => {
-      store.saveTask(
-        {
-          id,
-          parentId: null,
-          agentDefId: 'default',
-          goal: 'g',
-          status: 'completed',
-          assignedWorkerId: null,
-          toolAllowlist: [],
-          budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-          used: { tokens, calls: 1, wallMs: 1, usdCents, cacheRead: 0, cacheWrite: 0 },
-          history: [],
-          attachments: [],
-          plan: [],
-          result: null,
-          createdAt,
-          startedAt: createdAt,
-          endedAt: createdAt,
-        },
-        sessionId
-      )
-    }
-    mkTask('t-recent-a', 'ses-a', 1000, 12, now)
-    mkTask('t-recent-b', 'ses-b', 500, 0, now - day)
-    mkTask('t-old', 'ses-a', 9999, 99, now - 40 * day) // outside 30d
+    const used = (tokens: number, usdCents: number) => ({
+      tokens,
+      calls: 1,
+      wallMs: 1,
+      usdCents,
+      cacheRead: 0,
+      cacheWrite: 0,
+    })
+    const usageEvent = (
+      sessionId: string,
+      runId: string,
+      model: string,
+      usedVal: ReturnType<typeof used>,
+      ts: number
+    ) => ({
+      kind: 'task.usage' as const,
+      sessionId,
+      taskId: runId,
+      used: usedVal,
+      model,
+      ts,
+      seq: 1,
+    })
+    const progressEvent = (
+      sessionId: string,
+      runId: string,
+      inner: import('@swarm/protocol').TaskEvent,
+      ts: number
+    ) => ({
+      kind: 'task.progress' as const,
+      sessionId,
+      taskId: runId,
+      event: inner,
+      ts,
+      seq: 1,
+    })
 
-    store.appendTaskEvent('t-recent-a', { kind: 'llm.message', role: 'assistant', content: 'hi', ts: now })
-    store.appendTaskEvent('t-recent-a', { kind: 'llm.message', role: 'user', content: 'yo', ts: now })
-    store.appendTaskEvent('t-recent-a', { kind: 'reasoning', content: 'think', ts: now }) // not a message
+    store.appendRunEvent(
+      'ses-a',
+      't-recent-a',
+      null,
+      usageEvent('ses-a', 't-recent-a', 'claude-sonnet-4-5', used(1000, 12), now)
+    )
+    store.appendRunEvent(
+      'ses-b',
+      't-recent-b',
+      null,
+      usageEvent('ses-b', 't-recent-b', 'GLM-5.2', used(500, 0), now - day)
+    )
+    store.appendRunEvent(
+      'ses-a',
+      't-old',
+      null,
+      usageEvent('ses-a', 't-old', 'claude-sonnet-4-5', used(9999, 99), now - 40 * day)
+    )
+
+    // Two assistant/user messages + one non-message (reasoning) on t-recent-a.
+    store.appendRunEvent(
+      'ses-a',
+      't-recent-a',
+      null,
+      progressEvent('ses-a', 't-recent-a', { kind: 'llm.message', role: 'assistant', content: 'hi', ts: now }, now)
+    )
+    store.appendRunEvent(
+      'ses-a',
+      't-recent-a',
+      null,
+      progressEvent('ses-a', 't-recent-a', { kind: 'llm.message', role: 'user', content: 'yo', ts: now }, now)
+    )
+    store.appendRunEvent(
+      'ses-a',
+      't-recent-a',
+      null,
+      progressEvent('ses-a', 't-recent-a', { kind: 'reasoning', content: 'think', ts: now }, now)
+    )
 
     const stats = store.getUsageStats(30)
     expect(stats.rangeDays).toBe(30)
-    expect(stats.totals.tokens).toBe(1500) // old task excluded
+    expect(stats.totals.tokens).toBe(1500) // old run excluded
     expect(stats.totals.usdCents).toBe(12)
     expect(stats.totals.sessions).toBe(2)
     expect(stats.totals.messages).toBe(2)
     expect(stats.totals.activeDays).toBe(2)
     expect(stats.byModel.map((m) => m.model).sort()).toEqual(['GLM-5.2', 'claude-sonnet-4-5'])
     expect(stats.byModel.find((m) => m.model === 'claude-sonnet-4-5')?.tokens).toBe(1000)
-    // Per-model cost: claude's task spent 12 cents, GLM's spent 0.
+    // Per-model cost: claude's run spent 12 cents, GLM's spent 0.
     expect(stats.byModel.find((m) => m.model === 'claude-sonnet-4-5')?.usdCents).toBe(12)
     expect(stats.byModel.find((m) => m.model === 'GLM-5.2')?.usdCents).toBe(0)
     expect(stats.totals.topModel?.model).toBe('claude-sonnet-4-5')
     expect(stats.totals.topModel?.usdCents).toBe(12)
-    expect(stats.totals.currentStreak).toBe(2) // today + yesterday both have tasks
+    expect(stats.totals.currentStreak).toBe(2) // today + yesterday both have usage
     expect(stats.daily.length).toBe(30)
     expect(stats.heatmap.length).toBe(364)
-    // Per-day, per-model rows: claude today (1000), GLM yesterday (500); old task excluded.
+    // Per-day, per-model rows: claude today (1000), GLM yesterday (500); old run excluded.
     expect(stats.dailyByModel.length).toBe(2)
     expect(stats.dailyByModel.find((r) => r.model === 'claude-sonnet-4-5')?.tokens).toBe(1000)
     expect(stats.dailyByModel.find((r) => r.model === 'GLM-5.2')?.tokens).toBe(500)

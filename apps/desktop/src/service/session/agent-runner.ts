@@ -696,7 +696,13 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
       if (!usage.costUsd || usage.costUsd <= 0) return
       used.usdCents += Math.round(usage.costUsd * 100)
       taskLog.info({ msg: 'external usage charged', costUsd: usage.costUsd, usdCents: used.usdCents })
-      emit('task.usage', { taskId: task.id, used: snapshotUsed(), contextWindow: model.contextWindow, ts: Date.now() })
+      emit('task.usage', {
+        taskId: task.id,
+        used: snapshotUsed(),
+        contextWindow: model.contextWindow,
+        model: model.id,
+        ts: Date.now(),
+      })
     }
     const resolved = toolRegistry.resolve(task.toolAllowlist, runCtx)
     tools = resolved.tools
@@ -927,6 +933,7 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
         used: snapshotUsed(),
         contextTokens: usage ? contextTokens : undefined,
         contextWindow: model.contextWindow,
+        model: model.id,
         ts: Date.now(),
       })
       deps.saveSnapshot?.(agent.state.messages, snapshotUsed(), model.contextWindow)
