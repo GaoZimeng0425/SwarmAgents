@@ -303,10 +303,6 @@ const swarm: SwarmBridge = {
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
     getTasks: (sessionId: string) =>
       ipcRenderer.invoke('swarm:getSessionTasks', sessionId) as Promise<import('@swarm/protocol').Task[]>,
-    getConversationEvents: (sessionId: string) =>
-      ipcRenderer.invoke('swarm:getConversationEvents', sessionId) as Promise<
-        import('@swarm/protocol').ConversationEvent[]
-      >,
     getRunEvents: (sessionId: string) =>
       ipcRenderer.invoke('swarm:getRunEvents', sessionId) as Promise<import('@swarm/protocol').RunEvent[]>,
     delete: (sessionId: string) => ipcRenderer.invoke('swarm:deleteSession', sessionId) as Promise<void>,

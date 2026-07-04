@@ -129,7 +129,6 @@ export type SessionManager = {
   reorderSessions(orderedIds: string[]): void
   listSessions(): import('@swarm/protocol').SessionSummary[]
   getSessionTasks(sessionId: string): Task[]
-  getConversationEvents(sessionId: string): import('@swarm/protocol').ConversationEvent[]
   getRunEvents(sessionId: string): import('@swarm/protocol').RunEvent[]
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
   /** Register the terminal-status listener (fires once per runId). */
@@ -256,7 +255,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   const seqCounter = createSeqCounter(
     (sid: string) => store.getSessionTasks(sid),
-    (sid: string) => store.getConversationEvents(sid),
     (sid: string) => store.getRunEvents(sid)
   )
 
@@ -1242,9 +1240,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       return store.getSessionTasks(sessionId)
     },
 
-    getConversationEvents(sessionId) {
-      return store.getConversationEvents(sessionId)
-    },
     getRunEvents(sessionId) {
       return store.getRunEvents(sessionId)
     },

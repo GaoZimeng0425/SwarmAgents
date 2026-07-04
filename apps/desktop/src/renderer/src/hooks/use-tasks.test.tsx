@@ -194,7 +194,6 @@ describe('hydrateSession', () => {
     // (status !== 'completed') until hydrateSession reads getRunEvents.
     vi.spyOn(api.swarmApi, 'getRunEvents').mockResolvedValue(rows)
     vi.spyOn(api.swarmApi, 'getSessionTasks').mockResolvedValue([])
-    vi.spyOn(api.swarmApi, 'getConversationEvents').mockResolvedValue([])
 
     await hydrateSession(qc, 's')
 

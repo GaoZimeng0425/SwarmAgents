@@ -72,15 +72,6 @@ export type ConversationStore = {
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
   appendTaskEvent(taskId: string, event: import('@swarm/protocol').TaskEvent): void
-  /** Persist a conversation-turn event on the session-level stream (no Task row). */
-  appendConversationEvent(sessionId: string, turnId: string, event: import('@swarm/protocol').TaskEvent): void
-  /** Read a session's conversation events in insertion order, grouped by turn. */
-  getConversationEvents(sessionId: string): {
-    turnId: string
-    seq: number
-    ts: number
-    event: import('@swarm/protocol').TaskEvent
-  }[]
   /** Persist a run-lifecycle UIEvent on the session run stream. */
   appendRunEvent(
     sessionId: string,
@@ -204,15 +195,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
       ts       INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, id);
-    CREATE TABLE IF NOT EXISTS conversation_events (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id TEXT NOT NULL,
-      turn_id    TEXT NOT NULL,
-      seq        INTEGER NOT NULL,
-      ts         INTEGER NOT NULL,
-      event      TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_conversation_events_session ON conversation_events(session_id, id);
     CREATE TABLE IF NOT EXISTS run_events (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id    TEXT NOT NULL,
@@ -580,12 +562,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtInsertTaskEvent = db.prepare('INSERT INTO task_events (task_id, event, ts) VALUES (?, ?, ?)')
   const stmtGetTaskEvents = db.prepare('SELECT event FROM task_events WHERE task_id = ? ORDER BY id')
   const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
-  const stmtInsertConversationEvent = db.prepare(
-    'INSERT INTO conversation_events (session_id, turn_id, seq, ts, event) VALUES (?, ?, ?, ?, ?)'
-  )
-  const stmtGetConversationEvents = db.prepare(
-    'SELECT turn_id AS turnId, seq, ts, event FROM conversation_events WHERE session_id = ? ORDER BY id'
-  )
   const stmtInsertRunEvent = db.prepare(
     'INSERT INTO run_events (session_id, run_id, parent_run_id, seq, ts, event) VALUES (?, ?, ?, ?, ?, ?)'
   )
@@ -734,7 +710,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM task_events WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)').run(id)
-    db.prepare('DELETE FROM conversation_events WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM run_events WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
@@ -861,21 +836,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     appendTaskEvent(taskId, event) {
       stmtInsertTaskEvent.run(taskId, JSON.stringify(event), event.ts)
-    },
-    appendConversationEvent(sessionId, turnId, event) {
-      // seq is stamped upstream by makeConversationEmit; fall back to 0 if absent.
-      const seq = typeof (event as { seq?: number }).seq === 'number' ? (event as { seq: number }).seq : 0
-      stmtInsertConversationEvent.run(sessionId, turnId, seq, event.ts ?? Date.now(), JSON.stringify(event))
-    },
-    getConversationEvents(sessionId) {
-      return (
-        stmtGetConversationEvents.all(sessionId) as { turnId: string; seq: number; ts: number; event: string }[]
-      ).map((r) => ({
-        turnId: r.turnId,
-        seq: r.seq,
-        ts: r.ts,
-        event: JSON.parse(r.event) as import('@swarm/protocol').TaskEvent,
-      }))
     },
     appendRunEvent(sessionId, runId, parentRunId, event) {
       // seq is stamped upstream by makeRunEmit; fall back to 0 if absent.

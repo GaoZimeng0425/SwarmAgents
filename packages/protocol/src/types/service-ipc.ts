@@ -7,7 +7,6 @@ export type ServiceMethod =
   | 'submitGoal'
   | 'listSessions'
   | 'getSessionTasks'
-  | 'getConversationEvents'
   | 'getRunEvents'
   | 'deleteSession'
   | 'renameSession'
