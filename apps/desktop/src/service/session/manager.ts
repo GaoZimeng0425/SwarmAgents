@@ -881,15 +881,19 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     if (interrupted.length === 0) return
     let closed = 0
     for (const s of interrupted) {
+      // Every run path emits task.created — conversation/work via pump's
+      // task.dispatched path AND spawnChild/spawnResident which bypass pump.
+      // task.dispatched alone misses spawn/resident runs, leaving their crashed
+      // cards stuck on replay.
       const rows = store.getRunEvents(s.id)
-      const dispatched = new Set<string>()
+      const started = new Set<string>()
       const terminal = new Set<string>()
       for (const r of rows) {
         const kind = (r.event as { kind?: string }).kind
-        if (kind === 'task.dispatched') dispatched.add(r.runId)
+        if (kind === 'task.created') started.add(r.runId)
         else if (kind === 'task.complete' || kind === 'task.error') terminal.add(r.runId)
       }
-      for (const runId of dispatched) {
+      for (const runId of started) {
         if (terminal.has(runId)) continue
         const seq = seqCounter.nextSeq(s.id)
         const ts = Date.now()
@@ -897,7 +901,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           kind: 'task.error',
           sessionId: s.id,
           taskId: runId,
-          error: { code: 'interrupted', message: 'run interrupted by restart', tier: 'fatal' },
+          // 'cancelled' keeps applyEvent, the registry, and getTerminalRunStatuses
+          // (next restart) all in sync. 'interrupted' was never a status the
+          // renderer maps; using it drifted to 'failed' on replay.
+          error: { code: 'cancelled', message: 'run interrupted by restart', tier: 'fatal' },
           seq,
           ts,
         } as import('@swarm/protocol').UIEvent)

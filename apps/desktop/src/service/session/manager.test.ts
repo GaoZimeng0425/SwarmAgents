@@ -217,7 +217,53 @@ describe('SessionManager', () => {
     const events = store2.getRunEvents('ses-orphan').filter((r) => r.runId === orphanRunId)
     const err = events.find((r) => (r.event as { kind?: string }).kind === 'task.error')
     expect(err).toBeDefined()
-    expect((err!.event as { error?: { code?: string } }).error?.code).toBe('interrupted')
+    expect((err!.event as { error?: { code?: string } }).error?.code).toBe('cancelled')
+    store2.close()
+  })
+
+  it('markInterruptedRunsTerminal recovers spawnChild runs that only emitted task.created', () => {
+    // Regression guard: spawnChild/spawnResident runs emit task.created but
+    // bypass pump's task.dispatched, so pre-fix their crashed runs were missed
+    // (no task.dispatched row to key on) and stayed stuck on replay.
+    const store = createConversationStore(dbPath)
+    store.createSession('ses-spawn', providerA)
+    store.updateSessionStatus('ses-spawn', 'interrupted')
+    const childRunId = '01SPAWNCHILDRUN00000000000'
+    const parentRunId = '01PARENTRUN00000000000000'
+    // task.created carries parentTaskId — that is the spawnChild signature.
+    // Critically: NO task.dispatched row (spawnChild does not go through pump).
+    store.appendRunEvent('ses-spawn', childRunId, parentRunId, {
+      kind: 'task.created',
+      sessionId: 'ses-spawn',
+      taskId: childRunId,
+      parentTaskId: parentRunId,
+      goal: 'child in flight',
+      attachments: [],
+      agentDefId: 'default',
+      seq: 1,
+      ts: 1,
+    } as never)
+    store.close()
+
+    // Reopen — terminal registry loads from run_events; child has no terminal.
+    const store2 = createConversationStore(dbPath)
+    const manager = createSessionManager({
+      store: store2,
+      broadcaster: createBroadcaster(),
+      maxConcurrent: 2,
+      getProvider: () => undefined,
+    })
+    expect(manager.terminalRegistry.isTerminal(childRunId)).toBe(false)
+
+    // Fix: detection keys on task.created, so the spawnChild orphan is closed.
+    manager.markInterruptedRunsTerminal()
+    expect(manager.terminalRegistry.isTerminal(childRunId)).toBe(true)
+
+    // A synthetic task.error landed for it (so replay reaches terminal).
+    const events = store2.getRunEvents('ses-spawn').filter((r) => r.runId === childRunId)
+    const err = events.find((r) => (r.event as { kind?: string }).kind === 'task.error')
+    expect(err).toBeDefined()
+    expect((err!.event as { error?: { code?: string } }).error?.code).toBe('cancelled')
     store2.close()
   })
 
