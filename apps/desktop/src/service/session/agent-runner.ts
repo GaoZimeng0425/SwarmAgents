@@ -622,7 +622,10 @@ export function buildAgentSession(deps: AgentRunnerDeps): AgentSession {
   const taskLog = log.child({ taskId: task.id })
   taskLog.info({
     msg: 'buildAgentSession entered',
-    goalLen: task.goal.length,
+    // goalLen intentionally omitted: for the one-shot path the seed is sliced
+    // (trailing goal stripped — see createAgentRunner), so extractOneShotGoal
+    // on the seed no longer reflects the real goal. The resident path never
+    // had a meaningful goal here either (it prompts via msg.payload).
     injection: {
       id: provider.id,
       registry: provider.registry ?? null,
@@ -1199,22 +1202,31 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   return {
     async run() {
       const task = resolveRunContext(deps)
+      // `task.goal` is extracted from the FULL deps.initialMessages (the last
+      // user turn) — capture it BEFORE slicing the seed below.
+      const goal = task.goal
       const images: ImageContent[] = task.attachments!.map((a) => ({
         type: 'image',
         data: a.data,
         mimeType: a.mimeType,
       }))
-      // Single-shot: one promptOnce, no verify loop. The agent self-verifies
-      // with its own tools (3b removed the system verify gate).
+      // One-shot: callers bake the goal as the LAST initialMessages user turn.
+      // Strip it from the pi seed so promptOnce(goal) re-appends it exactly
+      // once. pi's Agent.prompt APPENDS the user turn to initialState.messages,
+      // so seeding the goal too would double it in the model-facing transcript
+      // ([...prior, {user, goal}, {user, goal}]). The resident path is
+      // unaffected — it drives turns via promptOnce(msg.payload) against a
+      // restored-state seed with no trailing goal.
       const wrappedDeps: AgentRunnerDeps = {
         ...deps,
+        initialMessages: deps.initialMessages.slice(0, -1),
         onDelegationPlan: (plan) => {
           deps.emit('task.delegation_plan', { taskId: task.id, plan, ts: Date.now() })
           deps.onDelegationPlan?.(plan)
         },
       }
       const session = buildAgentSession(wrappedDeps)
-      const r = await session.promptOnce(task.goal, images.length > 0 ? images : undefined)
+      const r = await session.promptOnce(goal, images.length > 0 ? images : undefined)
       return {
         status: r.status,
         summary: r.summary,

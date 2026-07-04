@@ -128,8 +128,11 @@ describe('AgentRunner', () => {
     expect(errData.error.code).toBeTruthy()
   })
 
-  it('seeds the agent with initialMessages and returns final messages', async () => {
-    // Post-3c the goal is the LAST initialMessages user turn — bake 'do it' in.
+  it('seeds the agent with initialMessages MINUS the trailing goal, and returns final messages', async () => {
+    // Post-3c + double-seed fix: the goal is the LAST initialMessages user
+    // turn, but the runner strips it before seeding pi (promptOnce re-appends
+    // it). So the pi seed is initialMessages.slice(0, -1) — the prior context
+    // only. Here 'do it' is the goal, so the seed is just the earlier turn.
     const seed = [
       { role: 'user', content: 'earlier turn' },
       { role: 'user', content: 'do it' },
@@ -174,26 +177,37 @@ describe('AgentRunner', () => {
     })
 
     const out = await runner.run()
-    expect(capturedInitial).toEqual(seed)
+    // The trailing goal ('do it') is stripped — pi is seeded with prior only.
+    expect(capturedInitial).toEqual([{ role: 'user', content: 'earlier turn' }])
     expect(out.messages).toEqual([{ role: 'assistant', content: 'reply' }])
   })
 
-  it('one-shot run seeds the goal from the last initialMessages user turn', async () => {
-    // 3c: the runner extracts the one-shot goal from initialMessages — no `goal`
-    // field on AgentRunnerDeps. The agent must be prompted with the LAST user
-    // message ('do the thing'), not the earlier context.
+  it('one-shot run seeds the goal from the last initialMessages user turn (no double-seed)', async () => {
+    // 3c + double-seed fix: the runner extracts the one-shot goal from the
+    // LAST initialMessages user turn (no `goal` field on AgentRunnerDeps) and
+    // seeds pi with initialMessages MINUS that trailing goal. pi's prompt()
+    // APPENDS the user turn, so promptOnce(goal) re-appends it exactly once.
+    // A regression that leaves the goal in the seed would make the model see
+    // the goal TWICE — this mock appends (matching pi) so the assertion catches
+    // a double-seed by counting user-turn goals in the final transcript.
     const prompts: string[] = []
-    MockAgent.mockImplementation(function (this: Record<string, unknown>) {
-      this.state = { messages: [] as Array<{ role: string; content: string }> }
+    MockAgent.mockImplementation(function (
+      this: Record<string, unknown>,
+      opts: { initialState?: { messages?: unknown } }
+    ) {
+      // pi seeds agent.state.messages from initialState.messages — capture it.
+      const seeded = (opts.initialState?.messages as Array<{ role: string; content: string }>) ?? []
+      this.state = { messages: [...seeded] }
       this.subscribe = () => undefined
       this.abort = () => undefined
       this.prompt = async (goal: string) => {
         prompts.push(goal)
+        // pi APPENDS the user turn + assistant reply to the existing state
+        // (it does NOT overwrite). A double-seeding runner would surface as a
+        // duplicate 'do the thing' user turn here.
+        const msgs = (this.state as { messages: Array<{ role: string; content: string }> }).messages
         this.state = {
-          messages: [
-            { role: 'user', content: goal },
-            { role: 'assistant', content: `ack:${goal}` },
-          ],
+          messages: [...msgs, { role: 'user', content: goal }, { role: 'assistant', content: `ack:${goal}` }],
         }
       }
     })
@@ -232,6 +246,15 @@ describe('AgentRunner', () => {
     const out = await runner.run()
     expect(out.status).toBe('completed')
     expect(prompts).toEqual(['do the thing'])
+    // The model-facing transcript must contain the goal EXACTLY ONCE in user
+    // messages — a double-seed (goal left in the pi seed AND re-appended by
+    // prompt) would surface as two 'do the thing' user turns.
+    const userContents = (out.messages as Array<{ role: string; content: string }>)
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content)
+    expect(userContents.filter((c) => c === 'do the thing')).toHaveLength(1)
+    // Prior context is also preserved exactly once.
+    expect(userContents.filter((c) => c === 'earlier context')).toHaveLength(1)
   })
 
   type BeforeToolCall = (ctx: { toolCall: { name: string }; args: unknown }) => Promise<{ block?: boolean } | undefined>
