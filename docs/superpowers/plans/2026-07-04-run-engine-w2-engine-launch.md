@@ -1391,6 +1391,30 @@ describe('launchRun', () => {
     resolveHeldPrompt()
     await p
   })
+
+  it('resolves — never rejects — even when the emit port throws from the first event on', async () => {
+    // A throwing store port (e.g. SQLite busy) must not escape launchRun as a
+    // rejection: the created emit, the engine path, and the synthetic-terminal
+    // emit in the catch are all covered.
+    installAgent()
+    const ports: LaunchPorts = {
+      emit: {
+        nextSeq: () => 1,
+        appendEvent: () => {
+          throw new Error('sqlite busy')
+        },
+        markTerminal: () => undefined,
+        broadcast: () => undefined,
+      },
+      toolRegistry: { resolve: () => ({ tools: [], riskOf: () => 'low' as const }) } as never,
+      permissionRegistry: { request: async () => 'grant', resolve: () => undefined } as never,
+      acquireSlot: async () => () => undefined,
+      registerAbort: () => undefined,
+      unregisterAbort: () => undefined,
+    }
+    const r = await launchRun(spec(), ports)
+    expect(r.status).toBe('failed')
+  })
 })
 ```
 
@@ -1512,17 +1536,6 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
   })
   const runLog = log.child({ runId, sessionId: spec.sessionId })
   const ac = new AbortController()
-  // Register BEFORE any wait: a cancel issued while queued must find the handle
-  // (v1's spawnChild registered after the slot — the exact race, ledger #4).
-  ports.registerAbort(runId, () => ac.abort())
-  emit({
-    kind: 'run.created',
-    goal: spec.prompt,
-    ...(spec.attachments?.length ? { attachments: spec.attachments } : {}),
-    ...(spec.kind === 'child' ? { agentDefId: spec.agent.id } : {}),
-  })
-  runLog.info({ msg: 'run created', kind: spec.kind, agentId: spec.agent.id, promptLen: spec.prompt.length })
-
   let release: (() => void) | null = null
   // Depth-counted so parallel delegate tool calls don't double-release/acquire.
   let yieldDepth = 0
@@ -1546,6 +1559,18 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
   }
 
   try {
+    // Register BEFORE any wait: a cancel issued while queued must find the
+    // handle (v1's spawnChild registered after the slot — the exact race,
+    // ledger #4). Inside the try so a throwing port cannot reject launchRun.
+    ports.registerAbort(runId, () => ac.abort())
+    emit({
+      kind: 'run.created',
+      goal: spec.prompt,
+      ...(spec.attachments?.length ? { attachments: spec.attachments } : {}),
+      ...(spec.kind === 'child' ? { agentDefId: spec.agent.id } : {}),
+    })
+    runLog.info({ msg: 'run created', kind: spec.kind, agentId: spec.agent.id, promptLen: spec.prompt.length })
+
     if (spec.kind === 'turn' && ports.waitTurn) {
       await Promise.race([
         ports.waitTurn(spec.sessionId, runId, ac.signal),
@@ -1580,6 +1605,8 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
           result: { summary: r.summary, artifacts: [] },
         }))
       },
+      // Dead legacy channel — no tool reads ctx.send (repo-wide zero call
+      // sites); a deliberate inert stub until W3 drops it from the contract.
       send: () => undefined,
       // Tools must NOT self-gate: permission is enforced centrally in the engine.
       requestPermission: () => Promise.resolve('grant' as const),
@@ -1634,11 +1661,20 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
     const message = err instanceof Error ? err.message : String(err)
     const code = err instanceof EngineSetupError ? 'agent_setup_failed' : 'agent_exception'
     runLog.error({ msg: 'run launch failed', code, err: message })
-    emit({ kind: 'run.error', error: { code, message, tier: 'fatal' } })
+    // The synthetic terminal itself must not be able to reject launchRun
+    // (e.g. the same throwing store port that landed us here).
+    try {
+      emit({ kind: 'run.error', error: { code, message, tier: 'fatal' } })
+    } catch (emitErr) {
+      runLog.error({ msg: 'synthetic terminal emit failed', err: emitErr instanceof Error ? emitErr.message : String(emitErr) })
+    }
     return { runId, status: 'failed', summary: '', messages: spec.history ?? [], used: emptyUsed() }
   } finally {
-    release?.()
-    ports.unregisterAbort(runId)
+    try {
+      release?.()
+    } finally {
+      ports.unregisterAbort(runId)
+    }
   }
 }
 
@@ -1660,6 +1696,9 @@ function buildAnalyzeImage(
   const vision = chain.find(injectionSupportsImages)
   if (!vision) return undefined
   return async (prompt, image) => {
+    // Remove the parent-signal listener once the nested run finishes, so
+    // repeated analyzeImage calls don't accumulate stale abort listeners.
+    let nestedAbort: (() => void) | null = null
     const r = await launchRun(
       {
         kind: 'work',
@@ -1690,10 +1729,14 @@ function buildAnalyzeImage(
         // while its parent already holds a slot (that's the ledger-#5 shape).
         acquireSlot: async () => () => undefined,
         registerAbort: (_id, abort) => {
+          nestedAbort = abort
           if (parentSignal.aborted) abort()
           else parentSignal.addEventListener('abort', abort, { once: true })
         },
-        unregisterAbort: () => undefined,
+        unregisterAbort: () => {
+          if (nestedAbort) parentSignal.removeEventListener('abort', nestedAbort)
+          nestedAbort = null
+        },
       }
     )
     return r.summary
@@ -1704,7 +1747,7 @@ function buildAnalyzeImage(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd apps/desktop && npm test -- src/service/run-engine/launch.test.ts`
-Expected: PASS (9 tests). Then the whole module: `npm test -- src/service/run-engine`
+Expected: PASS (10 tests). Then the whole module: `npm test -- src/service/run-engine`
 Expected: PASS.
 
 - [ ] **Step 5: Format and commit**
