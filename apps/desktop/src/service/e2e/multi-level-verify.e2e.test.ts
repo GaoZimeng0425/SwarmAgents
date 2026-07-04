@@ -61,7 +61,7 @@ vi.mock('../session/agent-runner', () => ({
       // stands in for it so every run reaches a terminal event.
       deps.emit('task.complete', {
         taskId: deps.correlationId,
-        result: { summary: `${deps.agentDefinition.id}: done`, artifacts: [] },
+        summary: `${deps.agentDefinition.id}: done`,
         ts: Date.now(),
       })
       return {

@@ -22,7 +22,7 @@ vi.mock('../session/agent-runner', () => ({
       // the mock stands in for the translator.
       deps.emit('task.complete', {
         taskId: deps.correlationId,
-        result: { summary: 'done', artifacts: [] },
+        summary: 'done',
         ts: Date.now(),
       })
       return { status: 'completed', summary: 'done', messages: [], used: {} }

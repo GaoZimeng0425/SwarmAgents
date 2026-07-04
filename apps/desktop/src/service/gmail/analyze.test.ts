@@ -37,7 +37,7 @@ describe('analyzeEmail', () => {
           event: 'task.progress',
           data: { taskId: 'm1', event: { kind: 'llm.message', role: 'assistant', content: '测试', ts: 2 } },
         },
-        { event: 'task.complete', data: { taskId: 'm1', result: { summary: '## 摘要\n测试', artifacts: [] }, ts: 3 } },
+        { event: 'task.complete', data: { taskId: 'm1', summary: '## 摘要\n测试', ts: 3 } },
       ]),
     })
 

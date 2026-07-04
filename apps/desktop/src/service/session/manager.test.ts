@@ -566,7 +566,7 @@ describe('SessionManager', () => {
           event: { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 },
           ts: 1,
         })
-        deps.emit('task.complete', { result: { summary: 'hi', artifacts: [] }, ts: 2 })
+        deps.emit('task.complete', { summary: 'hi', ts: 2 })
         return runnerReturn('completed', 'hi')
       })
     )
@@ -599,7 +599,7 @@ describe('SessionManager', () => {
       runner(async () => {
         deps.emit('task.complete', {
           taskId: deps.correlationId,
-          result: { summary: 'built it', artifacts: [] },
+          summary: 'built it',
           ts: 1,
         })
         return runnerReturn('completed', 'built it')
@@ -632,7 +632,7 @@ describe('SessionManager', () => {
   it('a work run reaches terminal in run_events and leaves NO Task row', async () => {
     mockCreate.mockImplementation((deps) =>
       runner(async () => {
-        deps.emit('task.complete', { taskId: deps.correlationId, result: { summary: 'built', artifacts: [] }, ts: 1 })
+        deps.emit('task.complete', { taskId: deps.correlationId, summary: 'built', ts: 1 })
         return runnerReturn('completed', 'built')
       })
     )
@@ -832,7 +832,7 @@ describe('SessionManager', () => {
           event: { kind: 'llm.message', role: 'assistant', content: 'hi', ts: 1 },
           ts: 1,
         })
-        deps.emit('task.complete', { result: { summary: 'hi', artifacts: [] }, ts: 2 })
+        deps.emit('task.complete', { summary: 'hi', ts: 2 })
         return runnerReturn('completed', 'hi')
       })
     )

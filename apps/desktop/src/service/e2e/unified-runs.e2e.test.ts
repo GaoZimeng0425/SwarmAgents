@@ -17,7 +17,7 @@ vi.mock('../session/agent-runner', () => ({
     run: async () => {
       deps.emit('task.complete', {
         taskId: deps.correlationId,
-        result: { summary: 'done', artifacts: [] },
+        summary: 'done',
         ts: Date.now(),
       })
       return {

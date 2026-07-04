@@ -522,7 +522,7 @@ function createEventTranslator(
           return
         }
         const summary = assembledSummary.trim() || `Completed task ${taskId}.`
-        emit('task.complete', { taskId, result: { summary, artifacts: [] }, ts: Date.now() })
+        emit('task.complete', { taskId, summary, ts: Date.now() })
         return
       }
       default:

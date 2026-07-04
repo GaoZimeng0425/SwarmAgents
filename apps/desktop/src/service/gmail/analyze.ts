@@ -57,7 +57,7 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
           deps.broadcaster.broadcast('gmail.analysisDelta', { messageId, text: ev.content, ts: Date.now() })
         }
       } else if (event === 'task.complete') {
-        const markdown = (obj.result as { summary?: string } | undefined)?.summary ?? ''
+        const markdown = typeof obj.summary === 'string' ? obj.summary : ''
         deps.broadcaster.broadcast('gmail.analysisComplete', { messageId, markdown, ts: Date.now() })
       } else if (event === 'task.error') {
         const error = (obj.error as { message?: string } | undefined)?.message ?? 'analysis failed'
