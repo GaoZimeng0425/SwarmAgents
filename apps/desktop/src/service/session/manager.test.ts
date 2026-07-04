@@ -533,7 +533,6 @@ describe('SessionManager', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     // No Task row — the conversation turn lives on the run-event stream only.
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     const userEvent = store
       .getRunEvents(sessionId)
       .find(
@@ -650,7 +649,6 @@ describe('SessionManager', () => {
         .some((r) => r.runId === out.taskId && (r.event as { kind?: string }).kind === 'task.complete')
     ).toBe(true)
     // ...and left no Task row.
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -977,7 +975,6 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     // A conversation turn creates no Task row.
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -1033,8 +1030,7 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     manager.cancelTask(sessionId, bId)
-    // B is a conversation turn (no Task row); only the cancel broadcast is surfaced.
-    expect(store.getSessionTasks(sessionId).find((t) => t.id === bId)).toBeUndefined()
+    // B is a conversation turn; only the cancel broadcast is surfaced.
     expect(broadcastSpy).toHaveBeenCalledWith(
       'task.error',
       expect.objectContaining({ taskId: bId, error: expect.objectContaining({ code: 'cancelled' }) })
@@ -1053,7 +1049,8 @@ describe('SessionManager', () => {
     // task left by a pre-4b interrupted session (never in the in-memory Map)
     // is not cancelled by cancelTask — its run is not in flight (no abort
     // handle) and not in the session's pending queue. The store's restart
-    // cleanup (markAndGetInterrupted) is what eventually settles such rows.
+    // pass (markAndGetInterrupted) plus markInterruptedRunsTerminal settle
+    // orphaned runs in run_events.
     const store = createConversationStore(dbPath)
     const broadcaster = createBroadcaster()
     const broadcastSpy = vi.spyOn(broadcaster, 'broadcast')
@@ -1061,31 +1058,9 @@ describe('SessionManager', () => {
 
     store.createSession('ses-ghost', providerA)
     store.updateSessionStatus('ses-ghost', 'interrupted')
-    store.saveTask(
-      {
-        id: 'task-ghost',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: Date.now(),
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-ghost'
-    )
 
     manager.cancelTask('ses-ghost', 'task-ghost')
-    // The legacy Task row is untouched by the manager; no spurious broadcast.
-    expect(store.getTask('task-ghost')?.status).toBe('pending')
+    // No in-memory entry → no abort handle and no broadcast.
     expect(broadcastSpy).not.toHaveBeenCalledWith('task.error', expect.anything())
     store.close()
   })
@@ -1167,8 +1142,7 @@ describe('SessionManager', () => {
     })
     manager.submitGoal(sessionId, 'g')
     expect(manager.listSessions().map((s) => s.id)).toContain(sessionId)
-    // A conversation turn produces no Task but does produce run events.
-    expect(manager.getSessionTasks(sessionId)).toHaveLength(0)
+    // A conversation turn produces run events.
     expect(store.getRunEvents(sessionId).length).toBeGreaterThan(0)
     store.close()
   })
@@ -1220,7 +1194,6 @@ describe('SessionManager', () => {
 
     expect(captured?.id).toBe('researcher')
     // No Task row for a conversation turn.
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -1367,8 +1340,7 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(sawAbortedAtEntry.B).toBe(true)
-    // B is a conversation turn (no Task row); only the aborted signal matters here.
-    expect(store.getSessionTasks(s2).find((t) => t.id === bId)).toBeUndefined()
+    // B is a conversation turn; only the aborted signal matters here.
     store.close()
   })
 
@@ -1409,11 +1381,10 @@ describe('SessionManager', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(captured?.id).toBe('default')
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
-  it('routes task.delegation_plan emits onto the run stream (no Task-row write)', async () => {
+  it('routes task.delegation_plan emits onto the run stream', async () => {
     let capturedEmit: ((event: string, data: unknown) => void) | null = null
     mockCreate.mockImplementation((deps) => {
       capturedEmit = deps.emit
@@ -1437,7 +1408,6 @@ describe('SessionManager', () => {
     ).__runWorkTaskForTest(sessionId, 'solve it')
 
     const emit = capturedEmit!
-    const spy = vi.spyOn(store, 'saveTaskDelegationPlan')
     const plan = [
       {
         id: 'd1',
@@ -1448,9 +1418,7 @@ describe('SessionManager', () => {
       { id: 'd2', goal: 'review', dependsOn: ['d1'] },
     ]
     emit('task.delegation_plan', { taskId, plan, ts: Date.now() })
-    // Post-4b the manager writes no Task rows, so the plan is no longer
-    // persisted via saveTaskDelegationPlan — it lives on the run stream.
-    expect(spy).not.toHaveBeenCalled()
+    // Post-4b the plan lives on the run stream (no Task row is written).
     const rows = store
       .getRunEvents(sessionId)
       .filter((r) => r.runId === taskId && (r.event as { kind?: string }).kind === 'task.delegation_plan')
@@ -1483,7 +1451,6 @@ describe('SessionManager', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(followUp.taskId).not.toBe(first.taskId)
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     expect(goals).toEqual(['do the thing', '继续'])
     // Both user messages live on the run stream, in order.
     const userContents = store
@@ -1530,7 +1497,6 @@ describe('SessionManager', () => {
 
     expect(second.taskId).not.toBe(first.taskId)
     // Both are conversation turns (no Task rows).
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
 
     releaseFirstNow()
     await new Promise((r) => setTimeout(r, 0))
@@ -1561,7 +1527,6 @@ describe('SessionManager', () => {
     expect(out.result.summary).toBe('done')
     // Post-4b a work run leaves no Task row — it is a top-level (no parent)
     // run on the run-event stream.
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     const created = store
       .getRunEvents(sessionId)
       .find((r) => r.runId === out.taskId && (r.event as { kind?: string }).kind === 'task.created')
@@ -1586,7 +1551,6 @@ describe('SessionManager', () => {
     manager.submitGoal(sessionId, 'hi')
     await new Promise((r) => setTimeout(r, 0))
     expect(constructed).toBe(true)
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -1620,7 +1584,6 @@ describe('SessionManager', () => {
     release()
     await new Promise((r) => setTimeout(r, 0))
     // A conversation turn leaves no Task row.
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     store.close()
   })
 
@@ -1657,7 +1620,6 @@ describe('SessionManager', () => {
       'task.error',
       expect.objectContaining({ taskId: secondId, error: expect.objectContaining({ code: 'cancelled' }) })
     )
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
 
     releaseFirst()
     await new Promise((r) => setTimeout(r, 0))

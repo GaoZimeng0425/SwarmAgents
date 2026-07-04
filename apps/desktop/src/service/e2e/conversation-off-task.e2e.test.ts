@@ -54,8 +54,6 @@ describe('conversation off task', () => {
     const { taskId: turnId } = manager.submitGoal(sessionId, '你好')
     await flush()
 
-    // No Task row for a conversation turn.
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
     // The run stream carries the user + assistant messages, no verification.
     const rows = store.getRunEvents(sessionId)
     expect(

@@ -6,7 +6,6 @@ export type ServiceMethod =
   | 'createSession'
   | 'submitGoal'
   | 'listSessions'
-  | 'getSessionTasks'
   | 'getRunEvents'
   | 'deleteSession'
   | 'renameSession'

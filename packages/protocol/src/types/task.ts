@@ -143,14 +143,6 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
 ])
 export type TaskEvent = z.infer<typeof TaskEventSchema>
 
-/** One row of a session's conversation-event stream (no Task row; keyed by turn). */
-export type ConversationEvent = {
-  turnId: string
-  seq: number
-  ts: number
-  event: TaskEvent
-}
-
 /** One row of a session's run-event stream (UIEvent-shaped; the renderer's replay source). */
 export type RunEvent = {
   runId: string
@@ -180,35 +172,3 @@ export const AttachmentSchema = z.object({
   name: z.string().optional(),
 })
 export type Attachment = z.infer<typeof AttachmentSchema>
-
-export const TaskSchema = z.object({
-  id: z.string().length(26),
-  parentId: z.string().nullable(),
-  agentDefId: z.string().default('default'),
-  goal: z.string(),
-  status: TaskStatusSchema,
-  assignedWorkerId: z.string().nullable(),
-  toolAllowlist: z.array(z.string()),
-  budget: ResourceBudgetSchema,
-  used: ConsumedResourcesSchema,
-  history: z.array(TaskEventSchema),
-  attachments: z.array(AttachmentSchema).default([]),
-  plan: z.array(PlanTodoSchema).default([]),
-  result: TaskResultSchema.nullable(),
-  createdAt: z.number(),
-  startedAt: z.number().nullable(),
-  endedAt: z.number().nullable(),
-  // Resolved model context window (tokens), persisted so the usage display
-  // survives a restart. Set once the run starts; absent on legacy rows.
-  contextWindow: z.number().int().positive().optional(),
-  // Composer-chosen working directory; relative tool paths resolve against it
-  // and shell runs there. Absent → the user's home directory.
-  cwd: z.string().optional(),
-  // Permission gate and execution mode for this task. Absent on legacy rows;
-  // consumers default to 'ask' / 'goal'.
-  permissionMode: PermissionModeSchema.optional(),
-  executionMode: ExecutionModeSchema.optional(),
-  // Leader-authored delegation DAG (set_delegation_plan tool). Audit + UI only.
-  delegationPlan: z.array(DelegationItemSchema).optional(),
-})
-export type Task = z.infer<typeof TaskSchema>

@@ -56,7 +56,6 @@ describe('agent-driven verify — single-shot work task', () => {
     const isTerminal = (r: { event: { kind?: string } }): boolean =>
       r.event.kind === 'task.complete' || r.event.kind === 'task.error'
     expect(events.some(isTerminal)).toBe(true)
-    expect(store.getSessionTasks(sessionId)).toHaveLength(0)
 
     store.close()
   })

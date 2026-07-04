@@ -11,7 +11,6 @@ function mockManager(): SessionManager {
     cancelTask: vi.fn(),
     endSession: vi.fn(),
     listSessions: vi.fn().mockReturnValue([{ id: 'ses-1' }]),
-    getSessionTasks: vi.fn().mockReturnValue([]),
   } as unknown as SessionManager
 }
 
@@ -90,11 +89,10 @@ describe('dispatcher', () => {
     expect(result).toEqual({ ok: true })
   })
 
-  it('listSessions / getSessionTasks read through to the manager', () => {
+  it('listSessions reads through to the manager', () => {
     const manager = mockManager()
     const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
     expect(dispatch('listSessions', [])).toEqual([{ id: 'ses-1' }])
-    expect(dispatch('getSessionTasks', ['ses-1'])).toEqual([])
   })
 
   it('cancelTask routes to manager.cancelTask and returns ok', () => {

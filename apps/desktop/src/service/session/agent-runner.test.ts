@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { getBuiltinModel as getModel } from '@earendil-works/pi-ai/providers/all'
-import type { Task } from '@swarm/protocol'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createToolRegistry } from '../tools/registry'
@@ -10,7 +9,9 @@ import { buildToolContext, createAgentRunner, pricingToCost } from './agent-runn
 
 describe('AgentRunner decoupling guard', () => {
   // AgentRunner must not re-acquire a dependency on the Task domain concept.
-  it('agent-runner.ts references neither deps.task nor `task: Task`', () => {
+  // Post-4b the `Task` type itself is gone from @swarm/protocol; the guard now
+  // watches for either a `task: Task` annotation or a `deps.task` field.
+  it('agent-runner.ts references neither deps.task nor a `task: Task` annotation', () => {
     const src = readFileSync(fileURLToPath(new URL('./agent-runner.ts', import.meta.url)), 'utf8')
     expect(src).not.toMatch(/deps\.task\b/)
     expect(src).not.toMatch(/\btask:\s*Task\b/)
@@ -51,26 +52,29 @@ vi.mock('@earendil-works/pi-ai', () => ({
   },
 }))
 
-const mkTask = (id: string): Task => ({
+// Minimal Task-shape used only to seed runner deps in this file. Post-4b the
+// `Task` protocol type is gone (the manager no longer creates Task rows); the
+// runner only reads a subset of fields, captured in runCtxFrom below.
+type TaskShape = {
+  id: string
+  goal: string
+  cwd?: string
+  executionMode?: 'goal' | 'plan'
+  permissionMode?: 'ask' | 'full'
+  budget: { tokens: number; calls: number; wallMs: number; usdCents: number }
+  toolAllowlist: string[]
+  attachments?: import('@swarm/protocol').Attachment[]
+}
+
+const mkTask = (id: string): TaskShape => ({
   id,
-  parentId: null,
-  agentDefId: 'default',
   goal: 'test goal',
-  status: 'pending',
-  assignedWorkerId: null,
-  toolAllowlist: [],
-  plan: [],
   budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-  used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
-  history: [],
+  toolAllowlist: [],
   attachments: [],
-  result: null,
-  createdAt: Date.now(),
-  startedAt: null,
-  endedAt: null,
 })
 
-const runCtxFrom = (t: Task) => ({
+const runCtxFrom = (t: TaskShape) => ({
   correlationId: t.id,
   cwd: t.cwd,
   goal: t.goal,
@@ -212,7 +216,7 @@ describe('AgentRunner', () => {
     }
   }
 
-  const baseDeps = (task: Task) => ({
+  const baseDeps = (task: TaskShape) => ({
     ...runCtxFrom(task),
     provider: {
       id: 'anthropic' as const,

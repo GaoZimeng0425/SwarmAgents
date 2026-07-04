@@ -1,8 +1,7 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Task, TaskEvent, UIEvent } from '@swarm/protocol'
-import { emptyUsed } from '@swarm/protocol'
+import type { UIEvent } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -63,242 +62,6 @@ describe('ConversationStore', () => {
     // Verify they are now marked interrupted in the DB
     expect(store2.getSession('ses-active')?.status).toBe('interrupted')
     store2.close()
-  })
-
-  it('interrupts non-terminal tasks of interrupted sessions on restart, preserving terminal ones', () => {
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
-      id,
-      parentId: null,
-      agentDefId: 'default',
-      goal: 'g',
-      status,
-      assignedWorkerId: null,
-      toolAllowlist: [],
-      budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-      used: emptyUsed(),
-      history: [],
-      attachments: [],
-      plan: [],
-      result: null,
-      createdAt: Date.now(),
-      startedAt: null,
-      endedAt: null,
-    })
-    const store1 = createConversationStore(dbPath)
-    store1.createSession('ses-x', provider) // left 'active' → interrupted on restart
-    store1.saveTask(mkTask('task-run', 'running'), 'ses-x')
-    store1.saveTask(mkTask('task-pend', 'pending'), 'ses-x')
-    store1.saveTask(mkTask('task-done', 'completed'), 'ses-x')
-    store1.close()
-
-    const store2 = createConversationStore(dbPath)
-    store2.getInterruptedSessions()
-    const byId = new Map(store2.getSessionTasks('ses-x').map((t) => [t.id, t.status]))
-    expect(byId.get('task-run')).toBe('interrupted')
-    expect(byId.get('task-pend')).toBe('interrupted')
-    expect(byId.get('task-done')).toBe('completed') // terminal preserved
-    store2.close()
-  })
-
-  it('interrupts zombie tasks under already-interrupted sessions on restart', () => {
-    // A previous restart already flipped the session to 'interrupted' but its
-    // tasks slipped through the old active-only cleanup. A second restart must
-    // still clean those zombies — the cleanup is global, not keyed to sessions
-    // flipped active→interrupted this run.
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
-      id,
-      parentId: null,
-      agentDefId: 'default',
-      goal: 'g',
-      status,
-      assignedWorkerId: null,
-      toolAllowlist: [],
-      budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-      used: emptyUsed(),
-      history: [],
-      attachments: [],
-      plan: [],
-      result: null,
-      createdAt: Date.now(),
-      startedAt: null,
-      endedAt: null,
-    })
-    const store1 = createConversationStore(dbPath)
-    store1.createSession('ses-prev', provider)
-    store1.updateSessionStatus('ses-prev', 'interrupted') // simulate a prior restart
-    store1.saveTask(mkTask('task-zombie', 'pending'), 'ses-prev')
-    store1.close()
-
-    const store2 = createConversationStore(dbPath)
-    store2.getInterruptedSessions()
-    expect(store2.getSessionTasks('ses-prev').find((t) => t.id === 'task-zombie')?.status).toBe('interrupted')
-    store2.close()
-  })
-
-  it('closes orphan tool calls when interrupting zombie tasks on restart', () => {
-    // A spawn_sub_agent interrupted mid-run leaves a tool.call whose blocking
-    // execute() never returned, so no tool.result is ever recorded. Its card
-    // would spin "running" forever on reload. The restart cleanup must synthesize
-    // a tool.result (ok=false) for each unresolved call, while leaving already
-    // resolved calls untouched.
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    const mkTask = (id: string, status: import('@swarm/protocol').Task['status']) => ({
-      id,
-      parentId: null,
-      agentDefId: 'default',
-      goal: 'g',
-      status,
-      assignedWorkerId: null,
-      toolAllowlist: [],
-      budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-      used: emptyUsed(),
-      history: [],
-      attachments: [],
-      plan: [],
-      result: null,
-      createdAt: Date.now(),
-      startedAt: null,
-      endedAt: null,
-    })
-    const store1 = createConversationStore(dbPath)
-    store1.createSession('ses-x', provider) // left 'active' → interrupted on restart
-    store1.saveTask(mkTask('task-zombie', 'pending'), 'ses-x')
-    // A resolved tool call (call + result) plus an orphan spawn_sub_agent (call only).
-    store1.appendTaskEvent('task-zombie', {
-      kind: 'tool.call',
-      server: 'builtin',
-      tool: 'read_file',
-      args: {},
-      ts: 1,
-      callId: 'call-resolved',
-    })
-    store1.appendTaskEvent('task-zombie', {
-      kind: 'tool.result',
-      ok: true,
-      payload: { kind: 'text', text: 'ok' },
-      ts: 2,
-      callId: 'call-resolved',
-    })
-    store1.appendTaskEvent('task-zombie', {
-      kind: 'tool.call',
-      server: 'builtin',
-      tool: 'spawn_sub_agent',
-      args: { goal: 'g' },
-      ts: 3,
-      callId: 'call-orphan',
-    })
-    store1.close()
-
-    const store2 = createConversationStore(dbPath)
-    store2.getInterruptedSessions()
-    const task = store2.getSessionTasks('ses-x').find((t) => t.id === 'task-zombie')!
-    expect(task.status).toBe('interrupted')
-    const results = task.history.filter(
-      (e): e is Extract<TaskEvent, { kind: 'tool.result' }> => e.kind === 'tool.result'
-    )
-    const orphan = results.find((r) => r.callId === 'call-orphan')
-    expect(orphan).toBeDefined()
-    expect(orphan?.ok).toBe(false)
-    // The already-resolved call is not duplicated.
-    expect(results.filter((r) => r.callId === 'call-resolved')).toHaveLength(1)
-    expect(results).toHaveLength(2)
-    store2.close()
-  })
-
-  it('markTaskRunning sets running status and stamps started_at once', () => {
-    const store = createConversationStore(dbPath)
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    store.createSession('ses-r', provider)
-    store.saveTask(
-      {
-        id: 'task-r',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: Date.now(),
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-r'
-    )
-    store.markTaskRunning('task-r')
-    const after = store.getSessionTasks('ses-r')[0]
-    expect(after.status).toBe('running')
-    expect(after.startedAt).toBeGreaterThan(0)
-    const firstStart = after.startedAt
-    // A second dispatch (continuation) keeps the original start time.
-    store.markTaskRunning('task-r')
-    expect(store.getSessionTasks('ses-r')[0].startedAt).toBe(firstStart)
-    store.close()
-  })
-
-  it('saves and retrieves tasks', () => {
-    const store = createConversationStore(dbPath)
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    store.createSession('ses-1', provider)
-
-    const now = Date.now()
-    store.saveTask(
-      {
-        id: 'task-1',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'hello',
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 1000, calls: 10, wallMs: 60000, usdCents: 10 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: now,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-1'
-    )
-    const tasks = store.getSessionTasks('ses-1')
-    expect(tasks).toHaveLength(1)
-    expect(tasks[0].id).toBe('task-1')
-    store.close()
   })
 
   it('saves and retrieves tool state', () => {
@@ -364,29 +127,8 @@ describe('ConversationStore', () => {
     store.updateSessionStatus('ses-gone', 'ended')
 
     const now = Date.now()
-    store.saveTask(
-      {
-        id: '01HRX0000000000000000000A1',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'completed',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: now,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-b'
-    )
-    // taskCount is now derived from distinct run_id in run_events (post-4b the
-    // tasks table is no longer read for usage/listing). Seed one run for ses-b.
+    // Post-4b the tasks table is gone; taskCount is derived from distinct
+    // run_id in run_events. Seed one run for ses-b.
     store.appendRunEvent('ses-b', 'r-b', null, {
       kind: 'task.created',
       sessionId: 'ses-b',
@@ -495,85 +237,6 @@ describe('ConversationStore', () => {
     store.close()
   })
 
-  const taskLiteral = (id: string, history: import('@swarm/protocol').TaskEvent[] = []) => ({
-    id,
-    parentId: null,
-    agentDefId: 'default',
-    goal: 'g',
-    status: 'running' as const,
-    assignedWorkerId: null,
-    toolAllowlist: [] as string[],
-    budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-    used: emptyUsed(),
-    history,
-    attachments: [],
-    plan: [],
-    result: null,
-    createdAt: 1,
-    startedAt: null,
-    endedAt: null,
-  })
-
-  it('appends events and reconstructs history in insertion order', () => {
-    const store = createConversationStore(dbPath)
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    store.createSession('ses-e', provider)
-    store.saveTask(taskLiteral('01HRX0000000000000000000E1'), 'ses-e')
-    store.appendTaskEvent('01HRX0000000000000000000E1', { kind: 'reasoning', content: 'a', ts: 1 })
-    store.appendTaskEvent('01HRX0000000000000000000E1', { kind: 'llm.message', role: 'assistant', content: 'b', ts: 2 })
-    expect(store.getSessionTasks('ses-e')[0].history).toEqual([
-      { kind: 'reasoning', content: 'a', ts: 1 },
-      { kind: 'llm.message', role: 'assistant', content: 'b', ts: 2 },
-    ])
-    store.close()
-  })
-
-  it('backfills legacy tasks.history into task_events on open, without duplicating', () => {
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    const legacy: import('@swarm/protocol').TaskEvent[] = [
-      { kind: 'reasoning', content: 'x', ts: 1 },
-      { kind: 'error', error: { code: 'boom', message: 'nope', tier: 'fatal' }, ts: 2 },
-    ]
-    const store1 = createConversationStore(dbPath)
-    store1.createSession('ses-b', provider)
-    store1.saveTask(taskLiteral('01HRX0000000000000000000B1', legacy), 'ses-b')
-    store1.close()
-
-    const store2 = createConversationStore(dbPath)
-    expect(store2.getSessionTasks('ses-b')[0].history).toEqual(legacy)
-    store2.close()
-
-    const store3 = createConversationStore(dbPath)
-    expect(store3.getSessionTasks('ses-b')[0].history).toHaveLength(2)
-    store3.close()
-  })
-
-  it('deletes task_events when its session is deleted', () => {
-    const store = createConversationStore(dbPath)
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    store.createSession('ses-d', provider)
-    store.saveTask(taskLiteral('01HRX0000000000000000000D1'), 'ses-d')
-    store.appendTaskEvent('01HRX0000000000000000000D1', { kind: 'reasoning', content: 'a', ts: 1 })
-    store.deleteSession('ses-d')
-    expect(store.getSessionTasks('ses-d')).toEqual([])
-    store.close()
-  })
-
   describe('run events', () => {
     it('appendRunEvent persists UIEvents and re-reads them with runId/parentRunId', () => {
       const store = createConversationStore(dbPath)
@@ -612,128 +275,6 @@ describe('ConversationStore', () => {
     })
   })
 
-  it('saveSessionUsage round-trips conversation usage on the session row', () => {
-    const store = createConversationStore(dbPath)
-    const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'm', apiKey: 'k' }
-    store.createSession('ses-su', provider)
-    expect(store.getSessionUsage('ses-su')).toBeUndefined()
-    store.saveSessionUsage(
-      'ses-su',
-      { tokens: 900, calls: 3, wallMs: 1000, usdCents: 5, cacheRead: 200, cacheWrite: 0 },
-      200_000
-    )
-    const got = store.getSessionUsage('ses-su')
-    expect(got?.used.tokens).toBe(900)
-    expect(got?.used.cacheRead).toBe(200)
-    expect(got?.contextWindow).toBe(200_000)
-    // Post-4b listSessions no longer folds session_used into its totals —
-    // conversation usage comes from run_events.task.usage instead. The
-    // session_used column is now write-only dead data on the read side
-    // (still persisted here, cleaned up in a later task).
-    const s = store.listSessions().find((x) => x.id === 'ses-su')
-    expect(s?.tokensUsed).toBe(0)
-    expect(s?.usdCents).toBe(0)
-    store.close()
-  })
-
-  it('persists and reloads a task plan', () => {
-    const store = createConversationStore(dbPath)
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    store.createSession('ses-p', provider)
-    const now = Date.now()
-    store.saveTask(
-      {
-        id: '01HRX0000000000000000000P1',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'running',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: now,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-p'
-    )
-    expect(store.getSessionTasks('ses-p')[0].plan).toEqual([])
-
-    store.saveTaskPlan('01HRX0000000000000000000P1', [
-      { content: 'step one', status: 'in_progress' },
-      { content: 'step two', status: 'pending' },
-    ])
-    const tasks = store.getSessionTasks('ses-p')
-    expect(tasks[0].plan).toEqual([
-      { content: 'step one', status: 'in_progress' },
-      { content: 'step two', status: 'pending' },
-    ])
-    store.close()
-  })
-
-  it('saveTaskUsage writes used back to the task row', () => {
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    const store = createConversationStore(dbPath)
-    store.createSession('ses-u', provider)
-    store.saveTask(
-      {
-        id: '01HRX0000000000000000000U1',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'running',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 100, calls: 5, wallMs: 1000, usdCents: 10 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: 1,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-u'
-    )
-    store.saveTaskUsage(
-      '01HRX0000000000000000000U1',
-      { tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7, cacheRead: 0, cacheWrite: 0 },
-      200_000
-    )
-    const task = store.getSessionTasks('ses-u').find((t) => t.id === '01HRX0000000000000000000U1')
-    expect(task?.used).toEqual({ tokens: 1500, calls: 3, wallMs: 4200, usdCents: 7, cacheRead: 0, cacheWrite: 0 })
-    expect(task?.contextWindow).toBe(200_000)
-
-    // A later call without a window must not wipe the stored one (COALESCE).
-    store.saveTaskUsage('01HRX0000000000000000000U1', {
-      tokens: 1600,
-      calls: 4,
-      wallMs: 4300,
-      usdCents: 8,
-      cacheRead: 0,
-      cacheWrite: 0,
-    })
-    const after = store.getSessionTasks('ses-u').find((t) => t.id === '01HRX0000000000000000000U1')
-    expect(after?.contextWindow).toBe(200_000)
-    store.close()
-  })
-
   const provider = { id: 'anthropic' as const, apiStyle: 'anthropic' as const, model: 'claude-sonnet-4-5', apiKey: 'k' }
 
   it('renames a session via setSessionTitle', () => {
@@ -758,63 +299,21 @@ describe('ConversationStore', () => {
     store.close()
   })
 
-  it('hard-deletes a session and its tasks', () => {
+  it('hard-deletes a session and its run events', () => {
     const store = createConversationStore(dbPath)
     store.createSession('ses-d', provider)
-    store.saveTask(
-      {
-        id: '01HRX0000000000000000000D1',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'running',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 100, calls: 5, wallMs: 1000, usdCents: 10 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: 1,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-d'
-    )
+    store.appendRunEvent('ses-d', 'r-d', null, {
+      kind: 'task.created',
+      sessionId: 'ses-d',
+      taskId: 'r-d',
+      goal: 'g',
+      ts: 1,
+      seq: 1,
+    })
     store.deleteSession('ses-d')
     expect(store.getSession('ses-d')).toBeUndefined()
-    expect(store.getSessionTasks('ses-d')).toEqual([])
+    expect(store.getRunEvents('ses-d')).toEqual([])
     expect(store.listSessions().some((s) => s.id === 'ses-d')).toBe(false)
-    store.close()
-  })
-
-  it('round-trips task attachments', () => {
-    const store = createConversationStore(dbPath)
-    store.createSession('ses-att', provider)
-    store.saveTask(
-      {
-        id: '01HRX0000000000000000000T1',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'look at this',
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }],
-        plan: [],
-        result: null,
-        createdAt: 1,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-att'
-    )
-    const loaded = store.getSessionTasks('ses-att')
-    expect(loaded[0].attachments).toEqual([{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }])
     store.close()
   })
 
@@ -1225,42 +724,6 @@ describe('ConversationStore', () => {
     store.close()
   })
 
-  it('getTask returns a saved task or undefined', () => {
-    const store = createConversationStore(dbPath)
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    store.createSession('ses-1', provider)
-    const now = Date.now()
-    store.saveTask(
-      {
-        id: 'task-1',
-        parentId: null,
-        agentDefId: 'a',
-        goal: 'g',
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-        used: emptyUsed(),
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: now,
-        startedAt: null,
-        endedAt: null,
-      },
-      'ses-1'
-    )
-    expect(store.getTask('task-1')?.goal).toBe('g')
-    expect(store.getTask('missing')).toBeUndefined()
-    store.close()
-  })
-
   describe('system session', () => {
     const provider = {
       id: 'anthropic' as const,
@@ -1357,25 +820,6 @@ describe('ConversationStore', () => {
     })
   })
 
-  const mkTask = (id: string, status: Task['status']): Task => ({
-    id,
-    parentId: null,
-    agentDefId: 'default',
-    goal: 'g',
-    status,
-    assignedWorkerId: null,
-    toolAllowlist: [],
-    budget: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 },
-    used: emptyUsed(),
-    history: [],
-    attachments: [],
-    plan: [],
-    result: null,
-    createdAt: Date.now(),
-    startedAt: null,
-    endedAt: null,
-  })
-
   describe('task waiters', () => {
     it('saves, lists by task, and deletes a waiter', () => {
       const store = createConversationStore(tmpDb())
@@ -1394,26 +838,6 @@ describe('ConversationStore', () => {
       store.close()
     })
 
-    it('fires the terminal listener only on terminal status', () => {
-      const store = createConversationStore(tmpDb())
-      store.createSession('ses-1', {
-        id: 'anthropic' as const,
-        apiStyle: 'anthropic' as const,
-        model: 'm',
-        apiKey: 'k',
-      })
-      store.saveTask(mkTask('task-X', 'running'), 'ses-1')
-      const fired: Array<[string, string]> = []
-      store.setTaskTerminalListener((taskId, status) => fired.push([taskId, status]))
-
-      store.updateTaskStatus('task-X', 'running')
-      expect(fired).toEqual([])
-
-      store.updateTaskStatus('task-X', 'completed')
-      expect(fired).toEqual([['task-X', 'completed']])
-      store.close()
-    })
-
     it('persists waiters across reopen', () => {
       const path = tmpDb()
       const s1 = createConversationStore(path)
@@ -1422,53 +846,6 @@ describe('ConversationStore', () => {
       const s2 = createConversationStore(path)
       expect(s2.listAllTaskWaiters().map((w) => w.id)).toEqual(['w1'])
       s2.close()
-    })
-  })
-
-  describe('delegation plan persistence', () => {
-    it('round-trips a delegation plan on a task', () => {
-      const store = createConversationStore(dbPath)
-      const provider = {
-        id: 'anthropic' as const,
-        apiStyle: 'anthropic' as const,
-        model: 'claude-sonnet-4-5',
-        apiKey: 'k',
-      }
-      store.createSession('ses-dlp', provider)
-      const task = {
-        id: 'task-dlp',
-        parentId: null,
-        agentDefId: 'default',
-        goal: 'g',
-        status: 'pending',
-        assignedWorkerId: null,
-        toolAllowlist: [],
-        budget: { tokens: 1, calls: 1, wallMs: 1, usdCents: 1 },
-        used: { tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 },
-        history: [],
-        attachments: [],
-        plan: [],
-        result: null,
-        createdAt: 1,
-        startedAt: null,
-        endedAt: null,
-      } as Task
-      store.saveTask(task, 'ses-dlp')
-
-      const plan = [
-        {
-          id: 'd1',
-          goal: 'build',
-          ownerAgentType: 'engineer',
-          dependsOn: [],
-        },
-        { id: 'd2', goal: 'review', dependsOn: ['d1'] },
-      ]
-      store.saveTaskDelegationPlan('task-dlp', plan)
-
-      const got = store.getTask('task-dlp')
-      expect(got?.delegationPlan).toEqual(plan)
-      store.close()
     })
   })
 })

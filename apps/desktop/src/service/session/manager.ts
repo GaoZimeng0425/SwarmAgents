@@ -7,7 +7,6 @@ import type {
   PermissionMode,
   ProviderInjection,
   ResourceBudget,
-  Task,
   TaskOptions,
   TaskResult,
   TaskStatus,
@@ -128,7 +127,6 @@ export type SessionManager = {
   updateSessionSettings(sessionId: string, settings: import('@swarm/protocol').SessionSettings): void
   reorderSessions(orderedIds: string[]): void
   listSessions(): import('@swarm/protocol').SessionSummary[]
-  getSessionTasks(sessionId: string): Task[]
   getRunEvents(sessionId: string): import('@swarm/protocol').RunEvent[]
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
   /** Register the terminal-status listener (fires once per runId). */
@@ -262,10 +260,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(s.id, 'interrupted')
   }
 
-  const seqCounter = createSeqCounter(
-    (sid: string) => store.getSessionTasks(sid),
-    (sid: string) => store.getRunEvents(sid)
-  )
+  const seqCounter = createSeqCounter((sid: string) => store.getRunEvents(sid))
 
   // In-memory terminal-status registry. Loaded once at construction from the
   // last terminal run_event per runId (one SQL scan), then maintained
@@ -1045,10 +1040,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
           initialMessages: session.messages,
-          saveSnapshot: (messages, used, contextWindow) => {
+          saveSnapshot: (messages) => {
             session.messages = messages
             store.saveAgentSnapshot(sessionId, messages)
-            if (used) store.saveSessionUsage(sessionId, used, contextWindow)
           },
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
@@ -1219,10 +1213,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     listSessions() {
       return store.listSessions()
-    },
-
-    getSessionTasks(sessionId) {
-      return store.getSessionTasks(sessionId)
     },
 
     getRunEvents(sessionId) {

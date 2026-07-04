@@ -1,8 +1,6 @@
 import { z } from 'zod'
 
-import { AgentDefinitionSchema } from './agent'
-import { ProviderInjection } from './provider'
-import { TaskEventSchema, TaskResultSchema, TaskSchema } from './task'
+import { TaskEventSchema, TaskResultSchema } from './task'
 
 export const RiskSchema = z.enum(['low', 'medium', 'high'])
 export type Risk = z.infer<typeof RiskSchema>
@@ -26,13 +24,6 @@ const ErrorRecordSchema = z.object({
 })
 
 export const InboundSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('task.assign'),
-    task: TaskSchema,
-    promptContext: z.string(),
-    provider: ProviderInjection,
-    agentDefinition: AgentDefinitionSchema,
-  }),
   z.object({ type: z.literal('task.cancel'), taskId: z.string() }),
   z.object({ type: z.literal('tool.result'), callId: z.string(), result: ToolResultSchema }),
   z.object({

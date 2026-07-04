@@ -39,7 +39,6 @@ export type ServiceClient = {
   ): Promise<{ taskId: string }>
   analyzeEmail(req: import('./types/ui').AnalyzeEmailRequest): Promise<import('./types/ui').AnalyzeEmailResult>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
-  getSessionTasks(sessionId: string): Promise<import('./types/task').Task[]>
   getRunEvents(sessionId: string): Promise<import('./types/task').RunEvent[]>
   deleteSession(sessionId: string): Promise<void>
   renameSession(sessionId: string, title: string): Promise<void>
@@ -148,9 +147,6 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     listSessions() {
       return call('listSessions', [])
-    },
-    getSessionTasks(sessionId) {
-      return call('getSessionTasks', [sessionId])
     },
     getRunEvents(sessionId) {
       return call('getRunEvents', [sessionId])

@@ -1,6 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
-import type { Actor, ActorMessage, ProviderInjection, Task, TaskEvent, UsageStats } from '@swarm/protocol'
+import type { Actor, ActorMessage, ProviderInjection, UsageStats } from '@swarm/protocol'
 import { HEATMAP_DAYS } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import Database from 'better-sqlite3'
@@ -8,8 +8,6 @@ import Database from 'better-sqlite3'
 import { currentStreak, dayKey, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './usage-stats'
 
 const log = createLogger({ process: 'service' }).child({ component: 'conversation-store' })
-
-const TERMINAL_TASK_STATUSES = new Set(['completed', 'failed', 'interrupted', 'cancelled'])
 
 export type StoredSession = {
   id: string
@@ -71,7 +69,6 @@ export type ConversationStore = {
   deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
-  appendTaskEvent(taskId: string, event: import('@swarm/protocol').TaskEvent): void
   /** Persist a run-lifecycle UIEvent on the session run stream. */
   appendRunEvent(
     sessionId: string,
@@ -89,18 +86,6 @@ export type ConversationStore = {
   }[]
   /** The last terminal status per runId across ALL sessions (for registry boot). */
   getTerminalRunStatuses(): Array<{ runId: string; status: 'completed' | 'failed' | 'cancelled' }>
-  saveTaskPlan(taskId: string, plan: Task['plan']): void
-  saveTaskDelegationPlan(taskId: string, plan: Task['delegationPlan']): void
-  saveTask(task: Task, sessionId: string): void
-  updateTaskStatus(taskId: string, status: Task['status'], result?: Task['result']): void
-  /** Mark a task as actively running and stamp started_at (kept if already set). */
-  markTaskRunning(taskId: string): void
-  saveTaskUsage(taskId: string, used: Task['used'], contextWindow?: number): void
-  /** Persist a conversation turn's usage at the session level (no Task row). Stores the latest snapshot. */
-  saveSessionUsage(sessionId: string, used: Task['used'], contextWindow?: number): void
-  /** Read a session's stored conversation usage, if any was persisted. */
-  getSessionUsage(sessionId: string): { used: Task['used']; contextWindow: number | null } | undefined
-  getSessionTasks(sessionId: string): Task[]
   getUsageStats(rangeDays: number): UsageStats
   saveToolState(sessionId: string, key: string, value: unknown): void
   getToolState(sessionId: string, key: string): unknown
@@ -122,8 +107,6 @@ export type ConversationStore = {
   listTaskWaitersForTask(taskId: string): StoredTaskWaiter[]
   listAllTaskWaiters(): StoredTaskWaiter[]
   deleteTaskWaiter(id: string): void
-  setTaskTerminalListener(fn: (taskId: string, status: string) => void): void
-  getTask(taskId: string): Task | undefined
   upsertActor(actor: Actor): void
   getActor(address: string): Actor | undefined
   getActorByName(sessionId: string, name: string): Actor | undefined
@@ -161,40 +144,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
       cwd               TEXT,
       permission_mode   TEXT,
       execution_mode    TEXT,
-      session_used      TEXT,
-      session_context_window INTEGER
+      agent_type        TEXT
     );
-    CREATE TABLE IF NOT EXISTS tasks (
-      id                  TEXT PRIMARY KEY,
-      session_id          TEXT NOT NULL REFERENCES sessions(id),
-      parent_id           TEXT,
-      goal                TEXT NOT NULL,
-      status              TEXT NOT NULL,
-      result              TEXT,
-      budget              TEXT NOT NULL,
-      used                TEXT NOT NULL,
-      agent_def_id        TEXT NOT NULL DEFAULT 'default',
-      assigned_worker_id  TEXT,
-      tool_allowlist      TEXT NOT NULL DEFAULT '[]',
-      history             TEXT NOT NULL DEFAULT '[]',
-      attachments         TEXT NOT NULL DEFAULT '[]',
-      plan                TEXT NOT NULL DEFAULT '[]',
-      acceptance_criteria TEXT NOT NULL DEFAULT '[]',
-      verifications       TEXT NOT NULL DEFAULT '[]',
-      delegation_plan     TEXT NOT NULL DEFAULT '[]',
-      context_window      INTEGER,
-      created_at          INTEGER NOT NULL,
-      started_at          INTEGER,
-      ended_at            INTEGER
-    );
-    CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
-    CREATE TABLE IF NOT EXISTS task_events (
-      id       INTEGER PRIMARY KEY,
-      task_id  TEXT NOT NULL REFERENCES tasks(id),
-      event    TEXT NOT NULL,
-      ts       INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, id);
     CREATE TABLE IF NOT EXISTS run_events (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id    TEXT NOT NULL,
@@ -280,14 +231,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     'ALTER TABLE sessions ADD COLUMN permission_mode TEXT',
     'ALTER TABLE sessions ADD COLUMN execution_mode TEXT',
     'ALTER TABLE sessions ADD COLUMN agent_type TEXT',
-    'ALTER TABLE sessions ADD COLUMN session_used TEXT',
-    'ALTER TABLE sessions ADD COLUMN session_context_window INTEGER',
-    `ALTER TABLE tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'`,
-    `ALTER TABLE tasks ADD COLUMN plan TEXT NOT NULL DEFAULT '[]'`,
-    `ALTER TABLE tasks ADD COLUMN acceptance_criteria TEXT NOT NULL DEFAULT '[]'`,
-    `ALTER TABLE tasks ADD COLUMN verifications TEXT NOT NULL DEFAULT '[]'`,
-    `ALTER TABLE tasks ADD COLUMN delegation_plan TEXT NOT NULL DEFAULT '[]'`,
-    'ALTER TABLE tasks ADD COLUMN context_window INTEGER',
     'ALTER TABLE cron_jobs ADD COLUMN origin_session_id TEXT',
   ]) {
     try {
@@ -322,29 +265,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     providerSnapshot: JSON.parse(row.provider_snapshot as string) as ProviderInjection,
     title: (row.title as string | null) ?? null,
     agentSnapshot: JSON.parse((row.agent_snapshot as string) ?? '[]') as AgentMessage[],
-  })
-
-  const rowToTask = (row: Record<string, unknown>): Task => ({
-    id: row.id as string,
-    parentId: (row.parent_id as string | null) ?? null,
-    agentDefId: (row.agent_def_id as string) ?? 'default',
-    goal: row.goal as string,
-    status: row.status as Task['status'],
-    assignedWorkerId: (row.assigned_worker_id as string | null) ?? null,
-    toolAllowlist: JSON.parse((row.tool_allowlist as string) ?? '[]') as string[],
-    budget: JSON.parse(row.budget as string) as Task['budget'],
-    used: JSON.parse(row.used as string) as Task['used'],
-    history: (stmtGetTaskEvents.all(row.id as string) as { event: string }[]).map((r) =>
-      JSON.parse(r.event)
-    ) as Task['history'],
-    attachments: JSON.parse((row.attachments as string) ?? '[]') as Task['attachments'],
-    plan: JSON.parse((row.plan as string) ?? '[]') as Task['plan'],
-    delegationPlan: JSON.parse((row.delegation_plan as string) ?? '[]') as Task['delegationPlan'],
-    result: row.result ? (JSON.parse(row.result as string) as Task['result']) : null,
-    createdAt: row.created_at as number,
-    startedAt: (row.started_at as number | null) ?? null,
-    endedAt: (row.ended_at as number | null) ?? null,
-    ...(row.context_window != null ? { contextWindow: row.context_window as number } : {}),
   })
 
   const rowToCronJob = (row: Record<string, unknown>): StoredCronJob => ({
@@ -397,7 +317,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtListCronRunsForJob = db.prepare('SELECT * FROM cron_runs WHERE job_id = ? ORDER BY triggered_at DESC')
   const stmtListAllCronRuns = db.prepare('SELECT * FROM cron_runs ORDER BY triggered_at DESC')
   const stmtListRunningCronRuns = db.prepare("SELECT * FROM cron_runs WHERE status = 'running'")
-  const stmtGetTask = db.prepare('SELECT * FROM tasks WHERE id = ?')
 
   const stmtUpsertActor = db.prepare(`
     INSERT INTO actors (address, agent_def_id, session_id, name, state, last_task_id, created_at, updated_at)
@@ -492,62 +411,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtUpdateProvider = db.prepare('UPDATE sessions SET provider_snapshot = ? WHERE id = ?')
   const stmtUpdateLastActive = db.prepare('UPDATE sessions SET last_active_at = ? WHERE id = ?')
 
+  // On reopen, mark every session left 'active' by a crashed process as
+  // 'interrupted' (matches the pre-4b session-status side of markAndGetInterrupted;
+  // the tasks-side cleanup is gone now that the tasks table is dropped — orphaned
+  // runs are settled by markInterruptedRunsTerminal in the manager, not here).
   const markAndGetInterrupted = db.transaction((): StoredSession[] => {
     const active = db.prepare(`SELECT * FROM sessions WHERE status = 'active'`).all() as Record<string, unknown>[]
     db.prepare(`UPDATE sessions SET status = 'interrupted' WHERE status = 'active'`).run()
-    // The process restarted, so every non-terminal task is a zombie — no worker
-    // will ever resume it. Flip ALL of them to 'interrupted', not just those
-    // under sessions flipped active→interrupted this run: a session already left
-    // 'interrupted' by a *previous* restart still drags pending tasks that would
-    // otherwise replay forever as phantom queued cards, since the active-only
-    // `WHERE status='active'` filter never matches them again.
-    const now = Date.now()
-    const zombieTaskIds = (
-      db
-        .prepare(`SELECT id FROM tasks WHERE status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')`)
-        .all() as { id: string }[]
-    ).map((r) => r.id)
-    db.prepare(
-      `UPDATE tasks SET status = 'interrupted', ended_at = COALESCE(ended_at, ?)
-       WHERE status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')`
-    ).run(now)
-    // A zombie interrupted mid-tool-call (e.g. spawn_sub_agent, whose execute()
-    // blocks on the child) leaves a tool.call with no matching tool.result, so
-    // its card would spin "running" forever. Close each orphan now that the task
-    // is terminal.
-    let closedOrphans = 0
-    for (const id of zombieTaskIds) closedOrphans += closeOrphanToolCalls(id, now)
-    if (closedOrphans > 0) log.info({ msg: 'closed orphan tool calls on interrupted tasks', count: closedOrphans })
     return active.map(rowToSession).map((s) => ({ ...s, status: 'interrupted' as const }))
   })
 
-  const stmtInsertTask = db.prepare(
-    `INSERT OR REPLACE INTO tasks
-     (id, session_id, parent_id, goal, status, result, budget, used,
-      agent_def_id, assigned_worker_id, tool_allowlist, history, attachments, plan,
-      delegation_plan,
-      created_at, started_at, ended_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-  const stmtUpdateTask = db.prepare('UPDATE tasks SET status = ?, result = ?, ended_at = ? WHERE id = ?')
-  // COALESCE keeps the first dispatch's started_at across continuation turns on
-  // the same task, so resuming doesn't reset the task's start time.
-  const stmtMarkTaskRunning = db.prepare(
-    `UPDATE tasks SET status = 'running', started_at = COALESCE(started_at, ?) WHERE id = ?`
-  )
-  // COALESCE keeps a previously-stored window when this call has none, so a
-  // turn that resolved no window can't wipe a good value.
-  const stmtUpdateTaskUsage = db.prepare(
-    'UPDATE tasks SET used = ?, context_window = COALESCE(?, context_window) WHERE id = ?'
-  )
-  // COALESCE keeps a previously-stored window when this call has none.
-  const stmtUpdateSessionUsage = db.prepare(
-    'UPDATE sessions SET session_used = ?, session_context_window = COALESCE(?, session_context_window) WHERE id = ?'
-  )
-  const stmtGetSessionUsage = db.prepare(
-    'SELECT session_used AS used, session_context_window AS contextWindow FROM sessions WHERE id = ?'
-  )
-  const stmtGetTasks = db.prepare('SELECT * FROM tasks WHERE session_id = ?')
   const stmtUpsertToolState = db.prepare(
     `INSERT OR REPLACE INTO tool_state_snapshots (session_id, key, value, updated_at)
      VALUES (?, ?, ?, ?)`
@@ -559,9 +432,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtSetSortOrder = db.prepare('UPDATE sessions SET sort_order = ? WHERE id = ?')
   const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
   const stmtGetSnapshot = db.prepare('SELECT agent_snapshot FROM sessions WHERE id = ?')
-  const stmtInsertTaskEvent = db.prepare('INSERT INTO task_events (task_id, event, ts) VALUES (?, ?, ?)')
-  const stmtGetTaskEvents = db.prepare('SELECT event FROM task_events WHERE task_id = ? ORDER BY id')
-  const stmtCountTaskEvents = db.prepare('SELECT COUNT(*) AS n FROM task_events WHERE task_id = ?')
   const stmtInsertRunEvent = db.prepare(
     'INSERT INTO run_events (session_id, run_id, parent_run_id, seq, ts, event) VALUES (?, ?, ?, ?, ?, ?)'
   )
@@ -583,69 +453,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
      HAVING id = MAX(id)`
   )
 
-  // Append a synthetic ok=false tool.result for every tool.call left without a
-  // matching tool.result (e.g. spawn_sub_agent interrupted mid-run, whose
-  // blocking execute() never returned to emit one). Without it the tool card
-  // stays ok=null ("running") forever on reload. Returns the count appended.
-  //
-  // Pairing mirrors src/renderer/src/lib/task-segments.ts so the synthetic
-  // result lands on the exact call it closes: callId-keyed for parallel results
-  // (which arrive in completion order, not call order), FIFO for legacy no-callId
-  // rows. update_plan's call AND result are both dropped by the renderer, so it
-  // is kept out of pending — skipNextResult absorbs its result the same way.
-  const closeOrphanToolCalls = (taskId: string, now: number): number => {
-    const rows = stmtGetTaskEvents.all(taskId) as { event: string }[]
-    const pendingByCallId = new Map<string, true>()
-    let fifoPending = 0
-    let skipNextResult = false
-    for (const r of rows) {
-      let e: TaskEvent
-      try {
-        e = JSON.parse(r.event) as TaskEvent
-      } catch {
-        continue
-      }
-      if (e.kind === 'tool.call') {
-        if (e.tool === 'update_plan') {
-          skipNextResult = true
-          continue
-        }
-        skipNextResult = false
-        if (e.callId) pendingByCallId.set(e.callId, true)
-        else fifoPending += 1
-      } else if (e.kind === 'tool.result') {
-        if (skipNextResult) {
-          skipNextResult = false
-          continue
-        }
-        if (e.callId) pendingByCallId.delete(e.callId)
-        else if (fifoPending > 0) fifoPending -= 1
-      }
-    }
-    let inserted = 0
-    const payload = { kind: 'text', text: 'Interrupted before completion' }
-    for (const callId of pendingByCallId.keys()) {
-      stmtInsertTaskEvent.run(
-        taskId,
-        JSON.stringify({ kind: 'tool.result', ok: false, payload, callId, ts: now } satisfies TaskEvent),
-        now
-      )
-      inserted += 1
-    }
-    for (let i = 0; i < fifoPending; i++) {
-      stmtInsertTaskEvent.run(
-        taskId,
-        JSON.stringify({ kind: 'tool.result', ok: false, payload, ts: now } satisfies TaskEvent),
-        now
-      )
-      inserted += 1
-    }
-    return inserted
-  }
-
-  const stmtSetTaskPlan = db.prepare('UPDATE tasks SET plan = ? WHERE id = ?')
-  const stmtSetTaskDelegationPlan = db.prepare('UPDATE tasks SET delegation_plan = ? WHERE id = ?')
-
   const stmtInsertTaskWaiter = db.prepare(
     `INSERT INTO task_waiters (id, session_id, waiter_address, task_id, goal, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`
@@ -663,17 +470,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
     createdAt: row.created_at as number,
   })
 
-  let taskTerminalListener: ((taskId: string, status: string) => void) | null = null
-
   const stmtListSessions = db.prepare(
     // tokensUsed / usdCents sum the LATEST task.usage per run_id in the session
     // (each run emits usage at every turn boundary; the last is the final
     // snapshot). Post-4b the source is run_events only — conversation turns
-    // also emit task.usage via makeRunEmit, so they're already included and
-    // adding session_used would double-count. Sub-agent runs emit their own
-    // task.usage (their parent's snapshot does NOT include child cost), so
-    // every run_id — top-level, conversation, and sub-agent — contributes.
-    // `session_used` writes are left in place but no longer read here.
+    // also emit task.usage via makeRunEmit, so they're already included.
+    // Sub-agent runs emit their own task.usage (their parent's snapshot does
+    // NOT include child cost), so every run_id — top-level, conversation, and
+    // sub-agent — contributes.
     `WITH latest_usage AS (
         SELECT session_id, run_id,
                json_extract(event, '$.used.tokens')   AS tokens,
@@ -704,41 +508,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
   )
 
   // Hard-delete a session and everything that references it (FK constraints
-  // forbid orphaning tasks / tool-state rows).
+  // forbid orphaning tool-state rows).
   const deleteSessionTx = db.transaction((id: string) => {
     db.prepare('DELETE FROM cron_runs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
-    db.prepare('DELETE FROM task_events WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)').run(id)
     db.prepare('DELETE FROM run_events WHERE session_id = ?').run(id)
-    db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
-
-  // One-time migration: carry forward transcripts persisted in the legacy
-  // tasks.history column into task_events. Idempotent — skips any task that
-  // already has events. New tasks never populate the column, so they're skipped.
-  const backfillTaskEvents = db.transaction(() => {
-    const rows = db.prepare("SELECT id, history FROM tasks WHERE history IS NOT NULL AND history != '[]'").all() as {
-      id: string
-      history: string
-    }[]
-    for (const r of rows) {
-      if ((stmtCountTaskEvents.get(r.id) as { n: number }).n > 0) continue
-      let events: unknown
-      try {
-        events = JSON.parse(r.history)
-      } catch {
-        continue
-      }
-      if (!Array.isArray(events)) continue
-      for (const ev of events) {
-        const ts = (ev as { ts?: number }).ts ?? 0
-        stmtInsertTaskEvent.run(r.id, JSON.stringify(ev), ts)
-      }
-    }
-  })
-  backfillTaskEvents()
 
   return {
     createSession(id, provider) {
@@ -834,9 +611,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
       const row = stmtGetSnapshot.get(sessionId) as { agent_snapshot: string } | undefined
       return row ? (JSON.parse(row.agent_snapshot) as AgentMessage[]) : []
     },
-    appendTaskEvent(taskId, event) {
-      stmtInsertTaskEvent.run(taskId, JSON.stringify(event), event.ts)
-    },
     appendRunEvent(sessionId, runId, parentRunId, event) {
       // seq is stamped upstream by makeRunEmit; fall back to 0 if absent.
       const seq = typeof (event as { seq?: number }).seq === 'number' ? (event as { seq: number }).seq : 0
@@ -865,58 +639,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
         status: 'completed' | 'failed' | 'cancelled'
       }>
     },
-    saveTaskPlan(taskId, plan) {
-      stmtSetTaskPlan.run(JSON.stringify(plan), taskId)
-    },
-    saveTaskDelegationPlan(taskId, plan) {
-      stmtSetTaskDelegationPlan.run(JSON.stringify(plan), taskId)
-    },
-    saveTask(task, sessionId) {
-      stmtInsertTask.run(
-        task.id,
-        sessionId,
-        task.parentId ?? null,
-        task.goal,
-        task.status,
-        task.result ? JSON.stringify(task.result) : null,
-        JSON.stringify(task.budget),
-        JSON.stringify(task.used),
-        task.agentDefId,
-        task.assignedWorkerId ?? null,
-        JSON.stringify(task.toolAllowlist),
-        JSON.stringify(task.history),
-        JSON.stringify(task.attachments ?? []),
-        JSON.stringify(task.plan ?? []),
-        JSON.stringify(task.delegationPlan ?? []),
-        task.createdAt,
-        task.startedAt ?? null,
-        task.endedAt ?? null
-      )
-    },
-    updateTaskStatus(taskId, status, result) {
-      const endedAt = TERMINAL_TASK_STATUSES.has(status) ? Date.now() : null
-      stmtUpdateTask.run(status, result ? JSON.stringify(result) : null, endedAt, taskId)
-      if (TERMINAL_TASK_STATUSES.has(status)) taskTerminalListener?.(taskId, status)
-    },
-    markTaskRunning(taskId) {
-      stmtMarkTaskRunning.run(Date.now(), taskId)
-    },
-    saveTaskUsage(taskId, used, contextWindow) {
-      stmtUpdateTaskUsage.run(JSON.stringify(used), contextWindow ?? null, taskId)
-    },
-    saveSessionUsage(sessionId, used, contextWindow) {
-      stmtUpdateSessionUsage.run(JSON.stringify(used), contextWindow ?? null, sessionId)
-    },
-    getSessionUsage(sessionId) {
-      const row = stmtGetSessionUsage.get(sessionId) as
-        | { used: string | null; contextWindow: number | null }
-        | undefined
-      if (!row || !row.used) return undefined
-      return { used: JSON.parse(row.used) as Task['used'], contextWindow: row.contextWindow }
-    },
-    getSessionTasks(sessionId) {
-      return (stmtGetTasks.all(sessionId) as Record<string, unknown>[]).map(rowToTask)
-    },
     getUsageStats(rangeDays) {
       const t0 = Date.now()
       const range: 7 | 30 = rangeDays === 7 ? 7 : 30
@@ -929,10 +651,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
         // Latest task.usage per run_id across all time (no range filter — we
         // slice by ts in JS). Post-4b this is the single source of truth for
         // both work runs and conversation turns (both emit task.usage via
-        // makeRunEmit), so the pre-4b convTotals/session_used fold-in is gone
-        // — it would double-count. Sub-agent runs emit their own usage (the
-        // parent's snapshot does NOT include child cost), so every run_id —
-        // top-level, conversation, and sub-agent — now contributes; this is
+        // makeRunEmit). Sub-agent runs emit their own usage (the parent's
+        // snapshot does NOT include child cost), so every run_id — top-level,
+        // conversation, and sub-agent — contributes; this is
         // intentionally more inclusive than the pre-4b zeroed-child behavior
         // and produces slightly higher totals.
         const usageRows = db
@@ -1135,13 +856,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     deleteTaskWaiter(id) {
       stmtDeleteWaiter.run(id)
-    },
-    setTaskTerminalListener(fn) {
-      taskTerminalListener = fn
-    },
-    getTask(taskId) {
-      const row = stmtGetTask.get(taskId) as Record<string, unknown> | undefined
-      return row ? rowToTask(row) : undefined
     },
     upsertActor(actor) {
       stmtUpsertActor.run(actor)

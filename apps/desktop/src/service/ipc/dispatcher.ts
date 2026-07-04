@@ -76,10 +76,6 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       }
       case 'listSessions':
         return manager.listSessions()
-      case 'getSessionTasks': {
-        const [sessionId] = args as [string]
-        return manager.getSessionTasks(sessionId)
-      }
       case 'getRunEvents': {
         const [sessionId] = args as [string]
         return manager.getRunEvents(sessionId)

@@ -193,7 +193,6 @@ describe('hydrateSession', () => {
     // The old adapter sources return nothing so the test fails on the assertion
     // (status !== 'completed') until hydrateSession reads getRunEvents.
     vi.spyOn(api.swarmApi, 'getRunEvents').mockResolvedValue(rows)
-    vi.spyOn(api.swarmApi, 'getSessionTasks').mockResolvedValue([])
 
     await hydrateSession(qc, 's')
 

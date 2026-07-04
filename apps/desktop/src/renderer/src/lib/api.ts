@@ -21,7 +21,6 @@ import type {
   SessionSettings,
   SessionSummary,
   SubmitGoalResult,
-  Task,
   TaskOptions,
   TranscriptionConfig,
   TrendingPeriod,
@@ -47,7 +46,6 @@ export const swarmApi = {
   consumePendingDeepLink: (): Promise<{ sessionId: string } | null> => window.swarm.consumePendingDeepLink(),
   listSessions: (): Promise<SessionSummary[]> => window.swarm.sessions.list(),
   createSession: (): Promise<{ sessionId: string }> => window.swarm.sessions.create(),
-  getSessionTasks: (sessionId: string): Promise<Task[]> => window.swarm.sessions.getTasks(sessionId),
   getRunEvents: (sessionId: string): Promise<import('@swarm/protocol').RunEvent[]> =>
     window.swarm.sessions.getRunEvents(sessionId),
   deleteSession: (sessionId: string): Promise<void> => window.swarm.sessions.delete(sessionId),
