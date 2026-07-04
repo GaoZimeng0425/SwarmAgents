@@ -343,6 +343,23 @@ describe('AgentRunner', () => {
     await p
   })
 
+  it('run() tolerates absent attachments (gmail-analyze regression)', async () => {
+    // gmail/analyze.ts builds AgentRunnerDeps without `attachments`; run() must
+    // not crash on the optional field.
+    MockAgent.mockImplementation(function (
+      this: Record<string, unknown>,
+      opts: { initialState?: { messages?: unknown } }
+    ) {
+      this.state = { messages: [...((opts.initialState?.messages as unknown[]) ?? [])] }
+      this.subscribe = () => undefined
+      this.abort = () => undefined
+      this.prompt = async () => undefined
+    })
+    const runner = createAgentRunner({ ...baseDeps(mkTask('t-no-attach')), attachments: undefined })
+    const out = await runner.run()
+    expect(out.status).toBe('completed')
+  })
+
   it('aborts and fails with max_iterations once the turn count hits maxIterations', async () => {
     const h = installAgent()
     const emitted: Array<{ event: string; data: unknown }> = []

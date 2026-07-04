@@ -1205,7 +1205,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       // `task.goal` is extracted from the FULL deps.initialMessages (the last
       // user turn) — capture it BEFORE slicing the seed below.
       const goal = task.goal
-      const images: ImageContent[] = task.attachments!.map((a) => ({
+      const images: ImageContent[] = (task.attachments ?? []).map((a) => ({
         type: 'image',
         data: a.data,
         mimeType: a.mimeType,
