@@ -131,6 +131,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
   db.pragma('foreign_keys = ON')
 
   db.exec(`
+    -- Drop legacy 4a-era tables if present. Order matters: task_events
+    -- references tasks, so it must drop first. IF EXISTS makes this a no-op
+    -- on fresh DBs and idempotent on subsequent opens. Old rows are NOT
+    -- migrated (history disposable per spec).
+    DROP TABLE IF EXISTS task_events;
+    DROP TABLE IF EXISTS tasks;
+    DROP TABLE IF EXISTS conversation_events;
+
     CREATE TABLE IF NOT EXISTS sessions (
       id              TEXT PRIMARY KEY,
       created_at      INTEGER NOT NULL,
@@ -448,9 +456,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
          ELSE 'failed'
        END AS status
      FROM run_events
-     WHERE json_extract(event, '$.kind') IN ('task.complete', 'task.error')
-     GROUP BY run_id
-     HAVING id = MAX(id)`
+     WHERE id IN (SELECT MAX(id) FROM run_events
+                   WHERE json_extract(event, '$.kind') IN ('task.complete', 'task.error')
+                   GROUP BY run_id)`
   )
 
   const stmtInsertTaskWaiter = db.prepare(

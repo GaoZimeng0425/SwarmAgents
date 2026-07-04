@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { UIEvent } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createConversationStore } from './store'
@@ -847,5 +848,69 @@ describe('ConversationStore', () => {
       expect(s2.listAllTaskWaiters().map((w) => w.id)).toEqual(['w1'])
       s2.close()
     })
+  })
+
+  it('drops legacy 4a tasks/task_events/conversation_events tables on reopen so deleteSession succeeds', () => {
+    // Simulate a pre-4b DB carrying the legacy schema with FK constraints:
+    // tasks.session_id REFERENCES sessions(id), task_events.task_id REFERENCES tasks(id).
+    // Without the bootstrap DROP, an orphan tasks row would block session deletion.
+    const legacy = new Database(dbPath)
+    legacy.pragma('foreign_keys = ON')
+    legacy.exec(`
+      CREATE TABLE sessions (
+        id              TEXT PRIMARY KEY,
+        created_at      INTEGER NOT NULL,
+        last_active_at  INTEGER NOT NULL,
+        status          TEXT NOT NULL,
+        provider_snapshot TEXT NOT NULL
+      );
+      CREATE TABLE tasks (
+        id          TEXT PRIMARY KEY,
+        session_id  TEXT NOT NULL REFERENCES sessions(id),
+        goal        TEXT NOT NULL,
+        status      TEXT NOT NULL
+      );
+      CREATE TABLE task_events (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id  TEXT NOT NULL REFERENCES tasks(id),
+        event    TEXT NOT NULL,
+        ts       INTEGER NOT NULL
+      );
+      CREATE TABLE conversation_events (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        event      TEXT NOT NULL,
+        ts         INTEGER NOT NULL
+      );
+    `)
+    legacy
+      .prepare(
+        `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot)
+         VALUES (?, ?, ?, 'active', ?)`
+      )
+      .run('ses-legacy', Date.now(), Date.now(), JSON.stringify(provider))
+    legacy
+      .prepare(`INSERT INTO tasks (id, session_id, goal, status) VALUES (?, ?, 'g', 'completed')`)
+      .run('task-legacy', 'ses-legacy')
+    legacy.prepare('INSERT INTO task_events (task_id, event, ts) VALUES (?, ?, ?)').run('task-legacy', '{}', Date.now())
+    legacy.close()
+
+    // Reopen via the store — the bootstrap must DROP the legacy tables.
+    const store = createConversationStore(dbPath)
+    // deleteSession must not throw (orphan tasks rows are gone with the table).
+    expect(() => store.deleteSession('ses-legacy')).not.toThrow()
+    expect(store.getSession('ses-legacy')).toBeUndefined()
+    store.close()
+
+    // Legacy tables must be gone from the schema.
+    const inspect = new Database(dbPath)
+    const names = inspect
+      .prepare(
+        `SELECT name FROM sqlite_master
+          WHERE type='table' AND name IN ('tasks','task_events','conversation_events')`
+      )
+      .all() as { name: string }[]
+    inspect.close()
+    expect(names.map((r) => r.name).sort()).toEqual([])
   })
 })
