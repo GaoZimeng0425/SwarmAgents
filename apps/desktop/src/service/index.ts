@@ -99,6 +99,8 @@ const scheduler = createCronScheduler({
   // the conversation that issued schedule_task, so every session sees them and
   // they survive that conversation's deletion.
   resolveJobSession: (fromSessionId) => manager.ensureSystemSession(fromSessionId),
+  isRunTerminal: (runId) => manager.terminalRegistry.isTerminal(runId),
+  runTerminalStatus: (runId) => manager.terminalRegistry.getStatus(runId) ?? undefined,
 })
 // Drives Claude Code sessions the agent operates via cc_* tools. The SDK is
 // loaded lazily on first cc_start, so constructing it here is cheap.
@@ -107,8 +109,9 @@ const claudeCode = createClaudeCodeManager()
 const taskWaiters = createTaskWaiterService({
   store,
   deliver: (sessionId, address, goal) => manager.deliverToActor(sessionId, address, goal),
+  terminalRegistry: manager.terminalRegistry,
 })
-store.setTaskTerminalListener((taskId, status) => taskWaiters.onTaskTerminal(taskId, status))
+manager.registerTerminalListener((runId, status) => taskWaiters.onTaskTerminal(runId, status))
 taskWaiters.start()
 
 // Service-side main-rpc client: gmail.* tools call mainRpc('gmail.search', [...]),

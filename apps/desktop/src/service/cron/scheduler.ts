@@ -33,6 +33,9 @@ export function createCronScheduler(deps: {
    * tests → jobs stay bound to the caller session.
    */
   resolveJobSession?: (fromSessionId: string) => string
+  /** Registry-backed terminal predicate, used to finalize crash-recovered runs. */
+  isRunTerminal: (runId: string) => boolean
+  runTerminalStatus: (runId: string) => string | undefined
 }): CronScheduler {
   const { store, fire, resolveJobSession } = deps
   const live = new Map<string, CronJob>()
@@ -103,17 +106,16 @@ export function createCronScheduler(deps: {
   }
 
   // Finalize runs left 'running' by a crash/restart: their in-memory onComplete
-  // is gone, so derive the outcome from the task's persisted status, or mark
-  // 'interrupted' when the task can't be confirmed.
+  // is gone, so derive the outcome from the terminal registry, or mark
+  // 'interrupted' when the run can't be confirmed terminal.
   const reconcile = (): void => {
-    const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
     for (const run of store.listRunningCronRuns()) {
-      const task = run.taskId ? store.getTask(run.taskId) : undefined
-      if (task && terminal.has(task.status)) {
+      if (run.taskId && deps.isRunTerminal(run.taskId)) {
+        const status = deps.runTerminalStatus(run.taskId) ?? 'completed'
         // error stays null here: a reconciled failure's message lives on the
-        // task (reachable via taskId), unlike the live onComplete path.
-        store.finishCronRun(run.id, { status: task.status, error: null, endedAt: task.endedAt ?? Date.now() })
-        log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status: task.status })
+        // run (reachable via runId), unlike the live onComplete path.
+        store.finishCronRun(run.id, { status, error: null, endedAt: Date.now() })
+        log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status })
       } else {
         store.finishCronRun(run.id, { status: 'interrupted', error: null, endedAt: Date.now() })
         log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status: 'interrupted' })

@@ -1,4 +1,3 @@
-import type { Task } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ConversationStore, StoredCronJob, StoredCronRun } from '../conversation/store'
@@ -8,11 +7,9 @@ function fakeStore(initial: StoredCronJob[] = []) {
   const jobs = new Map(initial.map((j) => [j.id, j]))
   const sessions = new Set(initial.map((j) => j.sessionId))
   const runs = new Map<string, StoredCronRun>()
-  const tasks = new Map<string, Task>()
   return {
     sessions,
     runs,
-    tasks,
     store: {
       saveCronJob: (j: StoredCronJob) => {
         jobs.set(j.id, j)
@@ -45,10 +42,17 @@ function fakeStore(initial: StoredCronJob[] = []) {
       listCronRunsForJob: (jobId: string) =>
         [...runs.values()].filter((r) => r.jobId === jobId).sort((a, b) => b.triggeredAt - a.triggeredAt),
       listRunningCronRuns: () => [...runs.values()].filter((r) => r.status === 'running'),
-      getTask: (id: string) => tasks.get(id),
     } as unknown as ConversationStore,
     jobs,
   }
+}
+
+// Default terminal-registry predicates for tests that don't exercise reconcile.
+// Reconcile only matters when isRunTerminal is wired; everything else just
+// needs the deps shape satisfied.
+const noTerminal = {
+  isRunTerminal: () => false,
+  runTerminalStatus: () => undefined as string | undefined,
 }
 
 describe('createCronScheduler', () => {
@@ -56,7 +60,7 @@ describe('createCronScheduler', () => {
     const { store, jobs, sessions } = fakeStore()
     sessions.add('ses-1')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
-    const sched = createCronScheduler({ store, fire })
+    const sched = createCronScheduler({ store, fire, ...noTerminal })
 
     const { id, nextRun } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g', name: 'nightly' })
     expect(jobs.get(id)?.goal).toBe('g')
@@ -70,7 +74,7 @@ describe('createCronScheduler', () => {
     sessions.add('__system__')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
     const resolveJobSession = vi.fn(() => '__system__')
-    const sched = createCronScheduler({ store, fire, resolveJobSession })
+    const sched = createCronScheduler({ store, fire, resolveJobSession, ...noTerminal })
 
     const { id } = sched.add({ sessionId: 'caller', cron: '0 0 * * *', goal: 'g' })
     expect(resolveJobSession).toHaveBeenCalledWith('caller')
@@ -84,7 +88,7 @@ describe('createCronScheduler', () => {
   it('rejects an invalid cron expression', () => {
     const { store, sessions } = fakeStore()
     sessions.add('ses-1')
-    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 'task-x' }) })
+    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 'task-x' }), ...noTerminal })
     expect(() => sched.add({ sessionId: 'ses-1', cron: 'not-a-cron', goal: 'g' })).toThrow()
     sched.dispose()
   })
@@ -93,7 +97,7 @@ describe('createCronScheduler', () => {
     const { store, sessions } = fakeStore()
     sessions.add('ses-1')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
-    const sched = createCronScheduler({ store, fire })
+    const sched = createCronScheduler({ store, fire, ...noTerminal })
     const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'do it' })
     sched.runJobNow(id)
     expect(fire).toHaveBeenCalledWith('ses-1', 'do it', expect.any(Function))
@@ -104,7 +108,7 @@ describe('createCronScheduler', () => {
     const { store, sessions, jobs } = fakeStore()
     sessions.add('ses-1')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
-    const sched = createCronScheduler({ store, fire })
+    const sched = createCronScheduler({ store, fire, ...noTerminal })
     const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g' })
     sessions.delete('ses-1')
     sched.runJobNow(id)
@@ -127,7 +131,7 @@ describe('createCronScheduler', () => {
     const { store, sessions } = fakeStore([persisted])
     sessions.add('ses-1')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
-    const sched = createCronScheduler({ store, fire })
+    const sched = createCronScheduler({ store, fire, ...noTerminal })
     sched.start()
     expect(sched.listForSession('ses-1').map((j) => j.id)).toContain('job-1')
     sched.runJobNow('job-1')
@@ -150,7 +154,12 @@ describe('createCronScheduler', () => {
     sessions.add('old-ses')
     sessions.add('__system__')
     const resolveJobSession = vi.fn(() => '__system__')
-    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }), resolveJobSession })
+    const sched = createCronScheduler({
+      store,
+      fire: vi.fn().mockReturnValue({ taskId: 't' }),
+      resolveJobSession,
+      ...noTerminal,
+    })
 
     sched.start()
 
@@ -173,7 +182,7 @@ describe('createCronScheduler', () => {
     }
     const { store, jobs, sessions } = fakeStore([legacy])
     sessions.add('old-ses')
-    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }) })
+    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }), ...noTerminal })
 
     sched.start()
 
@@ -187,7 +196,7 @@ describe('createCronScheduler', () => {
     sessions.add('ses-1')
     sessions.add('ses-2')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
-    const sched = createCronScheduler({ store, fire })
+    const sched = createCronScheduler({ store, fire, ...noTerminal })
     sched.add({ sessionId: 'ses-1', cron: '0 9 * * *', goal: 'a' })
     sched.add({ sessionId: 'ses-2', cron: '0 10 * * *', goal: 'b' })
     const all = sched.listAll()
@@ -204,7 +213,7 @@ describe('createCronScheduler', () => {
       captured = onComplete
       return { taskId: 'task-1' }
     })
-    const sched = createCronScheduler({ store, fire })
+    const sched = createCronScheduler({ store, fire, ...noTerminal })
     const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g' })
     sched.runJobNow(id)
 
@@ -223,7 +232,7 @@ describe('createCronScheduler', () => {
     const fire = vi.fn(() => {
       throw new Error('dispatch boom')
     })
-    const sched = createCronScheduler({ store, fire })
+    const sched = createCronScheduler({ store, fire, ...noTerminal })
     const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g' })
     sched.runJobNow(id)
 
@@ -235,33 +244,39 @@ describe('createCronScheduler', () => {
   })
 
   it('reconciles orphaned running runs on start', () => {
-    const { store, sessions, runs, tasks } = fakeStore()
+    const { store, sessions, runs } = fakeStore()
     sessions.add('ses-1')
-    // a leftover running run whose task actually completed
+    // a leftover running run whose target run is terminal in the registry
     runs.set('run-done', {
       id: 'run-done',
       jobId: 'job-1',
       sessionId: 'ses-1',
-      taskId: 'task-1',
+      taskId: 'r-done',
       status: 'running',
       triggeredAt: 1,
       endedAt: null,
       error: null,
     })
-    tasks.set('task-1', { id: 'task-1', status: 'completed', endedAt: 5 } as Task)
-    // a leftover running run whose task is gone
+    // a leftover running run whose target run is not terminal (e.g. crashed mid-flight)
     runs.set('run-lost', {
       id: 'run-lost',
       jobId: 'job-1',
       sessionId: 'ses-1',
-      taskId: 'task-gone',
+      taskId: 'r-gone',
       status: 'running',
       triggeredAt: 2,
       endedAt: null,
       error: null,
     })
 
-    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }) })
+    // Registry-backed predicates: only 'r-done' is terminal.
+    const terminal = new Map([['r-done', 'completed']])
+    const sched = createCronScheduler({
+      store,
+      fire: vi.fn().mockReturnValue({ taskId: 't' }),
+      isRunTerminal: (runId) => terminal.has(runId),
+      runTerminalStatus: (runId) => terminal.get(runId),
+    })
     sched.start()
 
     expect(runs.get('run-done')?.status).toBe('completed')
@@ -272,7 +287,7 @@ describe('createCronScheduler', () => {
   it('latestRunForJob returns the newest run, or null when none', () => {
     const { store, sessions, runs } = fakeStore()
     sessions.add('ses-1')
-    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }) })
+    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }), ...noTerminal })
 
     expect(sched.latestRunForJob('job-1')).toBeNull()
 
@@ -304,7 +319,7 @@ describe('createCronScheduler', () => {
   it('runsForJob returns all runs for a job, newest first', () => {
     const { store, sessions, runs } = fakeStore()
     sessions.add('ses-1')
-    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }) })
+    const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 't' }), ...noTerminal })
 
     expect(sched.runsForJob('job-1')).toEqual([])
 

@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ConversationStore, StoredTaskWaiter } from '../conversation/store'
+import { createTerminalRegistry, type TerminalStatus } from '../session/terminal-registry'
 import { createTaskWaiterService } from './task-waiters'
 
-// Minimal in-memory fake of the store surface the service uses.
-function fakeStore(tasks: Record<string, { status: string } | undefined>) {
+// Minimal in-memory fake of the store surface the service uses. Post-4b the
+// waiter never reads getTask; the registry is the source of truth for "is this
+// run terminal?", so no Task rows are seeded here.
+function fakeStore() {
   const waiters: StoredTaskWaiter[] = []
   return {
-    getTask: vi.fn((id: string) => (tasks[id] ? ({ status: tasks[id]!.status } as never) : undefined)),
     saveTaskWaiter: vi.fn((w: StoredTaskWaiter) => void waiters.push(w)),
     listTaskWaitersForTask: vi.fn((taskId: string) => waiters.filter((w) => w.taskId === taskId)),
     listAllTaskWaiters: vi.fn(() => [...waiters]),
@@ -20,62 +22,58 @@ function fakeStore(tasks: Record<string, { status: string } | undefined>) {
 }
 
 describe('TaskWaiterService', () => {
-  it('persists a waiter when the awaited task is still pending', () => {
-    const store = fakeStore({ 'task-X': { status: 'running' } })
+  it('persists a waiter when the awaited run is not yet terminal', () => {
+    const store = fakeStore()
+    const registry = createTerminalRegistry([])
     const deliver = vi.fn()
-    const svc = createTaskWaiterService({ store, deliver })
-    const res = svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'task-X', goal: null })
+    const svc = createTaskWaiterService({ store, deliver, terminalRegistry: registry })
+    const res = svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'r-X', goal: null })
     expect(res.firedImmediately).toBe(false)
     expect(deliver).not.toHaveBeenCalled()
-    expect(store.listTaskWaitersForTask('task-X')).toHaveLength(1)
+    expect(store.listTaskWaitersForTask('r-X')).toHaveLength(1)
   })
 
-  it('fires immediately when the awaited task is already terminal', () => {
-    const store = fakeStore({ 'task-X': { status: 'completed' } })
+  it('fires immediately when the registry says the run is already terminal (no Task row)', () => {
+    const store = fakeStore()
+    const registry = createTerminalRegistry([{ runId: 'r-done', status: 'completed' }])
     const deliver = vi.fn()
-    const svc = createTaskWaiterService({ store, deliver })
-    const res = svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'task-X', goal: null })
+    const svc = createTaskWaiterService({ store, deliver, terminalRegistry: registry })
+    const res = svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'r-done', goal: null })
     expect(res.id).toBeNull()
     expect(res.firedImmediately).toBe(true)
     expect(deliver).toHaveBeenCalledWith('s', 'a', expect.stringContaining('completed'))
     expect((store as unknown as { _waiters: unknown[] })._waiters).toHaveLength(0)
   })
 
-  it('fires immediately with a not-found message when the task is missing', () => {
-    const store = fakeStore({})
-    const deliver = vi.fn()
-    const svc = createTaskWaiterService({ store, deliver })
-    const res = svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'gone', goal: null })
-    expect(res.id).toBeNull()
-    expect(deliver).toHaveBeenCalledWith('s', 'a', expect.stringContaining('could not be found'))
-  })
-
   it('uses the agent-supplied goal verbatim when provided', () => {
-    const store = fakeStore({ 'task-X': { status: 'completed' } })
+    const store = fakeStore()
+    const registry = createTerminalRegistry([{ runId: 'r-done', status: 'completed' }])
     const deliver = vi.fn()
-    const svc = createTaskWaiterService({ store, deliver })
-    svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'task-X', goal: 'do the next thing' })
+    const svc = createTaskWaiterService({ store, deliver, terminalRegistry: registry })
+    svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'r-done', goal: 'do the next thing' })
     expect(deliver).toHaveBeenCalledWith('s', 'a', 'do the next thing')
   })
 
   it('delivers to all waiters and deletes them on terminal', () => {
-    const store = fakeStore({ 'task-X': { status: 'running' } })
+    const store = fakeStore()
+    const registry = createTerminalRegistry([])
     const deliver = vi.fn()
-    const svc = createTaskWaiterService({ store, deliver })
-    svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'task-X', goal: null })
-    svc.onTaskTerminal('task-X', 'failed')
+    const svc = createTaskWaiterService({ store, deliver, terminalRegistry: registry })
+    svc.register({ sessionId: 's', waiterAddress: 'a', taskId: 'r-X', goal: null })
+    svc.onTaskTerminal('r-X', 'failed')
     expect(deliver).toHaveBeenCalledWith('s', 'a', expect.stringContaining('failed'))
-    expect(store.listTaskWaitersForTask('task-X')).toEqual([])
+    expect(store.listTaskWaitersForTask('r-X')).toEqual([])
   })
 
-  it('re-arms on start: fires for already-terminal tasks, keeps pending ones', () => {
-    const store = fakeStore({ 'done-task': { status: 'completed' }, 'live-task': { status: 'running' } })
-    // Seed two persisted waiters directly.
+  it('re-arms on start: fires for runs the registry already considers terminal, keeps pending ones', () => {
+    const store = fakeStore()
+    // Two persisted waiters from a prior boot: one whose target has since
+    // terminated, one still running.
     store.saveTaskWaiter({
       id: 'w1',
       sessionId: 's',
       waiterAddress: 'a',
-      taskId: 'done-task',
+      taskId: 'r-done',
       goal: null,
       createdAt: 1,
     })
@@ -83,15 +81,16 @@ describe('TaskWaiterService', () => {
       id: 'w2',
       sessionId: 's',
       waiterAddress: 'b',
-      taskId: 'live-task',
+      taskId: 'r-live',
       goal: null,
       createdAt: 2,
     })
+    const registry = createTerminalRegistry([{ runId: 'r-done', status: 'completed' as TerminalStatus }])
     const deliver = vi.fn()
-    const svc = createTaskWaiterService({ store, deliver })
+    const svc = createTaskWaiterService({ store, deliver, terminalRegistry: registry })
     svc.start()
     expect(deliver).toHaveBeenCalledTimes(1)
     expect(deliver).toHaveBeenCalledWith('s', 'a', expect.stringContaining('completed'))
-    expect(store.listTaskWaitersForTask('live-task')).toHaveLength(1)
+    expect(store.listTaskWaitersForTask('r-live')).toHaveLength(1)
   })
 })
