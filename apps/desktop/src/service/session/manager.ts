@@ -246,7 +246,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // persists to run_events, so a turn interrupted before reaching a terminal
     // status replays from the DB as 'running' (the interrupted-on-restart
     // startup pass appends a synthetic task.error to close it out).
-    makeEmit(session.id)('task.dispatched', { taskId: next.taskId, workerId: '', ts: Date.now() })
+    makeRunEmit(session.id, next.taskId)('task.dispatched', {
+      taskId: next.taskId,
+      workerId: '',
+      ts: Date.now(),
+    })
     void next.runTurn().finally(() => {
       session.running = null
       pump(session)
@@ -264,7 +268,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
   // In-memory terminal-status registry. Loaded once at construction from the
   // last terminal run_event per runId (one SQL scan), then maintained
-  // incrementally by the emit path (makeEmit/makeRunEmit) below.
+  // incrementally by the emit path (makeRunEmit) below.
   const terminalRegistry = createTerminalRegistry(store.getTerminalRunStatuses())
 
   // Map a terminal emit's (event, obj) to a TerminalStatus (mirrors applyEvent).
@@ -280,8 +284,20 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     return undefined
   }
 
-  const makeEmit =
-    (sessionId: string) =>
+  // One emit factory for every run path (conversation/work/spawn/resident/
+  // permission-registry). Stamps the shared seq, tees the lifecycle to
+  // run_events as UIEvents (so a replayed run reaches terminal status), marks
+  // terminal on the registry (idempotent — first terminal wins), and broadcasts
+  // the wire event with sessionId/taskId/seq/ts.
+  //
+  // `runId` is OPTIONAL: when provided (conversation/work/spawn/resident) it is
+  // the authoritative taskId and `parentRunId` is taken from the closure. When
+  // omitted (createPermissionRegistry, which emits permission-request events
+  // for whichever task is currently running in the session), taskId and
+  // parentRunId are derived from the per-event payload (`obj.taskId` /
+  // `obj.parentTaskId`) — matching the legacy makeEmit behavior.
+  const makeRunEmit =
+    (sessionId: string, runId?: string, parentRunId: string | null = null) =>
     (event: string, data: unknown): void => {
       const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
       const seq = seqCounter.nextSeq(sessionId)
@@ -289,14 +305,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       // Persist seq on the TaskEvent payload (task.progress events carry one)
       // so the per-event seq travels with it into run_events.
       if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
-      const taskId = obj?.taskId as string | undefined
-      // Tee every run event into run_events (the renderer's only replay
-      // source). parentRunId is carried by task.created's parentTaskId (set by
-      // spawnChild); later events don't restate it, but the renderer only needs
-      // it on task.created to nest the sub-agent block.
+      const taskId = runId ?? (obj?.taskId as string | undefined)
+      const effectiveParent = runId !== undefined ? parentRunId : ((obj?.parentTaskId as string | undefined) ?? null)
       if (taskId) {
-        const parentRunId = (obj?.parentTaskId as string | undefined) ?? null
-        store.appendRunEvent(sessionId, taskId, parentRunId, {
+        store.appendRunEvent(sessionId, taskId, effectiveParent, {
           kind: event,
           ...(obj ?? {}),
           sessionId,
@@ -305,41 +317,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           ts,
         } as import('@swarm/protocol').UIEvent)
       }
-      // Mark terminal on the emit path. Idempotent: first terminal wins. This
-      // is the only terminal signal for runs post-4b (the registry is loaded
-      // from run_events terminal events; the store listener is gone).
       const term = terminalStatusFor(event, obj)
       if (taskId && term) terminalRegistry.markTerminal(taskId, term)
-      const payload = obj ? { ...obj, sessionId, seq, ts } : data
-
-      broadcaster.broadcast(event, payload)
-    }
-
-  // Emit wrapper for a run (conversation/work/spawn). Persists the FULL lifecycle
-  // to run_events as UIEvents (so a replayed run reaches terminal status), stamps
-  // the shared seq, and tags the wire event with taskId: runId so the renderer's
-  // applyEvent (keyed by taskId) picks it up live.
-  const makeRunEmit =
-    (sessionId: string, runId: string, parentRunId: string | null = null) =>
-    (event: string, data: unknown): void => {
-      const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
-      const seq = seqCounter.nextSeq(sessionId)
-      const ts = Date.now()
-      if (obj?.event && typeof obj.event === 'object') (obj.event as { seq?: number }).seq = seq
-      const uiEvent = {
-        kind: event,
-        ...(obj ?? {}),
-        sessionId,
-        taskId: runId,
-        seq,
-        ts,
-      } as import('@swarm/protocol').UIEvent
-      store.appendRunEvent(sessionId, runId, parentRunId, uiEvent)
-      // Mark terminal on the emit path (run-level emits have no Task row, so
-      // this is the only terminal signal for conversation/work/spawn runs).
-      const term = terminalStatusFor(event, obj)
-      if (term) terminalRegistry.markTerminal(runId, term)
-      broadcaster.broadcast(event, { ...(obj ?? {}), sessionId, taskId: runId, seq, ts })
+      broadcaster.broadcast(event, obj ? { ...obj, sessionId, taskId, seq, ts } : data)
     }
 
   // Resolve-or-create an addressable identity. With a name, an existing actor in
@@ -400,7 +380,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const toolAllowlist = allowlistForAgent(def)
     const now = Date.now()
     store.upsertActor({ ...actor, lastTaskId: runId, updatedAt: now })
-    makeEmit(sessionId)('task.created', {
+    makeRunEmit(sessionId, runId)('task.created', {
       taskId: runId,
       goal: residencyGoal,
       attachments: [],
@@ -462,7 +442,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       agentDefinition: withPrompt(def),
       sessionId,
       getPermissionMode: () => resolvePermissionMode(sessionId),
-      emit: makeEmit(sessionId),
+      emit: makeRunEmit(sessionId, runId),
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
       initialMessages: restored,
@@ -593,9 +573,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     // A child needs its own task.created so the renderer opens a real run
     // record; without it the child's later events arrive for an unknown runId
     // and degrade into an "(unknown task)" stub. parentTaskId/agentDefId let the
-    // UI group it as a distinct sub-agent block. Routed through makeEmit so the
+    // UI group it as a distinct sub-agent block. Routed through makeRunEmit so the
     // tee persists it to run_events (with parentRunId) for replay.
-    makeEmit(sessionId)('task.created', {
+    makeRunEmit(
+      sessionId,
+      childRunId,
+      parentTaskId
+    )('task.created', {
       taskId: childRunId,
       goal: newGoal,
       attachments: [],
@@ -622,7 +606,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           agentDefinition: withPrompt(def),
           sessionId,
           getPermissionMode: () => resolvePermissionMode(sessionId),
-          emit: makeEmit(sessionId),
+          emit: makeRunEmit(sessionId, childRunId, parentTaskId),
           permissionRegistry: session.permissionRegistry,
           toolRegistry,
           initialMessages: [],
@@ -645,7 +629,11 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           const message = err instanceof Error ? err.message : String(err)
           log.error({ msg: 'spawnChild run failed', childRunId, err: message })
           // Surface the failure on the run stream so replay reaches terminal.
-          makeEmit(sessionId)('task.error', {
+          makeRunEmit(
+            sessionId,
+            childRunId,
+            parentTaskId
+          )('task.error', {
             taskId: childRunId,
             error: { code: 'run_failed', message, tier: 'fatal' },
             ts: Date.now(),
@@ -669,7 +657,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const rehydrated: Session = {
       id: sessionId,
       provider: stored.providerSnapshot,
-      permissionRegistry: createPermissionRegistry(makeEmit(sessionId)),
+      permissionRegistry: createPermissionRegistry(makeRunEmit(sessionId)),
       messages: store.getAgentSnapshot(sessionId),
       pending: [],
       running: null,
@@ -763,7 +751,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       agentDefinition: withPrompt(agentDef),
       sessionId,
       getPermissionMode: () => resolvePermissionMode(sessionId),
-      emit: makeEmit(sessionId),
+      emit: makeRunEmit(sessionId, runId),
       permissionRegistry: session.permissionRegistry,
       toolRegistry,
       initialMessages: messageSource === 'session' ? session.messages : [],
@@ -796,7 +784,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       const message = err instanceof Error ? err.message : String(err)
       log.error({ msg: 'runTaskTurn failed', runId, err: message })
       // Surface the failure on the run stream so replay reaches terminal.
-      makeEmit(sessionId)('task.error', {
+      makeRunEmit(sessionId, runId)('task.error', {
         taskId: runId,
         error: { code: 'run_failed', message, tier: 'fatal' },
         ts: Date.now(),
@@ -833,13 +821,13 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     const agentDef = agentDefOverride ?? resolvedByType ?? DEFAULT_AGENT_DEF
     const toolAllowlist = options.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
     const runId = ulid()
-    makeEmit(sessionId)('task.created', { taskId: runId, goal, attachments, agentDefId: agentDef.id })
+    makeRunEmit(sessionId, runId)('task.created', { taskId: runId, goal, attachments, agentDefId: agentDef.id })
     log.info({ msg: 'work run created', sessionId, runId, agentDefId: agentDef.id, goalLen: goal.length })
     // The pump would emit dispatched; since we bypass it, do so here so the
     // renderer marks the work run running (not queued). The dispatched event
     // also persists to run_events, so the run is discoverable as 'running' on
     // replay (the interrupted-on-restart pass closes it out if need be).
-    makeEmit(sessionId)('task.dispatched', { taskId: runId, workerId: '', ts: Date.now() })
+    makeRunEmit(sessionId, runId)('task.dispatched', { taskId: runId, workerId: '', ts: Date.now() })
     const result = await runTaskTurn({
       sessionId,
       runId,
@@ -918,7 +906,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     createSession(provider) {
       const sessionId = ulid()
       store.createSession(sessionId, provider)
-      const permissionRegistry = createPermissionRegistry(makeEmit(sessionId))
+      const permissionRegistry = createPermissionRegistry(makeRunEmit(sessionId))
       sessions.set(sessionId, {
         id: sessionId,
         provider,
@@ -957,7 +945,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         sessions.set(SYSTEM_SESSION_ID, {
           id: SYSTEM_SESSION_ID,
           provider: from.provider,
-          permissionRegistry: createPermissionRegistry(makeEmit(SYSTEM_SESSION_ID)),
+          permissionRegistry: createPermissionRegistry(makeRunEmit(SYSTEM_SESSION_ID)),
           messages: [],
           pending: [],
           running: null,
@@ -1116,14 +1104,14 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         return
       }
       // Queued but not yet started: remove from the queue and emit task.error
-      // (routed through makeEmit so it tees to run_events AND broadcasts). The
+      // (routed through makeRunEmit so it tees to run_events AND broadcasts). The
       // runner never started, so no translator emit will fire — this is the
       // sole terminal signal for the cancelled queued turn.
       const session = sessions.get(sessionId)
       const idx = session ? session.pending.findIndex((q) => q.taskId === taskId) : -1
       if (session && idx !== -1) {
         session.pending.splice(idx, 1)
-        makeEmit(sessionId)('task.error', {
+        makeRunEmit(sessionId, taskId)('task.error', {
           taskId,
           error: { code: 'cancelled', message: 'Cancelled before start', tier: 'fatal' },
           ts: Date.now(),
