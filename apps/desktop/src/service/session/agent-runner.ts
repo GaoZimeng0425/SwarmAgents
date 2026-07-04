@@ -1216,10 +1216,13 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       // so seeding the goal too would double it in the model-facing transcript
       // ([...prior, {user, goal}, {user, goal}]). The resident path is
       // unaffected — it drives turns via promptOnce(msg.payload) against a
-      // restored-state seed with no trailing goal.
+      // restored-state seed with no trailing goal. Only strip when a goal was
+      // actually extracted (a caller whose last message isn't a user-text goal
+      // is a contract violation — don't silently drop the message; let the empty
+      // prompt surface it).
       const wrappedDeps: AgentRunnerDeps = {
         ...deps,
-        initialMessages: deps.initialMessages.slice(0, -1),
+        initialMessages: goal ? deps.initialMessages.slice(0, -1) : deps.initialMessages,
         onDelegationPlan: (plan) => {
           deps.emit('task.delegation_plan', { taskId: task.id, plan, ts: Date.now() })
           deps.onDelegationPlan?.(plan)
