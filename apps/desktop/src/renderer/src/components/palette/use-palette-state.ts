@@ -46,6 +46,9 @@ export function usePaletteState(args: { inputs: BuildInputs; cb: Callbacks; open
       e.preventDefault()
       selected?.run()
     } else if (e.key === 'Escape') {
+      // preventDefault: stop Chromium from "reverting" the <input> to its last
+      // committed value, which would fight with setQuery('') below.
+      e.preventDefault()
       // Clear an in-progress query first; only close when already empty.
       if (query) setQuery('')
       else close()

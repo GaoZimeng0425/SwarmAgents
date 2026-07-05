@@ -144,4 +144,20 @@ describe('usePaletteState — keyboard handler', () => {
     act(() => result.current.setQuery('xyz'))
     expect(result.current.selIndex).toBe(0)
   })
+
+  it('resets query to empty when open flips false', () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const close = vi.fn()
+    const { result, rerender } = renderHook((props) => usePaletteState(props), {
+      wrapper: makeWrapper(qc),
+      initialProps: { inputs, cb, open: true, close },
+    })
+
+    act(() => result.current.setQuery('hello'))
+    expect(result.current.query).toBe('hello')
+
+    // Flipping open to false must wipe the query so the palette reopens clean.
+    rerender({ inputs, cb, open: false, close })
+    expect(result.current.query).toBe('')
+  })
 })
