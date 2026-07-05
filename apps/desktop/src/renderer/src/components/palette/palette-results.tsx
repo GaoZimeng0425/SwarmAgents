@@ -4,12 +4,11 @@
 // regardless of section boundaries.
 import { cn } from '@swarm/ui'
 
-import type { PaletteItem, PaletteScope, PaletteSection } from '../../lib/palette/types'
+import type { PaletteItem, PaletteSection } from '../../lib/palette/types'
 import { PaletteItemRow } from './palette-item'
 
 export type PaletteResultsProps = {
   sections: PaletteSection[]
-  scope: PaletteScope
   /** Already-flattened item list, parallel to the flat selection index. */
   flat: PaletteItem[]
   selIndex: number

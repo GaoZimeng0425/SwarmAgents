@@ -12,7 +12,7 @@
 // handler — our onKeyDown calls preventDefault on Escape and clears-or-closes
 // inside the controller.
 import { useMemo } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogTitle } from '@swarm/ui'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@swarm/ui'
 import { useNavigate } from '@tanstack/react-router'
 import { useTheme } from 'next-themes'
 
@@ -92,41 +92,37 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
       }}
       open={open}
     >
-      <DialogPortal>
-        <DialogOverlay className="bg-black/30 backdrop-blur-[2px]" />
-        <DialogContent
-          className="top-[96px] left-1/2 grid h-[660px] max-h-[660px] w-[760px] max-w-[760px] -translate-x-1/2 gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 dark:bg-popover/82"
-          // The palette manages its own input focus + keyboard; hide the
-          // default close X (Esc + backdrop still dismiss via base-ui).
-          onKeyDown={state.onKeyDown}
-          showCloseButton={false}
-        >
-          <DialogTitle className="sr-only">命令面板</DialogTitle>
-          <DialogDescription className="sr-only">搜索对话、命令、任务、文件,或直接指派 Agent。</DialogDescription>
+      <DialogContent
+        className="top-[96px] left-1/2 grid h-[660px] max-h-[660px] w-[760px] max-w-[760px] -translate-x-1/2 gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 dark:bg-popover/82"
+        // The palette manages its own input focus + keyboard; hide the
+        // default close X (Esc + backdrop still dismiss via base-ui).
+        onKeyDown={state.onKeyDown}
+        showCloseButton={false}
+      >
+        <DialogTitle className="sr-only">命令面板</DialogTitle>
+        <DialogDescription className="sr-only">搜索对话、命令、任务、文件,或直接指派 Agent。</DialogDescription>
 
-          <PaletteInput
-            flatCount={state.flat.length}
-            onQueryChange={state.setQuery}
+        <PaletteInput
+          flatCount={state.flat.length}
+          onQueryChange={state.setQuery}
+          query={state.query}
+          scope={state.scope}
+        />
+
+        <div className="flex min-h-0 flex-1">
+          <PaletteResults
+            className="flex-1"
+            flat={state.flat}
+            onSetSelIndex={state.setSelIndex}
             query={state.query}
-            scope={state.scope}
+            sections={state.sections}
+            selIndex={state.selIndex}
           />
-
-          <div className="flex min-h-0 flex-1">
-            <PaletteResults
-              className="flex-1"
-              flat={state.flat}
-              onSetSelIndex={state.setSelIndex}
-              query={state.query}
-              scope={state.scope}
-              sections={state.sections}
-              selIndex={state.selIndex}
-            />
-            <aside className="cmdscroll w-[296px] flex-none overflow-y-auto border-border/60 border-l bg-muted/30">
-              <PreviewSwitch preview={state.preview} />
-            </aside>
-          </div>
-        </DialogContent>
-      </DialogPortal>
+          <aside className="cmdscroll w-[296px] flex-none overflow-y-auto border-border/60 border-l bg-muted/30">
+            <PreviewSwitch preview={state.preview} />
+          </aside>
+        </div>
+      </DialogContent>
     </Dialog>
   )
 }
