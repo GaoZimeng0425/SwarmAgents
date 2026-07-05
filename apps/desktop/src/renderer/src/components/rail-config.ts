@@ -1,7 +1,6 @@
 // Pure rail configuration and navigation predicates. No React rendering, no
 // router imports — keeps the rail's source of truth testable without a router
-// context (matches the project's existing pure-logic test pattern, e.g. the
-// former service-grid.test.ts).
+// context (a pure-logic test pattern used elsewhere in this codebase).
 
 import type { ComponentType } from 'react'
 import {
