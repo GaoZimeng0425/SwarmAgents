@@ -40,7 +40,9 @@ export function RunningCard({ run }: Props): React.JSX.Element {
     <div
       className={cn(
         'flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border bg-card p-4 text-left transition-colors hover:bg-accent/30',
-        awaiting ? 'border-amber-400 shadow-[0_0_0_3px_rgba(226,176,107,0.14)]' : 'border-border'
+        awaiting
+          ? 'border-amber-400 shadow-[0_0_0_3px_rgba(226,176,107,0.14)] dark:border-amber-500/60'
+          : 'border-border'
       )}
       onClick={open}
       onKeyDown={(e) => {
@@ -56,10 +58,12 @@ export function RunningCard({ run }: Props): React.JSX.Element {
         <span
           className={cn(
             'size-[7px] rounded-full',
-            awaiting ? 'bg-amber-500' : 'bg-primary shadow-[0_0_0_3px_rgba(52,120,246,0.18)]'
+            awaiting ? 'bg-amber-500 dark:bg-amber-400' : 'bg-primary shadow-[0_0_0_3px_rgba(52,120,246,0.18)]'
           )}
         />
-        <span className={cn('font-medium text-[11.5px]', awaiting ? 'text-amber-600' : 'text-primary')}>
+        <span
+          className={cn('font-medium text-[11.5px]', awaiting ? 'text-amber-600 dark:text-amber-400' : 'text-primary')}
+        >
           {awaiting ? '等待审批' : `运行中 · ${formatDuration(run.wallMs)}`}
         </span>
       </div>
@@ -85,7 +89,7 @@ export function RunningCard({ run }: Props): React.JSX.Element {
             }}
             type="button"
           >
-            <Check className="mr-1 inline size-3" />
+            <Check aria-hidden="true" className="mr-1 inline size-3" />
             允许
           </button>
           <button
@@ -96,7 +100,7 @@ export function RunningCard({ run }: Props): React.JSX.Element {
             }}
             type="button"
           >
-            <X className="mr-1 inline size-3" />
+            <X aria-hidden="true" className="mr-1 inline size-3" />
             拒绝
           </button>
         </div>
