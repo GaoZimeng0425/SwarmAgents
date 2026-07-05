@@ -3,22 +3,24 @@
 import { emptyUsed } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
-import type { AgentRunnerDeps, createAgentRunner } from '../session/agent-runner'
+import { createRunEmit } from '../run-engine/emit'
+import type { launchRun } from '../run-engine/launch'
 import { createAnalyzeEmail } from './analyze'
 
-const fakeProvider = { id: 'p', model: 'm' } as unknown as import('@swarm/protocol').ProviderInjection
+const fakeProvider = { id: 'p', model: 'm', apiKey: 'k' } as unknown as import('@swarm/protocol').ProviderInjection
 
-function fakeRunner(events: { event: string; data: unknown }[]): typeof createAgentRunner {
-  return ((deps: AgentRunnerDeps) => ({
-    run: async () => {
-      for (const e of events) deps.emit(e.event, e.data)
-      return { status: 'completed' as const, summary: '## 摘要\n测试', messages: [], used: emptyUsed() }
-    },
-  })) as unknown as typeof createAgentRunner
+// A fake launchRun that drives the real emit adapter: it feeds run.* wire events
+// through createRunEmit (the same path the engine uses), so the analyze module's
+// broadcast port is exercised end-to-end.
+function fakeLaunch(events: import('../run-engine/emit').RunEmitInput[]): typeof launchRun {
+  return (async (spec, ports) => {
+    const emit = createRunEmit(ports.emit, { sessionId: spec.sessionId, runId: spec.runId ?? 'r' })
+    for (const e of events) emit(e)
+    return { runId: spec.runId ?? 'r', status: 'completed' as const, summary: 'ok', messages: [], used: emptyUsed() }
+  }) as unknown as typeof launchRun
 }
 
 type Deps = Parameters<typeof createAnalyzeEmail>[0]
-const zero = { tokens: 0, calls: 0, wallMs: 0, usdCents: 0 }
 
 describe('analyzeEmail', () => {
   it('streams deltas then complete, and returns an ack immediately', async () => {
@@ -27,17 +29,11 @@ describe('analyzeEmail', () => {
       broadcaster: { broadcast: (e, d) => broadcasts.push([e, d]) } as Deps['broadcaster'],
       agentStore: { get: () => undefined } as Deps['agentStore'],
       toolRegistry: {} as Deps['toolRegistry'],
-      getBudgetConfig: () => ({ main: zero, sub: zero }) as import('@swarm/protocol').BudgetConfig,
-      createRunner: fakeRunner([
-        {
-          event: 'task.progress',
-          data: { taskId: 'm1', event: { kind: 'llm.message', role: 'assistant', content: '## 摘要\n', ts: 1 } },
-        },
-        {
-          event: 'task.progress',
-          data: { taskId: 'm1', event: { kind: 'llm.message', role: 'assistant', content: '测试', ts: 2 } },
-        },
-        { event: 'task.complete', data: { taskId: 'm1', summary: '## 摘要\n测试', ts: 3 } },
+      getBudgetConfig: () => ({}) as import('@swarm/protocol').BudgetConfig,
+      launch: fakeLaunch([
+        { kind: 'run.progress', event: { kind: 'llm.message', role: 'assistant', content: '## 摘要\n', ts: 1 } },
+        { kind: 'run.progress', event: { kind: 'llm.message', role: 'assistant', content: '测试', ts: 2 } },
+        { kind: 'run.complete', summary: '## 摘要\n测试' },
       ]),
     })
 
@@ -52,12 +48,30 @@ describe('analyzeEmail', () => {
     expect((complete![1] as { messageId: string }).messageId).toBe('m1')
   })
 
+  it('translates a run.error terminal into gmail.analysisError', async () => {
+    const broadcasts: Array<[string, unknown]> = []
+    const analyze = createAnalyzeEmail({
+      broadcaster: { broadcast: (e, d) => broadcasts.push([e, d]) } as Deps['broadcaster'],
+      agentStore: { get: () => undefined } as Deps['agentStore'],
+      toolRegistry: {} as Deps['toolRegistry'],
+      getBudgetConfig: () => ({}) as import('@swarm/protocol').BudgetConfig,
+      launch: fakeLaunch([{ kind: 'run.error', error: { code: 'agent_exception', message: 'boom', tier: 'fatal' } }]),
+    })
+
+    analyze({ messageId: 'm2', subject: 's', from: 'a@b', content: 'body', provider: fakeProvider })
+    await new Promise((r) => setTimeout(r, 0))
+    const err = broadcasts.find(([e]) => e === 'gmail.analysisError')
+    expect(err).toBeDefined()
+    expect((err![1] as { error: string }).error).toBe('boom')
+    expect((err![1] as { messageId: string }).messageId).toBe('m2')
+  })
+
   it('returns no_provider when the provider is missing', () => {
     const analyze = createAnalyzeEmail({
       broadcaster: { broadcast: () => undefined } as Deps['broadcaster'],
       agentStore: { get: () => undefined } as Deps['agentStore'],
       toolRegistry: {} as Deps['toolRegistry'],
-      getBudgetConfig: () => ({ main: zero, sub: zero }) as import('@swarm/protocol').BudgetConfig,
+      getBudgetConfig: () => ({}) as import('@swarm/protocol').BudgetConfig,
     })
     const r = analyze({ messageId: 'm1', subject: '', from: '', content: '', provider: undefined as never })
     expect(r).toEqual({ ok: false, code: 'no_provider', message: expect.any(String) })

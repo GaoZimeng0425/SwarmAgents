@@ -148,6 +148,30 @@ export function createEngine(deps: EngineDeps): Engine {
 
   const agent = new Agent({
     getApiKey: () => deps.provider.apiKey,
+    // HTTP-level tracing (carry-over from v1's agent-runner). Payload at debug
+    // (per-request noise), the response line at info so a failing provider call
+    // is locatable from the log alone.
+    onPayload: (payload, m) => {
+      const p = payload as Record<string, unknown> | undefined
+      runLog.debug({
+        msg: 'http request payload',
+        url: m.baseUrl,
+        model: m.id,
+        payloadKeys: p ? Object.keys(p) : [],
+        hasMaxTokens: p ? 'max_tokens' in p : false,
+        hasMaxCompletionTokens: p ? 'max_completion_tokens' in p : false,
+        toolCount:
+          p && Array.isArray((p as { tools?: unknown[] }).tools) ? (p as { tools: unknown[] }).tools.length : 0,
+      })
+      return undefined
+    },
+    onResponse: (response) => {
+      runLog.info({
+        msg: 'http response',
+        status: response.status,
+        contentType: response.headers['content-type'],
+      })
+    },
     initialState: {
       systemPrompt: composeSystemPrompt(deps.agentDefinition.systemPrompt, {
         cwd: deps.cwd,

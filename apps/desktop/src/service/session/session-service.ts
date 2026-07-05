@@ -171,10 +171,11 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     broadcast: (evt) => broadcaster.broadcast(evt.kind, evt),
   }
 
-  // The permission registry emits the legacy `task.permission_request` event for
-  // whichever run is currently prompting; its runId rides on the payload (there
-  // is no closure identity). This dedicated adapter ports makeRunEmit's
-  // payload-derived-runId behavior for THIS event only: persist + broadcast.
+  // The permission registry emits the `run.permission_request` event for
+  // whichever run is currently prompting; its runId rides on the payload's
+  // `taskId` field (there is no closure identity). This dedicated adapter ports
+  // makeRunEmit's payload-derived-runId behavior for THIS event only: persist +
+  // broadcast under the run.* vocabulary (top-level `runId`, no `taskId`).
   const permissionEmit =
     (sessionId: string) =>
     (event: string, data: unknown): void => {
@@ -183,17 +184,19 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       const ts = Date.now()
       const runId = obj?.taskId as string | undefined
       const parent = (obj?.parentTaskId as string | undefined) ?? null
+      // Strip the source vocabulary keys so the emitted event is pure run.*.
+      const { taskId: _taskId, parentTaskId: _parentTaskId, ...rest } = obj ?? {}
       if (runId) {
         store.appendRunEvent(sessionId, runId, parent, {
           kind: event,
-          ...(obj ?? {}),
+          ...rest,
           sessionId,
-          taskId: runId,
+          runId,
           seq,
           ts,
         } as UIEvent)
       }
-      broadcaster.broadcast(event, obj ? { ...obj, sessionId, taskId: runId, seq, ts } : data)
+      broadcaster.broadcast(event, obj ? { ...rest, sessionId, runId, seq, ts } : data)
     }
 
   // ---- Global concurrency pool → launch's acquireSlot(signal) ---------------

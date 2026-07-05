@@ -311,10 +311,26 @@ describe('ConversationStore', () => {
             ts: 1,
           },
         },
+        {
+          // A run.error with NO code field must classify 'failed' on both sides:
+          // SQL's json_extract('$.error.code') is NULL (→ ELSE failed) and the
+          // TS reducer's code === undefined (→ failed). Guards the code-less path.
+          runId: 'r-nocode',
+          event: {
+            kind: 'run.error',
+            sessionId: 'ses-eq',
+            runId: 'r-nocode',
+            error: { message: 'no code here', tier: 'fatal' as const },
+            seq: 1,
+            ts: 1,
+          },
+        },
       ] as const
 
       for (const { runId, event } of terminalEvents) {
-        store.appendRunEvent('ses-eq', runId, null, event)
+        // The code-less run.error (r-nocode) is intentionally not a valid
+        // RunErrorInfo (no `code`); cast to exercise the malformed/legacy path.
+        store.appendRunEvent('ses-eq', runId, null, event as never)
       }
 
       const fromStore = new Map(store.getTerminalRunStatuses().map((r) => [r.runId, r.status]))

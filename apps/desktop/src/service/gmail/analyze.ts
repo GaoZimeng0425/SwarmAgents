@@ -1,9 +1,10 @@
-// One-shot, tool-less analysis of a single email's bodyText. Mirrors the
-// buildAnalyzeImage precedent (agent-runner.ts): a runner with an empty tool
-// allowlist, but its `emit` is wired to broadcast progress so the renderer's
-// MessageAnalysis panel can stream. The gmail-analyst agent (a visible builtin)
-// supplies the Chinese structured-Markdown prompt.
-import type { AgentMessage } from '@earendil-works/pi-agent-core'
+// One-shot, tool-less analysis of a single email's bodyText. Rebuilt on
+// launchRun (the ONE way a run starts) with a PRIVATE LaunchPorts binding: a
+// silent seq, no store append, no-op slot/abort ports (the vision-run precedent
+// in run-engine/launch.ts buildAnalyzeImage), and a broadcast adapter that
+// translates the run.* stream into gmail.analysis* events keyed by messageId so
+// the renderer's MessageAnalysis panel can stream. The gmail-analyst agent (a
+// visible builtin) supplies the Chinese structured-Markdown prompt.
 import { createLogger } from '@shared/logger'
 import type { AnalyzeEmailRequest, AnalyzeEmailResult, BudgetConfig } from '@swarm/protocol'
 import { applyAgentModel, defaultAgents } from '@swarm/shared'
@@ -11,7 +12,8 @@ import { ulid } from 'ulid'
 
 import type { AgentStore } from '../agents/store'
 import type { Broadcaster } from '../ipc/broadcaster'
-import { type AgentRunnerDeps, createAgentRunner } from '../session/agent-runner'
+import type { RunEmitPorts } from '../run-engine/emit'
+import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
 import { createPermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry } from '../tools/registry'
 
@@ -24,12 +26,12 @@ export type AnalyzeDeps = {
   agentStore: Pick<AgentStore, 'get'>
   toolRegistry: ToolRegistry
   getBudgetConfig(): BudgetConfig
-  /** Injectable so tests can stub the runner without a real provider. */
-  createRunner?: typeof createAgentRunner
+  /** Injectable so tests can drive the emit adapter without a real provider/engine. */
+  launch?: typeof launchRun
 }
 
 export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest) => AnalyzeEmailResult {
-  const createRunner = deps.createRunner ?? createAgentRunner
+  const run = deps.launch ?? launchRun
   return (req) => {
     if (!req.provider) {
       return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
@@ -46,50 +48,65 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
       contentLen: req.content.length,
     })
 
-    // Translate the runner's task.* events into gmail.analysis* broadcasts keyed
-    // by messageId. Only llm.message deltas, complete, and error are forwarded;
-    // reasoning/tool events are dropped (the run is tool-less).
-    const emit = (event: string, data: unknown): void => {
-      const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
-      if (event === 'task.progress') {
-        const ev = obj.event as { kind?: string; content?: string } | undefined
-        if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
-          deps.broadcaster.broadcast('gmail.analysisDelta', { messageId, text: ev.content, ts: Date.now() })
+    // PRIVATE emit ports: a silent seq (no session/store), no persistence, no
+    // terminal registry — the analysis lives entirely in the broadcast stream.
+    // The broadcast port translates the run.* wire into gmail.analysis* events:
+    // run.progress llm.message → analysisDelta, run.complete → analysisComplete,
+    // run.error → analysisError. Tool/reasoning events are dropped (tool-less).
+    let seq = 0
+    const emitPorts: RunEmitPorts = {
+      nextSeq: () => seq++,
+      appendEvent: () => undefined,
+      markTerminal: () => undefined,
+      broadcast: (evt) => {
+        if (evt.kind === 'run.progress') {
+          const ev = evt.event
+          if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
+            deps.broadcaster.broadcast('gmail.analysisDelta', { messageId, text: ev.content, ts: Date.now() })
+          }
+        } else if (evt.kind === 'run.complete') {
+          deps.broadcaster.broadcast('gmail.analysisComplete', { messageId, markdown: evt.summary, ts: Date.now() })
+        } else if (evt.kind === 'run.error') {
+          deps.broadcaster.broadcast('gmail.analysisError', {
+            messageId,
+            error: evt.error?.message ?? 'analysis failed',
+            ts: Date.now(),
+          })
         }
-      } else if (event === 'task.complete') {
-        const markdown = typeof obj.summary === 'string' ? obj.summary : ''
-        deps.broadcaster.broadcast('gmail.analysisComplete', { messageId, markdown, ts: Date.now() })
-      } else if (event === 'task.error') {
-        const error = (obj.error as { message?: string } | undefined)?.message ?? 'analysis failed'
-        deps.broadcaster.broadcast('gmail.analysisError', { messageId, error, ts: Date.now() })
-      }
+      },
+    }
+
+    // No-op slot/abort ports and a no-op permission gate: a self-contained,
+    // tool-less run that competes for nothing and prompts for nothing.
+    const ports: LaunchPorts = {
+      emit: emitPorts,
+      toolRegistry: deps.toolRegistry,
+      permissionRegistry: createPermissionRegistry(() => undefined),
+      acquireSlot: async () => () => undefined,
+      registerAbort: () => undefined,
+      unregisterAbort: () => undefined,
     }
 
     const analyzePrompt = `分析下面这封邮件。\n\nSubject: ${req.subject}\nFrom: ${req.from}\n\n${req.content}`
-    const runnerDeps: AgentRunnerDeps = {
-      correlationId: messageId,
-      executionMode: 'goal',
-      budget: deps.getBudgetConfig().sub,
-      toolAllowlist: [],
-      provider: applyAgentModel(req.provider, def),
-      agentDefinition: def,
+    const spec: RunSpec = {
+      kind: 'work',
       sessionId: `analyze:${ulid()}`,
-      emit,
-      permissionRegistry: createPermissionRegistry(() => undefined),
-      toolRegistry: deps.toolRegistry,
-      initialMessages: [{ role: 'user', content: analyzePrompt }] as AgentMessage[],
-      spawnChild: () => Promise.reject(new Error('spawnChild unavailable in analyze')),
+      agent: def,
+      provider: applyAgentModel(req.provider, def),
+      prompt: analyzePrompt,
+      budget: deps.getBudgetConfig().sub,
+      tools: [],
       maxIterationsOverride: def.maxIterations,
     }
 
     const t0 = Date.now()
-    void createRunner(runnerDeps)
-      .run()
+    // launchRun never rejects: every failure path emits run.error, which the
+    // broadcast port already forwards as analysisError. The catch is purely
+    // defensive (log-only, no double broadcast).
+    void run(spec, ports)
       .then((r) => log.info({ msg: 'analyze complete', messageId, status: r.status, durationMs: Date.now() - t0 }))
       .catch((err) => {
-        const msg = err instanceof Error ? err.message : String(err)
-        log.error({ msg: 'analyze run failed', messageId, err: msg })
-        deps.broadcaster.broadcast('gmail.analysisError', { messageId, error: msg, ts: Date.now() })
+        log.error({ msg: 'analyze run failed', messageId, err: err instanceof Error ? err.message : String(err) })
       })
 
     return { ok: true }

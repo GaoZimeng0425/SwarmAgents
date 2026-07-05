@@ -1,6 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { ProviderInjection, UIEvent } from '@swarm/protocol'
-import { DEFAULT_AGENT_DEF } from '@swarm/shared'
+import { DEFAULT_AGENT_DEF, SYSTEM_SESSION_ID } from '@swarm/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const MockAgent = vi.hoisted(() => vi.fn())
@@ -398,15 +398,18 @@ describe('SessionService', () => {
     const { sessionId } = service.createSession(provider)
     const { runId } = service.submitPrompt(sessionId, 'use a tool')
 
-    await vi.waitFor(() => expect(calls.some((c) => c.event === 'task.permission_request')).toBe(true))
-    const req = calls.find((c) => c.event === 'task.permission_request')!.data as {
+    await vi.waitFor(() => expect(calls.some((c) => c.event === 'run.permission_request')).toBe(true))
+    const req = calls.find((c) => c.event === 'run.permission_request')!.data as {
       actionId: string
-      taskId: string
+      runId: string
+      taskId?: string
     }
-    expect(req.taskId).toBe(runId)
+    expect(req.runId).toBe(runId)
+    // The run.* vocabulary: no top-level taskId leaks onto the wire.
+    expect(req.taskId).toBeUndefined()
     const persisted = store
       .getRunEvents(sessionId)
-      .find((r) => (r.event as { kind: string }).kind === 'task.permission_request')
+      .find((r) => (r.event as { kind: string }).kind === 'run.permission_request')
     expect(persisted?.runId).toBe(runId)
 
     service.resolvePermission(sessionId, req.actionId, 'grant')
@@ -437,5 +440,61 @@ describe('SessionService', () => {
       .map((c) => (c.data as { runId: string }).runId)
     expect(errorRunIds).toEqual(expect.arrayContaining([a, b]))
     releaseAllHeld()
+  })
+
+  // ---- Coverage-home ports from the deleted manager.test.ts -----------------
+
+  it('11. ensureSystemSession bootstraps the system session from the caller provider and refreshes it later', () => {
+    const { service, store } = makeService()
+    const { sessionId } = service.createSession(provider)
+
+    // First call bootstraps the long-lived system session.
+    expect(service.ensureSystemSession(sessionId)).toBe(SYSTEM_SESSION_ID)
+    expect(store.getSession(SYSTEM_SESSION_ID)).toBeDefined()
+    expect(store.getSession(SYSTEM_SESSION_ID)?.providerSnapshot).toEqual(provider)
+
+    // A later create with a different provider refreshes the system provider.
+    const provider2 = { ...provider, id: 'c2', model: 'other' } as ProviderInjection
+    service.createSession(provider2)
+    expect(store.getSession(SYSTEM_SESSION_ID)?.providerSnapshot).toEqual(provider2)
+  })
+
+  it('12. submitPrompt invokes onComplete with the terminal status when the run ends', async () => {
+    const { service } = makeService()
+    const { sessionId } = service.createSession(provider)
+    const statuses: string[] = []
+    service.submitPrompt(sessionId, 'hello', undefined, (status) => statuses.push(status))
+    await vi.waitFor(() => expect(statuses).toEqual(['completed']))
+  })
+
+  it('13. runWork does NOT overwrite the conversation agent_snapshot (regression)', async () => {
+    const { service, store } = makeService()
+    const { sessionId } = service.createSession(provider)
+    // A conversation turn saves a snapshot (user + assistant).
+    service.submitPrompt(sessionId, 'hello')
+    await vi.waitFor(() => expect(store.getAgentSnapshot(sessionId).length).toBeGreaterThan(0))
+    const before = store.getAgentSnapshot(sessionId)
+
+    // A work run has no saveSnapshot wiring, so it must not touch the buffer.
+    await service.runWork(sessionId, 'do work')
+    expect(store.getAgentSnapshot(sessionId)).toEqual(before)
+    expect(store.getAgentSnapshot(sessionId).filter((m) => m.role === 'user')).toHaveLength(1)
+  })
+
+  it('14. maxConcurrent caps global dispatch: a second session waits for the slot pool', async () => {
+    holdPrompt = true
+    const { service, calls } = makeService({ maxConcurrent: 1 })
+    // Two independent sessions: the per-session FIFO does not serialize them, so
+    // only the global slot pool can hold the second back.
+    const { sessionId: sA } = service.createSession(provider)
+    const { sessionId: sB } = service.createSession(provider)
+    service.submitPrompt(sA, 'A')
+    service.submitPrompt(sB, 'B')
+    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(1))
+
+    // Exactly one dispatched under the cap; the other is parked on the pool.
+    expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(1)
+    releaseAllHeld()
+    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(2))
   })
 })

@@ -1,60 +1,67 @@
 // src/service/e2e/agent-driven-verify.e2e.test.ts
 //
-// Phase 3b focused regression: a single agent-authored work task runs
-// single-shot, and the resulting Task carries no verification audit and no
-// acceptance-criteria contract. The DB columns `verifications`/
-// `acceptance_criteria` are KEPT (rollback safety) but stay at their default
-// '[]'; the typed Task no longer surfaces them.
+// Focused regression: a single agent-authored work run runs single-shot and
+// reaches a terminal event on the run stream. There is no verification audit
+// and no acceptance-criteria contract — every run is single-shot post-3b.
 //
-// Companion to multi-level-verify.e2e.test.ts (which exercises the
-// delegation tree). This file isolates the simplest path: one work task,
-// no spawns, no CEOs — just the post-3b Task shape.
+// Companion to multi-level-verify.e2e.test.ts (the delegation tree). This file
+// isolates the simplest path: one work run, no spawns, no CEOs. Post-switchover
+// it drives the REAL SessionService + launch + engine, pi Agent mocked.
 
+import type { ProviderInjection } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
+const MockAgent = vi.hoisted(() => vi.fn())
+vi.mock('@earendil-works/pi-agent-core', () => ({ Agent: MockAgent }))
+
 import { createConversationStore } from '../conversation/store'
-import { createSessionManager } from '../session/manager'
+import { createSessionService } from '../session/session-service'
 
-vi.mock('../session/agent-runner', () => ({
-  createAgentRunner: (deps: any) => ({
-    run: async () => {
-      // Post-4b the runner's translator emits task.complete (→ run_events);
-      // the mock stands in for the translator.
-      deps.emit('task.complete', {
-        taskId: deps.correlationId,
-        summary: 'done',
-        ts: Date.now(),
-      })
-      return { status: 'completed', summary: 'done', messages: [], used: {} }
-    },
-  }),
-  buildAgentSession: () => ({}),
-}))
+function installAgent(reply = 'done'): void {
+  MockAgent.mockImplementation(function (
+    this: Record<string, unknown>,
+    opts: { initialState?: { messages?: unknown[] } }
+  ) {
+    let sub: ((e: unknown) => void) | null = null
+    this.state = { messages: [...((opts.initialState?.messages as unknown[]) ?? [])] }
+    this.subscribe = (fn: (e: unknown) => void): void => {
+      sub = fn
+    }
+    this.abort = (): void => undefined
+    this.prompt = async (goal: string): Promise<void> => {
+      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: goal })
+      const ok = { role: 'assistant', content: [{ type: 'text', text: reply }], stopReason: 'end_turn' }
+      ;(this.state as { messages: unknown[] }).messages.push(ok)
+      sub?.({ type: 'turn_end', message: { usage: undefined } })
+      sub?.({ type: 'agent_end', messages: [ok] })
+    }
+  })
+}
 
-const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as never
+const fakeProvider = { id: 'p', model: 'test', apiStyle: 'anthropic', apiKey: 'k' } as unknown as ProviderInjection
 
-describe('agent-driven verify — single-shot work task', () => {
-  it('a work task runs single-shot with no verify rounds and no criteria contract', async () => {
+describe('agent-driven verify — single-shot work run', () => {
+  it('a work run runs single-shot with no verify rounds and no criteria contract', async () => {
+    installAgent()
     const store = createConversationStore(':memory:')
-    const manager = createSessionManager({
+    const service = createSessionService({
       store,
       broadcaster: { broadcast: () => {} },
       maxConcurrent: 4,
       getProvider: () => fakeProvider,
     })
-    const { sessionId } = manager.createSession(fakeProvider)
+    const { sessionId } = service.createSession(fakeProvider)
 
-    const work = await (
-      manager as unknown as {
-        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string; result: unknown }>
-      }
-    ).__runWorkTaskForTest(sessionId, 'build it')
+    const work = await service.runWork(sessionId, 'build it')
+    expect(work.status).toBe('completed')
 
-    // Post-4b: no Task row for a work run — assert against the run stream.
-    const events = store.getRunEvents(sessionId).filter((r) => r.runId === work.taskId)
+    // No Task row for a work run — assert against the run stream.
+    const events = store.getRunEvents(sessionId).filter((r) => r.runId === work.runId)
     const isTerminal = (r: { event: { kind?: string } }): boolean =>
-      r.event.kind === 'task.complete' || r.event.kind === 'task.error'
+      r.event.kind === 'run.complete' || r.event.kind === 'run.error'
     expect(events.some(isTerminal)).toBe(true)
+    // No verification event on the stream (single-shot).
+    expect(events.some((r) => (r.event as { event?: { kind?: string } }).event?.kind === 'verification')).toBe(false)
 
     store.close()
   })

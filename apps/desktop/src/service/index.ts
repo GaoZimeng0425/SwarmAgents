@@ -15,7 +15,7 @@ import { createBroadcaster } from './ipc/broadcaster'
 import { createDispatcher } from './ipc/dispatcher'
 import { createMcpManager } from './mcp/manager'
 import { createMemoryStore } from './memory/store'
-import { createSessionManager } from './session/manager'
+import { createSessionService } from './session/session-service'
 import { builtinSkills } from './skills/builtins'
 import { createSkillStore } from './skills/store'
 import { createToolTogglesStore } from './tool-toggles/store'
@@ -79,7 +79,7 @@ let webSearchConfig: WebSearchInjection = { provider: 'auto' }
 // match the previous hardcoded values until Main sends the persisted config.
 let budgetConfig: BudgetConfig = defaultBudgetConfig()
 
-const manager = createSessionManager({
+const service = createSessionService({
   store,
   broadcaster,
   maxConcurrent: 4,
@@ -93,13 +93,17 @@ const manager = createSessionManager({
 
 const scheduler = createCronScheduler({
   store,
-  fire: (sessionId, goal, onComplete) => manager.submitGoal(sessionId, goal, [], undefined, onComplete),
+  fire: (sessionId, goal, onComplete) => {
+    // submitPrompt returns { runId }; the scheduler records it as its task id.
+    const { runId } = service.submitPrompt(sessionId, goal, [], onComplete)
+    return { taskId: runId }
+  },
   // Cron jobs are global: own + fire them in the dedicated system session, not
   // the conversation that issued schedule_task, so every session sees them and
   // they survive that conversation's deletion.
-  resolveJobSession: (fromSessionId) => manager.ensureSystemSession(fromSessionId),
-  isRunTerminal: (runId) => manager.terminalRegistry.isTerminal(runId),
-  runTerminalStatus: (runId) => manager.terminalRegistry.getStatus(runId),
+  resolveJobSession: (fromSessionId) => service.ensureSystemSession(fromSessionId),
+  isRunTerminal: (runId) => service.terminalRegistry.isTerminal(runId),
+  runTerminalStatus: (runId) => service.terminalRegistry.getStatus(runId),
 })
 // Drives Claude Code sessions the agent operates via cc_* tools. The SDK is
 // loaded lazily on first cc_start, so constructing it here is cheap.
@@ -108,7 +112,7 @@ const claudeCode = createClaudeCodeManager()
 // Close out runs dispatched-but-never-terminal from a previous process: append
 // a synthetic task.error to run_events (replay reaches terminal) and mark each
 // terminal in the registry.
-manager.markInterruptedRunsTerminal()
+service.markInterruptedRunsTerminal()
 
 // Service-side main-rpc client: gmail.* tools call mainRpc('gmail.search', [...]),
 // which posts a mainRequest that Main answers with a mainResponse. The client
@@ -143,7 +147,7 @@ const mcpManager = createMcpManager({
 })
 
 const dispatch = createDispatcher({
-  manager,
+  service,
   analyzeEmail: createAnalyzeEmail({ broadcaster, agentStore, toolRegistry, getBudgetConfig: () => budgetConfig }),
   registerProvider: (provider) => {
     providerRegistry.set(provider.id, provider)

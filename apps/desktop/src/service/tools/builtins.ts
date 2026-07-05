@@ -41,7 +41,6 @@ export function peekabooSpecs(): ToolSpec[] {
   // beforeToolCall), so building once at registration is safe — the tool
   // objects are reused across runs.
   const tools = buildPeekabooTools({
-    send: () => undefined,
     requestPermission: () => Promise.resolve('grant' as const),
   })
   return tools.map((tool) => ({

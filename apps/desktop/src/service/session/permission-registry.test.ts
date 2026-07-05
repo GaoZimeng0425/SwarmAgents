@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createPermissionRegistry } from './permission-registry'
 
 describe('PermissionRegistry', () => {
-  it('broadcasts SSE event on request and resolves on decision', async () => {
+  it('broadcasts run.permission_request on request and resolves on decision', async () => {
     const broadcast = vi.fn()
     const registry = createPermissionRegistry(broadcast)
 
@@ -17,7 +17,7 @@ describe('PermissionRegistry', () => {
 
     expect(broadcast).toHaveBeenCalledOnce()
     const [event, data] = broadcast.mock.calls[0] as [string, { actionId: string }]
-    expect(event).toBe('task.permission_request')
+    expect(event).toBe('run.permission_request')
     expect(data.actionId).toBeTruthy()
 
     registry.resolve(data.actionId, 'grant')

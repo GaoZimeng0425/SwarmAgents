@@ -1,4 +1,4 @@
-// Pure request router. Maps a (method, args) RPC pair to a SessionManager
+// Pure request router. Maps a (method, args) RPC pair to a SessionService
 // call and returns a JSON-serialisable result. Replaces the URL/method
 // matching that lived in the HTTP server. No transport, no I/O — trivially
 // unit-testable.
@@ -21,10 +21,10 @@ import type {
   WebSearchInjection,
 } from '@swarm/protocol'
 
-import type { SessionManager } from '../session/manager'
+import type { SessionService } from '../session/session-service'
 
 type DispatcherConfig = {
-  manager: SessionManager
+  service: SessionService
   analyzeEmail(req: import('@swarm/protocol').AnalyzeEmailRequest): import('@swarm/protocol').AnalyzeEmailResult
   registerProvider(provider: ProviderInjection): void
   setMcpServers(configs: McpServerConfig[]): Promise<void>
@@ -53,72 +53,73 @@ type DispatcherConfig = {
 export type Dispatcher = (method: ServiceMethod, args: unknown[]) => unknown
 
 export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
-  const { manager, registerProvider } = cfg
+  const { service, registerProvider } = cfg
   return (method, args) => {
     switch (method) {
       case 'createSession': {
         const [provider] = args as [ProviderInjection]
         registerProvider(provider)
-        return manager.createSession(provider)
+        return service.createSession(provider)
       }
       case 'submitGoal': {
+        // The method name stays (ServiceMethod stability for the renderer API),
+        // but the call maps to SessionService.submitPrompt and returns { runId }.
         const [sessionId, goal, attachments, options] = args as [
           string,
           string,
           import('@swarm/protocol').Attachment[] | undefined,
           import('@swarm/protocol').TaskOptions | undefined,
         ]
-        return manager.submitGoal(sessionId, goal, attachments, undefined, undefined, options)
+        return service.submitPrompt(sessionId, goal, attachments, undefined, options)
       }
       case 'analyzeEmail': {
         const [req] = args as [import('@swarm/protocol').AnalyzeEmailRequest]
         return cfg.analyzeEmail(req)
       }
       case 'listSessions':
-        return manager.listSessions()
+        return service.listSessions()
       case 'getRunEvents': {
         const [sessionId] = args as [string]
-        return manager.getRunEvents(sessionId)
+        return service.getRunEvents(sessionId)
       }
       case 'deleteSession': {
         const [sessionId] = args as [string]
-        manager.deleteSession(sessionId)
+        service.deleteSession(sessionId)
         return { ok: true }
       }
       case 'renameSession': {
         const [sessionId, title] = args as [string, string]
-        manager.renameSession(sessionId, title)
+        service.renameSession(sessionId, title)
         return { ok: true }
       }
       case 'setSessionPinned': {
         const [sessionId, pinned] = args as [string, boolean]
-        manager.setSessionPinned(sessionId, pinned)
+        service.setSessionPinned(sessionId, pinned)
         return { ok: true }
       }
       case 'updateSessionSettings': {
         const [sessionId, settings] = args as [string, import('@swarm/protocol').SessionSettings]
-        manager.updateSessionSettings(sessionId, settings)
+        service.updateSessionSettings(sessionId, settings)
         return { ok: true }
       }
       case 'reorderSessions': {
         const [orderedIds] = args as [string[]]
-        manager.reorderSessions(orderedIds)
+        service.reorderSessions(orderedIds)
         return { ok: true }
       }
       case 'decidePermission': {
         const [sessionId, actionId, decision] = args as [string, string, PermissionDecision]
-        manager.resolvePermission(sessionId, actionId, decision)
+        service.resolvePermission(sessionId, actionId, decision)
         return { ok: true }
       }
       case 'cancelRun': {
         const [sessionId, runId] = args as [string, string]
-        // The pre-run.* manager still exposes cancelTask (renamed in Task 3).
-        manager.cancelTask(sessionId, runId)
+        service.cancelRun(sessionId, runId)
         return { ok: true }
       }
       case 'interruptWith': {
         const [sessionId, taskId] = args as [string, string]
-        manager.interruptWith(sessionId, taskId)
+        service.interruptWith(sessionId, taskId)
         return { ok: true }
       }
       case 'setMcpServers': {
@@ -181,7 +182,7 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       }
       case 'getUsageStats': {
         const [rangeDays] = args as [number]
-        return manager.getUsageStats(rangeDays)
+        return service.getUsageStats(rangeDays)
       }
       case 'listCronJobsForSession': {
         const [sessionId] = args as [string]

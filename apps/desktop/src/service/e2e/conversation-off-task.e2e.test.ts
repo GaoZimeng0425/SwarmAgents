@@ -1,88 +1,77 @@
 // src/service/e2e/conversation-off-task.e2e.test.ts
 //
-// Phase 3a/3b/4b end-to-end guard: a trivial conversation message creates NO
-// Task and runs single-shot; its events land on the session run-event stream.
-// Real work is agent-authored via create_task (driven here through the
-// __runWorkTaskForTest seam), which post-4b is also Task-less — just a run on
-// the run-event stream. After 3b every run is single-shot — there is no verify
-// loop distinction anymore.
+// End-to-end guard: a trivial conversation message runs single-shot and its
+// user + assistant messages land on the session run-event stream as run.progress
+// llm.message events (no verification). Real work is agent-authored via
+// runWork, which is also a Task-less run on the same stream. Post-switchover this
+// drives the REAL SessionService + launch + engine, pi Agent mocked.
 
+import type { ProviderInjection } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
+const MockAgent = vi.hoisted(() => vi.fn())
+vi.mock('@earendil-works/pi-agent-core', () => ({ Agent: MockAgent }))
+
 import { createConversationStore } from '../conversation/store'
-import { createSessionManager } from '../session/manager'
+import { createSessionService } from '../session/session-service'
 
-const seen = vi.hoisted(() => [] as Array<{ max: number }>)
+function installAgent(reply = 'hi there'): void {
+  MockAgent.mockImplementation(function (
+    this: Record<string, unknown>,
+    opts: { initialState?: { messages?: unknown[] } }
+  ) {
+    let sub: ((e: unknown) => void) | null = null
+    this.state = { messages: [...((opts.initialState?.messages as unknown[]) ?? [])] }
+    this.subscribe = (fn: (e: unknown) => void): void => {
+      sub = fn
+    }
+    this.abort = (): void => undefined
+    this.prompt = async (goal: string): Promise<void> => {
+      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: goal })
+      const ok = { role: 'assistant', content: [{ type: 'text', text: reply }], stopReason: 'end_turn' }
+      ;(this.state as { messages: unknown[] }).messages.push(ok)
+      // A flushed assistant delta → run.progress llm.message role assistant.
+      sub?.({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: reply } })
+      sub?.({ type: 'turn_end', message: { usage: undefined } })
+      sub?.({ type: 'agent_end', messages: [ok] })
+    }
+  })
+}
 
-vi.mock('../session/agent-runner', () => ({
-  createAgentRunner: (deps: any) => ({
-    run: async () => {
-      // After 3b the runner no longer accepts maxVerifyRounds; this stays at
-      // 0 by definition. Kept as a structural record so the test still asserts
-      // the runner was invoked.
-      seen.push({ max: deps.maxVerifyRounds ?? 0 })
-      deps.emit('task.progress', {
-        event: { kind: 'llm.message', role: 'assistant', content: 'hi there', ts: Date.now() },
-      })
-      return {
-        status: 'completed',
-        summary: 'ok',
-        messages: [],
-        used: { tokens: 10, calls: 1, wallMs: 5, usdCents: 1, cacheRead: 0, cacheWrite: 0 },
-      }
-    },
-  }),
-  buildAgentSession: () => ({}),
-}))
-
-const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as never
+const fakeProvider = { id: 'p', model: 'test', apiStyle: 'anthropic', apiKey: 'k' } as unknown as ProviderInjection
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 30))
 
+const isProgressRole = (r: { event: { kind?: string } }, role: string): boolean =>
+  (r.event as { kind?: string }).kind === 'run.progress' &&
+  (r.event as { event?: { kind?: string; role?: string } }).event?.kind === 'llm.message' &&
+  (r.event as { event?: { role?: string } }).event?.role === role
+
 describe('conversation off task', () => {
-  it('a trivial message creates no Task; create_task makes a work Task — both run single-shot', async () => {
-    seen.length = 0
+  it('a trivial message runs single-shot; runWork makes a work run — both on the run stream', async () => {
+    installAgent()
     const store = createConversationStore(':memory:')
-    const manager = createSessionManager({
+    const service = createSessionService({
       store,
       broadcaster: { broadcast: () => {} },
       maxConcurrent: 4,
       getProvider: () => fakeProvider,
     })
-    const { sessionId } = manager.createSession(fakeProvider)
+    const { sessionId } = service.createSession(fakeProvider)
 
-    const { taskId: turnId } = manager.submitGoal(sessionId, '你好')
+    const { runId: turnId } = service.submitPrompt(sessionId, '你好')
     await flush()
 
     // The run stream carries the user + assistant messages, no verification.
     const rows = store.getRunEvents(sessionId)
-    expect(
-      rows.some(
-        (r) =>
-          (r.event as { kind?: string }).kind === 'task.progress' &&
-          (r.event as { event?: { role?: string } }).event?.role === 'user'
-      )
-    ).toBe(true)
-    expect(
-      rows.some(
-        (r) =>
-          (r.event as { kind?: string }).kind === 'task.progress' &&
-          (r.event as { event?: { role?: string } }).event?.role === 'assistant'
-      )
-    ).toBe(true)
+    expect(rows.some((r) => isProgressRole(r, 'user'))).toBe(true)
+    expect(rows.some((r) => isProgressRole(r, 'assistant'))).toBe(true)
     expect(rows.some((r) => (r.event as { event?: { kind?: string } }).event?.kind === 'verification')).toBe(false)
-    // The conversation turn ran (3b: every run is single-shot).
-    expect(seen.length).toBeGreaterThanOrEqual(1)
-    // The returned id is the conversation turnId, not a Task id.
+    // The returned id is the conversation run id (a ULID), not a Task id.
     expect(turnId).toMatch(/^[0-9A-Z]{26}$/)
 
-    // Agent-authored work via create_task also creates no Task row post-4b —
-    // it is a top-level run on the run-event stream.
-    const work = await (
-      manager as unknown as {
-        __runWorkTaskForTest: (s: string, g: string) => Promise<{ taskId: string }>
-      }
-    ).__runWorkTaskForTest(sessionId, 'build it')
-    expect(store.getRunEvents(sessionId).some((r) => r.runId === work.taskId)).toBe(true)
+    // Agent-authored work via runWork is a top-level run on the run-event stream.
+    const work = await service.runWork(sessionId, 'build it')
+    expect(store.getRunEvents(sessionId).some((r) => r.runId === work.runId)).toBe(true)
 
     store.close()
   })

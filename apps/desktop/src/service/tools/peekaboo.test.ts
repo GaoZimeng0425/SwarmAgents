@@ -5,7 +5,6 @@ import { buildPeekabooTools, clickArgs, hotkeyArgs, scrollArgs, typeArgs } from 
 describe('peekaboo tools', () => {
   it('exposes see_screen and list_apps with TypeBox schemas', () => {
     const tools = buildPeekabooTools({
-      send: () => {},
       requestPermission: async () => 'grant',
     })
 
@@ -18,7 +17,7 @@ describe('peekaboo tools', () => {
   })
 
   it('exposes the interaction tools alongside the read-only ones', () => {
-    const tools = buildPeekabooTools({ send: () => {}, requestPermission: async () => 'grant' })
+    const tools = buildPeekabooTools({ requestPermission: async () => 'grant' })
     expect(tools.map((t) => t.name).sort()).toEqual(['click', 'hotkey', 'list_apps', 'scroll', 'see_screen', 'type'])
   })
 })

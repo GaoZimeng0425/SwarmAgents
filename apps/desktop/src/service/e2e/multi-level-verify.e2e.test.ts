@@ -1,151 +1,124 @@
 // src/service/e2e/multi-level-verify.e2e.test.ts
 //
-// Phase 3b regression: drives the REAL manager task tree (runWorkTask →
-// spawnChild) with a scripted createAgentRunner mock that exercises the
-// three-level delegation chain (CEO → team Leaders → leaf engineers).
+// End-to-end guard for the three-level delegation machinery (CEO → team Leaders
+// → leaf engineers) over the REAL SessionService + launch + engine and a real
+// store. Every level runs single-shot: no maxVerifyRounds, no acceptance
+// criteria, no verification audit. The tree shape lives in run_events.parentRunId.
 //
-// Post-3b every level runs single-shot: there is no `maxVerifyRounds` field
-// on the runner deps, no `acceptanceCriteria` is threaded into spawnChild,
-// and no verification audit is persisted on tasks. The DB columns
-// `verifications`/`acceptance_criteria` are KEPT (rollback safety) but stay
-// at their default `'[]'`, and the typed `Task` no longer surfaces them.
-//
-// This file was deleted in Task 1 (it asserted the removed `maxVerifyRounds`
-// threading) and is recreated here for the agent-driven model.
+// The delegation is driven from the test through each run's captured
+// ToolRunContext (ctx.spawnChild / ctx.setDelegationPlan) — the same seam the
+// create_task/delegation tools use in production — because the mocked pi Agent
+// auto-completes and cannot itself decide to spawn.
 
+import type { ProviderInjection } from '@swarm/protocol'
 import { defaultAgents } from '@swarm/shared'
 import { describe, expect, it, vi } from 'vitest'
 
+const MockAgent = vi.hoisted(() => vi.fn())
+vi.mock('@earendil-works/pi-agent-core', () => ({ Agent: MockAgent }))
+
 import { createConversationStore } from '../conversation/store'
-import { createSessionManager } from '../session/manager'
+import { createSessionService } from '../session/session-service'
+import type { ToolRegistry, ToolRunContext } from '../tools/registry'
 
-type RunRecord = {
-  taskId: string
-  agent: string
-  isHead: boolean
-  // Post-3b: maxVerifyRounds is gone from deps. Recorded to prove the field
-  // is not threaded into any level of the tree (every entry is undefined).
-  maxVerifyRounds: unknown
-}
-
-const runs = vi.hoisted(() => [] as RunRecord[])
-
-vi.mock('../session/agent-runner', () => ({
-  createAgentRunner: (deps: any) => ({
-    run: async () => {
-      runs.push({
-        taskId: deps.correlationId,
-        agent: deps.agentDefinition.id,
-        isHead: deps.agentDefinition.teamRole === 'head',
-        maxVerifyRounds: deps.maxVerifyRounds,
-      })
-      // CEO: spawn two Leaders in parallel. Post-3b spawnChild takes only
-      // (parentTaskId, goal, suggestedTools?, providerKey?, agentType?) —
-      // no options struct, no criteria/verify threading.
-      if (deps.agentDefinition.id === 'ceo') {
-        await Promise.all([
-          deps.spawnChild(deps.correlationId, 'lead dev', undefined, undefined, 'engineering-lead'),
-          deps.spawnChild(deps.correlationId, 'lead qa', undefined, undefined, 'qa-lead'),
-        ])
-      } else if (deps.agentDefinition.teamRole === 'head') {
-        // Leader (team head): record a delegation plan, then spawn a leaf.
-        // The Leader self-reports — no verify loop runs over the leaf.
-        deps.emit('task.delegation_plan', {
-          taskId: deps.correlationId,
-          plan: [{ id: 'd1', goal: 'leaf work', dependsOn: [] }],
-          ts: Date.now(),
-        })
-        await deps.spawnChild(deps.correlationId, 'leaf work', undefined, undefined, 'engineer')
-      }
-      // Post-4b the translator emits task.complete (→ run_events); the mock
-      // stands in for it so every run reaches a terminal event.
-      deps.emit('task.complete', {
-        taskId: deps.correlationId,
-        summary: `${deps.agentDefinition.id}: done`,
-        ts: Date.now(),
-      })
-      return {
-        status: 'completed',
-        summary: `${deps.agentDefinition.id}: delivered`,
-        messages: [],
-        used: {},
-      }
-    },
-  }),
-  buildAgentSession: () => ({}),
-}))
-
-const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as never
-const roleStore = { get: (id: string) => defaultAgents.find((a) => a.id === id), list: () => defaultAgents }
-
-function makeMgr() {
-  const store = createConversationStore(':memory:')
-  const mgr = createSessionManager({
-    store,
-    broadcaster: { broadcast: () => {} },
-    maxConcurrent: 8,
-    getProvider: () => fakeProvider,
-    agentStore: roleStore as never,
+function installAgent(reply = 'done'): void {
+  MockAgent.mockImplementation(function (
+    this: Record<string, unknown>,
+    opts: { initialState?: { messages?: unknown[] } }
+  ) {
+    let sub: ((e: unknown) => void) | null = null
+    this.state = { messages: [...((opts.initialState?.messages as unknown[]) ?? [])] }
+    this.subscribe = (fn: (e: unknown) => void): void => {
+      sub = fn
+    }
+    this.abort = (): void => undefined
+    this.prompt = async (goal: string): Promise<void> => {
+      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: goal })
+      const ok = { role: 'assistant', content: [{ type: 'text', text: reply }], stopReason: 'end_turn' }
+      ;(this.state as { messages: unknown[] }).messages.push(ok)
+      sub?.({ type: 'turn_end', message: { usage: undefined } })
+      sub?.({ type: 'agent_end', messages: [ok] })
+    }
   })
-  return { store, mgr }
 }
 
+// Stub registry that records every ToolRunContext (one per run launched).
+function stubRegistry(): { registry: ToolRegistry; ctxs: ToolRunContext[] } {
+  const ctxs: ToolRunContext[] = []
+  const registry = {
+    resolve: (_allow: string[], ctx: ToolRunContext) => {
+      ctxs.push(ctx)
+      return { tools: [], riskOf: () => 'low' as const }
+    },
+  } as unknown as ToolRegistry
+  return { registry, ctxs }
+}
+
+const fakeProvider = { id: 'p', model: 'test', apiStyle: 'anthropic', apiKey: 'k' } as unknown as ProviderInjection
+const roleStore = { get: (id: string) => defaultAgents.find((a) => a.id === id), list: () => defaultAgents }
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 30))
 
 describe('CEO → Leader → subagent pipeline (single-shot, agent-driven)', () => {
-  it('runs three levels single-shot; no maxVerifyRounds, no criteria/verifications on tasks', async () => {
-    runs.length = 0
-    const { store, mgr } = makeMgr()
-    const { sessionId } = mgr.createSession(fakeProvider)
+  it('runs three levels single-shot; tree shape + terminals live in run_events', async () => {
+    installAgent()
+    const store = createConversationStore(':memory:')
+    const { registry, ctxs } = stubRegistry()
+    const service = createSessionService({
+      store,
+      broadcaster: { broadcast: () => {} },
+      maxConcurrent: 8,
+      getProvider: () => fakeProvider,
+      agentStore: roleStore as never,
+      toolRegistry: registry,
+    })
+    const { sessionId } = service.createSession(fakeProvider)
 
-    const { taskId } = await (
-      mgr as unknown as {
-        __runWorkTaskForTest: (
-          s: string,
-          g: string,
-          options?: { agentType?: string }
-        ) => Promise<{ taskId: string; result: unknown }>
-      }
-    ).__runWorkTaskForTest(sessionId, 'ship it', { agentType: 'ceo' })
-    // Let any tail child persistence settle.
+    // Level 1: CEO. runWork returns { runId, status, summary }; a spawned child
+    // returns { childTaskId, status, result } (the tool-facing shape).
+    const ceo = await service.runWork(sessionId, 'ship it', { agentType: 'ceo' })
+    const ceoCtx = ctxs[0]
+
+    // Level 2: two Leaders under the CEO. Each records a delegation plan and
+    // then spawns one leaf engineer (level 3).
+    const leadA = await ceoCtx.spawnChild('lead dev', undefined, undefined, 'engineering-lead')
+    const leadACtx = ctxs[ctxs.length - 1]
+    leadACtx.setDelegationPlan!([{ id: 'd1', goal: 'leaf work', dependsOn: [] }])
+    const leafA = await leadACtx.spawnChild('leaf work', undefined, undefined, 'engineer')
+
+    const leadB = await ceoCtx.spawnChild('lead qa', undefined, undefined, 'qa-lead')
+    const leadBCtx = ctxs[ctxs.length - 1]
+    leadBCtx.setDelegationPlan!([{ id: 'd2', goal: 'leaf work', dependsOn: [] }])
+    const leafB = await leadBCtx.spawnChild('leaf work', undefined, undefined, 'engineer')
     await flush()
 
-    const ceo = runs.find((r) => r.agent === 'ceo')
-    const heads = runs.filter((r) => r.isHead)
-    const leaves = runs.filter((r) => r.agent === 'engineer')
+    // Every run completed.
+    expect(ceo.status).toBe('completed')
+    for (const r of [leadA, leadB, leafA, leafB]) expect(r.status).toBe('completed')
 
-    // All three levels ran: 1 CEO, 2 Leaders (engineering-lead + qa-lead), 2 leaves.
-    expect(ceo).toBeDefined()
-    expect(heads).toHaveLength(2)
-    expect(leaves).toHaveLength(2)
-
-    // Post-3b: maxVerifyRounds is gone from deps at every level — single-shot
-    // for CEO, Leaders, and leaves alike.
-    for (const r of runs) expect(r.maxVerifyRounds).toBeUndefined()
-
-    // Post-4b: no Task rows — the tree shape lives in run_events.parentRunId.
     const allEvents = store.getRunEvents(sessionId)
     const parentOf = (runId: string): string | null => allEvents.find((r) => r.runId === runId)?.parentRunId ?? null
     const isTerminal = (runId: string): boolean =>
       allEvents.some(
         (r) =>
           r.runId === runId &&
-          ((r.event as { kind?: string }).kind === 'task.complete' ||
-            (r.event as { kind?: string }).kind === 'task.error')
+          ((r.event as { kind?: string }).kind === 'run.complete' ||
+            (r.event as { kind?: string }).kind === 'run.error')
       )
 
-    // Tree shape: heads parented by the CEO, leaves parented by a head.
-    const headIds = heads.map((h) => h.taskId)
-    for (const h of heads) expect(parentOf(h.taskId)).toBe(taskId)
-    for (const l of leaves) expect(headIds).toContain(parentOf(l.taskId))
+    // Tree shape: Leaders parented by the CEO, leaves parented by their Leader.
+    expect(parentOf(leadA.childTaskId)).toBe(ceo.runId)
+    expect(parentOf(leadB.childTaskId)).toBe(ceo.runId)
+    expect(parentOf(leafA.childTaskId)).toBe(leadA.childTaskId)
+    expect(parentOf(leafB.childTaskId)).toBe(leadB.childTaskId)
 
     // Single-shot — every run reaches a terminal event, no verify stall.
-    for (const r of runs) expect(isTerminal(r.taskId)).toBe(true)
+    for (const id of [ceo.runId, leadA.childTaskId, leadB.childTaskId, leafA.childTaskId, leafB.childTaskId])
+      expect(isTerminal(id)).toBe(true)
 
     // Leaders that declared a delegation plan emit it on the run stream.
-    for (const h of heads) {
+    for (const lead of [leadA, leadB]) {
       const planEvt = allEvents.find(
-        (r) => r.runId === h.taskId && (r.event as { kind?: string }).kind === 'task.delegation_plan'
+        (r) => r.runId === lead.childTaskId && (r.event as { kind?: string }).kind === 'run.delegation_plan'
       )
       expect((planEvt?.event as { plan?: unknown[] } | undefined)?.plan ?? []).toHaveLength(1)
     }

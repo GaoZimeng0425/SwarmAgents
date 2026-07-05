@@ -1,12 +1,11 @@
 import { spawn } from 'node:child_process'
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { Outbound, PermissionDecision } from '@swarm/protocol'
+import type { PermissionDecision } from '@swarm/protocol'
 
 const PEEKABOO_BIN = process.env.PEEKABOO_BIN ?? 'peekaboo'
 
 type Deps = {
-  send: (msg: Outbound) => void
   requestPermission: (args: {
     toolName: string
     risk: 'low' | 'medium' | 'high'
