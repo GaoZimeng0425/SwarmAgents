@@ -228,7 +228,7 @@ describe('launchRun', () => {
     await p
   })
 
-  it('passes ports.createTask straight through to the tool context', async () => {
+  it('wires ports.createTask into the tool context (wrapped for slot-yield, not a bare pass-through)', async () => {
     installAgent()
     holdPrompt = true
     const s = sink()
@@ -236,9 +236,34 @@ describe('launchRun', () => {
     const { ports, getCtx } = makePorts(s, { createTask })
     const p = launchRun(spec(), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
-    expect(getCtx().createTask).toBe(createTask)
+    expect(getCtx().createTask).toBeDefined()
+    const res = await getCtx().createTask!('goal', 'agentType')
+    expect(createTask).toHaveBeenCalledWith('goal', 'agentType')
+    expect(res.result.summary).toBe('work done')
     resolveHeldPrompt()
     await p
+  })
+
+  it("releases the parent's slot while a createTask call blocks and reacquires after (ledger #5, pool-wedge fix)", async () => {
+    installAgent()
+    holdPrompt = true
+    const s = sink()
+    let finishCreateTask: (r: { taskId: string; result: { summary: string; artifacts: never[] } }) => void = () =>
+      undefined
+    const { ports, slotLog, getCtx } = makePorts(s, {
+      createTask: () => new Promise((res) => (finishCreateTask = res as never)),
+    })
+    const p = launchRun(spec(), ports)
+    await vi.waitFor(() => expect(getCtx()).toBeDefined())
+    const taskP = getCtx().createTask!('child goal')
+    await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release']))
+    finishCreateTask({ taskId: 't1', result: { summary: 'work done', artifacts: [] } })
+    const res = await taskP
+    expect(res.result.summary).toBe('work done')
+    await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release', 'acquire']))
+    resolveHeldPrompt()
+    await p
+    expect(slotLog).toEqual(['acquire', 'release', 'acquire', 'release'])
   })
 
   it('spawnChild rejects loudly when no delegate port is bound', async () => {

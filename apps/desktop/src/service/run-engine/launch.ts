@@ -204,7 +204,12 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
           })
         )
       },
-      createTask: ports.createTask,
+      // Joins spawnChild in yielding the parent slot while it awaits (ledger #5):
+      // uniform wiring means create_task asTopLevel is available on EVERY run,
+      // so without this a full pool of parents could wedge on each other.
+      createTask: ports.createTask
+        ? (goal, agentType) => withSlotReleased(() => ports.createTask!(goal, agentType))
+        : undefined,
       // Tools must NOT self-gate: permission is enforced centrally in the engine.
       requestPermission: () => Promise.resolve('grant' as const),
       findPeers: (q) => ports.findAgents?.(q) ?? [],

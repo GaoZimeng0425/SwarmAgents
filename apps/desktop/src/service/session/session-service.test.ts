@@ -142,9 +142,11 @@ function createFakeStore() {
     },
     getAgentSnapshot: (id: string) => sessions.get(id)?.agentSnapshot ?? [],
     appendRunEvent: (sessionId: string, runId: string, parentRunId: string | null, event: UIEvent) => {
-      const list = rows.get(sessionId)
-      // A deleted session drops its FK target: writes no-op (mirrors the DB).
-      if (!list) return
+      // run_events has NO foreign key on session_id: the real store INSERTS
+      // unconditionally, even for a deleted session (mirrors store.ts). The
+      // service — not the store — is what guards against post-delete writes.
+      const list = rows.get(sessionId) ?? []
+      rows.set(sessionId, list)
       const e = event as unknown as { seq: number; ts: number }
       list.push({ runId, parentRunId, seq: e.seq, ts: e.ts, event })
     },
@@ -424,8 +426,16 @@ describe('SessionService', () => {
       expect(service.terminalRegistry.getStatus(a)).toBe('cancelled')
       expect(service.terminalRegistry.getStatus(b)).toBe('cancelled')
     })
-    // Rows dropped with the session.
+    // Rows dropped with the session (the SERVICE guard prevents post-delete
+    // appends now — the fake store itself inserts unconditionally, mirroring
+    // the real no-FK DB).
     expect(store.getRunEvents(sessionId)).toEqual([])
+    // The registry/broadcast path is unaffected by the persistence skip: both
+    // cancelled terminals still went out over the wire.
+    const errorRunIds = calls
+      .filter((c) => c.event.startsWith('run.') && (c.data as { kind: string }).kind === 'run.error')
+      .map((c) => (c.data as { runId: string }).runId)
+    expect(errorRunIds).toEqual(expect.arrayContaining([a, b]))
     releaseAllHeld()
   })
 })

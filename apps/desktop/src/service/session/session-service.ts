@@ -120,6 +120,11 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   const { store, broadcaster } = cfg
   const toolRegistry = cfg.toolRegistry ?? buildDefaultRegistry()
   const sessions = new Map<string, SessionState>()
+  // Service-lifetime guard: run_events has NO foreign key on session_id, so a
+  // background run's post-delete append would otherwise silently INSERT an
+  // orphan row (not a no-op). This is what makes deleteSession's persistence
+  // cutoff real; W4's migration should sweep any historical orphans.
+  const deletedSessions = new Set<string>()
 
   // Inject the available-skills list and sub-agent-type catalog into the agent's
   // system prompt at task time, so newly-added skills/agents appear without a restart.
@@ -154,8 +159,15 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   // run.* union), marks the first-wins terminal registry, broadcasts on the wire.
   const emitPorts: RunEmitPorts = {
     nextSeq: (sid) => seqCounter.nextSeq(sid),
-    appendEvent: (evt) =>
-      store.appendRunEvent(evt.sessionId, evt.runId, evt.parentRunId ?? null, evt as unknown as UIEvent),
+    appendEvent: (evt) => {
+      // Deleted-session guard: skip persistence only — markTerminal/broadcast
+      // are separate port calls in createRunEmit and proceed unaffected.
+      if (deletedSessions.has(evt.sessionId)) {
+        log.debug({ msg: 'run event dropped for deleted session', runId: evt.runId, kind: evt.kind })
+        return
+      }
+      store.appendRunEvent(evt.sessionId, evt.runId, evt.parentRunId ?? null, evt as unknown as UIEvent)
+    },
     markTerminal: (runId, status) => terminalRegistry.markTerminal(runId, status),
     broadcast: (evt) => broadcaster.broadcast(evt.kind, evt),
   }
@@ -270,8 +282,11 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     })
   // Called when a turn's launchRun promise settles: clear it if current, or drop
   // it from the queue if it aborted while still waiting, then pump the next one.
+  // Looks up (never creates): a settlement racing a deleteSession must not
+  // resurrect an empty queue entry for a session that's already gone.
   const settleTurn = (sid: string, runId: string): void => {
-    const st = q(sid)
+    const st = turnQueues.get(sid)
+    if (!st) return
     if (st.current === runId) st.current = null
     else {
       const i = st.queue.findIndex((t) => t.runId === runId)
@@ -530,18 +545,28 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
 
       // The user message is a first-class, seq'd run.progress event rendered in
       // true causal position — right after run.created, before dispatch (port of
-      // the 4c behavior).
-      createRunEmit(emitPorts, { sessionId, runId })({
-        kind: 'run.progress',
-        event: { kind: 'llm.message', role: 'user', content: prompt, ts: Date.now() },
-      })
-      store.updateSessionLastActive(sessionId)
+      // the 4c behavior). Guarded: a throwing store here must not escape to the
+      // dispatcher while the run is already streaming (Minor #3).
+      try {
+        createRunEmit(emitPorts, { sessionId, runId })({
+          kind: 'run.progress',
+          event: { kind: 'llm.message', role: 'user', content: prompt, ts: Date.now() },
+        })
+        store.updateSessionLastActive(sessionId)
 
-      // First goal titles the session.
-      if (!store.getSession(sessionId)?.title) {
-        const title = prompt.slice(0, 60)
-        store.setSessionTitle(sessionId, title)
-        broadcaster.broadcast('session.updated', { sessionId, title, lastActiveAt: Date.now(), ts: Date.now() })
+        // First goal titles the session.
+        if (!store.getSession(sessionId)?.title) {
+          const title = prompt.slice(0, 60)
+          store.setSessionTitle(sessionId, title)
+          broadcaster.broadcast('session.updated', { sessionId, title, lastActiveAt: Date.now(), ts: Date.now() })
+        }
+      } catch (err) {
+        log.error({
+          msg: 'post-launch bookkeeping failed',
+          sessionId,
+          runId,
+          err: err instanceof Error ? err.message : String(err),
+        })
       }
       log.info({
         msg: 'conversation turn submitted',
@@ -616,8 +641,11 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
 
     deleteSession(sessionId) {
       log.info({ msg: 'session deleted', sessionId })
-      // Abort any in-flight runs for this session before dropping its rows; a
-      // background run's later writes to the deleted session are no-ops (FK gone).
+      // Mark deleted BEFORE aborting in-flight runs: run_events has no FK on
+      // session_id, so without this guard a background run's post-abort event
+      // would silently INSERT an orphan row — this in-memory set is what
+      // actually cuts off persistence.
+      deletedSessions.add(sessionId)
       const st = turnQueues.get(sessionId)
       if (st) {
         if (st.current) aborts.get(st.current)?.()

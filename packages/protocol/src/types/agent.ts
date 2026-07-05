@@ -25,7 +25,7 @@ export const AgentDefinitionSchema = z.object({
   description: z.string().min(1).max(1024),
   systemPrompt: z.string(),
   toolScope: ToolScopeSchema,
-  /** Discoverable role handle (distinct from the per-instance actor name). When unset, the directory treats `id` as the role. */
+  /** Discoverable role handle: a human-readable display name for the definition. When unset, the directory treats `id` as the role. */
   role: z.string().optional(),
   /** Capability tags for finer discovery queries. */
   capabilities: z.array(z.string()).optional(),
