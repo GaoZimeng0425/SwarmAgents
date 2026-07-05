@@ -1,8 +1,9 @@
 // apps/desktop/src/renderer/src/lib/palette/scope.ts
 // Pure scope parser for the ⌘K command palette input row.
 
-// Inline the union here; Task 2 promotes it to types.ts and this file re-exports.
-export type PaletteScope = 'command' | 'agent' | 'task' | 'file' | 'mixed'
+import type { PaletteScope } from './types'
+
+export type { PaletteScope }
 
 export type ScopeMeta = {
   /** Chinese pill label, or null for mixed (no pill rendered). */
