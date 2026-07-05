@@ -6,6 +6,7 @@ import type { ServiceClient } from '@swarm/protocol'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import type { Service as BudgetsService } from '../budgets'
+import type { CmdPaletteHandle } from '../cmd-palette'
 import { swarmHome } from '../constants'
 import type { Service as McpService } from '../mcp-servers'
 import type { Service as ProvidersService } from '../providers'
@@ -48,8 +49,9 @@ export function wireSwarmIpc(args: {
   mcpServers: McpService
   webSearch: WebSearchService
   budgets: BudgetsService
+  cmdPalette?: CmdPaletteHandle
 }): { dispose: () => void } {
-  const { serviceClient, providers, mcpServers, webSearch, budgets } = args
+  const { serviceClient, providers, mcpServers, webSearch, budgets, cmdPalette } = args
 
   // ---- MCP config ↔ service bridge ----
   // Push the persisted config to the service now, and on every change. The
@@ -257,6 +259,16 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:listAllCronRuns', () => listAllCronRuns())
   ipcMain.handle('swarm:cancelCronJob', cancelCronJob)
 
+  // ---- Command palette: session export + observable artifacts ----
+  ipcMain.handle('swarm:exportSessionMarkdown', (_e, sessionId: string) =>
+    serviceClient.exportSessionMarkdown(sessionId)
+  )
+  if (cmdPalette) {
+    ipcMain.handle('swarm:listArtifacts', (_e, opts?: { cwd?: string; query?: string; limit?: number }) =>
+      cmdPalette.listArtifacts(opts ?? {})
+    )
+  }
+
   const handleGetAccent = (): string | null => getAccent()
   ipcMain.handle('system:getAccent', handleGetAccent)
 
@@ -384,6 +396,8 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:listAllCronJobs')
       ipcMain.removeHandler('swarm:listAllCronRuns')
       ipcMain.removeHandler('swarm:cancelCronJob')
+      ipcMain.removeHandler('swarm:exportSessionMarkdown')
+      ipcMain.removeHandler('swarm:listArtifacts')
     },
   }
 }

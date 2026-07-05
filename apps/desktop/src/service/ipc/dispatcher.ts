@@ -82,6 +82,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         const [sessionId] = args as [string]
         return service.getRunEvents(sessionId)
       }
+      case 'exportSessionMarkdown': {
+        const [sessionId] = args as [string]
+        return service.exportSessionMarkdown(sessionId)
+      }
       case 'deleteSession': {
         const [sessionId] = args as [string]
         service.deleteSession(sessionId)

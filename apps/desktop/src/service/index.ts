@@ -41,6 +41,8 @@ const dbPath = process.env.SWARM_SERVICE_DB_PATH ?? join(tmpdir(), 'swarm-agent-
 const memoryPath = process.env.SWARM_SERVICE_MEMORY_PATH ?? join(tmpdir(), 'swarm-agent-memory.json')
 const skillsPath = process.env.SWARM_SERVICE_SKILLS_PATH ?? join(tmpdir(), 'swarm-agent-skills')
 const agentsPath = process.env.SWARM_SERVICE_AGENTS_PATH ?? join(tmpdir(), 'swarm-agent-agents')
+// Session-markdown exports land here (the command palette's "export" action).
+const exportsDir = process.env.SWARM_SERVICE_EXPORTS_DIR ?? join(tmpdir(), 'swarm-agent-exports')
 
 const store = createConversationStore(dbPath)
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
@@ -89,6 +91,7 @@ const service = createSessionService({
   agentStore,
   getBudgetConfig: () => budgetConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
+  exportsDir,
 })
 
 const scheduler = createCronScheduler({
