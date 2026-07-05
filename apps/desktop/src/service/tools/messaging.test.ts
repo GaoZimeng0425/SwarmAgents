@@ -37,7 +37,6 @@ describe('find_agents tool', () => {
     const text = res.content.map((c) => (c.type === 'text' ? c.text : '')).join('')
     expect(text).toContain('pm (role pm)')
     expect(text).toContain('a1')
-    expect(text).toContain('active')
     expect(text).toContain('caps: planning')
   })
 

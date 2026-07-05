@@ -16,7 +16,7 @@ const FindParams = Type.Object({
   ),
   team: Type.Optional(Type.String({ description: 'Filter to agents on this team, e.g. "dev" or "training".' })),
   teamRole: Type.Optional(
-    Type.String({ description: 'Filter to a team role; use "head" to find each team\'s entry-point agent.' })
+    Type.String({ description: 'Filter to a team role; use "head" to find each team\'s coordinating Lead.' })
   ),
 })
 
@@ -30,7 +30,7 @@ export function findAgentsSpec(): ToolSpec {
       name: 'find_agents',
       label: 'Find agents',
       description:
-        'Discover other agents in this session by role, capability, or free-text query. Call with no arguments to list everyone available.',
+        "Discover the agent types available for delegation, filtered by role, team, or free-text query. Each result's id is the agentType to pass to create_task. Call with no arguments to list everyone.",
       parameters: FindParams,
       execute: async (_id: string, params: unknown) => {
         const peers = ctx.findPeers((params ?? {}) as PeerQuery)
@@ -40,7 +40,7 @@ export function findAgentsSpec(): ToolSpec {
         const lines = peers.map((p) => {
           const caps = p.capabilities.length ? ` · caps: ${p.capabilities.join(', ')}` : ''
           const team = p.team ? ` · team ${p.team}${p.teamRole === 'head' ? ' (head)' : ''}` : ''
-          return `- ${p.name ?? '(unnamed)'} (role ${p.role}) · ${p.address} · ${p.status}${team} · ${p.description}${caps}`
+          return `- ${p.address} — ${p.name ?? p.address} (role ${p.role})${team} · ${p.description}${caps}`
         })
         return { content: [{ type: 'text', text: lines.join('\n') }], details: { count: peers.length } }
       },
