@@ -34,7 +34,7 @@ function relativeTime(ts: number): string {
 
 type Props = { entries: MemoryView[]; isError: boolean; onRetry: () => void }
 
-/** Read-only memory list grouped by category. Lives inside RightPanel's Memory tab. */
+/** Read-only memory list grouped by category. Reachable via the command palette (memory items). */
 export function MemoryPanel({ entries, isError, onRetry }: Props): React.JSX.Element {
   if (isError) {
     return (

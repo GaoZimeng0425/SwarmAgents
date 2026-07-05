@@ -30,7 +30,6 @@ export function TimelineTab({ rows }: Props): React.JSX.Element {
       {rows.map((r) => {
         const { Icon, className } = ICONS[r.kind]
         return (
-          // biome-ignore lint/suspicious/noArrayIndexKey: rows are append-only; id is unique but seq-based
           <li className="flex items-center gap-2 text-xs" key={r.id}>
             <span className="font-mono text-muted-foreground tabular-nums">{hhmm(r.ts)}</span>
             <Icon className={`${className} size-3.5 shrink-0`} />
