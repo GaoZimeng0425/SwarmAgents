@@ -260,19 +260,57 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   const terminalRegistry = createTerminalRegistry(store.getTerminalRunStatuses())
   const emitPorts: RunEmitPorts = { /* the adapter from the Behavior contract */ }
 
-  // Global slot pool → launch's acquireSlot(signal): Promise<() => void>
+  // Global slot pool → launch's acquireSlot(signal): Promise<() => void>.
+  // CONTRACT (W2 final review): once `signal` aborts, resolve PROMPTLY — a
+  // parked waiter that ignores the signal wedges the cancelled run and the
+  // session FIFO behind it. Grants that land in the same tick as the abort
+  // are handed straight back.
   let active = 0
   const waiters: Array<() => void> = []
-  const acquireSlot = async (_signal: AbortSignal): Promise<(() => void)> => {
-    if (active >= cfg.maxConcurrent) await new Promise<void>((r) => waiters.push(r))
-    else active++
+  const releaseSlot = (): void => {
+    const next = waiters.shift()
+    if (next) next() // slot transferred to the woken waiter
+    else active--
+  }
+  const acquireSlot = async (signal: AbortSignal): Promise<() => void> => {
+    const granted = await new Promise<boolean>((resolve) => {
+      if (active < cfg.maxConcurrent) {
+        active++
+        resolve(true)
+        return
+      }
+      if (signal.aborted) {
+        resolve(false)
+        return
+      }
+      const grant = (): void => {
+        cleanup()
+        resolve(true) // the releasing run transferred its slot to us
+      }
+      const onAbort = (): void => {
+        const i = waiters.indexOf(grant)
+        if (i !== -1) {
+          waiters.splice(i, 1)
+          cleanup()
+          resolve(false)
+        }
+        // else: grant already fired (or is no longer queued) — the
+        // granted-then-aborted check below hands the slot back.
+      }
+      const cleanup = (): void => signal.removeEventListener('abort', onAbort)
+      waiters.push(grant)
+      signal.addEventListener('abort', onAbort, { once: true })
+    })
+    if (!granted) return () => undefined
+    if (signal.aborted) {
+      releaseSlot() // granted in the same tick as the abort: hand it back
+      return () => undefined
+    }
     let released = false
     return () => {
       if (released) return
       released = true
-      const next = waiters.shift()
-      if (next) next()
-      else active--
+      releaseSlot()
     }
   }
 
@@ -310,7 +348,11 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
 }
 ```
 
-IMPORTANT wiring note: W2's `launch.ts` builds `ctx.spawnChild` from `ports.delegate` but does NOT set `ctx.createTask`. Extend `LaunchPorts` in `run-engine/launch.ts` with an optional `createTask?: (goal: string, agentType?: string) => Promise<{ taskId: string; result: TaskResult }>` and one ctx line `createTask: ports.createTask` (+ a launch.test assertion that it's passed through). This is a 3-line W2-module change owned by THIS task — list it in the commit. SessionService binds it to `runWork` for every run.
+IMPORTANT wiring note — W2-module changes owned by THIS task (scope corrected per the W2 final review; more than the original "3 lines"):
+1. `run-engine/launch.ts`: extend `LaunchPorts` with `createTask?: (goal: string, agentType?: string) => Promise<{ taskId: string; result: TaskResult }>` and one ctx line `createTask: ports.createTask` (+ a launch.test passthrough assertion). In `buildAnalyzeImage`'s nested ports, set `createTask: undefined` explicitly (the `...ports` spread would otherwise leak it into the tool-less vision run).
+2. Child STATUS must survive to the tool layer (spec §4, ledger #6): in `tools/registry.ts`, widen `ToolRunContext.spawnChild`'s return to `Promise<{ childTaskId: string; result: TaskResult; status?: 'completed' | 'failed' | 'cancelled' }>` (optional — the old manager's spawnChild keeps compiling), and in `launch.ts` map it through: `.then((r) => ({ childTaskId: r.runId, result: { summary: r.summary, artifacts: [] }, status: r.status }))`. The create_task tool surfaces it in W4.
+3. `run-engine/emit.ts`: wrap `ports.broadcast(evt)` in try/catch (log-only) — persistence already succeeded by then; a throwing broadcaster must not reject the engine and trigger launch's synthetic second terminal row (W2 final-review Minor #3). Add an emit.test case: throwing broadcast → appendEvent row still written, no throw escapes.
+SessionService binds `createTask` to `runWork` for every run.
 
 - [ ] **Step 3: Green + module suite**
 
@@ -343,4 +385,4 @@ Extends LaunchPorts with a createTask passthrough."
 
 ## Forward pointer
 
-W4 (final plan): protocol UIEvent task.* members → the run.* union; renderer reducer/hooks/libs/components rename; IPC `swarm:cancelTask`→`cancelRun` + SubmitGoalResult.runId; `create_task`→`delegate` tool rename with DelegateResult.status surfaced; run_events SQL migration (idempotent, schema_meta-versioned); dispatcher/index switch to SessionService; DELETE manager execution half + agent-runner.ts + their remaining tests; e2e rewrite as delegate trees; the two spec-§6 dead knobs (`ResourceBudget.tokens` removal from schema/defaults/UI; `toolScope` collapse to an authoring boolean) ride this protocol-touching wave; full gate + run-desktop smoke.
+W4 (final plan): protocol UIEvent task.* members → the run.* union; renderer reducer/hooks/libs/components rename; IPC `swarm:cancelTask`→`cancelRun` + SubmitGoalResult.runId; `create_task`→`delegate` tool rename with DelegateResult.status surfaced; run_events SQL migration (idempotent, schema_meta-versioned); dispatcher/index switch to SessionService; DELETE manager execution half + agent-runner.ts + their remaining tests; e2e rewrite as delegate trees; the two spec-§6 dead knobs (`ResourceBudget.tokens` removal from schema/defaults/UI; `toolScope` collapse to an authoring boolean) ride this protocol-touching wave; port v1's `onPayload`/`onResponse` HTTP logging hooks into the engine's Agent construction (W2 dropped them; `onResponse` was info-level provider forensics, not debug); the renderer reducer must accept migrated `run.spawned` rows while new runs carry linkage only via `parentRunId` on `run.created`; full gate + run-desktop smoke.
