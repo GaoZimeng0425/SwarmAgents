@@ -125,6 +125,20 @@ export type CronRun = {
   error: string | null
 }
 
+/** One entry in the command palette's `/` 文件 & 产出 scope. */
+export type ArtifactEntry = {
+  /** Source of the entry. `file` = cwd-recent-file; `bilibili-analysis` = a saved Bilibili summary. */
+  kind: 'file' | 'bilibili-analysis'
+  /** Display name: filename for `file`; video title for `bilibili-analysis`. */
+  name: string
+  /** Filesystem path (`file`) or bvid (`bilibili-analysis`). */
+  ref: string
+  size?: number
+  modifiedAt?: number
+  /** Origin label: the cwd path for `file`; "Bilibili" for `bilibili-analysis`. */
+  origin: string
+}
+
 export type PermissionDecision = 'grant' | 'deny' | 'skip'
 
 export type SubmitGoalResult = { runId: string }
