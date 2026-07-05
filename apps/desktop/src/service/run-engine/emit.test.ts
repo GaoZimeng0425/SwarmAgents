@@ -66,6 +66,20 @@ describe('createRunEmit', () => {
     expect(ports.markTerminal).toHaveBeenCalledWith('r1', 'cancelled')
   })
 
+  it('swallows a throwing broadcaster: the append row is still written and nothing escapes', () => {
+    const ports = makePorts()
+    ports.broadcast.mockImplementation(() => {
+      throw new Error('dead IPC sink')
+    })
+    const emit = createRunEmit(ports as RunEmitPorts, { sessionId: 's1', runId: 'r1' })
+
+    expect(() => emit({ kind: 'run.complete', summary: 'done' })).not.toThrow()
+    // Persistence + terminal marking happened before the broadcast blew up.
+    expect(ports.appendEvent).toHaveBeenCalledTimes(1)
+    expect(ports.markTerminal).toHaveBeenCalledWith('r1', 'completed')
+    expect(ports.broadcast).toHaveBeenCalledTimes(1)
+  })
+
   it('includes parentRunId on every event when the identity carries one, and omits it otherwise', () => {
     const ports = makePorts()
     createRunEmit(ports as RunEmitPorts, { sessionId: 's1', runId: 'child', parentRunId: 'parent' })({

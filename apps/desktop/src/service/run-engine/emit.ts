@@ -1,4 +1,7 @@
+import { createLogger } from '@shared/logger'
 import { type RunWireEvent, type TerminalStatus, terminalStatusForRunEvent } from '@swarm/protocol'
+
+const log = createLogger({ process: 'service' }).child({ component: 'run-emit' })
 
 // Omit that distributes over a union (plain Omit collapses union members).
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
@@ -47,6 +50,19 @@ export function createRunEmit(ports: RunEmitPorts, ids: RunIdentity): RunEmit {
     ports.appendEvent(evt)
     const term = terminalStatusForRunEvent(evt)
     if (term) ports.markTerminal(ids.runId, term)
-    ports.broadcast(evt)
+    // Persistence already succeeded; a throwing broadcaster (e.g. a dead IPC
+    // sink) must NOT reject the engine and trigger launch's synthetic second
+    // terminal row. Log-only (W2 final-review Minor #3).
+    try {
+      ports.broadcast(evt)
+    } catch (err) {
+      log.error({
+        msg: 'broadcast failed',
+        kind: evt.kind,
+        sessionId: ids.sessionId,
+        runId: ids.runId,
+        err: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 }

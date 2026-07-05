@@ -228,6 +228,19 @@ describe('launchRun', () => {
     await p
   })
 
+  it('passes ports.createTask straight through to the tool context', async () => {
+    installAgent()
+    holdPrompt = true
+    const s = sink()
+    const createTask = vi.fn(async () => ({ taskId: 't1', result: { summary: 'work done', artifacts: [] } }))
+    const { ports, getCtx } = makePorts(s, { createTask })
+    const p = launchRun(spec(), ports)
+    await vi.waitFor(() => expect(getCtx()).toBeDefined())
+    expect(getCtx().createTask).toBe(createTask)
+    resolveHeldPrompt()
+    await p
+  })
+
   it('spawnChild rejects loudly when no delegate port is bound', async () => {
     installAgent()
     holdPrompt = true

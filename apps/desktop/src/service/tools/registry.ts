@@ -33,7 +33,10 @@ export interface ToolRunContext {
     suggestedTools?: string[],
     providerKey?: string,
     agentType?: string
-  ): Promise<{ childTaskId: string; result: TaskResult }>
+    // `status` is the child's own terminal status, surfaced to the tool layer
+    // (spec §4, ledger #6). Optional so the legacy manager's spawnChild — which
+    // does not carry it — keeps compiling; the create_task tool reads it in W4.
+  ): Promise<{ childTaskId: string; result: TaskResult; status?: 'completed' | 'failed' | 'cancelled' }>
   /** Agent-authored work: create a top-level work Task (single-shot) and return its result. Absent outside conversation turns. */
   createTask?(goal: string, agentType?: string): Promise<{ taskId: string; result: TaskResult }>
   requestPermission: (args: {

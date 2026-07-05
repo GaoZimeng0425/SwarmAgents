@@ -8,6 +8,7 @@ import type {
   PermissionMode,
   ProviderInjection,
   ResourceBudget,
+  TaskResult,
 } from '@swarm/protocol'
 import { emptyUsed } from '@swarm/protocol'
 import { ulid } from 'ulid'
@@ -73,6 +74,8 @@ export type LaunchPorts = {
     goal: string,
     opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
   ) => Promise<DelegateResult>
+  /** Agent-authored top-level work run (SessionService binds this to runWork for EVERY run). */
+  createTask?: (goal: string, agentType?: string) => Promise<{ taskId: string; result: TaskResult }>
   writeAgent?: ToolRunContext['writeAgent']
   writeSkill?: ToolRunContext['writeSkill']
   findAgents?: ToolRunContext['findPeers']
@@ -197,9 +200,11 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
           (r) => ({
             childTaskId: r.runId,
             result: { summary: r.summary, artifacts: [] },
+            status: r.status,
           })
         )
       },
+      createTask: ports.createTask,
       // Tools must NOT self-gate: permission is enforced centrally in the engine.
       requestPermission: () => Promise.resolve('grant' as const),
       findPeers: (q) => ports.findAgents?.(q) ?? [],
@@ -315,6 +320,9 @@ function buildAnalyzeImage(
         emit: SILENT_EMIT_PORTS,
         waitTurn: undefined,
         delegate: undefined,
+        // The ...ports spread would otherwise leak createTask into this
+        // tool-less vision run; make its absence explicit.
+        createTask: undefined,
         // Rides the parent's slot: the nested run must not compete for the pool
         // while its parent already holds a slot (that's the ledger-#5 shape).
         acquireSlot: async () => () => undefined,
