@@ -5,8 +5,9 @@
 // purely from the controller's output (query/scope/sections/flat/preview/keys).
 //
 // Layout: DialogContent = [PaletteInput] over a flex row of
-// [PaletteResults (flex-1) | <aside> 296px preview]. Escape, ↑/↓/Enter and
-// lone-prefix Backspace are handled by usePaletteState.onKeyDown, which is
+// [PaletteResults (flex-1) | <aside> 296px preview], then a [PaletteFooter]
+// status bar. Escape, ↑/↓/Enter and lone-prefix Backspace are handled by
+// usePaletteState.onKeyDown, which is
 // attached to DialogContent so it sees keys while the <input> is focused.
 // The base-ui Dialog still dismisses on backdrop click / Esc via its own
 // handler — our onKeyDown calls preventDefault on Escape and clears-or-closes
@@ -20,6 +21,7 @@ import { usePaletteData } from '../../hooks/use-palette-data'
 import { useSubmitGoal } from '../../hooks/use-runs'
 import { swarmApi } from '../../lib/api'
 import type { Callbacks } from '../../lib/palette/build-items'
+import type { PaletteItem } from '../../lib/palette/types'
 import { useComposerDefaults } from '../../stores/composer-defaults'
 import { useSearchDialog } from '../../stores/search-dialog'
 import { useSettingsDialog } from '../../stores/settings-dialog'
@@ -29,6 +31,25 @@ import { PreviewSwitch } from './preview'
 import { usePaletteState } from './use-palette-state'
 
 const THEME_ORDER = ['system', 'light', 'dark'] as const
+
+// Footer bar: shows the selected row's title (or 未选择 when nothing is
+// selected) on the left, and a compact legend of the two keyboard affordances
+// (↵ 执行, ⌘K 操作) on the right. Mounted inside DialogContent after the
+// results+preview flex row so it always sits at the palette's bottom edge.
+function PaletteFooter({ selected }: { selected: PaletteItem | null }): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-between border-border/60 border-t px-4 py-2 text-muted-foreground text-xs">
+      <span className="min-w-0 truncate">{selected?.title ?? '未选择'}</span>
+      <span className="flex shrink-0 items-center gap-2">
+        <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px]">↵</kbd>
+        <span>执行</span>
+        <span className="opacity-50">·</span>
+        <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+        <span>操作</span>
+      </span>
+    </div>
+  )
+}
 
 export type PaletteDialogProps = {
   open: boolean
@@ -129,6 +150,8 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
             />
           </aside>
         </div>
+
+        <PaletteFooter selected={state.selected} />
       </DialogContent>
     </Dialog>
   )
