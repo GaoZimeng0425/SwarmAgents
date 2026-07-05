@@ -60,8 +60,8 @@ describe('RAIL_SECTIONS', () => {
 })
 
 describe('isConversationScene', () => {
-  it('is true on the home route and any session route', () => {
-    expect(isConversationScene('/')).toBe(true)
+  it('is true only on session routes (NOT the home route, which is the dashboard)', () => {
+    expect(isConversationScene('/')).toBe(false)
     expect(isConversationScene('/session/abc')).toBe(true)
     expect(isConversationScene('/session/abc/def')).toBe(true)
   })

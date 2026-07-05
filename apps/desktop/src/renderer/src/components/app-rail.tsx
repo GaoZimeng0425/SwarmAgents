@@ -1,16 +1,15 @@
 // 64px icon rail — the app's primary navigation. Two grouped sections
-// (场景 / 服务) rendered from rail-config.ts, plus a footer (设置 / 主题).
-// Route items navigate via TanStack Router; the single action item (编队)
-// opens the agents section of the SettingsDialog. Active state is derived
-// from useLocation so prefix matches (对话) and shared routes (日历+自动化
-// both on /scheduled) light up correctly.
+// (场景 / 服务) rendered from rail-config.ts, plus a footer (设置). Theme
+// lives in Settings → 通用. Route items navigate via TanStack Router; the
+// single action item (编队) opens the agents section of the SettingsDialog.
+// Active state is derived from useLocation so prefix matches (对话) and
+// shared routes (日历+自动化 both on /scheduled) light up correctly.
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Settings } from 'lucide-react'
 
 import { isActive, RAIL_SECTIONS, type RailItem } from '@/components/rail-config'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { useSettingsDialog } from '@/stores/settings-dialog'
 
 const iconBtn =
@@ -72,7 +71,7 @@ export function AppRail(): React.JSX.Element {
 
       <div className="flex-1" />
 
-      {/* Footer: settings (modal) + theme toggle. Mirrors the old sidebar footer. */}
+      {/* Footer: settings (modal). Theme lives in Settings → 通用 now. */}
       <Tooltip>
         <TooltipTrigger
           render={
@@ -83,7 +82,6 @@ export function AppRail(): React.JSX.Element {
         />
         <TooltipContent side="right">设置</TooltipContent>
       </Tooltip>
-      <ThemeToggle />
     </nav>
   )
 }
