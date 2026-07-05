@@ -74,9 +74,11 @@ export const RAIL_SECTIONS: RailSection[] = [
 ]
 
 // A scene where the conversation surface (and thus the session list) is the
-// focus: the home landing and any path under /session/. SessionPanel renders iff true.
+// focus: any path under /session/. The home route '/' is the dashboard (full
+// width, no list), so it is NOT a conversation scene. SessionPanel renders iff
+// true.
 export function isConversationScene(pathname: string): boolean {
-  return pathname === '/' || pathname.startsWith('/session/')
+  return pathname.startsWith('/session/')
 }
 
 export function isActive(item: RailItem, pathname: string): boolean {
