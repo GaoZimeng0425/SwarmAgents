@@ -116,6 +116,12 @@ export function createConversationStore(dbPath: string): ConversationStore {
     DROP TABLE IF EXISTS messages;
     DROP TABLE IF EXISTS actors;
 
+    -- Tracks which versioned migrations (below) have already run, so a
+    -- crash-and-retry or a later reopen never re-applies one.
+    CREATE TABLE IF NOT EXISTS schema_meta (
+      version INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       id              TEXT PRIMARY KEY,
       created_at      INTEGER NOT NULL,
@@ -173,6 +179,54 @@ export function createConversationStore(dbPath: string): ConversationStore {
     );
     CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(job_id);
   `)
+
+  // ---- Migration v2: task.* → run.* single-vocabulary switchover ----------
+  // Guarded by schema_meta.version so it runs exactly once across the DB's
+  // lifetime; runs inside ONE transaction so a crash mid-migration rolls back
+  // to the pre-migration state instead of leaving run_events half-rewritten.
+  const schemaMetaRow = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as { version: number } | undefined
+  if ((schemaMetaRow?.version ?? 0) < 2) {
+    const migrateToV2 = db.transaction(() => {
+      // 1. Orphan sweep: sessions deleted while runs were in flight, pre-guard
+      // (deleteSession's in-memory cutoff didn't exist yet on old builds).
+      db.exec('DELETE FROM run_events WHERE session_id NOT IN (SELECT id FROM sessions)')
+      // 2. task.handoff.completed rows are redundant linkage — the run's own
+      // terminal event plus parentRunId already carry the same information.
+      db.exec(`DELETE FROM run_events WHERE json_extract(event, '$.kind') = 'task.handoff.completed'`)
+      // 3. Kind renames. handoff.spawned MUST be rewritten first: its payload
+      // shape (parentTaskId/childTaskId, no taskId) differs from the generic
+      // task.<rest> pattern, and once renamed to run.spawned it no longer
+      // matches the LIKE below — renaming it after the generic sweep would
+      // instead (wrongly) produce run.handoff.spawned.
+      db.exec(
+        `UPDATE run_events SET event = json_set(event, '$.kind', 'run.spawned') WHERE json_extract(event, '$.kind') = 'task.handoff.spawned'`
+      )
+      db.exec(
+        `UPDATE run_events SET event = json_set(event, '$.kind', 'run.' || substr(json_extract(event, '$.kind'), 6)) WHERE json_extract(event, '$.kind') LIKE 'task.%'`
+      )
+      // 4. Key renames + workerId drop. json_set would otherwise write an
+      // explicit null when the source key is absent, so each rewrite is
+      // guarded by a WHERE on the old key's presence.
+      db.exec(
+        `UPDATE run_events SET event = json_remove(json_set(event, '$.runId', json_extract(event, '$.taskId')), '$.taskId') WHERE json_extract(event, '$.taskId') IS NOT NULL`
+      )
+      db.exec(
+        `UPDATE run_events SET event = json_remove(json_set(event, '$.parentRunId', json_extract(event, '$.parentTaskId')), '$.parentTaskId') WHERE json_extract(event, '$.parentTaskId') IS NOT NULL`
+      )
+      db.exec(
+        `UPDATE run_events SET event = json_remove(json_set(event, '$.childRunId', json_extract(event, '$.childTaskId')), '$.childTaskId') WHERE json_extract(event, '$.childTaskId') IS NOT NULL`
+      )
+      db.exec(
+        `UPDATE run_events SET event = json_remove(event, '$.workerId') WHERE json_extract(event, '$.workerId') IS NOT NULL`
+      )
+      // Version write inside the SAME transaction: if anything above throws,
+      // the whole migration (including this) rolls back, so a retry on next
+      // open is safe and won't skip a half-applied rewrite.
+      if (schemaMetaRow) db.prepare('UPDATE schema_meta SET version = 2').run()
+      else db.prepare('INSERT INTO schema_meta (version) VALUES (2)').run()
+    })
+    migrateToV2()
+  }
 
   for (const stmt of [
     'ALTER TABLE sessions ADD COLUMN title TEXT',
@@ -312,32 +366,32 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtGetTerminalRunStatuses = db.prepare(
     `SELECT run_id AS runId,
        CASE
-         WHEN json_extract(event, '$.kind') = 'task.complete' THEN 'completed'
+         WHEN json_extract(event, '$.kind') = 'run.complete' THEN 'completed'
          WHEN json_extract(event, '$.error.code') = 'cancelled' THEN 'cancelled'
          ELSE 'failed'
        END AS status
      FROM run_events
      WHERE id IN (SELECT MAX(id) FROM run_events
-                   WHERE json_extract(event, '$.kind') IN ('task.complete', 'task.error')
+                   WHERE json_extract(event, '$.kind') IN ('run.complete', 'run.error')
                    GROUP BY run_id)`
   )
 
   const stmtListSessions = db.prepare(
-    // tokensUsed / usdCents sum the LATEST task.usage per run_id in the session
+    // tokensUsed / usdCents sum the LATEST run.usage per run_id in the session
     // (each run emits usage at every turn boundary; the last is the final
-    // snapshot). Post-4b the source is run_events only — conversation turns
-    // also emit task.usage via makeRunEmit, so they're already included.
-    // Sub-agent runs emit their own task.usage (their parent's snapshot does
-    // NOT include child cost), so every run_id — top-level, conversation, and
-    // sub-agent — contributes.
+    // snapshot). Post-W4 the store holds ONLY run.* kinds (migration v2), so
+    // this reads a single vocabulary — conversation turns also emit run.usage
+    // via makeRunEmit, so they're already included. Sub-agent runs emit their
+    // own run.usage (their parent's snapshot does NOT include child cost), so
+    // every run_id — top-level, conversation, and sub-agent — contributes.
     `WITH latest_usage AS (
         SELECT session_id, run_id,
                json_extract(event, '$.used.tokens')   AS tokens,
                json_extract(event, '$.used.usdCents') AS usdCents
           FROM run_events
-         WHERE json_extract(event, '$.kind') = 'task.usage'
+         WHERE json_extract(event, '$.kind') = 'run.usage'
            AND id IN (SELECT MAX(id) FROM run_events
-                       WHERE json_extract(event, '$.kind') = 'task.usage'
+                       WHERE json_extract(event, '$.kind') = 'run.usage'
                        GROUP BY run_id)
      )
      SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
@@ -500,14 +554,13 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const cutoff = rangeCutoffMs(now, range)
         const heatmapCutoff = rangeCutoffMs(now, HEATMAP_DAYS)
 
-        // Latest task.usage per run_id across all time (no range filter — we
-        // slice by ts in JS). Post-4b this is the single source of truth for
-        // both work runs and conversation turns (both emit task.usage via
-        // makeRunEmit). Sub-agent runs emit their own usage (the parent's
-        // snapshot does NOT include child cost), so every run_id — top-level,
-        // conversation, and sub-agent — contributes; this is
-        // intentionally more inclusive than the pre-4b zeroed-child behavior
-        // and produces slightly higher totals.
+        // Latest run.usage per run_id across all time (no range filter — we
+        // slice by ts in JS). Post-W4 the store holds ONLY run.* kinds
+        // (migration v2), so this is the single source of truth for both work
+        // runs and conversation turns (both emit run.usage via makeRunEmit).
+        // Sub-agent runs emit their own usage (the parent's snapshot does NOT
+        // include child cost), so every run_id — top-level, conversation, and
+        // sub-agent — contributes.
         const usageRows = db
           .prepare(
             `SELECT json_extract(re.event, '$.used.tokens')    AS tokens,
@@ -517,9 +570,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
                     re.session_id                               AS sessionId,
                     re.ts                                        AS ts
                FROM run_events re
-              WHERE json_extract(re.event, '$.kind') = 'task.usage'
+              WHERE json_extract(re.event, '$.kind') = 'run.usage'
                 AND re.id IN (SELECT MAX(id) FROM run_events
-                               WHERE json_extract(event, '$.kind') = 'task.usage'
+                               WHERE json_extract(event, '$.kind') = 'run.usage'
                                GROUP BY run_id)`
           )
           .all() as Array<{
@@ -532,22 +585,21 @@ export function createConversationStore(dbPath: string): ConversationStore {
         }>
 
         // Messages: one unified count over run_events. Work + conversation
-        // both surface as task.progress wrapping an llm.message inner event,
-        // so the pre-4b task_events+conversation_events split collapses.
+        // both surface as run.progress wrapping an llm.message inner event.
         const messagesRow = db
           .prepare(
             `SELECT COUNT(*) AS n FROM run_events
-              WHERE ts >= ? AND json_extract(event, '$.kind') = 'task.progress'
+              WHERE ts >= ? AND json_extract(event, '$.kind') = 'run.progress'
                 AND json_extract(event, '$.event.kind') = 'llm.message'`
           )
           .get(cutoff) as { n: number }
 
-        // Active days (any run_events task.usage, all time) for currentStreak.
+        // Active days (any run_events run.usage, all time) for currentStreak.
         const activeDateRows = db
           .prepare(
             `SELECT DISTINCT date(ts/1000, 'unixepoch', 'localtime') AS date
                FROM run_events
-              WHERE json_extract(event, '$.kind') = 'task.usage'`
+              WHERE json_extract(event, '$.kind') = 'run.usage'`
           )
           .all() as { date: string }[]
         const activeKeys = new Set(activeDateRows.map((r) => r.date))
@@ -559,7 +611,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const totalCacheRead = inRange.reduce((s, r) => s + (r.cacheRead ?? 0), 0)
         const totalUsd = inRange.reduce((s, r) => s + (r.usdCents ?? 0), 0)
 
-        // byModel: group inRange rows by task.usage.model (fallback 'unknown'); tokens > 0 only.
+        // byModel: group inRange rows by run.usage.model (fallback 'unknown'); tokens > 0 only.
         const byModelMap = new Map<string, { tokens: number; usdCents: number }>()
         for (const r of inRange) {
           const key = r.model ?? 'unknown'

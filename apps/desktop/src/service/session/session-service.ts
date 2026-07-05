@@ -154,9 +154,8 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   const seqCounter = createSeqCounter((sid: string) => store.getRunEvents(sid))
   const terminalRegistry = createTerminalRegistry(store.getTerminalRunStatuses())
 
-  // The ONE emit-port adapter, shared by every run. Persists each run.* event to
-  // run_events (transitional cast — W4 widens the store's event type to the
-  // run.* union), marks the first-wins terminal registry, broadcasts on the wire.
+  // The ONE emit-port adapter, shared by every run. Persists each run.* event
+  // to run_events, marks the first-wins terminal registry, broadcasts on the wire.
   const emitPorts: RunEmitPorts = {
     nextSeq: (sid) => seqCounter.nextSeq(sid),
     appendEvent: (evt) => {
@@ -166,7 +165,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         log.debug({ msg: 'run event dropped for deleted session', runId: evt.runId, kind: evt.kind })
         return
       }
-      store.appendRunEvent(evt.sessionId, evt.runId, evt.parentRunId ?? null, evt as unknown as UIEvent)
+      store.appendRunEvent(evt.sessionId, evt.runId, evt.parentRunId ?? null, evt)
     },
     markTerminal: (runId, status) => terminalRegistry.markTerminal(runId, status),
     broadcast: (evt) => broadcaster.broadcast(evt.kind, evt),

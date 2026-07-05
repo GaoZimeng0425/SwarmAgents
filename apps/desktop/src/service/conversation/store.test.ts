@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { UIEvent } from '@swarm/protocol'
+import { terminalStatusForRunEvent } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -131,13 +131,13 @@ describe('ConversationStore', () => {
     // Post-4b the tasks table is gone; taskCount is derived from distinct
     // run_id in run_events. Seed one run for ses-b.
     store.appendRunEvent('ses-b', 'r-b', null, {
-      kind: 'task.created',
+      kind: 'run.created',
       sessionId: 'ses-b',
-      taskId: 'r-b',
+      runId: 'r-b',
       goal: 'g',
       ts: now,
       seq: 1,
-    } as unknown as UIEvent)
+    })
 
     const list = store.listSessions()
     const ids = list.map((s) => s.id)
@@ -164,16 +164,15 @@ describe('ConversationStore', () => {
       used: { tokens: number; calls: number; wallMs: number; usdCents: number; cacheRead: number; cacheWrite: number },
       model: string,
       ts: number
-    ) =>
-      ({
-        kind: 'task.usage' as const,
-        sessionId,
-        taskId: runId,
-        used,
-        model,
-        ts,
-        seq: 1,
-      }) as unknown as UIEvent
+    ) => ({
+      kind: 'run.usage' as const,
+      sessionId,
+      runId,
+      used,
+      model,
+      ts,
+      seq: 1,
+    })
 
     // Two top-level runs in the session.
     store.appendRunEvent(
@@ -200,7 +199,7 @@ describe('ConversationStore', () => {
         1
       )
     )
-    // A sub-agent child run emits its own task.usage — post-4a each runner
+    // A sub-agent child run emits its own run.usage — post-4a each runner
     // tracks its own cost (the parent's snapshot does NOT include the child),
     // so the child's usage is now COUNTED (pre-4b children were zeroed).
     store.appendRunEvent(
@@ -215,7 +214,7 @@ describe('ConversationStore', () => {
         1
       )
     )
-    // A run may emit task.usage multiple times (per-turn snapshots); only the
+    // A run may emit run.usage multiple times (per-turn snapshots); only the
     // LATEST per run_id contributes — earlier emissions are superseded.
     store.appendRunEvent(
       'ses-u',
@@ -243,36 +242,87 @@ describe('ConversationStore', () => {
     it('appendRunEvent persists UIEvents and re-reads them with runId/parentRunId', () => {
       const store = createConversationStore(dbPath)
       const ev = {
-        kind: 'task.progress',
+        kind: 'run.progress' as const,
         sessionId: 's1',
-        taskId: 'r1',
-        event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 1 },
+        runId: 'r1',
+        event: { kind: 'llm.message' as const, role: 'user' as const, content: 'hi', ts: 1 },
         ts: 1,
         seq: 1,
-      } as unknown as UIEvent
+      }
       store.appendRunEvent('s1', 'r1', null, ev)
       store.appendRunEvent('s1', 'r1', null, {
-        kind: 'task.complete',
+        kind: 'run.complete',
         sessionId: 's1',
-        taskId: 'r1',
+        runId: 'r1',
         summary: 'done',
         ts: 2,
         seq: 2,
-      } as unknown as UIEvent)
+      })
       store.appendRunEvent('s1', 'r2', 'r1', {
-        kind: 'task.created',
+        kind: 'run.created',
         sessionId: 's1',
-        taskId: 'r2',
+        runId: 'r2',
         goal: 'child',
-        parentTaskId: 'r1',
+        parentRunId: 'r1',
         ts: 3,
         seq: 3,
-      } as unknown as UIEvent)
+      })
       const rows = store.getRunEvents('s1')
       expect(rows).toHaveLength(3)
       expect(rows.map((r) => r.runId)).toEqual(['r1', 'r1', 'r2'])
       expect(rows[2].parentRunId).toBe('r1')
-      expect((rows[0].event as UIEvent).kind).toBe('task.progress')
+      expect(rows[0].event.kind).toBe('run.progress')
+      store.close()
+    })
+
+    // Spec §4: the store's boot-scan SQL (getTerminalRunStatuses) and the
+    // renderer's TS reducer (terminalStatusForRunEvent) are two independent
+    // encodings of the SAME event→terminal-status rule; bug ledger #9 is three
+    // hand-synced copies drifting apart. Feed the identical event set through
+    // both and assert they agree.
+    it('classifies terminals identically via terminalStatusForRunEvent (TS) and a store round-trip (SQL)', () => {
+      const store = createConversationStore(dbPath)
+      store.createSession('ses-eq', provider)
+
+      const terminalEvents = [
+        {
+          runId: 'r-ok',
+          event: { kind: 'run.complete', sessionId: 'ses-eq', runId: 'r-ok', summary: 'done', seq: 1, ts: 1 },
+        },
+        {
+          runId: 'r-fail',
+          event: {
+            kind: 'run.error',
+            sessionId: 'ses-eq',
+            runId: 'r-fail',
+            error: { code: 'boom', message: 'bad', tier: 'fatal' as const },
+            seq: 1,
+            ts: 1,
+          },
+        },
+        {
+          runId: 'r-cancel',
+          event: {
+            kind: 'run.error',
+            sessionId: 'ses-eq',
+            runId: 'r-cancel',
+            error: { code: 'cancelled', message: 'cancelled', tier: 'fatal' as const },
+            seq: 1,
+            ts: 1,
+          },
+        },
+      ] as const
+
+      for (const { runId, event } of terminalEvents) {
+        store.appendRunEvent('ses-eq', runId, null, event)
+      }
+
+      const fromStore = new Map(store.getTerminalRunStatuses().map((r) => [r.runId, r.status]))
+      for (const { runId, event } of terminalEvents) {
+        const fromTs = terminalStatusForRunEvent(event)
+        expect(fromTs).toBeDefined()
+        expect(fromStore.get(runId)).toBe(fromTs)
+      }
       store.close()
     })
   })
@@ -305,13 +355,13 @@ describe('ConversationStore', () => {
     const store = createConversationStore(dbPath)
     store.createSession('ses-d', provider)
     store.appendRunEvent('ses-d', 'r-d', null, {
-      kind: 'task.created',
+      kind: 'run.created',
       sessionId: 'ses-d',
-      taskId: 'r-d',
+      runId: 'r-d',
       goal: 'g',
       ts: 1,
       seq: 1,
-    } as unknown as UIEvent)
+    })
     store.deleteSession('ses-d')
     expect(store.getSession('ses-d')).toBeUndefined()
     expect(store.getRunEvents('ses-d')).toEqual([])
@@ -491,25 +541,28 @@ describe('ConversationStore', () => {
       model: string,
       usedVal: ReturnType<typeof used>,
       ts: number
-    ) =>
-      ({
-        kind: 'task.usage' as const,
-        sessionId,
-        taskId: runId,
-        used: usedVal,
-        model,
-        ts,
-        seq: 1,
-      }) as unknown as UIEvent
-    const progressEvent = (sessionId: string, runId: string, inner: import('@swarm/protocol').TaskEvent, ts: number) =>
-      ({
-        kind: 'task.progress' as const,
-        sessionId,
-        taskId: runId,
-        event: inner,
-        ts,
-        seq: 1,
-      }) as unknown as UIEvent
+    ) => ({
+      kind: 'run.usage' as const,
+      sessionId,
+      runId,
+      used: usedVal,
+      model,
+      ts,
+      seq: 1,
+    })
+    const progressEvent = (
+      sessionId: string,
+      runId: string,
+      inner: import('@swarm/protocol').TaskEvent,
+      ts: number
+    ) => ({
+      kind: 'run.progress' as const,
+      sessionId,
+      runId,
+      event: inner,
+      ts,
+      seq: 1,
+    })
 
     store.appendRunEvent(
       'ses-a',
