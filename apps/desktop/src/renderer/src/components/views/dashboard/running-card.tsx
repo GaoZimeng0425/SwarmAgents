@@ -79,10 +79,12 @@ export function RunningCard({ run }: Props): React.JSX.Element {
 
       {awaiting && (
         // Real buttons (not nested in a <button>) — onClick stopPropagation so
-        // they resolve inline without triggering the card's navigation.
+        // they resolve inline without triggering the card's navigation. Both
+        // disable while the decision is in flight to guard against double-fire.
         <div className="flex gap-2">
           <button
-            className="flex-1 rounded-lg bg-foreground py-1.5 text-center font-semibold text-[12px] text-background transition-opacity hover:opacity-90"
+            className="flex-1 rounded-lg bg-foreground py-1.5 text-center font-semibold text-[12px] text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={decidePermission.isPending}
             onClick={(e) => {
               e.stopPropagation()
               decide('grant')
@@ -93,7 +95,8 @@ export function RunningCard({ run }: Props): React.JSX.Element {
             允许
           </button>
           <button
-            className="flex-1 rounded-lg border border-border py-1.5 text-center font-medium text-[12px] text-muted-foreground transition-colors hover:bg-accent/40"
+            className="flex-1 rounded-lg border border-border py-1.5 text-center font-medium text-[12px] text-muted-foreground transition-colors hover:bg-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={decidePermission.isPending}
             onClick={(e) => {
               e.stopPropagation()
               decide('deny')

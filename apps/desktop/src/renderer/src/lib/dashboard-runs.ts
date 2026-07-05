@@ -9,7 +9,9 @@
 import type { RunRecord, RunStatus } from '@shared/lib/apply-event'
 import type { PlanTodo, SessionSummary } from '@swarm/protocol'
 
-export type TeamOption = { id: string; label: string }
+import type { TeamOption } from '@/hooks/use-agents'
+
+export type { TeamOption }
 
 export type DashboardRun = {
   id: string

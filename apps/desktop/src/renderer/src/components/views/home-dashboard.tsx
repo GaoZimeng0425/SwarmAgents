@@ -57,7 +57,7 @@ export function HomeDashboard(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <DashboardTopbar runningCount={running.length} />
 
-      <div className="mx-auto flex w-full max-w-[1088px] flex-1 flex-col gap-7 overflow-hidden px-6 py-5">
+      <div className="mx-auto flex w-full max-w-[1088px] flex-1 flex-col gap-7 overflow-y-auto px-6 py-5">
         {/* Composer */}
         <section className="flex flex-col gap-4">
           <h2 className="font-semibold text-[26px] text-foreground tracking-tight">今天想让 swarm 做点什么?</h2>
