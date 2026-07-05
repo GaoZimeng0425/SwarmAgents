@@ -4,7 +4,6 @@ import { calendarSpecs } from '../calendar/tools'
 import type { ClaudeCodeManager } from '../claude-code/manager'
 import type { CronScheduler } from '../cron/scheduler'
 import { gmailSpecs } from '../gmail/tools'
-import type { TaskWaiterService } from '../loop/task-waiters'
 import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
@@ -14,7 +13,7 @@ import { cronSpecs } from './cron'
 import { delegationPlanSpec } from './delegation-plan'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
-import { findAgentsSpec, sendAndWaitSpec, sendMessageSpec, whoamiSpec } from './messaging'
+import { findAgentsSpec } from './messaging'
 import { buildPeekabooTools } from './peekaboo'
 import { updatePlanSpec } from './plan'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
@@ -23,7 +22,6 @@ import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
 import { currentTimeSpec } from './time'
 import { analyzeImageSpec, ocrImageSpec } from './vision'
-import { waitForTaskSpecs } from './wait-for-task'
 import { getWeatherSpec } from './weather'
 import { webFetchSpec, webSearchSpec } from './web'
 
@@ -62,7 +60,6 @@ export function registerBuiltinTools(
     skillStore?: SkillStore
     scheduler?: CronScheduler
     claudeCode?: ClaudeCodeManager
-    taskWaiters?: TaskWaiterService
     getWebSearchConfig?: () => WebSearchInjection
     /** Live predicate from the tool-toggles store; undefined → all skills enabled. */
     isSkillEnabled?: (name: string) => boolean
@@ -74,9 +71,6 @@ export function registerBuiltinTools(
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
   registry.register(createTaskSpec())
-  registry.register(sendMessageSpec())
-  registry.register(sendAndWaitSpec())
-  registry.register(whoamiSpec())
   registry.register(findAgentsSpec())
   registry.register(writeAgentSpec())
   registry.register(writeSkillSpec())
@@ -102,8 +96,6 @@ export function registerBuiltinTools(
   if (deps?.skillStore) registry.register(useSkillSpec(deps.skillStore, deps.isSkillEnabled))
   // Cron tools need the scheduler; registered only when one is injected.
   if (deps?.scheduler) for (const spec of cronSpecs(deps.scheduler)) registry.register(spec)
-  // wait_for_task needs the waiter service; registered only when one is injected.
-  if (deps?.taskWaiters) for (const spec of waitForTaskSpecs(deps.taskWaiters)) registry.register(spec)
   // cc_* tools need the Claude Code manager; registered only when one is injected.
   if (deps?.claudeCode) for (const spec of claudeCodeSpecs(deps.claudeCode)) registry.register(spec)
   // gmail.* tools need the service→main rpc to query the cache; registered only when one is injected.

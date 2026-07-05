@@ -73,7 +73,6 @@ vi.mock('../session/agent-runner', () => ({
     },
   }),
   buildAgentSession: () => ({}),
-  runResident: async () => {},
 }))
 
 const fakeProvider = { model: 'test', apiStyle: 'anthropic' } as never

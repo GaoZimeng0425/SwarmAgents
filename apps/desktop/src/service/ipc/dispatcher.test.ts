@@ -9,7 +9,6 @@ function mockManager(): SessionManager {
     submitGoal: vi.fn().mockReturnValue({ taskId: 'task-1' }),
     resolvePermission: vi.fn(),
     cancelTask: vi.fn(),
-    endSession: vi.fn(),
     listSessions: vi.fn().mockReturnValue([{ id: 'ses-1' }]),
   } as unknown as SessionManager
 }

@@ -1,18 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { createTerminalRegistry } from './terminal-registry'
 
 describe('terminal registry', () => {
-  it('marks terminal once (idempotent) and fires the listener', () => {
-    const cb = vi.fn()
+  it('marks terminal once (idempotent — first status wins)', () => {
     const reg = createTerminalRegistry([])
-    reg.onTerminal(cb)
     reg.markTerminal('r1', 'completed')
     reg.markTerminal('r1', 'failed') // second mark is a no-op (first terminal wins)
     expect(reg.isTerminal('r1')).toBe(true)
     expect(reg.getStatus('r1')).toBe('completed')
-    expect(cb).toHaveBeenCalledTimes(1)
-    expect(cb).toHaveBeenCalledWith('r1', 'completed')
   })
 
   it('loads initial statuses from run_events at construction', () => {

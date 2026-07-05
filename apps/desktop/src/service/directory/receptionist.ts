@@ -1,35 +1,30 @@
-import type { Actor, AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'
+import type { AgentDefinition, Peer, PeerQuery } from '@swarm/protocol'
 import { compact, sumBy } from 'es-toolkit'
 
 export type AgentDirectory = {
-  /** Live peers in `sessionId` matching `q`, ranked best-first, excluding `selfAddress`. */
-  find(sessionId: string, q: PeerQuery, selfAddress?: string): Peer[]
+  /** Agent defs matching `q`, ranked best-first. */
+  find(q: PeerQuery): Peer[]
 }
 
 const tokens = (s: string): string[] => compact(s.toLowerCase().split(/\s+/))
 
 /**
- * The actor "receptionist": a pure projection over existing state (actors table,
- * live-handle set, agent store). No registration, no second source of truth.
+ * The agent "receptionist": a pure projection over the on-disk agent-def
+ * catalog. No actor/session state (the actors table is gone in W3) — every
+ * def is discoverable regardless of whether it is currently running, so
+ * `status` is always 'active'.
  */
-export function createAgentDirectory(deps: {
-  listActors(sessionId: string): Actor[]
-  isLive(address: string): boolean
-  getAgentDef(agentDefId: string): AgentDefinition | undefined
-}): AgentDirectory {
-  const toPeer = (a: Actor): Peer => {
-    const def = deps.getAgentDef(a.agentDefId)
-    return {
-      name: a.name,
-      address: a.address,
-      role: def?.role ?? a.agentDefId,
-      capabilities: def?.capabilities ?? [],
-      description: def?.description ?? '',
-      status: deps.isLive(a.address) ? 'active' : 'dormant',
-      team: def?.team,
-      teamRole: def?.teamRole,
-    }
-  }
+export function createAgentDirectory(deps: { listAgentDefs(): AgentDefinition[] }): AgentDirectory {
+  const toPeer = (def: AgentDefinition): Peer => ({
+    name: def.name,
+    address: def.id,
+    role: def.role ?? def.id,
+    capabilities: def.capabilities ?? [],
+    description: def.description,
+    status: 'active',
+    team: def.team,
+    teamRole: def.teamRole,
+  })
 
   const scoreOf = (p: Peer, query: string | undefined): number => {
     if (!query) return 0
@@ -45,9 +40,8 @@ export function createAgentDirectory(deps: {
   }
 
   return {
-    find(sessionId, q, selfAddress) {
-      let peers = deps.listActors(sessionId).map(toPeer)
-      if (selfAddress) peers = peers.filter((p) => p.address !== selfAddress)
+    find(q) {
+      let peers = deps.listAgentDefs().map(toPeer)
       if (q.role) peers = peers.filter((p) => p.role === q.role)
       if (q.capability) peers = peers.filter((p) => p.capabilities.includes(q.capability as string))
       if (q.team) peers = peers.filter((p) => p.team === q.team)
@@ -55,8 +49,6 @@ export function createAgentDirectory(deps: {
       return peers
         .map((p) => ({ p, score: scoreOf(p, q.query) }))
         .sort((a, b) => {
-          const liveDiff = (a.p.status === 'active' ? 0 : 1) - (b.p.status === 'active' ? 0 : 1)
-          if (liveDiff !== 0) return liveDiff
           if (b.score !== a.score) return b.score - a.score
           return (a.p.name ?? '').localeCompare(b.p.name ?? '')
         })

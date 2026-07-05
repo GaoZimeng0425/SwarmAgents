@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConversationStore } from '../conversation/store'
 import { createBroadcaster } from '../ipc/broadcaster'
-import { createTaskWaiterService } from '../loop/task-waiters'
 import type { AgentRunner } from './agent-runner'
 import { createSessionManager } from './manager'
 
@@ -157,9 +156,9 @@ describe('SessionManager', () => {
     store2.close()
   })
 
-  it('markInterruptedRunsTerminal closes orphaned runs and wakes their waiters', () => {
+  it('markInterruptedRunsTerminal closes orphaned runs', () => {
     // Seed a session + a dispatched run that never reached a terminal event
-    // (the previous process died mid-flight) + a wait_for_task waiter on it.
+    // (the previous process died mid-flight).
     const store = createConversationStore(dbPath)
     store.createSession('ses-orphan', providerA)
     store.updateSessionStatus('ses-orphan', 'interrupted')
@@ -182,14 +181,6 @@ describe('SessionManager', () => {
       seq: 2,
       ts: 2,
     } as never)
-    store.saveTaskWaiter({
-      id: 'waiter-1',
-      sessionId: 'ses-orphan',
-      waiterAddress: 'actor-waiter',
-      taskId: orphanRunId,
-      goal: null,
-      createdAt: 3,
-    })
     store.close()
 
     // Reopen (simulating restart) and construct the manager — the terminal
@@ -203,24 +194,9 @@ describe('SessionManager', () => {
     })
     expect(manager.terminalRegistry.isTerminal(orphanRunId)).toBe(false)
 
-    // Wire taskWaiters exactly as service/index.ts does.
-    const delivered: Array<{ address: string; goal: string }> = []
-    const taskWaiters = createTaskWaiterService({
-      store: store2,
-      deliver: (_sid, address, goal) => delivered.push({ address, goal }),
-      terminalRegistry: manager.terminalRegistry,
-    })
-    manager.registerTerminalListener((runId, status) => taskWaiters.onTaskTerminal(runId, status))
-
     // The fix: close orphaned runs before arming the start sweep.
     manager.markInterruptedRunsTerminal()
-    // markTerminal fired the listener, which woke the matching waiter.
     expect(manager.terminalRegistry.isTerminal(orphanRunId)).toBe(true)
-    expect(delivered).toEqual([{ address: 'actor-waiter', goal: expect.stringMatching(/task you were waiting on/) }])
-
-    // taskWaiters.start() is now a no-op for this waiter (already fired+deleted).
-    taskWaiters.start()
-    expect(delivered).toHaveLength(1)
 
     // The synthetic task.error landed in run_events so replay reaches terminal.
     const events = store2.getRunEvents('ses-orphan').filter((r) => r.runId === orphanRunId)

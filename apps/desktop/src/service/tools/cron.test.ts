@@ -8,10 +8,7 @@ const ctx: ToolRunContext = {
   sessionId: 'ses-1',
   taskId: 't',
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
-  send: () => undefined,
   requestPermission: async () => 'grant',
-  sendMessage: async () => undefined,
-  sendAndWait: async () => '',
   findPeers: () => [],
 }
 

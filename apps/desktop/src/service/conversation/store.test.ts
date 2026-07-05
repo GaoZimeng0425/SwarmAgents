@@ -799,57 +799,6 @@ describe('ConversationStore', () => {
     })
   })
 
-  describe('listActorsForSession', () => {
-    it('returns a session actors in creation order and excludes other sessions', () => {
-      const store = createConversationStore(':memory:')
-      const mk = (address: string, sessionId: string, createdAt: number) => ({
-        address,
-        agentDefId: 'default',
-        sessionId,
-        name: address,
-        state: null,
-        lastTaskId: null,
-        createdAt,
-        updatedAt: createdAt,
-      })
-      store.upsertActor(mk('a2', 'S1', 200))
-      store.upsertActor(mk('a1', 'S1', 100))
-      store.upsertActor(mk('b1', 'S2', 150))
-      expect(store.listActorsForSession('S1').map((a) => a.address)).toEqual(['a1', 'a2'])
-      expect(store.listActorsForSession('S2').map((a) => a.address)).toEqual(['b1'])
-      store.close()
-    })
-  })
-
-  describe('task waiters', () => {
-    it('saves, lists by task, and deletes a waiter', () => {
-      const store = createConversationStore(tmpDb())
-      store.saveTaskWaiter({
-        id: 'w1',
-        sessionId: 'ses-1',
-        waiterAddress: 'addr-A',
-        taskId: 'task-X',
-        goal: 'continue',
-        createdAt: 1,
-      })
-      expect(store.listTaskWaitersForTask('task-X').map((w) => w.id)).toEqual(['w1'])
-      expect(store.listAllTaskWaiters()).toHaveLength(1)
-      store.deleteTaskWaiter('w1')
-      expect(store.listTaskWaitersForTask('task-X')).toEqual([])
-      store.close()
-    })
-
-    it('persists waiters across reopen', () => {
-      const path = tmpDb()
-      const s1 = createConversationStore(path)
-      s1.saveTaskWaiter({ id: 'w1', sessionId: 's', waiterAddress: 'a', taskId: 'task-X', goal: null, createdAt: 1 })
-      s1.close()
-      const s2 = createConversationStore(path)
-      expect(s2.listAllTaskWaiters().map((w) => w.id)).toEqual(['w1'])
-      s2.close()
-    })
-  })
-
   it('drops legacy 4a tasks/task_events/conversation_events tables on reopen so deleteSession succeeds', () => {
     // Simulate a pre-4b DB carrying the legacy schema with FK constraints:
     // tasks.session_id REFERENCES sessions(id), task_events.task_id REFERENCES tasks(id).

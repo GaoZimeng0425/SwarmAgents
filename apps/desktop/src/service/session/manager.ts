@@ -1,7 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
-  ActorMessage,
   AgentDefinition,
   PermissionDecision,
   PermissionMode,
@@ -12,11 +11,9 @@ import type {
   TaskStatus,
 } from '@swarm/protocol'
 import { allowlistForAgent, type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
-import { applyAgentModel, DEFAULT_AGENT_DEF, defaultAgents, SYSTEM_SESSION_ID } from '@swarm/shared'
+import { applyAgentModel, DEFAULT_AGENT_DEF, SYSTEM_SESSION_ID } from '@swarm/shared'
 import { ulid } from 'ulid'
 
-import { createMailbox } from '../actor/mailbox'
-import { decodeActorState } from '../actor/state'
 import { withAgentTypes } from '../agents/prompt'
 import type { AgentStore } from '../agents/store'
 import type { ConversationStore } from '../conversation/store'
@@ -26,28 +23,12 @@ import { withSkills } from '../skills/prompt'
 import type { SkillStore } from '../skills/store'
 import { registerBuiltinTools } from '../tools/builtins'
 import { createToolRegistry, type ToolRegistry } from '../tools/registry'
-import { type AgentRunnerDeps, createAgentRunner, type ResidentHooks, runResident } from './agent-runner'
+import { createAgentRunner } from './agent-runner'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
-import { createReplyRegistry } from './reply-registry'
 import { createSeqCounter } from './seq-counter'
 import { createTerminalRegistry, type TerminalRegistry, type TerminalStatus } from './terminal-registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-manager' })
-
-// Fixed company roster. Single source of truth: the seeded actor name equals
-// the agent-def id. The CEO is first — it receives the kickoff goal — and then
-// discovers the team heads at runtime via find_agents({ teamRole: 'head' }),
-// which only sees LIVE actors — so every head must be seeded alongside its ICs.
-// Derived from defaultAgents (the CEO plus every team member) rather than
-// hardcoded, so a new builtin team becomes reachable without editing this list.
-const COMPANY_ROLES = ['ceo', ...defaultAgents.filter((a) => a.team).map((a) => a.id)]
-
-// A resident actor sleeps (its loop returns) after this long with an empty mailbox.
-const IDLE_TIMEOUT_MS = 30_000
-// Max per-message turn failures before the message is dead-lettered.
-const MAX_RETRIES = 3
-// How long an rpc caller waits for the resident's reply before resolving to ''.
-const RPC_TIMEOUT_MS = 120_000
 
 // Plan mode is read-only: it grants inspection tools but no shell, no fs writes,
 // and no peekaboo interactions, so the agent physically cannot mutate anything
@@ -109,9 +90,6 @@ export type SessionManager = {
     onComplete?: (status: TaskStatus, error?: string) => void,
     options?: TaskOptions
   ): { taskId: string }
-  startCompany(sessionId: string, goal: string): Promise<{ reply: string } | { delivered: true }>
-  /** Wake an addressable actor by delivering a goal to it (fire-and-forget, system sender). */
-  deliverToActor(sessionId: string, address: string, goal: string): void
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelTask(sessionId: string, taskId: string): void
   /**
@@ -120,7 +98,6 @@ export type SessionManager = {
    * is cancelled with its partial output preserved in the session history.
    */
   interruptWith(sessionId: string, taskId: string): void
-  endSession(sessionId: string): void
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
   setSessionPinned(sessionId: string, pinned: boolean): void
@@ -129,8 +106,6 @@ export type SessionManager = {
   listSessions(): import('@swarm/protocol').SessionSummary[]
   getRunEvents(sessionId: string): import('@swarm/protocol').RunEvent[]
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
-  /** Register the terminal-status listener (fires once per runId). */
-  registerTerminalListener(fn: (runId: string, status: TerminalStatus) => void): void
   /** In-memory terminal-status registry (query directly: isTerminal/getStatus). */
   terminalRegistry: TerminalRegistry
   /**
@@ -138,21 +113,9 @@ export type SessionManager = {
    * interrupted by the store's restart cleanup, find runs that were dispatched
    * but never reached a terminal event in run_events (the process died
    * mid-flight), append a synthetic task.error to run_events (so replay reaches
-   * terminal instead of stuck-running), and mark each terminal in the registry
-   * (so any wait_for_task waiter on that runId wakes). Must be called AFTER
-   * registerTerminalListener and BEFORE taskWaiters.start().
+   * terminal instead of stuck-running), and mark each terminal in the registry.
    */
   markInterruptedRunsTerminal(): void
-  /** @internal test hook */
-  __ensureActorForTest?(sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor
-  /** @internal test hook */
-  __sendMessageForTest?(
-    sessionId: string,
-    fromAddr: string | null,
-    toAddr: string,
-    payload: string,
-    kind: 'send' | 'rpc'
-  ): Promise<{ reply: string } | { delivered: true }>
   /** @internal test hook */
   __enqueueWithoutPumpForTest?(sessionId: string, goal: string): string
   /** @internal test hook: drive runWorkTask (agent-authored work task) directly. */
@@ -205,15 +168,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   // composer's permission mode takes effect on any in-flight or queued task in
   // the session regardless of when it was flipped. Defaults to 'ask'.
   const resolvePermissionMode = (sid: string): PermissionMode => store.getSessionSettings(sid)?.permissionMode ?? 'ask'
-  // Resident actor run-loops, keyed by actor address. Populated in Task 6.
-  const residentHandles = new Map<string, { abort(): void; deliver(msg: ActorMessage): void }>()
-  const directory = createAgentDirectory({
-    listActors: (s) => store.listActorsForSession(s),
-    isLive: (address) => residentHandles.has(address),
-    getAgentDef: (id) => cfg.agentStore?.get(id),
-  })
-  // Matches inbound rpc replies (by correlationId) to their awaiting callers.
-  const replyRegistry = createReplyRegistry()
+  const directory = createAgentDirectory({ listAgentDefs: () => cfg.agentStore?.list() ?? [] })
 
   async function acquireSlot(): Promise<void> {
     if (activeRunners < cfg.maxConcurrent) {
@@ -322,222 +277,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       broadcaster.broadcast(event, obj ? { ...obj, sessionId, taskId, seq, ts } : data)
     }
 
-  // Resolve-or-create an addressable identity. With a name, an existing actor in
-  // the same session is reused (so `send('researcher-1', …)` keeps hitting the
-  // same identity); without a name a fresh ULID address is minted each time.
-  const ensureActor = (sessionId: string, agentDefId: string, name?: string): import('@swarm/protocol').Actor => {
-    if (name) {
-      const existing = store.getActorByName(sessionId, name)
-      if (existing) return existing
-    }
-    const now = Date.now()
-    const actor: import('@swarm/protocol').Actor = {
-      address: ulid(),
-      agentDefId,
-      sessionId,
-      name: name ?? null,
-      state: null,
-      lastTaskId: null,
-      createdAt: now,
-      updatedAt: now,
-    }
-    store.upsertActor(actor)
-    log.info({ msg: 'actor created', sessionId, address: actor.address, agentDefId, name: name ?? null })
-    return actor
-  }
-
-  // Resolve `to` as either a raw ULID address or a session-scoped readable name.
-  const resolveAddress = (sessionId: string, to: string): import('@swarm/protocol').Actor | undefined =>
-    store.getActor(to) ?? store.getActorByName(sessionId, to)
-
-  // Spawn ONE resident run-loop for an actor: create the residency Task, a
-  // mailbox, and an abort handle; register the handle synchronously (before
-  // runResident's first `await mailbox.receive()`) so a delivery issued right
-  // after spawn is queued and picked up on the first receive (no race). The
-  // loop drains messages one turn at a time and returns when it idles out or
-  // aborts, at which point the Task is marked terminal and the handle dropped.
-  const spawnResident = (
-    sessionId: string,
-    actor: import('@swarm/protocol').Actor
-  ): { abort(): void; deliver(msg: ActorMessage): void } => {
-    const session = sessions.get(sessionId)
-    if (!session) throw new Error(`session ${sessionId} not found`)
-    const resolved = cfg.agentStore?.get(actor.agentDefId)
-    if (!resolved) {
-      log.warn({
-        msg: 'agent def not found; falling back to default agent',
-        sessionId,
-        address: actor.address,
-        agentDefId: actor.agentDefId,
-      })
-    }
-    const def = resolved ?? DEFAULT_AGENT_DEF
-    // One residency run per actor (not per message). The runId is the
-    // correlationId for the runner and the actor's lastTaskId; the lifecycle
-    // lives on the run-event stream (task.created), with no Task row.
-    const runId = ulid()
-    const residencyGoal = `actor:${actor.address}`
-    const toolAllowlist = allowlistForAgent(def)
-    const now = Date.now()
-    store.upsertActor({ ...actor, lastTaskId: runId, updatedAt: now })
-    makeRunEmit(sessionId, runId)('task.created', {
-      taskId: runId,
-      goal: residencyGoal,
-      attachments: [],
-      agentDefId: def.id,
-    })
-
-    const mailbox = createMailbox()
-    const abort = new AbortController()
-    const handle = { abort: () => abort.abort(), deliver: (m: ActorMessage) => mailbox.deliver(m) }
-    // Register synchronously so the immediately-following deliver is queued.
-    residentHandles.set(actor.address, handle)
-    log.info({ msg: 'resident spawned', sessionId, address: actor.address, runId })
-
-    const restored = decodeActorState(actor.state)
-    if (actor.state && restored.length === 0) {
-      log.warn({
-        msg: 'actor state decode failed, starting fresh',
-        sessionId,
-        address: actor.address,
-        component: 'actor-state',
-      })
-    } else if (restored.length > 0) {
-      log.info({
-        msg: 'actor state replayed',
-        sessionId,
-        address: actor.address,
-        messageCount: restored.length,
-        component: 'actor-state',
-      })
-    }
-
-    const hooks: ResidentHooks = {
-      acquireTurnSlot: () => acquireSlot(),
-      releaseTurnSlot: () => releaseSlot(),
-      onConsumed: (msgId, state) => store.consumeAndPersist(msgId, actor.address, state, Date.now()),
-      onReply: (correlationId, summary) => replyRegistry.resolve(correlationId, summary),
-      // Per-message retry/deadletter: bump the retry count; once it exceeds the
-      // limit, dead-letter so it stops being re-drained. The loop keeps running.
-      onError: (msgId) => {
-        const n = store.bumpRetries(msgId)
-        if (n > MAX_RETRIES) {
-          store.markDead(msgId)
-          log.error({ msg: 'message dead-lettered', sessionId, address: actor.address, msgId, retries: n })
-        } else {
-          log.warn({ msg: 'message turn failed, will retry', sessionId, address: actor.address, msgId, retries: n })
-        }
-      },
-    }
-    const deps: AgentRunnerDeps = {
-      correlationId: runId,
-      cwd: undefined,
-      executionMode: undefined,
-      budget: budgets().sub,
-      toolAllowlist,
-      attachments: [],
-      permissionMode: undefined,
-      provider: applyAgentModel(session.provider, def),
-      agentDefinition: withPrompt(def),
-      sessionId,
-      getPermissionMode: () => resolvePermissionMode(sessionId),
-      emit: makeRunEmit(sessionId, runId),
-      permissionRegistry: session.permissionRegistry,
-      toolRegistry,
-      initialMessages: restored,
-      signal: abort.signal,
-      selfAddress: actor.address,
-      sendMessage: (from, to, payload, kind) => sendMessage(sessionId, from, to, payload, kind),
-      spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
-      findPeers: (q) => directory.find(sessionId, q, actor.address),
-      writeAgent: (def) =>
-        cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
-      writeSkill: (skill) =>
-        cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-    }
-    void runResident(deps, mailbox, hooks, IDLE_TIMEOUT_MS)
-      .catch((err) => {
-        log.error({ msg: 'resident loop failed', sessionId, address: actor.address, runId, err: String(err) })
-      })
-      .finally(() => {
-        // Close the idle-sleep vs live-deliver race: a sendMessage can fetch
-        // this still-registered handle and deliver() into the mailbox in the
-        // window AFTER runResident exited on idle-timeout but BEFORE we delete
-        // the handle here. Such a message would land in a mailbox with no
-        // receiver. But every message is enqueueMessage'd in the DB before
-        // delivery, so any "lost" delivery is still an unconsumed DB row.
-        // Delete the handle first, then re-drain: redrainAddress re-spawns only
-        // if unconsumed rows remain. Bounded: consumed rows are markConsumed'd
-        // and failing rows hit the 3-retry deadletter (markDead), so
-        // allUnconsumedFor eventually returns empty — no infinite loop.
-        residentHandles.delete(actor.address)
-        redrainAddress(actor.address)
-      })
-    return handle
-  }
-
-  const sendMessage = async (
-    sessionId: string,
-    fromAddr: string | null,
-    toAddr: string,
-    payload: string,
-    kind: 'send' | 'rpc'
-  ): Promise<{ reply: string } | { delivered: true }> => {
-    const target = resolveAddress(sessionId, toAddr)
-    const now = Date.now()
-    const msgId = ulid()
-    store.enqueueMessage({
-      id: msgId,
-      toAddr: target?.address ?? toAddr,
-      fromAddr,
-      kind,
-      // correlationId is reserved for Plan B's run-loop reply matching; today an rpc reply is the inline-awaited activation result.
-      correlationId: kind === 'rpc' ? msgId : null,
-      payload,
-      consumed: false,
-      retries: 0,
-      dead: !target,
-      ts: now,
-    })
-    if (!target) {
-      log.warn({ msg: 'message to unknown address dead-lettered', sessionId, toAddr, kind })
-      return kind === 'rpc' ? { reply: '' } : { delivered: true }
-    }
-    log.info({ msg: 'message sent', sessionId, fromAddr, toAddr: target.address, kind, correlationId: msgId })
-
-    // Resolve-or-spawn the resident loop, then deliver. The payload is the raw
-    // goal text; runResident passes msg.payload straight to promptOnce.
-    const handle = residentHandles.get(target.address) ?? spawnResident(sessionId, target)
-    handle.deliver({
-      id: msgId,
-      toAddr: target.address,
-      fromAddr,
-      kind,
-      correlationId: kind === 'rpc' ? msgId : null,
-      payload,
-      consumed: false,
-      retries: 0,
-      dead: false,
-      ts: now,
-    })
-    if (kind === 'rpc') {
-      // The caller (fromAddr) is mid-turn and holds a turn-slot. Yield it while we
-      // await the reply so the callee can acquire a slot — this is what prevents
-      // deadlock under maxConcurrent. Re-acquire before returning to the caller's loop.
-      // Infer "caller holds a turn-slot" from "caller has a registered resident
-      // loop". Valid ONLY because a resident issues rpc exclusively from inside
-      // its slot-holding promptOnce, and issues them serially.
-      const callerHoldsSlot = !!fromAddr && residentHandles.has(fromAddr)
-      if (callerHoldsSlot) releaseSlot()
-      try {
-        return { reply: await replyRegistry.awaitReply(msgId, RPC_TIMEOUT_MS) }
-      } finally {
-        if (callerHoldsSlot) await acquireSlot()
-      }
-    }
-    return { delivered: true }
-  }
-
   const spawnChild = async (
     sessionId: string,
     parentTaskId: string,
@@ -610,7 +349,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           initialMessages: [{ role: 'user', content: newGoal }] as AgentMessage[],
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
-          findPeers: (q) => directory.find(sessionId, q),
+          findPeers: (q) => directory.find(q),
           writeAgent: (def) =>
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
@@ -663,35 +402,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
     store.updateSessionStatus(sessionId, 'active')
     sessions.set(sessionId, rehydrated)
     return rehydrated
-  }
-
-  // Re-activate an addressed actor and re-deliver ALL its pending (unconsumed)
-  // DB messages in ts order, so the resident loop drains them as it would live.
-  // Used both for startup crash recovery and for the post-completion re-drain
-  // that closes the idle-sleep vs live-deliver race (see spawnResident's
-  // .finally). Re-spawns only when unconsumed rows remain, so it is a no-op for
-  // an address whose mailbox is already empty.
-  //
-  // NOTE: after a crash/restart re-drain, an rpc message's original caller is
-  // gone (its awaitReply promise died with the previous process), so when the
-  // resident later calls replyRegistry.resolve it finds no waiter and warns
-  // ("rpc reply has no waiter (caller gone)") — this is expected, not a bug.
-  function redrainAddress(address: string): void {
-    const actor = store.getActor(address)
-    if (!actor || !actor.sessionId) return
-    const pending = store.allUnconsumedFor(address)
-    if (pending.length === 0) return
-    const session = getOrRehydrate(actor.sessionId)
-    if (!session) return
-    const handle = residentHandles.get(address) ?? spawnResident(actor.sessionId, actor)
-    for (const msg of pending) handle.deliver(msg)
-    log.info({ msg: 'redrain', address, sessionId: actor.sessionId, pending: pending.length })
-  }
-
-  // Crash recovery: a previous run may have left messages enqueued but never
-  // delivered. Re-drain each addressed actor on startup.
-  for (const address of store.listUnconsumedAddresses()) {
-    redrainAddress(address)
   }
 
   // Run one task turn under an acquired concurrency slot: build the runner and
@@ -756,7 +466,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       // the work run's transcript lives only in run_events.
       signal: abort.signal,
       spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
-      findPeers: (q) => directory.find(sessionId, q),
+      findPeers: (q) => directory.find(q),
       writeAgent: (def) =>
         cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
       writeSkill: (skill) =>
@@ -836,11 +546,10 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
   // the task-terminal listener via updateTaskStatus; post-4b that listener is
   // rewired to the registry (loaded from run_events terminal events), which
   // does NOT include runs that were dispatched but never reached a terminal
-  // event (the process died mid-flight). Without this pass, a wait_for_task
-  // waiter on such an orphaned run waits forever, and renderer replay shows the
-  // run stuck 'running'. Fix: synthesize a terminal task.error per orphan in
-  // run_events (so replay reaches terminal) and mark each terminal in the
-  // registry (so waiters wake). Idempotent: a run with a terminal event is
+  // event (the process died mid-flight). Without this pass, renderer replay
+  // shows such an orphaned run stuck 'running' forever. Fix: synthesize a
+  // terminal task.error per orphan in run_events (so replay reaches terminal)
+  // and mark each terminal in the registry. Idempotent: a run with a terminal event is
   // skipped by construction (it isn't an orphan).
   //
   // Queries sessions already in the 'interrupted' state — by the time this
@@ -1023,7 +732,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           signal: abort.signal,
           spawnChild: (pt, ng, st, pk, at) => spawnChild(sessionId, pt, ng, st, pk, at),
           createTask: (g, agentType) => runWorkTask(sessionId, g, [], agentType ? { agentType } : {}),
-          findPeers: (q) => directory.find(sessionId, q),
+          findPeers: (q) => directory.find(q),
           writeAgent: (def) =>
             cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
           writeSkill: (skill) =>
@@ -1051,32 +760,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       session.pending.push({ taskId: turnId, runTurn })
       pump(session)
       return { taskId: turnId }
-    },
-
-    async startCompany(sessionId, goal) {
-      // Seed the fixed roster as named, addressable actors, then rpc-kick the
-      // CEO; its reply is the result of the whole run.
-      log.info({ msg: 'company started', sessionId, goalLen: goal.length })
-      // Self-heal: re-seed any company-critical role the user deleted so
-      // find_agents discovery and the 'ceo' kickoff resolve to the real defs.
-      for (const roleId of COMPANY_ROLES) {
-        if (cfg.agentStore?.get(roleId)) continue
-        const def = defaultAgents.find((d) => d.id === roleId)
-        if (!def) continue
-        const r = cfg.agentStore?.save(def)
-        if (r?.ok) log.warn({ msg: 'company role re-seeded (was missing)', sessionId, roleId })
-        else
-          log.error({
-            msg: 'company role re-seed failed',
-            sessionId,
-            roleId,
-            err: r && !r.ok ? r.message : 'no agent store',
-          })
-      }
-      for (const roleId of COMPANY_ROLES) {
-        ensureActor(sessionId, roleId, roleId)
-      }
-      return sendMessage(sessionId, null, 'ceo', goal, 'rpc')
     },
 
     resolvePermission(sessionId, actionId, decision) {
@@ -1137,12 +820,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       }
     },
 
-    endSession(sessionId) {
-      log.info({ msg: 'session ended', sessionId })
-      store.updateSessionStatus(sessionId, 'ended')
-      sessions.delete(sessionId)
-    },
-
     deleteSession(sessionId) {
       log.info({ msg: 'session deleted', sessionId })
       // Abort any in-flight runs for this session before dropping its rows.
@@ -1199,18 +876,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
       return store.getUsageStats(rangeDays)
     },
 
-    registerTerminalListener(fn) {
-      terminalRegistry.onTerminal(fn)
-    },
-
     terminalRegistry,
 
     markInterruptedRunsTerminal,
-
-    // Test-only: exercise actor resolution without driving a full run.
-    __ensureActorForTest(sessionId: string, agentDefId: string, name?: string) {
-      return ensureActor(sessionId, agentDefId, name)
-    },
 
     // Test-only: enqueue a goal WITHOUT auto-pumping, leaving the session idle
     // with a pending turn. submitGoal always pumps, so the only way to reach the
@@ -1228,33 +896,6 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
 
     __runWorkTaskForTest(sessionId: string, goal: string, options?: TaskOptions) {
       return runWorkTask(sessionId, goal, [], options)
-    },
-
-    deliverToActor(sessionId, address, goal) {
-      const session = getOrRehydrate(sessionId)
-      if (!session) {
-        log.warn({ msg: 'deliverToActor: session not found, dropping wake', sessionId, address })
-        return
-      }
-      void sendMessage(sessionId, 'system', address, goal, 'send').catch((err) => {
-        log.error({
-          msg: 'deliverToActor delivery failed',
-          sessionId,
-          address,
-          err: err instanceof Error ? err.message : String(err),
-        })
-      })
-    },
-
-    // Test-only: drive sendMessage directly.
-    __sendMessageForTest(
-      sessionId: string,
-      fromAddr: string | null,
-      toAddr: string,
-      payload: string,
-      kind: 'send' | 'rpc'
-    ) {
-      return sendMessage(sessionId, fromAddr, toAddr, payload, kind)
     },
   }
 }

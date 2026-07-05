@@ -3,7 +3,6 @@ import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
   DelegationItem,
-  Outbound,
   Peer,
   PeerQuery,
   PermissionDecision,
@@ -37,19 +36,12 @@ export interface ToolRunContext {
   ): Promise<{ childTaskId: string; result: TaskResult }>
   /** Agent-authored work: create a top-level work Task (single-shot) and return its result. Absent outside conversation turns. */
   createTask?(goal: string, agentType?: string): Promise<{ taskId: string; result: TaskResult }>
-  send: (msg: Outbound) => void
   requestPermission: (args: {
     toolName: string
     risk: ToolRisk
     summary: string
     payload: unknown
   }) => Promise<PermissionDecision>
-  /** This agent's stable address, if it was activated as an addressable actor. */
-  selfAddress?: string
-  /** Fire-and-forget message to another actor (by address or session-scoped name). */
-  sendMessage(to: string, payload: string): Promise<void>
-  /** RPC: deliver to another actor and await its reply summary. */
-  sendAndWait(to: string, payload: string): Promise<string>
   /** Discover peer agents in this session by role/capability/free-text. Empty query → all live peers. */
   findPeers(q: PeerQuery): Peer[]
   /**

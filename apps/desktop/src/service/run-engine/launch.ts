@@ -200,16 +200,8 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
           })
         )
       },
-      // Dead legacy channel — no tool reads ctx.send (repo-wide zero call
-      // sites); a deliberate inert stub until W3 drops it from the contract.
-      send: () => undefined,
       // Tools must NOT self-gate: permission is enforced centrally in the engine.
       requestPermission: () => Promise.resolve('grant' as const),
-      // No silent fake success (v1 optional-chained to a no-op and reported
-      // delivery — ledger #11). The messaging tools are deleted in W3; until
-      // then a call fails loudly.
-      sendMessage: () => Promise.reject(new Error('messaging is not available in this run')),
-      sendAndWait: () => Promise.reject(new Error('messaging is not available in this run')),
       findPeers: (q) => ports.findAgents?.(q) ?? [],
       writeAgent: ports.writeAgent,
       writeSkill: ports.writeSkill,

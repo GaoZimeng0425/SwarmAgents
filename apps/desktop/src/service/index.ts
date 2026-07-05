@@ -13,7 +13,6 @@ import { createAnalyzeEmail } from './gmail/analyze'
 import { createMainRpc } from './gmail/main-rpc'
 import { createBroadcaster } from './ipc/broadcaster'
 import { createDispatcher } from './ipc/dispatcher'
-import { createTaskWaiterService } from './loop/task-waiters'
 import { createMcpManager } from './mcp/manager'
 import { createMemoryStore } from './memory/store'
 import { createSessionManager } from './session/manager'
@@ -106,19 +105,10 @@ const scheduler = createCronScheduler({
 // loaded lazily on first cc_start, so constructing it here is cheap.
 const claudeCode = createClaudeCodeManager()
 
-const taskWaiters = createTaskWaiterService({
-  store,
-  deliver: (sessionId, address, goal) => manager.deliverToActor(sessionId, address, goal),
-  terminalRegistry: manager.terminalRegistry,
-})
-manager.registerTerminalListener((runId, status) => taskWaiters.onTaskTerminal(runId, status))
 // Close out runs dispatched-but-never-terminal from a previous process: append
 // a synthetic task.error to run_events (replay reaches terminal) and mark each
-// terminal in the registry. Order matters — this runs AFTER the listener is
-// wired (so markTerminal wakes any matching waiter) and BEFORE taskWaiters.start()
-// (so the start sweep sees the now-terminal runs and fires the rest).
+// terminal in the registry.
 manager.markInterruptedRunsTerminal()
-taskWaiters.start()
 
 // Service-side main-rpc client: gmail.* tools call mainRpc('gmail.search', [...]),
 // which posts a mainRequest that Main answers with a mainResponse. The client
@@ -140,7 +130,6 @@ registerBuiltinTools(toolRegistry, {
   skillStore,
   scheduler,
   claudeCode,
-  taskWaiters,
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
   gmailMainRpc: mainRpc.mainRpc,

@@ -228,19 +228,6 @@ describe('launchRun', () => {
     await p
   })
 
-  it('messaging context REJECTS instead of faking success (ledger #11 hardening)', async () => {
-    installAgent()
-    holdPrompt = true
-    const s = sink()
-    const { ports, getCtx } = makePorts(s)
-    const p = launchRun(spec(), ports)
-    await vi.waitFor(() => expect(getCtx()).toBeDefined())
-    await expect(getCtx().sendMessage('peer', 'hi')).rejects.toThrow('messaging is not available')
-    await expect(getCtx().sendAndWait('peer', 'hi')).rejects.toThrow('messaging is not available')
-    resolveHeldPrompt()
-    await p
-  })
-
   it('spawnChild rejects loudly when no delegate port is bound', async () => {
     installAgent()
     holdPrompt = true

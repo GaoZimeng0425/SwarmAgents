@@ -8,9 +8,8 @@ vi.mock('./agent-runner', () => ({
     // never resolves — stays "running" so we can cancel
     run: () => new Promise<never>(() => {}),
   }),
-  // runResident / buildAgentSession are imported by other session-manager code paths;
-  // stub them so the module graph resolves without a real implementation.
-  runResident: async () => {},
+  // buildAgentSession is imported by other session-manager code paths; stub it
+  // so the module graph resolves without a real implementation.
   buildAgentSession: () => ({}),
 }))
 

@@ -1,6 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
-import type { Actor, ActorMessage, ProviderInjection, UsageStats } from '@swarm/protocol'
+import type { ProviderInjection, UsageStats } from '@swarm/protocol'
 import { HEATMAP_DAYS } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import Database from 'better-sqlite3'
@@ -40,15 +40,6 @@ export type StoredCronRun = {
   triggeredAt: number
   endedAt: number | null
   error: string | null
-}
-
-export type StoredTaskWaiter = {
-  id: string
-  sessionId: string
-  waiterAddress: string
-  taskId: string
-  goal: string | null
-  createdAt: number
 }
 
 export type ConversationStore = {
@@ -103,25 +94,6 @@ export type ConversationStore = {
   /** Every persisted run across all jobs, newest first (for the schedule calendar). */
   listAllCronRuns(): StoredCronRun[]
   listRunningCronRuns(): StoredCronRun[]
-  saveTaskWaiter(w: StoredTaskWaiter): void
-  listTaskWaitersForTask(taskId: string): StoredTaskWaiter[]
-  listAllTaskWaiters(): StoredTaskWaiter[]
-  deleteTaskWaiter(id: string): void
-  upsertActor(actor: Actor): void
-  getActor(address: string): Actor | undefined
-  getActorByName(sessionId: string, name: string): Actor | undefined
-  listActorsForSession(sessionId: string): Actor[]
-  enqueueMessage(msg: ActorMessage): void
-  nextUnconsumedFor(address: string): ActorMessage | undefined
-  allUnconsumedFor(address: string): ActorMessage[]
-  listUnconsumedAddresses(): string[]
-  markConsumed(id: string): void
-  // Atomically mark a message consumed AND persist the actor's conversation
-  // state, so consumption and memory never diverge across a crash. Targeted
-  // UPDATE on state/updated_at only — does not touch last_task_id/name.
-  consumeAndPersist(msgId: string, address: string, state: string, updatedAt: number): void
-  markDead(id: string): void
-  bumpRetries(id: string): number
   close(): void
 }
 
@@ -138,6 +110,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
     DROP TABLE IF EXISTS task_events;
     DROP TABLE IF EXISTS tasks;
     DROP TABLE IF EXISTS conversation_events;
+    -- W3: the actor/resident subsystem is removed (spec D1) — the actors,
+    -- messages, and task_waiters tables (and their data) are dropped.
+    DROP TABLE IF EXISTS task_waiters;
+    DROP TABLE IF EXISTS messages;
+    DROP TABLE IF EXISTS actors;
 
     CREATE TABLE IF NOT EXISTS sessions (
       id              TEXT PRIMARY KEY,
@@ -195,39 +172,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
       error        TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(job_id);
-    CREATE TABLE IF NOT EXISTS actors (
-      address       TEXT PRIMARY KEY,
-      agent_def_id  TEXT NOT NULL,
-      session_id    TEXT,
-      name          TEXT,
-      state         TEXT,
-      last_task_id  TEXT,
-      created_at    INTEGER NOT NULL,
-      updated_at    INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_actors_session_name ON actors(session_id, name);
-    CREATE TABLE IF NOT EXISTS messages (
-      id              TEXT PRIMARY KEY,
-      to_addr         TEXT NOT NULL,
-      from_addr       TEXT,
-      kind            TEXT NOT NULL,
-      correlation_id  TEXT,
-      payload         TEXT NOT NULL,
-      consumed        INTEGER NOT NULL DEFAULT 0,
-      retries         INTEGER NOT NULL DEFAULT 0,
-      dead            INTEGER NOT NULL DEFAULT 0,
-      ts              INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_addr, consumed, dead, ts);
-    CREATE TABLE IF NOT EXISTS task_waiters (
-      id             TEXT PRIMARY KEY,
-      session_id     TEXT NOT NULL,
-      waiter_address TEXT NOT NULL,
-      task_id        TEXT NOT NULL,
-      goal           TEXT,
-      created_at     INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS task_waiters_task_idx ON task_waiters (task_id);
   `)
 
   for (const stmt of [
@@ -326,89 +270,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtListAllCronRuns = db.prepare('SELECT * FROM cron_runs ORDER BY triggered_at DESC')
   const stmtListRunningCronRuns = db.prepare("SELECT * FROM cron_runs WHERE status = 'running'")
 
-  const stmtUpsertActor = db.prepare(`
-    INSERT INTO actors (address, agent_def_id, session_id, name, state, last_task_id, created_at, updated_at)
-    VALUES (@address, @agentDefId, @sessionId, @name, @state, @lastTaskId, @createdAt, @updatedAt)
-    ON CONFLICT(address) DO UPDATE SET
-      agent_def_id = excluded.agent_def_id, session_id = excluded.session_id, name = excluded.name,
-      state = excluded.state, last_task_id = excluded.last_task_id, updated_at = excluded.updated_at
-  `)
-  const stmtGetActor = db.prepare('SELECT * FROM actors WHERE address = ?')
-  const stmtGetActorByName = db.prepare('SELECT * FROM actors WHERE session_id = ? AND name = ?')
-  const stmtListActorsForSession = db.prepare('SELECT * FROM actors WHERE session_id = ? ORDER BY created_at')
-  const stmtEnqueueMessage = db.prepare(`
-    INSERT INTO messages (id, to_addr, from_addr, kind, correlation_id, payload, consumed, retries, dead, ts)
-    VALUES (@id, @toAddr, @fromAddr, @kind, @correlationId, @payload, @consumed, @retries, @dead, @ts)
-  `)
-  const stmtNextUnconsumed = db.prepare(
-    'SELECT * FROM messages WHERE to_addr = ? AND consumed = 0 AND dead = 0 ORDER BY ts ASC LIMIT 1'
-  )
-  const stmtAllUnconsumedFor = db.prepare(
-    'SELECT * FROM messages WHERE to_addr = ? AND consumed = 0 AND dead = 0 ORDER BY ts ASC'
-  )
-  // Distinct destinations with pending, non-dead messages whose actor still
-  // exists — drives crash-recovery re-drain on session-manager init.
-  const stmtUnconsumedAddrs = db.prepare(
-    `SELECT DISTINCT m.to_addr AS addr FROM messages m
-     JOIN actors a ON a.address = m.to_addr
-     WHERE m.consumed = 0 AND m.dead = 0`
-  )
-  const stmtMarkConsumed = db.prepare('UPDATE messages SET consumed = 1 WHERE id = ?')
-  const stmtPersistActorState = db.prepare('UPDATE actors SET state = ?, updated_at = ? WHERE address = ?')
-  const consumeAndPersistTx = db.transaction((msgId: string, address: string, state: string, updatedAt: number) => {
-    stmtMarkConsumed.run(msgId)
-    stmtPersistActorState.run(state, updatedAt, address)
-  })
-  const stmtMarkDead = db.prepare('UPDATE messages SET dead = 1 WHERE id = ?')
-  const stmtBumpRetries = db.prepare('UPDATE messages SET retries = retries + 1 WHERE id = ?')
-  const stmtGetRetries = db.prepare('SELECT retries FROM messages WHERE id = ?')
-
-  type ActorRow = {
-    address: string
-    agent_def_id: string
-    session_id: string | null
-    name: string | null
-    state: string | null
-    last_task_id: string | null
-    created_at: number
-    updated_at: number
-  }
-  const rowToActor = (r: ActorRow): Actor => ({
-    address: r.address,
-    agentDefId: r.agent_def_id,
-    sessionId: r.session_id,
-    name: r.name,
-    state: r.state,
-    lastTaskId: r.last_task_id,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-  })
-
-  type MessageRow = {
-    id: string
-    to_addr: string
-    from_addr: string | null
-    kind: string
-    correlation_id: string | null
-    payload: string
-    consumed: number
-    retries: number
-    dead: number
-    ts: number
-  }
-  const rowToMessage = (r: MessageRow): ActorMessage => ({
-    id: r.id,
-    toAddr: r.to_addr,
-    fromAddr: r.from_addr,
-    kind: r.kind as 'send' | 'rpc',
-    correlationId: r.correlation_id,
-    payload: r.payload,
-    consumed: !!r.consumed,
-    retries: r.retries,
-    dead: !!r.dead,
-    ts: r.ts,
-  })
-
   const stmtInsertSession = db.prepare(
     `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot, sort_order)
      VALUES (?, ?, ?, 'active', ?, NULL, '[]',
@@ -460,23 +321,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
                    WHERE json_extract(event, '$.kind') IN ('task.complete', 'task.error')
                    GROUP BY run_id)`
   )
-
-  const stmtInsertTaskWaiter = db.prepare(
-    `INSERT INTO task_waiters (id, session_id, waiter_address, task_id, goal, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  )
-  const stmtListWaitersForTask = db.prepare('SELECT * FROM task_waiters WHERE task_id = ? ORDER BY created_at ASC')
-  const stmtListAllWaiters = db.prepare('SELECT * FROM task_waiters ORDER BY created_at ASC')
-  const stmtDeleteWaiter = db.prepare('DELETE FROM task_waiters WHERE id = ?')
-
-  const rowToTaskWaiter = (row: Record<string, unknown>): StoredTaskWaiter => ({
-    id: row.id as string,
-    sessionId: row.session_id as string,
-    waiterAddress: row.waiter_address as string,
-    taskId: row.task_id as string,
-    goal: (row.goal as string | null) ?? null,
-    createdAt: row.created_at as number,
-  })
 
   const stmtListSessions = db.prepare(
     // tokensUsed / usdCents sum the LATEST task.usage per run_id in the session
@@ -852,56 +696,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     },
     listRunningCronRuns() {
       return (stmtListRunningCronRuns.all() as Record<string, unknown>[]).map(rowToCronRun)
-    },
-    saveTaskWaiter(w) {
-      stmtInsertTaskWaiter.run(w.id, w.sessionId, w.waiterAddress, w.taskId, w.goal ?? null, w.createdAt)
-    },
-    listTaskWaitersForTask(taskId) {
-      return (stmtListWaitersForTask.all(taskId) as Record<string, unknown>[]).map(rowToTaskWaiter)
-    },
-    listAllTaskWaiters() {
-      return (stmtListAllWaiters.all() as Record<string, unknown>[]).map(rowToTaskWaiter)
-    },
-    deleteTaskWaiter(id) {
-      stmtDeleteWaiter.run(id)
-    },
-    upsertActor(actor) {
-      stmtUpsertActor.run(actor)
-    },
-    getActor(address) {
-      const row = stmtGetActor.get(address) as ActorRow | undefined
-      return row ? rowToActor(row) : undefined
-    },
-    getActorByName(sessionId, name) {
-      const row = stmtGetActorByName.get(sessionId, name) as ActorRow | undefined
-      return row ? rowToActor(row) : undefined
-    },
-    listActorsForSession(sessionId) {
-      return (stmtListActorsForSession.all(sessionId) as ActorRow[]).map(rowToActor)
-    },
-    enqueueMessage(msg) {
-      stmtEnqueueMessage.run({ ...msg, consumed: msg.consumed ? 1 : 0, dead: msg.dead ? 1 : 0 })
-    },
-    nextUnconsumedFor(address) {
-      const row = stmtNextUnconsumed.get(address) as MessageRow | undefined
-      return row ? rowToMessage(row) : undefined
-    },
-    allUnconsumedFor(address) {
-      return (stmtAllUnconsumedFor.all(address) as MessageRow[]).map(rowToMessage)
-    },
-    listUnconsumedAddresses() {
-      return (stmtUnconsumedAddrs.all() as { addr: string }[]).map((r) => r.addr)
-    },
-    markConsumed(id) {
-      stmtMarkConsumed.run(id)
-    },
-    consumeAndPersist: (msgId, address, state, updatedAt) => consumeAndPersistTx(msgId, address, state, updatedAt),
-    markDead(id) {
-      stmtMarkDead.run(id)
-    },
-    bumpRetries(id) {
-      stmtBumpRetries.run(id)
-      return (stmtGetRetries.get(id) as { retries: number } | undefined)?.retries ?? 0
     },
     close() {
       db.close()

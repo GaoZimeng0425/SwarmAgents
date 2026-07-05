@@ -1,11 +1,10 @@
 import type { AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core'
-import { Agent, DEFAULT_COMPACTION_SETTINGS, shouldCompact } from '@earendil-works/pi-agent-core'
+import { Agent } from '@earendil-works/pi-agent-core'
 import type { Api, ImageContent, KnownProvider, Model, Usage } from '@earendil-works/pi-ai'
 import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { getBuiltinModel as getModel, getBuiltinModels as getModels } from '@earendil-works/pi-ai/providers/all'
 import { createLogger } from '@shared/logger'
 import type {
-  ActorMessage,
   AgentDefinition,
   ModelPricing,
   Peer,
@@ -30,8 +29,6 @@ import {
 } from '@swarm/protocol'
 import { reasoningOverridesFor } from '@swarm/shared'
 
-import { IdleTimeoutError, type Mailbox } from '../actor/mailbox'
-import { encodeActorState } from '../actor/state'
 import type { AgentMutationResult } from '../agents/store'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from '../tools/registry'
 import type { PermissionRegistry } from './permission-registry'
@@ -223,15 +220,6 @@ export type AgentRunnerDeps = {
   ): Promise<{ childTaskId: string; result: TaskResult }>
   /** Agent-authored work: create a top-level work Task (single-shot), await, return result. */
   createTask?(goal: string, agentType?: string): Promise<{ taskId: string; result: TaskResult }>
-  /** This run's actor address, when run as a resident actor. */
-  selfAddress?: string
-  /** Deliver a message to another actor. rpc awaits a reply; send is fire-and-forget. */
-  sendMessage?(
-    from: string | null,
-    to: string,
-    payload: string,
-    kind: 'send' | 'rpc'
-  ): Promise<{ reply: string } | { delivered: true }>
   /** Discover peer agents in this session. */
   findPeers?(q: PeerQuery): Peer[]
   /** Author/overwrite an agent definition on disk (training team only). */
@@ -307,18 +295,9 @@ export function buildToolContext(deps: AgentRunnerDeps): ToolRunContext {
     spawnChild: (goal, suggestedTools, providerKey, agentType) =>
       deps.spawnChild(ctx.id, goal, suggestedTools, providerKey, agentType),
     createTask: deps.createTask,
-    send: () => undefined,
     // Tools must NOT self-gate: permission is enforced centrally in beforeToolCall.
     // This stub satisfies the ToolRunContext type without creating a second gate.
     requestPermission: () => Promise.resolve('grant' as const),
-    selfAddress: deps.selfAddress,
-    sendMessage: async (to, payload) => {
-      await deps.sendMessage?.(deps.selfAddress ?? null, to, payload, 'send')
-    },
-    sendAndWait: async (to, payload) => {
-      const res = await deps.sendMessage?.(deps.selfAddress ?? null, to, payload, 'rpc')
-      return res && 'reply' in res ? res.reply : ''
-    },
     findPeers: (q) => deps.findPeers?.(q) ?? [],
     analyzeImage: buildAnalyzeImage(deps),
     writeAgent: deps.writeAgent,
@@ -1249,91 +1228,5 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
         used: session.getUsed(),
       }
     },
-  }
-}
-
-export type ResidentHooks = {
-  acquireTurnSlot(): Promise<void>
-  releaseTurnSlot(): void
-  // Atomic: mark the message consumed AND persist the actor's conversation
-  // state (cross-dormancy memory). The loop serializes agent.state.messages
-  // after an optional compaction and hands the blob here.
-  onConsumed(msgId: string, state: string): void
-  onReply(correlationId: string, summary: string): void
-  /** A single turn failed: record retry/deadletter. The loop continues. */
-  onError(msgId: string): void
-}
-
-/**
- * A resident virtual actor: build the agent session once (so its conversation
- * accumulates across messages), then drain the mailbox one message per turn.
- * Returns when the mailbox idles out (sleep) or `deps.signal` aborts.
- *
- * Payload convention: the message `payload` is the raw goal text — passed
- * straight to `promptOnce` (Task 6 enqueues the goal string as-is).
- */
-export async function runResident(
-  deps: AgentRunnerDeps,
-  mailbox: Mailbox,
-  hooks: ResidentHooks,
-  idleMs: number
-): Promise<void> {
-  const residentLog = log.child({ component: 'actor-runtime' })
-  const task = resolveRunContext(deps)
-  const session = buildAgentSession(deps)
-  residentLog.info({ msg: 'resident-start', address: deps.selfAddress, taskId: task.id })
-  for (;;) {
-    if (deps.signal?.aborted) {
-      residentLog.info({ msg: 'resident aborted', address: deps.selfAddress })
-      return
-    }
-    let msg: ActorMessage
-    try {
-      msg = await mailbox.receive({ idleMs })
-    } catch (err) {
-      if (err instanceof IdleTimeoutError) {
-        residentLog.info({ msg: 'idle-sleep', address: deps.selfAddress })
-        return
-      }
-      throw err
-    }
-    await hooks.acquireTurnSlot()
-    try {
-      residentLog.info({ msg: 'turn-start', address: deps.selfAddress, msgId: msg.id, kind: msg.kind })
-      const { summary } = await session.promptOnce(msg.payload)
-      // TODO: resident-actor context compaction is not wired. pi exposes
-      // compaction as a standalone compact(preparation, models, model) — there is
-      // no Agent.compact() method — which requires exposing model resolution on
-      // AgentSession (see buildAgentSession). Until then, surface the
-      // unbounded-growth risk with a warn when the threshold is crossed.
-      if (shouldCompact(session.getContextTokens(), session.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
-        residentLog.warn({
-          msg: 'compact-skipped-not-wired',
-          address: deps.selfAddress,
-          contextTokens: session.getContextTokens(),
-          contextWindow: session.contextWindow,
-          component: 'actor-state',
-        })
-      }
-      const state = encodeActorState(session.agent.state.messages)
-      residentLog.info({ msg: 'persist', address: deps.selfAddress, msgId: msg.id, component: 'actor-state' })
-      hooks.onConsumed(msg.id, state)
-      if (msg.kind === 'rpc' && msg.correlationId) hooks.onReply(msg.correlationId, summary)
-      residentLog.info({ msg: 'turn-end', address: deps.selfAddress, msgId: msg.id })
-    } catch (err) {
-      residentLog.error({
-        msg: 'resident turn failed',
-        address: deps.selfAddress,
-        msgId: msg.id,
-        err: err instanceof Error ? err.message : String(err),
-      })
-      // A single bad message must not kill the resident loop. Record the
-      // failure (retry/deadletter decided by the session-manager) and continue
-      // draining. The message is NOT marked consumed, so it stays pending for a
-      // future re-drain unless the session-manager dead-letters it.
-      hooks.onError(msg.id)
-    } finally {
-      hooks.releaseTurnSlot()
-    }
   }
 }

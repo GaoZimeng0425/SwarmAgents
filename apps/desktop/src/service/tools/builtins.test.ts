@@ -18,10 +18,7 @@ const ctx: ToolRunContext = {
   sessionId: 's',
   taskId: 't',
   spawnChild: async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }),
-  send: () => undefined,
   requestPermission: async () => 'grant',
-  sendMessage: async () => {},
-  sendAndWait: async () => '',
   findPeers: () => [],
 }
 
@@ -40,11 +37,8 @@ describe('registerBuiltinTools', () => {
     expect(ids).toEqual([
       'agent.create_task',
       'agent.find_agents',
-      'agent.send_and_wait',
-      'agent.send_message',
       'agent.set_delegation_plan',
       'agent.update_plan',
-      'agent.whoami',
       'authoring.write_agent',
       'authoring.write_skill',
       'fs.edit_file',
@@ -157,25 +151,5 @@ describe('registerBuiltinTools with a scheduler', () => {
     const r = createToolRegistry()
     registerBuiltinTools(r)
     expect(r.list().some((s) => s.group === 'cron')).toBe(false)
-  })
-})
-
-describe('registerBuiltinTools with a task waiter service', () => {
-  it('registers wait_for_task when a taskWaiters service is provided', () => {
-    const registry = createToolRegistry()
-    registerBuiltinTools(registry, {
-      taskWaiters: {
-        register: () => ({ id: null, firedImmediately: false }),
-        onTaskTerminal: () => {},
-        start: () => {},
-      },
-    })
-    expect(registry.list().some((s) => s.name === 'wait_for_task')).toBe(true)
-  })
-
-  it('omits wait_for_task when no taskWaiters service is provided', () => {
-    const registry = createToolRegistry()
-    registerBuiltinTools(registry)
-    expect(registry.list().some((s) => s.name === 'wait_for_task')).toBe(false)
   })
 })
