@@ -121,6 +121,8 @@ Kind-specific behavior is declared in one table inside `launch.ts`: `turn` → q
 
 Each W# is its own worktree/branch, integrated via rebase onto develop + ff-only merge (house rule). W1–W4 are sequential; W0 is independent and lands immediately.
 
+**Completion (2026-07-05):** All four phases have landed on develop — W0 (hotfixes) and W1 (protocol v2 types + run-engine skeleton) merged 2026-07-04; W2 (`engine.ts`/`launch.ts`) and W3 (SessionService + actor-half deletion) merged 2026-07-05; W4 (renderer/IPC rename, DB migration, delegate-tree e2e, atomic switchover) is this branch, completing the rewrite. The §7 footnote items are absorbed: the residual double-terminal risk on #1 is fixed structurally by W2's terminal-free translator (never double-emits, regardless of whether pi stamps `stopReason: 'aborted'`); carry-overs (a)/(b)/(c) are pinned by `engine.ts` and its parity tests (trimmed+fallback summary, `stopCause`-first precedence over `errorMessage`/`sawAborted`, the "Operation aborted" transcript rewrite ported into `engine.ts`'s subscribe handler); the §6 addendum's dormant nested `task.*` declarations were removed — `shared/events.ts` (`DomainEvent`/`EventBus`) no longer exists and `packages/protocol/src/types/ipc.ts` now has zero `task.*` references, both swept clean by the W4 `ipc.ts`/wire cleanup.
+
 ## 9. Testing
 
 - **Unit:** retry.ts pure tests (chain walk, permanent-failure short-circuit, abort during backoff); translator tests fed real pi event fixtures, asserting exactly one terminal emit and wire-v2 shapes; launch tests for abort-before-slot, slot release during delegate, status propagation, kind table behavior.
