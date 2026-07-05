@@ -39,7 +39,8 @@ export type RunSpec = {
   attachments?: Attachment[]
   budget: ResourceBudget
   parentRunId?: string
-  /** Tool allowlist; empty resolves the agent's defaults per registry semantics. */
+  /** Tool allowlist for this run. The CALLER resolves the agent's defaults
+   *  (e.g. allowlistForAgent); an empty list resolves NO tools. */
   tools?: string[]
   cwd?: string
   executionMode?: 'goal' | 'plan'
@@ -57,7 +58,12 @@ export type LaunchPorts = {
   permissionRegistry: PermissionRegistry
   /** Per-session FIFO ticket for 'turn' runs; resolves when the run may execute. */
   waitTurn?: (sessionId: string, runId: string, signal: AbortSignal) => Promise<void>
-  /** Global concurrency pool; resolves with the release fn. */
+  /**
+   * Global concurrency pool; resolves with the release fn.
+   * CONTRACT: once `signal` aborts, the port MUST resolve promptly (a no-op
+   * release is fine) — a parked waiter that ignores the signal wedges the
+   * run and, in W3, its whole session queue. launchRun also defends below.
+   */
   acquireSlot: (signal: AbortSignal) => Promise<() => void>
   registerAbort: (runId: string, abort: () => void) => void
   unregisterAbort: (runId: string) => void
@@ -119,7 +125,7 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
       return await fn()
     } finally {
       yieldDepth--
-      if (yieldDepth === 0 && !ac.signal.aborted) release = await ports.acquireSlot(ac.signal)
+      if (yieldDepth === 0 && !ac.signal.aborted) release = await raceAcquire()
     }
   }
 
@@ -127,6 +133,23 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
     emit({ kind: 'run.error', error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' } })
     runLog.info({ msg: 'run cancelled before dispatch' })
   }
+
+  // Defense-in-depth for the acquireSlot contract: never stay parked on the
+  // pool once the run is cancelled, and hand back a grant that arrives late.
+  const raceAcquire = (): Promise<(() => void) | null> =>
+    Promise.race([
+      ports.acquireSlot(ac.signal).then((release) => {
+        if (ac.signal.aborted) {
+          release() // late grant after cancel: give it straight back
+          return null
+        }
+        return release
+      }),
+      new Promise<null>((resolve) => {
+        if (ac.signal.aborted) resolve(null)
+        else ac.signal.addEventListener('abort', () => resolve(null), { once: true })
+      }),
+    ])
 
   try {
     // Register BEFORE any wait: a cancel issued while queued must find the
@@ -154,8 +177,8 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
       emitCancelled()
       return cancelledResult(runId, spec.history ?? [])
     }
-    release = await ports.acquireSlot(ac.signal)
-    if (ac.signal.aborted) {
+    release = await raceAcquire()
+    if (ac.signal.aborted || !release) {
       emitCancelled()
       return cancelledResult(runId, spec.history ?? [])
     }

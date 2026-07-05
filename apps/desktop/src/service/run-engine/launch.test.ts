@@ -146,6 +146,35 @@ describe('launchRun', () => {
     expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'cancelled' } })
   })
 
+  it('terminates promptly when cancelled during the slot wait, even if the pool port ignores the signal', async () => {
+    installAgent()
+    const s = sink()
+    let registeredAbort: (() => void) | null = null
+    let ctxResolved = false
+    const { ports } = makePorts(s, {
+      registerAbort: (_id, abort) => {
+        registeredAbort = abort
+      },
+      // A non-compliant pool: parks forever, ignores the signal.
+      acquireSlot: () => new Promise(() => undefined),
+      toolRegistry: {
+        resolve: () => {
+          ctxResolved = true
+          return { tools: [], riskOf: () => 'low' as const }
+        },
+      } as never,
+    })
+    const p = launchRun(spec(), ports)
+    await vi.waitFor(() => expect(registeredAbort).not.toBeNull())
+    registeredAbort!()
+    const r = await p
+    expect(r.status).toBe('cancelled')
+    expect(ctxResolved).toBe(false)
+    const t = terminals(s)
+    expect(t).toHaveLength(1)
+    expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'cancelled' } })
+  })
+
   it('emits agent_setup_failed when the engine cannot be constructed, releasing the slot', async () => {
     installAgent()
     const s = sink()
