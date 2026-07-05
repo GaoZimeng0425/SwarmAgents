@@ -1,5 +1,5 @@
 // apps/desktop/src/renderer/src/lib/workspace/build-artifacts.ts
-// Pure builder: aggregates 产出物 from two sources — file paths extracted from
+// Pure builder: aggregates artifacts from two sources — file paths extracted from
 // the session's tool_call args (best-effort heuristic) + Phase 3a's
 // listArtifacts cwd recents — deduplicated by normalized path.
 
@@ -24,7 +24,8 @@ function hasExtension(path: string): boolean {
 }
 
 function normalizePath(p: string): string {
-  // Collapse ./ and ../ best-effort (no fs access in pure fn — resolve lexical-only).
+  // Collapse /./ and trailing slashes only (lexical-only; ../ is NOT resolved —
+  // a pure fn has no fs/cwd access to resolve it).
   return p.replace(/\/\.\//g, '/').replace(/\/+$/g, '')
 }
 
