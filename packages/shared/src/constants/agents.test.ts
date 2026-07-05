@@ -1,4 +1,4 @@
-import { AgentDefinitionSchema } from '@swarm/protocol'
+import { AgentDefinitionSchema, allowlistForAgent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { defaultAgents } from './agents'
@@ -20,8 +20,8 @@ describe('builtin roster', () => {
   })
 
   it('ships a training team with a head and an authoring IC', () => {
-    expect(byId['training-head']).toMatchObject({ team: 'training', teamRole: 'head', toolScope: 'authoring' })
-    expect(byId['training-author']).toMatchObject({ team: 'training', toolScope: 'authoring' })
+    expect(byId['training-head']).toMatchObject({ team: 'training', teamRole: 'head', authoring: true })
+    expect(byId['training-author']).toMatchObject({ team: 'training', authoring: true })
   })
 
   it('each company team has exactly one head', () => {
@@ -78,7 +78,7 @@ describe('builtin roster', () => {
     expect(byId.reviewer.systemPrompt).not.toContain('retry once')
   })
 
-  it('pure-delegator coordinators use the least-privilege coordinate scope', () => {
+  it('pure-delegator coordinators are not authoring-privileged; only the training team is', () => {
     const coordinators = [
       'ceo',
       'planner',
@@ -92,12 +92,12 @@ describe('builtin roster', () => {
       'data-lead',
     ]
     for (const id of coordinators) {
-      expect(byId[id].toolScope, `${id} should be coordinate`).toBe('coordinate')
+      expect(allowlistForAgent(byId[id]), `${id} should not be authoring-privileged`).not.toContain('authoring.*')
     }
-    // The training head stays privileged; ICs keep full access.
-    expect(byId['training-head'].toolScope).toBe('authoring')
-    expect(byId.engineer.toolScope).toBe('all')
-    expect(byId['worker-fast'].toolScope).toBe('all')
+    // The training head stays privileged; ICs keep full (non-authoring) access.
+    expect(allowlistForAgent(byId['training-head'])).toContain('authoring.*')
+    expect(allowlistForAgent(byId.engineer)).not.toContain('authoring.*')
+    expect(allowlistForAgent(byId['worker-fast'])).not.toContain('authoring.*')
   })
 
   it('the CEO description no longer references the renamed PM role', () => {
@@ -129,10 +129,9 @@ describe('builtin roster', () => {
 })
 
 describe('gmail-analyst builtin', () => {
-  it('ships a peekaboo, no-tool analysis agent', () => {
+  it('ships a low-iteration analysis agent', () => {
     const a = defaultAgents.find((d) => d.id === 'gmail-analyst')
     expect(a).toBeDefined()
-    expect(a?.toolScope).toBe('peekaboo')
     expect(a?.maxIterations).toBe(2)
     expect(a?.capabilities).toContain('gmail-analyze')
     expect(a?.systemPrompt).toMatch(/中文/)

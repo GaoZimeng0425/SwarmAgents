@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
-import type { AgentDefinition, ToolScope } from '@swarm/protocol'
+import type { AgentDefinition } from '@swarm/protocol'
+import {
+  Button,
+  Input,
+  Label,
+  NativeSelect,
+  NativeSelectOption,
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Switch,
+  Textarea,
+} from '@swarm/ui'
 import { compact } from 'es-toolkit'
-
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
-import { Label } from '@swarm/ui'
-import { NativeSelect, NativeSelectOption } from '@swarm/ui'
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@swarm/ui'
-import { Switch } from '@swarm/ui'
-import { Textarea } from '@swarm/ui'
 
 type AgentFormSheetProps = {
   open: boolean
@@ -19,8 +25,6 @@ type AgentFormSheetProps = {
   onSubmit: (def: AgentDefinition) => void
   onOpenChange: (open: boolean) => void
 }
-
-const SCOPES: ToolScope[] = ['peekaboo', 'web', 'fs', 'memory', 'authoring', 'coordinate', 'all']
 
 /** Right-side form to create / edit / duplicate an agent. Prop-driven: it owns
  *  only local field state and calls onSubmit with the assembled definition;
@@ -38,7 +42,7 @@ export function AgentFormSheet({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
-  const [toolScope, setToolScope] = useState<ToolScope>('all')
+  const [authoring, setAuthoring] = useState(false)
   const [parentId, setParentId] = useState('')
   const [team, setTeam] = useState('')
   const [teamHead, setTeamHead] = useState(false)
@@ -54,7 +58,8 @@ export function AgentFormSheet({
     setName(a?.name ?? '')
     setDescription(a?.description ?? '')
     setSystemPrompt(a?.systemPrompt ?? '')
-    setToolScope(a?.toolScope ?? 'all')
+    // Back-compat: a legacy on-disk agent may carry toolScope: 'authoring' instead of the flag.
+    setAuthoring(a?.authoring === true || a?.toolScope === 'authoring')
     setParentId(a?.parentId ?? '')
     setTeam(a?.team ?? '')
     setTeamHead(a?.teamRole === 'head')
@@ -73,8 +78,8 @@ export function AgentFormSheet({
       name: name.trim(),
       description: description.trim(),
       systemPrompt,
-      toolScope,
       maxIterations: Number(maxIterations) || 25,
+      ...(authoring ? { authoring: true } : {}),
       ...(parentId ? { parentId } : {}),
       ...(team.trim() ? { team: team.trim() } : {}),
       ...(teamHead ? { teamRole: 'head' as const } : {}),
@@ -119,19 +124,10 @@ export function AgentFormSheet({
               value={systemPrompt}
             />
           </Field>
-          <Field htmlFor="agent-toolScope" label="tool scope">
-            <NativeSelect
-              id="agent-toolScope"
-              onChange={(e) => setToolScope(e.target.value as ToolScope)}
-              value={toolScope}
-            >
-              {SCOPES.map((s) => (
-                <NativeSelectOption key={s} value={s}>
-                  {s}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
+          <div className="flex items-center gap-2">
+            <Switch aria-label="Authoring" checked={authoring} id="agent-authoring" onCheckedChange={setAuthoring} />
+            <Label htmlFor="agent-authoring">Authoring (write_agent / write_skill access)</Label>
+          </div>
           <Field htmlFor="agent-parent" label="parent">
             <NativeSelect id="agent-parent" onChange={(e) => setParentId(e.target.value)} value={parentId}>
               <NativeSelectOption value="">(none)</NativeSelectOption>

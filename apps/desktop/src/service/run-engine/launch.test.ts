@@ -84,7 +84,7 @@ const spec = (over: Partial<RunSpec> = {}): RunSpec => ({
   agent: { id: 'default', name: 'd', description: 'd', systemPrompt: '', toolScope: 'all', maxIterations: 25 } as never,
   provider: { id: 'c1', model: 'test-model', apiStyle: 'anthropic', apiKey: 'k' } as never,
   prompt: 'go',
-  budget: { tokens: 1e9, calls: 100, wallMs: 600_000, usdCents: 100_000 } as never,
+  budget: { calls: 100, wallMs: 600_000, usdCents: 100_000 } as never,
   retry: { maxRetries: 0, delayMs: 0 },
   ...over,
 })

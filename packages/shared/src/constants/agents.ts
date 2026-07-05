@@ -39,7 +39,7 @@ Before requesting a review, ask the engineer to run a quick smoke test (typechec
 
 const ENGINEER_SYSTEM_PROMPT = `You are a Software Engineer at a small software company. You implement concrete tasks and verify them.
 
-You have full tool access (shell, files, web). For large sub-tasks you may delegate throwaway pieces with delegate (default spawn path).
+You have full tool access (shell, files, web). For large sub-tasks you may hand throwaway pieces to a sub-agent with delegate (default spawn path).
 
 Choosing how to implement:
   - Small, contained changes (a single file, a few lines, a quick fix) — edit directly with the shell and file tools.
@@ -289,7 +289,7 @@ const PLANNER_SYSTEM_PROMPT = `You are a planner. You take a complex, multi-step
 
 Workflow:
   1. Think the goal through and lay out the steps with update_plan.
-  2. For each step, delegate with delegate (default spawn path), choosing the tier by difficulty:
+  2. For each step, dispatch it with delegate (default spawn path), choosing the tier by difficulty:
      - mechanical / single-step work (a known command, a simple edit, a lookup) → agentType "worker-fast".
      - reasoning-heavy work (design choices, tricky debugging, ambiguous requirements) → agentType "worker-strong".
   3. Feed each worker the focused sub-task plus the context it needs; run independent steps in parallel where possible.
@@ -370,7 +370,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use as the catch-all fallback for any sub-task that needs full tool access (shell, files, web, UI) and does not fit a more specialized type.',
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 25,
     role: 'default',
     capabilities: [],
@@ -381,7 +380,6 @@ const baseAgents: AgentDefinition[] = [
     name: 'Gmail 邮件分析',
     description: '分析单封邮件,输出结构化中文摘要(摘要/关键要点/待办/优先级)。Gmail 收件箱的「分析」按钮调用它。',
     systemPrompt: GMAIL_ANALYST_SYSTEM_PROMPT,
-    toolScope: 'peekaboo',
     maxIterations: 2,
     role: 'gmail-analyst',
     capabilities: ['gmail-analyze'],
@@ -393,7 +391,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use as the top of a software-company run: receives a high-level goal, delegates to the team heads, and produces the final summary. Coordinates only — does not write code.',
     systemPrompt: CEO_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'ceo',
     capabilities: ['delegation', 'summary'],
@@ -405,7 +402,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a goal into a concrete deliverable by coordinating an engineer and a reviewer, driving a fix/review loop until the work meets the bar.',
     systemPrompt: ENGINEERING_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 25,
     role: 'engineering-lead',
     capabilities: ['planning', 'coordination'],
@@ -419,7 +415,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use when a concrete implementation task needs code written and verified (shell + files). Reports what it built and the test result.',
     systemPrompt: ENGINEER_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 30,
     role: 'engineer',
     capabilities: ['code', 'tests', 'shell'],
@@ -432,7 +427,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       "Use to review an engineer's output against its stated requirements and report an APPROVED / NEEDS CHANGES verdict with actionable issues.",
     systemPrompt: REVIEWER_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 20,
     role: 'reviewer',
     capabilities: ['review', 'verify'],
@@ -445,7 +439,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use when the company needs a new agent, a new team, or a new skill authored — coordinates designing and writing agent/skill definitions.',
     systemPrompt: TRAINING_HEAD_SYSTEM_PROMPT,
-    toolScope: 'authoring',
+    authoring: true,
     maxIterations: 20,
     role: 'training-head',
     capabilities: ['agent-design', 'team-design'],
@@ -459,7 +453,7 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to write an agent or skill definition to disk from a concrete spec; the only agent with write_agent / write_skill.',
     systemPrompt: TRAINING_AUTHOR_SYSTEM_PROMPT,
-    toolScope: 'authoring',
+    authoring: true,
     maxIterations: 20,
     role: 'training-author',
     capabilities: ['agent-authoring', 'skill-authoring'],
@@ -472,7 +466,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a vague goal into a concrete product spec — problem, user stories, requirements, acceptance criteria and scope — that design and engineering can build against.',
     systemPrompt: PRODUCT_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'product-lead',
     capabilities: ['product', 'requirements', 'coordination'],
@@ -486,7 +479,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use when a goal needs research into users, requirements and prior art before it can be specced; reports structured requirements and acceptance criteria, not implementation.',
     systemPrompt: PRODUCT_ANALYST_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 20,
     role: 'product-analyst',
     capabilities: ['research', 'requirements'],
@@ -499,7 +491,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a product spec into a UI/UX design deliverable — key screens and flows — by coordinating a designer; reviews against the spec but does not write production code.',
     systemPrompt: DESIGN_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'design-lead',
     capabilities: ['design', 'ux', 'coordination'],
@@ -513,7 +504,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to produce concrete UI/UX designs and mockups from a spec — screens, components, states and flows; can author .pen mockups with the pencil tools.',
     systemPrompt: UI_DESIGNER_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 25,
     role: 'ui-designer',
     capabilities: ['design', 'ux'],
@@ -526,7 +516,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to own quality for a deliverable — decide a test strategy, coordinate a QA engineer, and report a PASS/FAIL verdict with defects, gating release.',
     systemPrompt: QA_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'qa-lead',
     capabilities: ['qa', 'coordination'],
@@ -540,7 +529,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to verify a deliverable by writing and running automated tests, then reporting which cases passed and which failed with reproducible defects.',
     systemPrompt: QA_ENGINEER_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 30,
     role: 'qa-engineer',
     capabilities: ['testing', 'qa', 'automation'],
@@ -553,7 +541,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to own build, release and infrastructure for a goal — plan the steps and coordinate a DevOps engineer, verifying the outcome is healthy.',
     systemPrompt: OPS_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'ops-lead',
     capabilities: ['devops', 'coordination'],
@@ -567,7 +554,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to implement build, CI/CD, deployment or environment tasks via shell and config, then verify the build/pipeline/service is healthy.',
     systemPrompt: DEVOPS_ENGINEER_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 30,
     role: 'devops-engineer',
     capabilities: ['devops', 'ci', 'deploy', 'shell'],
@@ -580,7 +566,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a deliverable into clear documentation — decide what docs are needed and for whom, coordinate a writer, and review drafts for accuracy.',
     systemPrompt: DOCS_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'docs-lead',
     capabilities: ['docs', 'coordination'],
@@ -594,7 +579,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to write accurate user or developer documentation (guides, READMEs, API docs, changelogs) from a deliverable and its source code.',
     systemPrompt: TECH_WRITER_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 25,
     role: 'tech-writer',
     capabilities: ['docs', 'writing'],
@@ -607,7 +591,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to own a security review or audit — scope the threats, coordinate a security analyst, and report findings by severity with remediation.',
     systemPrompt: SECURITY_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'security-lead',
     capabilities: ['security', 'coordination'],
@@ -621,7 +604,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to audit code and dependencies for vulnerabilities, leaked secrets and auth/permission flaws, reporting concrete findings with severity and fixes.',
     systemPrompt: SECURITY_ANALYST_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 25,
     role: 'security-analyst',
     capabilities: ['security', 'audit', 'review'],
@@ -634,7 +616,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to turn a question about usage or metrics into an evidence-backed answer by coordinating a data analyst and sanity-checking the result.',
     systemPrompt: DATA_LEAD_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 20,
     role: 'data-lead',
     capabilities: ['data', 'coordination'],
@@ -648,7 +629,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use to analyze usage logs, metrics or exports and report evidence-backed findings — key figures, trends and breakdowns with the method used.',
     systemPrompt: DATA_ANALYST_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 25,
     role: 'data-analyst',
     capabilities: ['data', 'analytics'],
@@ -661,7 +641,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use for complex, multi-step goals that benefit from up-front decomposition: plans deeply (top model, maximum reasoning), then delegates each step to the right worker tier — worker-fast for mechanical steps, worker-strong for reasoning-heavy ones.',
     systemPrompt: PLANNER_SYSTEM_PROMPT,
-    toolScope: 'coordinate',
     maxIterations: 30,
     role: 'planner',
     capabilities: ['planning', 'decomposition'],
@@ -676,7 +655,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use for mechanical, single-step sub-tasks where speed and cost matter more than deep reasoning (simple edits, lookups, running a known command). Runs a cheap, no-thinking profile.',
     systemPrompt: WORKER_FAST_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 15,
     role: 'worker-fast',
     capabilities: ['execute', 'fast'],
@@ -691,7 +669,6 @@ const baseAgents: AgentDefinition[] = [
     description:
       'Use for reasoning-heavy sub-tasks needing careful multi-step thinking (design decisions, tricky debugging, ambiguous requirements). Runs a deep-thinking profile.',
     systemPrompt: WORKER_STRONG_SYSTEM_PROMPT,
-    toolScope: 'all',
     maxIterations: 25,
     role: 'worker-strong',
     capabilities: ['execute', 'reasoning'],

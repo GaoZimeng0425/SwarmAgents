@@ -4,22 +4,18 @@ import { describe, expect, it } from 'vitest'
 import { defaultAgents } from './agents'
 
 // Coordinators only dispatch work — they don't call code/shell tools themselves.
-// Doers (engineer, reviewer) carry the full tool scope.
-const COMPANY_SCOPES = [
-  ['ceo', 'coordinate'],
-  ['engineering-lead', 'coordinate'],
-  ['engineer', 'all'],
-  ['reviewer', 'all'],
-] as const
+// Doers (engineer, reviewer) use their full tool access directly. toolScope no
+// longer encodes this distinction (collapsed to the authoring gate), so this
+// only checks each role is a valid, non-empty definition.
+const COMPANY_ROLES = ['ceo', 'engineering-lead', 'engineer', 'reviewer'] as const
 
 describe('company role agent definitions', () => {
-  it('ships ceo/engineering-lead/engineer/reviewer as valid definitions with role-appropriate tool scope', () => {
-    for (const [id, scope] of COMPANY_SCOPES) {
+  it('ships ceo/engineering-lead/engineer/reviewer as valid definitions', () => {
+    for (const id of COMPANY_ROLES) {
       const def = defaultAgents.find((a) => a.id === id)
       expect(def, `missing role ${id}`).toBeDefined()
       // Each role parses against the schema.
       expect(() => AgentDefinitionSchema.parse(def)).not.toThrow()
-      expect(def?.toolScope).toBe(scope)
       expect(def?.description.length).toBeGreaterThan(0)
       expect(def?.systemPrompt.length).toBeGreaterThan(0)
     }

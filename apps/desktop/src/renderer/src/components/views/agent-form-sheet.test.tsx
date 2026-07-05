@@ -32,7 +32,6 @@ describe('AgentFormSheet', () => {
       name: 'Helper',
       description: 'helps',
       systemPrompt: 'do help',
-      toolScope: 'all',
       maxIterations: 25,
     })
   })
@@ -83,5 +82,25 @@ describe('AgentFormSheet', () => {
     fireEvent.click(switchElement)
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ team: 'ui', teamRole: 'head' })
+  })
+
+  it('toggling "Authoring" sets authoring: true on submit', () => {
+    const onSubmit = vi.fn()
+    render(<AgentFormSheet agents={[]} mode="create" onOpenChange={() => {}} onSubmit={onSubmit} open />)
+    fireEvent.change(screen.getByLabelText('id'), { target: { value: 'author' } })
+    fireEvent.change(screen.getByLabelText('name'), { target: { value: 'Author' } })
+    fireEvent.change(screen.getByLabelText('description'), { target: { value: 'writes agents' } })
+    fireEvent.change(screen.getByLabelText('system prompt'), { target: { value: 'author it' } })
+    fireEvent.click(screen.getByRole('switch', { name: /authoring/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ authoring: true })
+  })
+
+  it('prefills Authoring from a legacy agent with toolScope "authoring" (no flag)', () => {
+    const legacy: AgentDefinition = { ...existing, id: 'legacy-author', toolScope: 'authoring' }
+    render(
+      <AgentFormSheet agent={legacy} agents={[legacy]} mode="edit" onOpenChange={() => {}} onSubmit={() => {}} open />
+    )
+    expect(screen.getByRole('switch', { name: /authoring/i })).toHaveAttribute('aria-checked', 'true')
   })
 })

@@ -74,6 +74,25 @@ describe('OrgTree', () => {
     expect(screen.getByText('+2 more')).toBeInTheDocument()
   })
 
+  it('shows an "authoring" badge for authoring agents, including legacy toolScope back-compat', () => {
+    render(
+      <OrgTree
+        agents={[
+          a({ id: 'flag', name: 'Flag', authoring: true }),
+          a({ id: 'legacy', name: 'Legacy', toolScope: 'authoring' }),
+          a({ id: 'plain', name: 'Plain' }),
+        ]}
+        expanded={null}
+        onToggle={() => {}}
+      />
+    )
+    expect(within(screen.getByText('Flag').closest('li') as HTMLElement).getByText('authoring')).toBeInTheDocument()
+    expect(within(screen.getByText('Legacy').closest('li') as HTMLElement).getByText('authoring')).toBeInTheDocument()
+    expect(
+      within(screen.getByText('Plain').closest('li') as HTMLElement).queryByText('authoring')
+    ).not.toBeInTheDocument()
+  })
+
   it('renders a team-less childless non-CEO agent under Independent Agents', () => {
     render(
       <OrgTree

@@ -1,9 +1,6 @@
 import { useState } from 'react'
 import type { AgentDefinition, AgentListItem } from '@swarm/protocol'
 import { buildDelegationEdges, buildOrgForest, type OrgNode } from '@swarm/shared'
-import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,9 +10,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  Button,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
 } from '@swarm/ui'
-import { Button } from '@swarm/ui'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@swarm/ui'
+import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+
 import { useAgentMutations } from '@/hooks/use-agent-mutations'
 import { cn } from '@/lib/utils'
 import { AgentDetail } from './agent-detail'
@@ -63,7 +66,9 @@ function AgentNodeCard({
           {agent.team && (
             <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">{agent.team}</span>
           )}
-          <span className="text-muted-foreground text-xs">scope: {agent.toolScope}</span>
+          {(agent.authoring === true || agent.toolScope === 'authoring') && (
+            <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 text-xs">authoring</span>
+          )}
           {shown.map((c) => (
             <span className="rounded bg-secondary px-1 py-0.5 text-[10px] text-secondary-foreground" key={c}>
               {c}

@@ -14,7 +14,6 @@ const FIELDS: {
   toDisplay: (v: number) => number
   toStored: (v: number) => number
 }[] = [
-  { key: 'tokens', label: 'Max tokens', toDisplay: (v) => v, toStored: (v) => Math.round(v) },
   { key: 'calls', label: 'Max tool calls', toDisplay: (v) => v, toStored: (v) => Math.round(v) },
   {
     key: 'wallMs',

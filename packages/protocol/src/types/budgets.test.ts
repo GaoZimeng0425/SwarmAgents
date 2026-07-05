@@ -12,9 +12,23 @@ describe('BudgetConfigSchema', () => {
   })
 
   it('rejects negative or non-integer budget values', () => {
-    const bad = { main: { tokens: -1, calls: 1, wallMs: 1, usdCents: 1 }, sub: defaultBudgetConfig().sub }
+    const bad = { main: { calls: -1, wallMs: 1, usdCents: 1 }, sub: defaultBudgetConfig().sub }
     expect(BudgetConfigSchema.safeParse(bad).success).toBe(false)
-    const frac = { main: { tokens: 1.5, calls: 1, wallMs: 1, usdCents: 1 }, sub: defaultBudgetConfig().sub }
+    const frac = { main: { calls: 1.5, wallMs: 1, usdCents: 1 }, sub: defaultBudgetConfig().sub }
     expect(BudgetConfigSchema.safeParse(frac).success).toBe(false)
+  })
+
+  it('tolerates a legacy on-disk config that still carries the retired tokens knob', () => {
+    // Older builds persisted `tokens` on each budget; zod's default object
+    // parsing strips unrecognized keys, so legacy files keep loading cleanly
+    // with `tokens` silently dropped instead of failing validation.
+    const legacy = {
+      main: { tokens: 100_000, calls: 50, wallMs: 600_000, usdCents: 200 },
+      sub: { tokens: 50_000, calls: 25, wallMs: 300_000, usdCents: 100 },
+    }
+    const parsed = BudgetConfigSchema.safeParse(legacy)
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.main).toEqual({ calls: 50, wallMs: 600_000, usdCents: 200 })
+    expect(parsed.success && (parsed.data.main as Record<string, unknown>).tokens).toBeUndefined()
   })
 })

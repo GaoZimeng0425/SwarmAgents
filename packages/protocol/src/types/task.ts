@@ -18,23 +18,28 @@ export const taskStatusValues = [
 export const TaskStatusSchema = z.enum(taskStatusValues)
 export type TaskStatus = z.infer<typeof TaskStatusSchema>
 
+// The budget *limits* config. `tokens` was never enforced (only usage-tracked,
+// see ConsumedResources below) and has been retired as a dead knob.
 export const ResourceBudgetSchema = z.object({
-  tokens: z.number().int().nonnegative(),
   calls: z.number().int().nonnegative(),
   wallMs: z.number().int().nonnegative(),
   usdCents: z.number().int().nonnegative(),
 })
 export type ResourceBudget = z.infer<typeof ResourceBudgetSchema>
 
-export const emptyBudget = (): ResourceBudget => ({ tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+export const emptyBudget = (): ResourceBudget => ({ calls: 0, wallMs: 0, usdCents: 0 })
 
-// Consumed resources extend the budget counters with prompt-cache breakdown.
-// Kept separate from ResourceBudget so cache fields never leak into the budget
-// *limits* config (which only caps tokens/calls/wallMs/usdCents). cacheRead is
-// the cache-hit (read) token count, cacheWrite the cache-creation token count.
-// Both are latest-turn snapshots, mirroring `tokens` (see replay.ts). Defaults
-// keep legacy persisted rows (without the fields) parseable.
-export const ConsumedResourcesSchema = ResourceBudgetSchema.extend({
+// Consumed resources: a standalone tracking shape (NOT derived from
+// ResourceBudget — usage tracking and budget limits are independent concerns).
+// `tokens` here is a usage counter, not a knob. cacheRead is the cache-hit
+// (read) token count, cacheWrite the cache-creation token count. Both are
+// latest-turn snapshots, mirroring `tokens` (see replay.ts). Defaults keep
+// legacy persisted rows (without the cache fields) parseable.
+export const ConsumedResourcesSchema = z.object({
+  tokens: z.number().int().nonnegative(),
+  calls: z.number().int().nonnegative(),
+  wallMs: z.number().int().nonnegative(),
+  usdCents: z.number().int().nonnegative(),
   cacheRead: z.number().int().nonnegative().default(0),
   cacheWrite: z.number().int().nonnegative().default(0),
 })

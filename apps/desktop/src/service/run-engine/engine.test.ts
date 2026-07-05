@@ -30,7 +30,7 @@ const baseDeps = (emit: (i: RunEmitInput) => void, over: Partial<EngineDeps> = {
     },
     provider: { id: 'c1', model: 'test-model', apiStyle: 'anthropic', apiKey: 'k' },
     history: [],
-    budget: { tokens: 1e9, calls: 100, wallMs: 600_000, usdCents: 100_000 },
+    budget: { calls: 100, wallMs: 600_000, usdCents: 100_000 },
     permissionMode: 'full',
     tools: [],
     riskOf: () => 'low',
@@ -133,9 +133,7 @@ describe('engine gates — each aborted run emits exactly ONE terminal', () => {
   it('blocks over-budget tool calls and terminates with budget_exhausted', async () => {
     const h = installAgent()
     const { out, emit } = collect()
-    const engine = createEngine(
-      baseDeps(emit, { budget: { tokens: 1e9, calls: 2, wallMs: 600_000, usdCents: 100_000 } as never })
-    )
+    const engine = createEngine(baseDeps(emit, { budget: { calls: 2, wallMs: 600_000, usdCents: 100_000 } as never }))
     const p = engine.run('go')
     const call = () => h.getBeforeToolCall()({ toolCall: { name: 'tool' }, args: {} })
     expect(await call()).toBeUndefined()

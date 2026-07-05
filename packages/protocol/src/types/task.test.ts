@@ -19,7 +19,7 @@ describe('Task types', () => {
   })
 
   it('emptyBudget returns zeroed counters', () => {
-    expect(emptyBudget()).toEqual({ tokens: 0, calls: 0, wallMs: 0, usdCents: 0 })
+    expect(emptyBudget()).toEqual({ calls: 0, wallMs: 0, usdCents: 0 })
   })
 })
 

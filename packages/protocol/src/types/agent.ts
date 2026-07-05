@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { ModelThinkingLevel } from './provider'
 
+/** Legacy coarse scope; ignored except 'authoring' back-compat (see `authoring`). */
 export const ToolScopeSchema = z.enum(['peekaboo', 'web', 'fs', 'memory', 'authoring', 'coordinate', 'all'])
 export type ToolScope = z.infer<typeof ToolScopeSchema>
 
@@ -24,7 +25,9 @@ export const AgentDefinitionSchema = z.object({
    */
   description: z.string().min(1).max(1024),
   systemPrompt: z.string(),
-  toolScope: ToolScopeSchema,
+  toolScope: ToolScopeSchema.optional(),
+  /** Grants the privileged authoring tool group (write_agent/write_skill); see `allowlistForAgent`. */
+  authoring: z.boolean().optional(),
   /** Discoverable role handle: a human-readable display name for the definition. When unset, the directory treats `id` as the role. */
   role: z.string().optional(),
   /** Capability tags for finer discovery queries. */
@@ -86,11 +89,11 @@ export type Peer = {
 }
 
 /**
- * Default tool allowlist generated from an agent's coarse `toolScope`.
- * Used when a task is created without an explicit allowlist. `toolAllowlist`
- * remains the authoritative runtime filter; this only seeds its default.
+ * Legacy resolver from an agent's coarse `toolScope` alone. Superseded by the
+ * `authoring` field (see `allowlistForAgent`, which no longer calls this);
+ * kept for direct callers and back-compat coverage of the old scope values.
  *
- * Every scope now resolves to the full standard tool set (`'*'`) — toolScope no
+ * Every scope resolves to the full standard tool set (`'*'`) — toolScope no
  * longer restricts capabilities. A coordinator/researcher/etc. can use shell,
  * fs, web, UI cards, and screen capture directly instead of only delegating.
  * The lone exception is `authoring`, which adds its privileged group
@@ -117,14 +120,18 @@ export function deriveAllowlist(scope: ToolScope): string[] {
 export const CODE_CAPABILITY = 'code'
 
 /**
- * Seed allowlist for a specific agent: its scope's default plus any
- * capability-restricted grants. `claude-code` is a privileged group (excluded
- * from `*`), reserved for developer agents — those advertising the `code`
- * capability (the built-in engineer, plus runtime-authored frontend/backend
- * engineers). Only they may operate a Claude Code session via the cc_* tools.
+ * Seed allowlist for a specific agent: the full standard tool set, plus the
+ * privileged authoring group when `authoring` is set — or, for back-compat,
+ * when a legacy on-disk agent still carries `toolScope: 'authoring'` — plus
+ * any capability-restricted grants. `claude-code` is a privileged group
+ * (excluded from `*`), reserved for developer agents — those advertising the
+ * `code` capability (the built-in engineer, plus runtime-authored
+ * frontend/backend engineers). Only they may operate a Claude Code session
+ * via the cc_* tools.
  */
-export function allowlistForAgent(def: Pick<AgentDefinition, 'toolScope' | 'capabilities'>): string[] {
-  const allow = deriveAllowlist(def.toolScope)
+export function allowlistForAgent(def: Pick<AgentDefinition, 'toolScope' | 'authoring' | 'capabilities'>): string[] {
+  const isAuthoring = def.authoring === true || def.toolScope === 'authoring'
+  const allow = isAuthoring ? ['*', 'authoring.*'] : ['*']
   if (def.capabilities?.includes(CODE_CAPABILITY)) allow.push('claude-code.*')
   return allow
 }

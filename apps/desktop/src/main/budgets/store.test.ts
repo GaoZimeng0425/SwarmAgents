@@ -22,7 +22,7 @@ describe('budgets store', () => {
 
   it('round-trips a saved config', async () => {
     const store = createStore({ filePath: join(dir, 'budgets.json') })
-    const config = { ...defaultBudgetConfig(), main: { tokens: 12, calls: 3, wallMs: 1000, usdCents: 50 } }
+    const config = { ...defaultBudgetConfig(), main: { calls: 3, wallMs: 1000, usdCents: 50 } }
     await store.save(config)
     expect(await createStore({ filePath: join(dir, 'budgets.json') }).load()).toEqual(config)
   })
@@ -30,6 +30,16 @@ describe('budgets store', () => {
   it('falls back to defaults on a corrupt file', async () => {
     const filePath = join(dir, 'budgets.json')
     writeFileSync(filePath, '{ not json')
+    expect(await createStore({ filePath }).load()).toEqual(defaultBudgetConfig())
+  })
+
+  it('loads a legacy on-disk file that still carries the retired tokens knob, stripping it', async () => {
+    const filePath = join(dir, 'budgets.json')
+    const legacy = {
+      main: { tokens: 100_000, calls: 50, wallMs: 600_000, usdCents: 200 },
+      sub: { tokens: 50_000, calls: 25, wallMs: 300_000, usdCents: 100 },
+    }
+    writeFileSync(filePath, JSON.stringify(legacy))
     expect(await createStore({ filePath }).load()).toEqual(defaultBudgetConfig())
   })
 })

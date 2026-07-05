@@ -1,16 +1,16 @@
-import type { ResourceBudget } from '@swarm/protocol'
+import type { ConsumedResources } from '@swarm/protocol'
 
 export const formatTokens = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
 
 /** Compact one-line resource summary for a task, e.g. "1.5k used · 3 calls · $0.07". */
-export function formatUsage(used: ResourceBudget): string {
+export function formatUsage(used: ConsumedResources): string {
   const parts = [`${formatTokens(used.tokens)} used`, `${used.calls} call${used.calls === 1 ? '' : 's'}`]
   if (used.usdCents > 0) parts.push(`$${(used.usdCents / 100).toFixed(2)}`)
   return parts.join(' · ')
 }
 
 /** Multi-line hover explanation for the compact usage summary above. */
-export function usageTooltip(used: ResourceBudget): string {
+export function usageTooltip(used: ConsumedResources): string {
   return [
     `${used.tokens.toLocaleString()} tokens in the conversation right now (current context size, not a running total)`,
     `${used.calls} tool call${used.calls === 1 ? '' : 's'} made`,
