@@ -26,7 +26,8 @@ export const Route = createRootRoute({ component: RootLayout })
 function RootLayout(): React.JSX.Element {
   const loadSessions = useLoadSessions()
   const location = useLocation()
-  // Load the session list once for the whole app (the sidebar is always mounted).
+  // Load the session list once at the root; the SessionPanel is conditionally
+  // mounted per scene, but the query cache persists across its mount/unmount.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
   useEffect(() => {
     loadSessions.mutate()
@@ -40,22 +41,19 @@ function RootLayout(): React.JSX.Element {
       <SettingsDialog />
       <SessionSearchDialog />
       {/* The whole window backdrop is the conversation surface (--window-content);
-          the floating sidebar card sits on it, so the gap around the card matches
-          the chat area instead of showing raw desktop vibrancy. */}
+          the rail + (conditionally) the session panel + the main inset sit on it. */}
       <SidebarProvider className="bg-(--window-content)">
         <TopBar />
-        <div className="flex min-h-svh w-full">
-          <AppRail />
-          {isConversationScene(location.pathname) && <SessionPanel />}
-          <SidebarInset className="min-w-0 flex-1 overflow-hidden">
-            <main className="flex h-svh flex-col overflow-hidden pt-9">
-              <NoProviderBanner />
-              <div className="min-h-0 flex-1">
-                <Outlet />
-              </div>
-            </main>
-          </SidebarInset>
-        </div>
+        <AppRail />
+        {isConversationScene(location.pathname) && <SessionPanel />}
+        <SidebarInset className="min-w-0 flex-1 overflow-hidden">
+          <main className="flex h-svh flex-col overflow-hidden pt-9">
+            <NoProviderBanner />
+            <div className="min-h-0 flex-1">
+              <Outlet />
+            </div>
+          </main>
+        </SidebarInset>
       </SidebarProvider>
       <Toaster />
       {SHOW_ROUTER_DEVTOOLS && (
@@ -68,10 +66,10 @@ function RootLayout(): React.JSX.Element {
 }
 
 // Fixed, transparent control strip pinned to the window's top edge. It carries
-// no background (no visible title bar) — only the window controls, vertically
-// aligned with the native macOS traffic lights. Living here (outside the
-// floating sidebar card) keeps the sidebar toggle reachable even when the
-// sidebar is collapsed, and on the same row as the traffic lights.
+// no background (no visible title bar) — only the back/forward controls and the
+// global tools cluster, vertically aligned with the native macOS traffic lights.
+// Living outside the rail/panel keeps it on the same row as the traffic lights
+// regardless of which scene is active.
 function TopBar(): React.JSX.Element {
   const router = useRouter()
   return (
