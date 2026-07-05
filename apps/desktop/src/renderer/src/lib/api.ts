@@ -2,6 +2,7 @@ import type {
   AgentDefinition,
   AgentListItem,
   AgentMutationResult,
+  ArtifactEntry,
   Attachment,
   BiliAnalysis,
   BiliListResult,
@@ -87,4 +88,8 @@ export const swarmApi = {
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
   listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),
   cancelCronJob: (id: string): Promise<void> => window.swarm.cron.cancel(id),
+  exportSessionMarkdown: (sessionId: string): Promise<{ path: string }> =>
+    window.swarm.exportSessionMarkdown(sessionId),
+  listArtifacts: (opts?: { cwd?: string; query?: string; limit?: number }): Promise<ArtifactEntry[]> =>
+    window.swarm.listArtifacts(opts),
 }

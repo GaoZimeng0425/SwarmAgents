@@ -5,8 +5,10 @@ import { createServiceClient, type ServiceTransport } from '@swarm/protocol'
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { initBilibili } from './bilibili'
+import { createAnalysisStore } from './bilibili/analysis-store'
 import { initBudgets } from './budgets'
 import { initCalendar } from './calendar'
+import { initCmdPaletteArtifacts, toBilibiliArtifacts } from './cmd-palette'
 import { ensureSwarmDirs, paths } from './constants'
 import { initGmail } from './gmail'
 import { startWsHost } from './host'
@@ -99,6 +101,7 @@ app.whenReady().then(async () => {
       SWARM_SERVICE_MEMORY_PATH: paths.memory(),
       SWARM_SERVICE_SKILLS_PATH: paths.skills(),
       SWARM_SERVICE_AGENTS_PATH: paths.agents(),
+      SWARM_SERVICE_EXPORTS_DIR: paths.exports(),
     },
   })
 
@@ -142,12 +145,23 @@ app.whenReady().then(async () => {
     gmail.registerMainRpc(serviceClient)
     calendar.registerMainRpc(serviceClient)
 
+    // Command palette artifacts: scan cwd-recent-files + join bilibili analyses.
+    // The analysis store is re-created from the same on-disk file the bilibili
+    // subsystem writes to (read-only here; bilibili owns writes). Video titles
+    // aren't stored on the analysis, so they fall back to the bvid.
+    const analysisStore = createAnalysisStore({ filePath: paths.bilibiliAnalysis() })
+    const cmdPalette = initCmdPaletteArtifacts({
+      defaultCwd: app.getPath('home'),
+      bilibiliSource: async () => toBilibiliArtifacts(analysisStore.bvids().map((bvid) => ({ bvid }))),
+    })
+
     wireSwarmIpc({
       serviceClient,
       providers: providers.service,
       mcpServers: mcpServers.service,
       webSearch: webSearch.service,
       budgets: budgets.service,
+      cmdPalette,
     })
     log.info({ msg: 'core services up' })
   } catch (err) {

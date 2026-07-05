@@ -374,6 +374,10 @@ export type SwarmBridge = {
     listAllRuns(): Promise<CronRun[]>
     cancel(id: string): Promise<void>
   }
+  /** Build a markdown transcript of a session and write it to the exports dir. */
+  exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
+  /** Command palette `/` scope: cwd-recent-files + bilibili analyses. */
+  listArtifacts(opts?: { cwd?: string; query?: string; limit?: number }): Promise<ArtifactEntry[]>
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** A swarmagents://chat/<id> deep link routes here. Pushed when the app is already running. */
   onNavigateToSession(cb: (sessionId: string) => void): () => void
