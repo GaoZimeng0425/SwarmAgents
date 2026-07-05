@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import type { ProviderInjection, UIEvent } from '@swarm/protocol'
+import { allowlistForAgent, type ProviderInjection, type UIEvent } from '@swarm/protocol'
 import { DEFAULT_AGENT_DEF, SYSTEM_SESSION_ID } from '@swarm/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -156,20 +156,26 @@ function createFakeStore() {
   }
 }
 
-// Stub tool registry: resolves NO tools but records every ToolRunContext it
-// sees (parent, child, work-run …) and lets a test tag one tool risky.
-function stubRegistry(riskyTool?: string): { registry: ToolRegistry; ctxs: ToolRunContext[] } {
+// Stub tool registry: resolves NO tools but records every ToolRunContext AND
+// allowlist it sees (parent, child, work-run …) and lets a test tag one tool risky.
+function stubRegistry(riskyTool?: string): {
+  registry: ToolRegistry
+  ctxs: ToolRunContext[]
+  allowlists: string[][]
+} {
   const ctxs: ToolRunContext[] = []
+  const allowlists: string[][] = []
   const registry = {
-    resolve: (_allow: string[], ctx: ToolRunContext) => {
+    resolve: (allow: string[], ctx: ToolRunContext) => {
       ctxs.push(ctx)
+      allowlists.push(allow)
       return {
         tools: [],
         riskOf: (name: string) => (name === riskyTool ? ('medium' as const) : ('low' as const)),
       }
     },
   } as unknown as ToolRegistry
-  return { registry, ctxs }
+  return { registry, ctxs, allowlists }
 }
 
 const provider: ProviderInjection = {
@@ -200,7 +206,7 @@ const makeService = (over: Partial<Parameters<typeof createSessionService>[0]> =
     toolRegistry: own.registry,
     ...over,
   })
-  return { service, store, calls, ctxs: own.ctxs }
+  return { service, store, calls, ctxs: own.ctxs, allowlists: own.allowlists }
 }
 
 beforeEach(() => {
@@ -496,5 +502,35 @@ describe('SessionService', () => {
     expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(1)
     releaseAllHeld()
     await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(2))
+  })
+
+  it('15. plan mode resolves EXACTLY the read-only allowlist; goal mode resolves the agent allowlist', async () => {
+    // Deliberately mirrored from session-service.ts's PLAN_READONLY_ALLOWLIST
+    // (not imported): the safety property is "plan mode grants THESE nine
+    // read-only tools and nothing else" — adding a mutating tool to the source
+    // constant must fail here until this pin is consciously updated.
+    const PLAN_READONLY_ALLOWLIST = [
+      'fs.read_file',
+      'fs.list_dir',
+      'fs.glob',
+      'fs.grep',
+      'web.fetch',
+      'web.search',
+      'peekaboo.see_screen',
+      'peekaboo.list_apps',
+      'agent.update_plan',
+    ]
+    const { service, allowlists } = makeService()
+    const { sessionId } = service.createSession(provider)
+
+    service.submitPrompt(sessionId, 'plan it', undefined, undefined, { executionMode: 'plan' })
+    await vi.waitFor(() => expect(allowlists).toHaveLength(1))
+    expect(allowlists[0]).toEqual(PLAN_READONLY_ALLOWLIST)
+
+    // Contrast: a goal-mode turn resolves the agent's own allowlist instead.
+    service.submitPrompt(sessionId, 'do it', undefined, undefined, { executionMode: 'goal' })
+    await vi.waitFor(() => expect(allowlists).toHaveLength(2))
+    expect(allowlists[1]).toEqual(allowlistForAgent(DEFAULT_AGENT_DEF))
+    expect(allowlists[1]).not.toEqual(PLAN_READONLY_ALLOWLIST)
   })
 })
