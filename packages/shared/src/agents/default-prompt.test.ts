@@ -6,7 +6,7 @@ describe('DEFAULT_SYSTEM_PROMPT loop-aware section', () => {
   it('documents the autonomous-operation conventions', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain('Autonomous operation')
     expect(DEFAULT_SYSTEM_PROMPT).toContain('schedule_task')
-    expect(DEFAULT_SYSTEM_PROMPT).toContain('create_task({ goal, agentType })')
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('delegate({ goal, agentType })')
     // Ending the turn is "done" — no busy-loop instruction.
     expect(DEFAULT_SYSTEM_PROMPT).toContain('end your turn')
     // The render_ui tool blurb advertises the document-preview card types.

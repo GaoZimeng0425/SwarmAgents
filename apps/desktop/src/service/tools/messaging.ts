@@ -30,7 +30,7 @@ export function findAgentsSpec(): ToolSpec {
       name: 'find_agents',
       label: 'Find agents',
       description:
-        "Discover the agent types available for delegation, filtered by role, team, or free-text query. Each result's id is the agentType to pass to create_task. Call with no arguments to list everyone.",
+        "Discover the agent types available for delegation, filtered by role, team, or free-text query. Each result's id is the agentType to pass to delegate. Call with no arguments to list everyone.",
       parameters: FindParams,
       execute: async (_id: string, params: unknown) => {
         const peers = ctx.findPeers((params ?? {}) as PeerQuery)

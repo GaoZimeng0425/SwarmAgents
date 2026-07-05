@@ -4,11 +4,11 @@ import type {
   AgentDefinition,
   Attachment,
   ConsumedResources,
+  DelegateResult,
   DelegationItem,
   PermissionMode,
   ProviderInjection,
   ResourceBudget,
-  TaskResult,
 } from '@swarm/protocol'
 import { emptyUsed } from '@swarm/protocol'
 import { ulid } from 'ulid'
@@ -22,8 +22,6 @@ import { injectionSupportsImages } from './models'
 const log = createLogger({ process: 'service' }).child({ component: 'run-launch' })
 
 export type RunKind = 'turn' | 'work' | 'child'
-
-export type DelegateResult = { runId: string; status: 'completed' | 'failed' | 'cancelled'; summary: string }
 
 export type RunSpec = {
   kind: RunKind
@@ -73,9 +71,9 @@ export type LaunchPorts = {
     parentRunId: string,
     goal: string,
     opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
-  ) => Promise<DelegateResult>
+  ) => Promise<DelegateResult & { runId: string }>
   /** Agent-authored top-level work run (SessionService binds this to runWork for EVERY run). */
-  createTask?: (goal: string, agentType?: string) => Promise<{ taskId: string; result: TaskResult }>
+  createTask?: (goal: string, agentType?: string) => Promise<DelegateResult & { runId: string }>
   writeAgent?: ToolRunContext['writeAgent']
   writeSkill?: ToolRunContext['writeSkill']
   findAgents?: ToolRunContext['findPeers']
@@ -194,18 +192,12 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
       sessionId: spec.sessionId,
       taskId: runId,
       cwd: spec.cwd,
-      spawnChild: (goal, suggestedTools, providerKey, agentType) => {
+      spawnChild: (goal, opts) => {
         if (!ports.delegate) return Promise.reject(new Error('delegate is not available in this run'))
-        return withSlotReleased(() => ports.delegate!(runId, goal, { suggestedTools, providerKey, agentType })).then(
-          (r) => ({
-            childTaskId: r.runId,
-            result: { summary: r.summary, artifacts: [] },
-            status: r.status,
-          })
-        )
+        return withSlotReleased(() => ports.delegate!(runId, goal, opts ?? {}))
       },
       // Joins spawnChild in yielding the parent slot while it awaits (ledger #5):
-      // uniform wiring means create_task asTopLevel is available on EVERY run,
+      // uniform wiring means delegate topLevel is available on EVERY run,
       // so without this a full pool of parents could wedge on each other.
       createTask: ports.createTask
         ? (goal, agentType) => withSlotReleased(() => ports.createTask!(goal, agentType))

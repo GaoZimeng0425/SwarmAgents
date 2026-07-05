@@ -7,7 +7,7 @@
 //
 // The delegation is driven from the test through each run's captured
 // ToolRunContext (ctx.spawnChild / ctx.setDelegationPlan) — the same seam the
-// create_task/delegation tools use in production — because the mocked pi Agent
+// delegate/delegation tools use in production — because the mocked pi Agent
 // auto-completes and cannot itself decide to spawn.
 
 import type { ProviderInjection } from '@swarm/protocol'
@@ -74,21 +74,21 @@ describe('CEO → Leader → subagent pipeline (single-shot, agent-driven)', () 
     const { sessionId } = service.createSession(fakeProvider)
 
     // Level 1: CEO. runWork returns { runId, status, summary }; a spawned child
-    // returns { childTaskId, status, result } (the tool-facing shape).
+    // returns DelegateResult & { runId } (the tool-facing shape).
     const ceo = await service.runWork(sessionId, 'ship it', { agentType: 'ceo' })
     const ceoCtx = ctxs[0]
 
     // Level 2: two Leaders under the CEO. Each records a delegation plan and
     // then spawns one leaf engineer (level 3).
-    const leadA = await ceoCtx.spawnChild('lead dev', undefined, undefined, 'engineering-lead')
+    const leadA = await ceoCtx.spawnChild('lead dev', { agentType: 'engineering-lead' })
     const leadACtx = ctxs[ctxs.length - 1]
     leadACtx.setDelegationPlan!([{ id: 'd1', goal: 'leaf work', dependsOn: [] }])
-    const leafA = await leadACtx.spawnChild('leaf work', undefined, undefined, 'engineer')
+    const leafA = await leadACtx.spawnChild('leaf work', { agentType: 'engineer' })
 
-    const leadB = await ceoCtx.spawnChild('lead qa', undefined, undefined, 'qa-lead')
+    const leadB = await ceoCtx.spawnChild('lead qa', { agentType: 'qa-lead' })
     const leadBCtx = ctxs[ctxs.length - 1]
     leadBCtx.setDelegationPlan!([{ id: 'd2', goal: 'leaf work', dependsOn: [] }])
-    const leafB = await leadBCtx.spawnChild('leaf work', undefined, undefined, 'engineer')
+    const leafB = await leadBCtx.spawnChild('leaf work', { agentType: 'engineer' })
     await flush()
 
     // Every run completed.
@@ -106,19 +106,18 @@ describe('CEO → Leader → subagent pipeline (single-shot, agent-driven)', () 
       )
 
     // Tree shape: Leaders parented by the CEO, leaves parented by their Leader.
-    expect(parentOf(leadA.childTaskId)).toBe(ceo.runId)
-    expect(parentOf(leadB.childTaskId)).toBe(ceo.runId)
-    expect(parentOf(leafA.childTaskId)).toBe(leadA.childTaskId)
-    expect(parentOf(leafB.childTaskId)).toBe(leadB.childTaskId)
+    expect(parentOf(leadA.runId)).toBe(ceo.runId)
+    expect(parentOf(leadB.runId)).toBe(ceo.runId)
+    expect(parentOf(leafA.runId)).toBe(leadA.runId)
+    expect(parentOf(leafB.runId)).toBe(leadB.runId)
 
     // Single-shot — every run reaches a terminal event, no verify stall.
-    for (const id of [ceo.runId, leadA.childTaskId, leadB.childTaskId, leafA.childTaskId, leafB.childTaskId])
-      expect(isTerminal(id)).toBe(true)
+    for (const id of [ceo.runId, leadA.runId, leadB.runId, leafA.runId, leafB.runId]) expect(isTerminal(id)).toBe(true)
 
     // Leaders that declared a delegation plan emit it on the run stream.
     for (const lead of [leadA, leadB]) {
       const planEvt = allEvents.find(
-        (r) => r.runId === lead.childTaskId && (r.event as { kind?: string }).kind === 'run.delegation_plan'
+        (r) => r.runId === lead.runId && (r.event as { kind?: string }).kind === 'run.delegation_plan'
       )
       expect((planEvt?.event as { plan?: unknown[] } | undefined)?.plan ?? []).toHaveLength(1)
     }

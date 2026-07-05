@@ -6,7 +6,7 @@ import { renderUiSpec } from './render-ui'
 const ctx = {
   sessionId: 's1',
   taskId: 't1',
-  spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
+  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: '', artifacts: [] }),
   send: () => undefined,
   requestPermission: async () => 'grant' as const,
 } as unknown as ToolRunContext

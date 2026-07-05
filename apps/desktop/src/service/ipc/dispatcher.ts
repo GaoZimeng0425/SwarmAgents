@@ -68,7 +68,7 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
           string,
           string,
           import('@swarm/protocol').Attachment[] | undefined,
-          import('@swarm/protocol').TaskOptions | undefined,
+          import('@swarm/protocol').RunOptions | undefined,
         ]
         return service.submitPrompt(sessionId, goal, attachments, undefined, options)
       }

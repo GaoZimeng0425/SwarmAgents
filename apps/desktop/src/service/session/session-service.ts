@@ -3,11 +3,11 @@ import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
   Attachment,
+  DelegateResult,
   PermissionDecision,
   PermissionMode,
   ProviderInjection,
-  TaskOptions,
-  TaskResult,
+  RunOptions,
   UIEvent,
 } from '@swarm/protocol'
 import { allowlistForAgent, type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
@@ -20,7 +20,7 @@ import type { ConversationStore } from '../conversation/store'
 import { createAgentDirectory } from '../directory/receptionist'
 import type { Broadcaster } from '../ipc/broadcaster'
 import { createRunEmit, type RunEmitPorts } from '../run-engine/emit'
-import { type DelegateResult, type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
+import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
 import { withSkills } from '../skills/prompt'
 import type { SkillStore } from '../skills/store'
 import { registerBuiltinTools } from '../tools/builtins'
@@ -43,7 +43,7 @@ const PLAN_READONLY_ALLOWLIST = [
   'web.search',
   'peekaboo.see_screen',
   'peekaboo.list_apps',
-  // update_plan only — exclude create_task, whose child could mutate.
+  // update_plan only — exclude delegate, whose child could mutate.
   'agent.update_plan',
 ]
 
@@ -76,12 +76,12 @@ export type SessionService = {
     prompt: string,
     attachments?: Attachment[],
     onComplete?: (status: 'completed' | 'failed' | 'cancelled', error?: string) => void,
-    options?: TaskOptions
+    options?: RunOptions
   ): { runId: string }
   runWork(
     sessionId: string,
     goal: string,
-    options?: TaskOptions
+    options?: RunOptions
   ): Promise<{ runId: string; status: string; summary: string }>
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelRun(sessionId: string, runId: string): void
@@ -310,8 +310,10 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     delegate: (parentRunId, goal, opts) => delegate(session, parentRunId, goal, opts),
     createTask: (goal, agentType) =>
       runWork(session.id, goal, agentType ? { agentType } : {}).then((r) => ({
-        taskId: r.runId,
-        result: { summary: r.summary, artifacts: [] } as TaskResult,
+        runId: r.runId,
+        status: r.status,
+        summary: r.summary,
+        artifacts: [],
       })),
     writeAgent: (def) =>
       cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
@@ -328,7 +330,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     parentRunId: string,
     goal: string,
     opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
-  ): Promise<DelegateResult> => {
+  ): Promise<DelegateResult & { runId: string }> => {
     const { agentType, providerKey, suggestedTools } = opts
     // Resolve the sub-agent type; an unknown type falls back to the default.
     const def = (agentType ? cfg.agentStore?.get(agentType) : undefined) ?? DEFAULT_AGENT_DEF
@@ -357,17 +359,17 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       },
       basePorts(session)
     )
-    return { runId: r.runId, status: r.status, summary: r.summary }
+    return { runId: r.runId, status: r.status, summary: r.summary, artifacts: [] }
   }
 
-  // Agent-authored top-level work run (create_task asTopLevel): a self-contained
+  // Agent-authored top-level work run (delegate topLevel): a self-contained
   // run that does NOT touch the session buffer (no snapshot). Uses the main
   // budget and a plan-mode-aware allowlist.
   const runWork = async (
     sessionId: string,
     goal: string,
-    options: TaskOptions = {}
-  ): Promise<{ runId: string; status: string; summary: string }> => {
+    options: RunOptions = {}
+  ): Promise<{ runId: string; status: 'completed' | 'failed' | 'cancelled'; summary: string }> => {
     const session = getOrRehydrate(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
     const resolvedByType = options.agentType ? cfg.agentStore?.get(options.agentType) : undefined

@@ -90,8 +90,6 @@ export const RunOptionsSchema = z.object({
   agentType: z.string().optional(),
 })
 export type RunOptions = z.infer<typeof RunOptionsSchema>
-/** @deprecated Back-compat alias for the pre-run.* engine (removed in Task 3). */
-export type TaskOptions = RunOptions
 
 export const TaskEventSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -170,8 +168,6 @@ export const DelegateResultSchema = z.object({
   status: z.enum(['completed', 'failed', 'cancelled']).optional(),
 })
 export type DelegateResult = z.infer<typeof DelegateResultSchema>
-/** @deprecated Back-compat alias for the pre-run.* engine (removed in Task 3). */
-export type TaskResult = DelegateResult
 
 export const AttachmentSchema = z.object({
   data: z.string(), // base64-encoded bytes (no data: prefix)

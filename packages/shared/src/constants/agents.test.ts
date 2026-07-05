@@ -106,7 +106,7 @@ describe('builtin roster', () => {
 
   it('CEO prompt drives the top-level delegation pipeline', () => {
     const p = byId.ceo.systemPrompt
-    expect(p).toMatch(/create_task/)
+    expect(p).toMatch(/delegate/)
     expect(p).toMatch(/find_agents\(\{ teamRole: 'head' \}\)/)
     // Post-3b: no system verify loop, no criteria tool. The CEO spot-checks
     // deliverables and asks Leaders for evidence instead.

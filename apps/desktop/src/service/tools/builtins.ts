@@ -8,8 +8,8 @@ import type { MemoryStore } from '../memory/store'
 import type { SkillStore } from '../skills/store'
 import { writeAgentSpec, writeSkillSpec } from './authoring'
 import { claudeCodeSpecs } from './claude-code'
-import { createTaskSpec } from './create-task'
 import { cronSpecs } from './cron'
+import { delegateSpec } from './delegate'
 import { delegationPlanSpec } from './delegation-plan'
 import { fsSpecs } from './fs'
 import { memorySpecs } from './memory'
@@ -69,7 +69,7 @@ export function registerBuiltinTools(
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
-  registry.register(createTaskSpec())
+  registry.register(delegateSpec())
   registry.register(findAgentsSpec())
   registry.register(writeAgentSpec())
   registry.register(writeSkillSpec())

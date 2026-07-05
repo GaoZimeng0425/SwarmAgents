@@ -2,13 +2,13 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
+  DelegateResult,
   DelegationItem,
   Peer,
   PeerQuery,
   PermissionDecision,
   Skill,
   SkillMutationResult,
-  TaskResult,
 } from '@swarm/protocol'
 
 import type { AgentMutationResult } from '../agents/store'
@@ -27,18 +27,16 @@ export interface ToolRunContext {
    * relative paths against it and shell runs there; absent → the user's home.
    */
   cwd?: string
-  // parentTaskId is bound externally when constructing the context (see agent-runner runCtx).
+  // parentRunId is bound externally when constructing the context (see launch runCtx).
+  // Delegate a focused child run to a sub-agent; the child's terminal `status`
+  // (spec §4, ledger #6) rides on the result so the delegate tool can surface a
+  // failed/cancelled child instead of reading its partial summary as success.
   spawnChild(
     goal: string,
-    suggestedTools?: string[],
-    providerKey?: string,
-    agentType?: string
-    // `status` is the child's own terminal status, surfaced to the tool layer
-    // (spec §4, ledger #6). Optional so the legacy manager's spawnChild — which
-    // does not carry it — keeps compiling; the create_task tool reads it in W4.
-  ): Promise<{ childTaskId: string; result: TaskResult; status?: 'completed' | 'failed' | 'cancelled' }>
-  /** Agent-authored work: create a top-level work Task (single-shot) and return its result. Absent outside conversation turns. */
-  createTask?(goal: string, agentType?: string): Promise<{ taskId: string; result: TaskResult }>
+    opts?: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
+  ): Promise<DelegateResult & { runId: string }>
+  /** Agent-authored work: run a top-level work run (single-shot) and return its result. Absent outside conversation turns. */
+  createTask?(goal: string, agentType?: string): Promise<DelegateResult & { runId: string }>
   requestPermission: (args: {
     toolName: string
     risk: ToolRisk

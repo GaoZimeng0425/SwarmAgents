@@ -6,7 +6,7 @@ import { currentTimeSpec } from './time'
 const ctx: ToolRunContext = {
   sessionId: 's',
   taskId: 't',
-  spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
+  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: '', artifacts: [] }),
   requestPermission: async () => 'grant',
   findPeers: () => [],
 }

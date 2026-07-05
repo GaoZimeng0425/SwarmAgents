@@ -145,7 +145,7 @@ function runsTool(scheduler: CronScheduler): AgentTool {
 }
 
 // schedule_task is medium risk: it arms future autonomous agent runs, so it
-// goes through the central permission prompt (cf. create_task). list,
+// goes through the central permission prompt (cf. delegate). list,
 // list_task_runs, and cancel are low risk — read/cleanup of internal bookkeeping.
 export function cronSpecs(scheduler: CronScheduler): ToolSpec[] {
   return [

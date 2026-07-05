@@ -17,7 +17,7 @@ const fakeMemoryStore: MemoryStore = {
 const ctx: ToolRunContext = {
   sessionId: 's',
   taskId: 't',
-  spawnChild: async () => ({ childTaskId: 'c', result: { summary: 'done', artifacts: [] } }),
+  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: 'done', artifacts: [] }),
   requestPermission: async () => 'grant',
   findPeers: () => [],
 }
@@ -35,7 +35,7 @@ describe('registerBuiltinTools', () => {
       .map((s) => `${s.group}.${s.name}`)
       .sort()
     expect(ids).toEqual([
-      'agent.create_task',
+      'agent.delegate',
       'agent.find_agents',
       'agent.set_delegation_plan',
       'agent.update_plan',
@@ -74,11 +74,11 @@ describe('registerBuiltinTools', () => {
     expect(riskOf('hotkey')).toBe('high')
   })
 
-  it('create_task spawn path delegates to ctx.spawnChild and returns its summary', async () => {
+  it('delegate spawn path delegates to ctx.spawnChild and returns its summary', async () => {
     const { tools } = make().resolve(['agent.*'], ctx)
-    const createTask = tools.find((t) => t.name === 'create_task')
-    expect(createTask).toBeDefined()
-    const result = await createTask!.execute('call-1', { goal: 'do a thing' })
+    const delegate = tools.find((t) => t.name === 'delegate')
+    expect(delegate).toBeDefined()
+    const result = await delegate!.execute('call-1', { goal: 'do a thing' })
     expect(result.content[0]).toEqual({ type: 'text', text: 'done' })
   })
 

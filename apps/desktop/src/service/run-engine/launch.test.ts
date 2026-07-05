@@ -195,7 +195,8 @@ describe('launchRun', () => {
     installAgent()
     holdPrompt = true
     const s = sink()
-    let finishDelegate: (r: { runId: string; status: 'completed'; summary: string }) => void = () => undefined
+    let finishDelegate: (r: { runId: string; status: 'completed'; summary: string; artifacts: never[] }) => void = () =>
+      undefined
     const { ports, slotLog, getCtx } = makePorts(s, {
       delegate: () => new Promise((res) => (finishDelegate = res as never)),
     })
@@ -203,9 +204,9 @@ describe('launchRun', () => {
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     const childP = getCtx().spawnChild('child goal')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release']))
-    finishDelegate({ runId: 'c1', status: 'completed', summary: 'child done' })
+    finishDelegate({ runId: 'c1', status: 'completed', summary: 'child done', artifacts: [] })
     const child = await childP
-    expect(child.result.summary).toBe('child done')
+    expect(child.summary).toBe('child done')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release', 'acquire']))
     resolveHeldPrompt()
     await p
@@ -232,14 +233,19 @@ describe('launchRun', () => {
     installAgent()
     holdPrompt = true
     const s = sink()
-    const createTask = vi.fn(async () => ({ taskId: 't1', result: { summary: 'work done', artifacts: [] } }))
+    const createTask = vi.fn(async () => ({
+      runId: 't1',
+      status: 'completed' as const,
+      summary: 'work done',
+      artifacts: [],
+    }))
     const { ports, getCtx } = makePorts(s, { createTask })
     const p = launchRun(spec(), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     expect(getCtx().createTask).toBeDefined()
     const res = await getCtx().createTask!('goal', 'agentType')
     expect(createTask).toHaveBeenCalledWith('goal', 'agentType')
-    expect(res.result.summary).toBe('work done')
+    expect(res.summary).toBe('work done')
     resolveHeldPrompt()
     await p
   })
@@ -248,8 +254,8 @@ describe('launchRun', () => {
     installAgent()
     holdPrompt = true
     const s = sink()
-    let finishCreateTask: (r: { taskId: string; result: { summary: string; artifacts: never[] } }) => void = () =>
-      undefined
+    let finishCreateTask: (r: { runId: string; status: 'completed'; summary: string; artifacts: never[] }) => void =
+      () => undefined
     const { ports, slotLog, getCtx } = makePorts(s, {
       createTask: () => new Promise((res) => (finishCreateTask = res as never)),
     })
@@ -257,9 +263,9 @@ describe('launchRun', () => {
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     const taskP = getCtx().createTask!('child goal')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release']))
-    finishCreateTask({ taskId: 't1', result: { summary: 'work done', artifacts: [] } })
+    finishCreateTask({ runId: 't1', status: 'completed', summary: 'work done', artifacts: [] })
     const res = await taskP
-    expect(res.result.summary).toBe('work done')
+    expect(res.summary).toBe('work done')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release', 'acquire']))
     resolveHeldPrompt()
     await p

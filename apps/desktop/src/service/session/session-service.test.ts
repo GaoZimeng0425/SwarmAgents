@@ -329,11 +329,11 @@ describe('SessionService', () => {
     const parentCtx = ctxs[0]
 
     holdPrompt = false // let the child auto-complete
-    const child = await parentCtx.spawnChild('child goal', undefined, undefined, 'nonexistent-type')
-    expect(child.result.summary.length).toBeGreaterThan(0)
+    const child = await parentCtx.spawnChild('child goal', { agentType: 'nonexistent-type' })
+    expect(child.summary.length).toBeGreaterThan(0)
     expect(child.status).toBe('completed')
 
-    const childRows = store.getRunEvents(sessionId).filter((r) => r.runId === child.childTaskId)
+    const childRows = store.getRunEvents(sessionId).filter((r) => r.runId === child.runId)
     expect(childRows.length).toBeGreaterThan(0)
     expect(childRows.every((r) => r.parentRunId === parent)).toBe(true)
     const created = childRows.find((r) => (r.event as { kind: string }).kind === 'run.created')
@@ -354,8 +354,8 @@ describe('SessionService', () => {
     const childCtx = ctxs[1]
     expect(childCtx.createTask).toBeDefined()
     const res = await childCtx.createTask!('nested work')
-    expect(res.taskId).toBeTruthy()
-    expect(res.result.summary.length).toBeGreaterThan(0)
+    expect(res.runId).toBeTruthy()
+    expect(res.summary.length).toBeGreaterThan(0)
     releaseAllHeld()
   })
 

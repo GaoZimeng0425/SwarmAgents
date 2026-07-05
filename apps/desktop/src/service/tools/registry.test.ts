@@ -23,7 +23,7 @@ const spec = (group: string, name: string, risk: 'low' | 'medium' | 'high'): Too
 const ctx: ToolRunContext = {
   sessionId: 's',
   taskId: 't',
-  spawnChild: async () => ({ childTaskId: 'c', result: { summary: '', artifacts: [] } }),
+  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: '', artifacts: [] }),
   requestPermission: async () => 'grant',
   findPeers: () => [],
 }
@@ -33,7 +33,7 @@ describe('ToolRegistry', () => {
     const r = createToolRegistry()
     r.register(spec('peekaboo', 'see_screen', 'low'))
     r.register(spec('peekaboo', 'list_apps', 'low'))
-    r.register(spec('agent', 'create_task', 'medium'))
+    r.register(spec('agent', 'delegate', 'medium'))
     return r
   }
 
@@ -55,7 +55,7 @@ describe('ToolRegistry', () => {
   it('riskOf returns spec risk, defaulting unknown to medium', () => {
     const { riskOf } = make().resolve(['*'], ctx)
     expect(riskOf('see_screen')).toBe('low')
-    expect(riskOf('create_task')).toBe('medium')
+    expect(riskOf('delegate')).toBe('medium')
     expect(riskOf('does_not_exist')).toBe('medium')
   })
 
