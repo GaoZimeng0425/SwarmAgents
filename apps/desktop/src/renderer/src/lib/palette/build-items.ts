@@ -49,6 +49,13 @@ export type Callbacks = {
   openArtifact: (ref: string) => void
   /** Submit the hero dispatch; returns the new session id for navigation. */
   submitGoal: (goal: string, agentType: string) => Promise<{ sessionId: string }>
+  /**
+   * Currently picked dispatch formation (lifted in usePaletteState). Optional so
+   * pure tests can omit it; heroItem falls back to DEFAULT_FORMATION when unset.
+   * Including it here lets usePaletteState rebuild `cb` (via a merged memo) when
+   * the picker changes, so the dispatch item's run() captures the latest pick.
+   */
+  pickedFormation?: string
 }
 
 /** Default formation used when the user submits the hero dispatch as-is. */
@@ -169,7 +176,11 @@ function taskRunItems(runs: BuildInputs['runningRuns']): PaletteItem[] {
       icon: 'LoaderCircle',
       run: () => {},
       searchText: `${r.goal} ${r.summary ?? ''} ${r.status}`,
-      preview: { type: 'taskRun', run: { id: r.id, goal: r.goal, summary: r.summary, status: r.status, plan: r.plan } },
+      preview: {
+        type: 'taskRun',
+        run: { id: r.id, goal: r.goal, summary: r.summary, status: r.status, plan: r.plan },
+        sessionId: r.sessionId,
+      },
     }
   })
 }
@@ -282,7 +293,7 @@ function heroItem(trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteI
     subtitle: trimmed || undefined,
     icon: 'Rocket',
     run: async () => {
-      const { sessionId } = await cb.submitGoal(trimmed, DEFAULT_FORMATION)
+      const { sessionId } = await cb.submitGoal(trimmed, cb.pickedFormation ?? DEFAULT_FORMATION)
       cb.navigate(`/session/${sessionId}`)
     },
     searchText: '把目标交给 agent dispatch',

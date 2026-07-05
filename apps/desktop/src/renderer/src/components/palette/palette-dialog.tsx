@@ -20,12 +20,12 @@ import { usePaletteData } from '../../hooks/use-palette-data'
 import { useSubmitGoal } from '../../hooks/use-runs'
 import { swarmApi } from '../../lib/api'
 import type { Callbacks } from '../../lib/palette/build-items'
-import type { PreviewData } from '../../lib/palette/types'
 import { useComposerDefaults } from '../../stores/composer-defaults'
 import { useSearchDialog } from '../../stores/search-dialog'
 import { useSettingsDialog } from '../../stores/settings-dialog'
 import { PaletteInput } from './palette-input'
 import { PaletteResults } from './palette-results'
+import { PreviewSwitch } from './preview'
 import { usePaletteState } from './use-palette-state'
 
 const THEME_ORDER = ['system', 'light', 'dark'] as const
@@ -43,8 +43,10 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
   const inputs = usePaletteData()
   const close = useSearchDialog((s) => s.close)
 
-  // `submitGoal` here hardcodes the formation to 'ceo'. Task 8 adds the
-  // `pickedFormation` picker state and threads the user's choice through.
+  // `submitGoal` submits with whatever formation the user picked. The picked
+  // value lives in usePaletteState (it needs to rebuild the dispatch item's
+  // run()), so we don't reference it here; usePaletteState injects it into the
+  // merged `cb` it passes to buildItems.
   const cb: Callbacks = useMemo(
     () => ({
       navigate: (to) => {
@@ -119,41 +121,15 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
             selIndex={state.selIndex}
           />
           <aside className="cmdscroll w-[296px] flex-none overflow-y-auto border-border/60 border-l bg-muted/30">
-            <PreviewSwitch preview={state.preview} />
+            <PreviewSwitch
+              formations={state.formations}
+              onPick={state.setPickedFormation}
+              picked={state.pickedFormation}
+              preview={state.preview}
+            />
           </aside>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/**
- * Right-pane preview switch. Task 8 replaces this with the real per-kind
- * preview components (dispatch / chat / taskRun / taskSched / info). Until then
- * it shows a neutral placeholder when nothing is selected, or the selected
- * item's title as a lightweight readout.
- *
- * `dispatch` has no `title` field (it carries the goal term + formations), so
- * until the real preview lands it just renders the placeholder.
- *
- * TODO(Task 8): render a discriminated preview per `preview.type`.
- */
-function PreviewSwitch({ preview }: { preview: PreviewData | null }): React.JSX.Element {
-  if (!preview) {
-    return <div className="p-4 text-muted-foreground text-xs">选择左侧条目查看详情</div>
-  }
-  const title =
-    preview.type === 'dispatch'
-      ? '把目标交给 Agent'
-      : preview.type === 'taskRun'
-        ? preview.run.goal
-        : preview.type === 'taskSched'
-          ? (preview.task.name ?? preview.task.cron)
-          : preview.title
-  return (
-    <div className="space-y-2 p-4">
-      <div className="font-medium text-muted-foreground text-xs uppercase tracking-wide">预览</div>
-      <div className="font-medium text-foreground text-sm">{title}</div>
-    </div>
   )
 }

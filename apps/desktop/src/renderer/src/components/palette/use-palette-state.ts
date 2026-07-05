@@ -16,11 +16,17 @@ const PREFIX_CHARS = new Set(['>', '@', '#', '/'])
 export function usePaletteState(args: { inputs: BuildInputs; cb: Callbacks; open: boolean; close: () => void }) {
   const { inputs, cb, open, close } = args
   const [query, setQuery] = useState('')
+  // The dispatch formation picker's choice, lifted here so the dispatch item's
+  // run() (rebuilt below via cbWithFormation) submits with the user's pick.
+  const [pickedFormation, setPickedFormation] = useState('ceo')
   // Re-derive scope every render from the raw query — no separate state to keep
   // in sync with it.
   const { mode, term } = getScope(query)
 
-  const items = useMemo(() => buildItems(mode, term, inputs, cb), [mode, term, inputs, cb])
+  // Inject the picked formation into the callbacks so buildItems rebuilds (and
+  // the hero item's run() captures the latest pick) whenever it changes.
+  const cbWithFormation = useMemo<Callbacks>(() => ({ ...cb, pickedFormation }), [cb, pickedFormation])
+  const items = useMemo(() => buildItems(mode, term, inputs, cbWithFormation), [mode, term, inputs, cbWithFormation])
   const { sections, flat } = useMemo(() => selectPalette(mode, items), [mode, items])
 
   const [selIndex, setSelIndex] = useState(0)
@@ -69,5 +75,9 @@ export function usePaletteState(args: { inputs: BuildInputs; cb: Callbacks; open
     selected,
     preview: selected?.preview ?? null,
     onKeyDown,
+    // Exposed for the dispatch preview's <select> + the aside wiring.
+    pickedFormation,
+    setPickedFormation,
+    formations: inputs.formations,
   }
 }
