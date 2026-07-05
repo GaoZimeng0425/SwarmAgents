@@ -75,7 +75,7 @@ export const RAIL_SECTIONS: RailSection[] = [
 ]
 
 // A scene where the conversation surface (and thus the session list) is the
-// focus: the home landing and any /session/:id. SessionPanel renders iff true.
+// focus: the home landing and any path under /session/. SessionPanel renders iff true.
 export function isConversationScene(pathname: string): boolean {
   return pathname === '/' || pathname.startsWith('/session/')
 }

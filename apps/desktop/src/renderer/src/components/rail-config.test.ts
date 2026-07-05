@@ -19,7 +19,7 @@ describe('RAIL_SECTIONS', () => {
   })
 
   it('scenes list matches the design in order with the right icons', () => {
-    const scenes = RAIL_SECTIONS[0].items as RailItem[]
+    const scenes = RAIL_SECTIONS[0].items
     expect(scenes.map((i) => i.label)).toEqual(['任务台', '对话', '编队', '日历', '自动化', '用量'])
     expect(scenes.map((i) => i.icon)).toEqual([
       LayoutDashboard,
@@ -32,7 +32,7 @@ describe('RAIL_SECTIONS', () => {
   })
 
   it('services list matches the design in order with the right icons', () => {
-    const services = RAIL_SECTIONS[1].items as RailItem[]
+    const services = RAIL_SECTIONS[1].items
     expect(services.map((i) => i.label)).toEqual(['Gmail', 'GitHub 趋势', 'Bilibili'])
     expect(services.map((i) => i.icon)).toEqual([Mail, TrendingUp, Video])
   })
