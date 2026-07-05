@@ -36,9 +36,9 @@ export type RailSection = {
   items: RailItem[]
 }
 
-// Single source of truth for the 64px rail. Footer items (设置 / 主题) are NOT
-// here: 设置 is an action with no route, and 主题 is a dedicated component, so
-// they are rendered directly in app-rail.tsx rather than forced into this shape.
+// Single source of truth for the 64px rail. The footer 设置 item is NOT here:
+// it is an action with no route, rendered directly in app-rail.tsx. The theme
+// toggle lives in Settings → 通用 (general-view.tsx), not in the rail.
 export const RAIL_SECTIONS: RailSection[] = [
   {
     id: 'scenes',
