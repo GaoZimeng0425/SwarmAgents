@@ -255,4 +255,28 @@ describe('launchRun', () => {
     resolveHeldPrompt()
     await p
   })
+
+  it('resolves — never rejects — even when the emit port throws from the first event on', async () => {
+    // A throwing store port (e.g. SQLite busy) must not escape launchRun as a
+    // rejection: the created emit, the engine path, and the synthetic-terminal
+    // emit in the catch are all covered.
+    installAgent()
+    const ports: LaunchPorts = {
+      emit: {
+        nextSeq: () => 1,
+        appendEvent: () => {
+          throw new Error('sqlite busy')
+        },
+        markTerminal: () => undefined,
+        broadcast: () => undefined,
+      },
+      toolRegistry: { resolve: () => ({ tools: [], riskOf: () => 'low' as const }) } as never,
+      permissionRegistry: { request: async () => 'grant', resolve: () => undefined } as never,
+      acquireSlot: async () => () => undefined,
+      registerAbort: () => undefined,
+      unregisterAbort: () => undefined,
+    }
+    const r = await launchRun(spec(), ports)
+    expect(r.status).toBe('failed')
+  })
 })
