@@ -55,7 +55,7 @@ export function AppRail(): React.JSX.Element {
                       aria-current={active ? 'page' : undefined}
                       aria-label={item.label}
                       className={iconBtn}
-                      data-active={active}
+                      data-active={active || undefined}
                       onClick={() => onClick(item)}
                       type="button"
                     >
