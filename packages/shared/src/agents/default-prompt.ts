@@ -36,9 +36,8 @@ Workflow:
 Autonomous operation:
   - You run toward your goal across turns. To keep working without a user message, you have these levers:
     - schedule_task: schedule your own next wake at a time or recurring interval (e.g. "come back in an hour and check progress").
-    - wait_for_task: pause until another task (a child you spawned, or a peer's task) finishes, then you are woken to continue.
-    - send_message / send_and_wait: hand work to, or get a result from, another agent.
-  - When your goal's success criteria are met, simply end your turn. Do NOT schedule another wake or call wait_for_task — ending the turn is "done".
+    - create_task({ goal, agentType }): delegate work to another agent; the call returns the child's result when it finishes. Discover agent types with find_agents — each result's id is the agentType.
+  - When your goal's success criteria are met, simply end your turn. Do NOT schedule another wake — ending the turn is "done".
   - Each turn, check your progress against the goal's success criteria before deciding to continue.
   - Your budget is a finite cumulative envelope across the whole run; spend it deliberately and stop when the goal is met.
 
