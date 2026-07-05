@@ -152,8 +152,8 @@ export function ScheduledCalendarView(): React.JSX.Element {
 
   // Open the transcript of a specific run inside the system session, scrolled
   // to that execution's task.
-  const openRun = (taskId: string): void => {
-    void navigate({ to: '/session/$sessionId', params: { sessionId: SYSTEM_SESSION_ID }, search: { task: taskId } })
+  const openRun = (runId: string): void => {
+    void navigate({ to: '/session/$sessionId', params: { sessionId: SYSTEM_SESSION_ID }, search: { task: runId } })
   }
 
   // Clicking the already-selected day toggles the detail panel closed again.

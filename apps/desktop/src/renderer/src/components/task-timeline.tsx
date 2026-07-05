@@ -7,20 +7,20 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 function eventLabel(e: UIEvent): string {
   switch (e.kind) {
-    case 'task.created':
+    case 'run.created':
       return `Created: ${e.goal}`
-    case 'task.dispatched':
-      return `Dispatched to ${e.workerId}`
-    case 'task.progress':
+    case 'run.dispatched':
+      return 'Dispatched'
+    case 'run.progress':
       return `Progress: ${e.event.kind}`
-    case 'task.tool_call':
+    case 'run.tool_call':
       return `tool.call → ${e.tool}`
-    case 'task.permission_request':
+    case 'run.permission_request':
       return `Permission requested (${e.risk}): ${e.summary}`
-    case 'task.complete':
+    case 'run.complete':
       return `Completed: ${e.summary}`
-    case 'task.error':
-      return `Error: ${typeof e.error === 'object' && e.error !== null && 'message' in e.error ? String((e.error as { message: unknown }).message) : 'unknown error'}`
+    case 'run.error':
+      return `Error: ${e.error.message}`
     default:
       return (e as { kind: string }).kind
   }

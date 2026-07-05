@@ -13,8 +13,8 @@ describe('createLogger', () => {
 
   it('returns a child logger with merged bindings', () => {
     const log = createLogger({ process: 'main' })
-    const child = log.child({ workerId: 'w1' })
-    expect(child.bindings()).toMatchObject({ process: 'main', workerId: 'w1' })
+    const child = log.child({ runId: 'r1' })
+    expect(child.bindings()).toMatchObject({ process: 'main', runId: 'r1' })
   })
 })
 

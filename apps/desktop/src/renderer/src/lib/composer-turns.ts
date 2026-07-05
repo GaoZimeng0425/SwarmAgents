@@ -42,7 +42,7 @@ export function classifyComposerTurns(
   if (sessionStatus !== 'active') {
     return { activeTask: undefined, queuedTasks: [], transcriptTasks: sessionTasks }
   }
-  const topLevel = sessionTasks.filter((t) => !t.parentTaskId)
+  const topLevel = sessionTasks.filter((t) => !t.parentRunId)
   const running = topLevel.find((t) => t.status === 'running' || t.status === 'awaiting_user')
   const pending = sortBy(
     topLevel.filter((t) => t.status === 'pending'),

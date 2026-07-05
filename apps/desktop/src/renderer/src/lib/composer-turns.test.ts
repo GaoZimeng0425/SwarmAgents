@@ -8,7 +8,6 @@ const rec = (over: Partial<RunRecord>): RunRecord => ({
   sessionId: 's',
   goal: 'g',
   status: 'completed',
-  workerId: null,
   summary: null,
   startedAt: 0,
   attachments: [],
@@ -52,7 +51,7 @@ describe('classifyComposerTurns', () => {
   })
 
   it('ignores sub-agent children — only top-level turns count', () => {
-    const child = rec({ id: 'c', status: 'pending', startedAt: 100, parentTaskId: 'top' })
+    const child = rec({ id: 'c', status: 'pending', startedAt: 100, parentRunId: 'top' })
     const { activeTask, queuedTasks } = classifyComposerTurns([child])
     expect(activeTask).toBeUndefined()
     expect(queuedTasks).toEqual([])
@@ -84,7 +83,7 @@ describe('classifyComposerTurns', () => {
 
   it('keeps sub-agent children in the transcript', () => {
     const running = rec({ id: 'r', status: 'running', startedAt: 100 })
-    const child = rec({ id: 'c', status: 'pending', startedAt: 150, parentTaskId: 'r' })
+    const child = rec({ id: 'c', status: 'pending', startedAt: 150, parentRunId: 'r' })
     const queued = rec({ id: 'q', status: 'pending', startedAt: 200 })
     const { transcriptTasks } = classifyComposerTurns([running, child, queued])
     // Children belong in the transcript; only the top-level queued turn is excluded.

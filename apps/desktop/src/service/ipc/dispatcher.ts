@@ -110,9 +110,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         manager.resolvePermission(sessionId, actionId, decision)
         return { ok: true }
       }
-      case 'cancelTask': {
-        const [sessionId, taskId] = args as [string, string]
-        manager.cancelTask(sessionId, taskId)
+      case 'cancelRun': {
+        const [sessionId, runId] = args as [string, string]
+        // The pre-run.* manager still exposes cancelTask (renamed in Task 3).
+        manager.cancelTask(sessionId, runId)
         return { ok: true }
       }
       case 'interruptWith': {

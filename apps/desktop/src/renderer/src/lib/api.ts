@@ -17,11 +17,11 @@ import type {
   MemoryView,
   ObsidianConfig,
   PermissionDecision,
+  RunOptions,
   ScheduledTask,
   SessionSettings,
   SessionSummary,
   SubmitGoalResult,
-  TaskOptions,
   TranscriptionConfig,
   TrendingPeriod,
   TrendingRepo,
@@ -34,10 +34,10 @@ export const swarmApi = {
     sessionId: string,
     goal: string,
     attachments?: Attachment[],
-    options?: TaskOptions
+    options?: RunOptions
   ): Promise<SubmitGoalResult> => window.swarm.submitGoal(sessionId, goal, attachments, options),
-  cancelTask: (sessionId: string, taskId: string): Promise<void> => window.swarm.cancelTask(sessionId, taskId),
-  interruptWith: (sessionId: string, taskId: string): Promise<void> => window.swarm.interruptWith(sessionId, taskId),
+  cancelRun: (sessionId: string, runId: string): Promise<void> => window.swarm.cancelRun(sessionId, runId),
+  interruptWith: (sessionId: string, runId: string): Promise<void> => window.swarm.interruptWith(sessionId, runId),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),

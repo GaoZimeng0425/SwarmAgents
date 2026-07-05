@@ -1,10 +1,10 @@
 import type { PermissionDecision, PlanTodo } from '@swarm/protocol'
+import { Button } from '@swarm/ui'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { XIcon, ZapIcon } from 'lucide-react'
 
 import { PermissionCard } from '@/components/permission-card'
 import { PlanStatusBar } from '@/components/plan-status-bar'
-import { Button } from '@swarm/ui'
 import type { PermissionPrompt } from '@/stores/permission'
 
 type QueuedItem = { id: string; sessionId: string; goal: string }
@@ -15,8 +15,8 @@ type Props = {
   todos: PlanTodo[]
   running: boolean
   queued?: QueuedItem[]
-  onCancelQueued?: (taskId: string) => void
-  onInterrupt?: (taskId: string) => void
+  onCancelQueued?: (runId: string) => void
+  onInterrupt?: (runId: string) => void
 }
 
 /**

@@ -37,7 +37,7 @@ import { toast } from 'sonner'
 
 import { ServiceGrid } from '@/components/service-grid'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useTasks } from '@/hooks/use-tasks'
+import { useRuns } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
 import { formatTokens } from '@/lib/format-usage'
 import { type DirectoryGroup, flattenForReorder, groupSessionsByDirectory, UNGROUPED } from '@/lib/session-grouping'
@@ -120,7 +120,7 @@ export function SessionList(): React.JSX.Element {
   const removeFromStore = useSessionsStore((s) => s.remove)
   const reorder = useSessionsStore((s) => s.reorder)
   const navigate = useNavigate()
-  const tasks = useTasks()
+  const tasks = useRuns()
   const openSearch = useSearchDialog((s) => s.openSearch)
 
   const mode = useSessionView((s) => s.mode)

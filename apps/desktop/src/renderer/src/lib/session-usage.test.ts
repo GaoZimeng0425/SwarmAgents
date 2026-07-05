@@ -17,7 +17,6 @@ const rec = (over: Partial<RunRecord>): RunRecord => ({
   sessionId: 's',
   goal: 'g',
   status: 'completed',
-  workerId: null,
   summary: null,
   startedAt: 0,
   attachments: [],
@@ -30,7 +29,7 @@ describe('latestTopLevelTask', () => {
     // Mirrors the real bug: the child is created after the parent (newer
     // startedAt) but carries no usage / contextWindow once rehydrated.
     const top = rec({ id: 'top', startedAt: 100, used: used(5000, 6), contextWindow: 1_048_576 })
-    const child = rec({ id: 'child', startedAt: 200, parentTaskId: 'top', used: used(0, 0) })
+    const child = rec({ id: 'child', startedAt: 200, parentRunId: 'top', used: used(0, 0) })
     const latest = latestTopLevelTask([top, child])
     expect(latest?.id).toBe('top')
     expect(latest?.contextWindow).toBe(1_048_576)
@@ -45,7 +44,7 @@ describe('latestTopLevelTask', () => {
   })
 
   it('returns undefined when only sub-agent children exist', () => {
-    expect(latestTopLevelTask([rec({ id: 'k', parentTaskId: 'p' })])).toBeUndefined()
+    expect(latestTopLevelTask([rec({ id: 'k', parentRunId: 'p' })])).toBeUndefined()
   })
 })
 
@@ -62,7 +61,7 @@ describe('sessionDisplayUsage', () => {
   it('sums cost + calls across turns but takes tokens from the latest turn', () => {
     const turn1 = rec({ id: 't1', startedAt: 100, used: usedFull(5000, 1, 6), contextWindow: 1_048_576 })
     const turn2 = rec({ id: 't2', startedAt: 300, used: usedFull(8000, 2, 4), contextWindow: 1_048_576 })
-    const child = rec({ id: 'c1', startedAt: 350, parentTaskId: 't2', used: usedFull(0, 0, 0) })
+    const child = rec({ id: 'c1', startedAt: 350, parentRunId: 't2', used: usedFull(0, 0, 0) })
     const u = sessionDisplayUsage([turn1, turn2, child])
     // Cost + calls are the whole-session total (matches the session list)…
     expect(u?.usdCents).toBe(10)
@@ -72,6 +71,6 @@ describe('sessionDisplayUsage', () => {
   })
 
   it('returns undefined when the session has no top-level turn', () => {
-    expect(sessionDisplayUsage([rec({ id: 'k', parentTaskId: 'p', used: usedFull(0, 0, 0) })])).toBeUndefined()
+    expect(sessionDisplayUsage([rec({ id: 'k', parentRunId: 'p', used: usedFull(0, 0, 0) })])).toBeUndefined()
   })
 })

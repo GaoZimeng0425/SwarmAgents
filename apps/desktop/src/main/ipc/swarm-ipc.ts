@@ -183,40 +183,40 @@ export function wireSwarmIpc(args: {
     sessionId: string,
     goal: string,
     attachments?: import('@swarm/protocol').Attachment[],
-    options?: import('@swarm/protocol').TaskOptions
-  ): Promise<{ taskId: string }> => {
+    options?: import('@swarm/protocol').RunOptions
+  ): Promise<{ runId: string }> => {
     if (typeof goal !== 'string' || goal.trim().length === 0) {
       throw new Error('goal must be a non-empty string')
     }
     const trimmedGoal = goal.trim()
-    const { taskId } = await serviceClient.submitGoal(sessionId, trimmedGoal, attachments, options)
+    const { runId } = await serviceClient.submitGoal(sessionId, trimmedGoal, attachments, options)
     log.info({
-      msg: 'task submitted',
+      msg: 'run submitted',
       sessionId,
-      taskId,
+      runId,
       attachments: attachments?.length ?? 0,
       cwd: options?.cwd ?? null,
       permissionMode: options?.permissionMode ?? 'ask',
       executionMode: options?.executionMode ?? 'goal',
     })
-    return { taskId }
+    return { runId }
   }
 
-  const cancelTask = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, taskId: string): Promise<void> => {
+  const cancelRun = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, runId: string): Promise<void> => {
     try {
-      await serviceClient.cancelTask(sessionId, taskId)
-      log.info({ msg: 'cancelTask requested', sessionId, taskId })
+      await serviceClient.cancelRun(sessionId, runId)
+      log.info({ msg: 'cancelRun requested', sessionId, runId })
     } catch (err) {
-      log.warn({ msg: 'cancelTask failed', sessionId, taskId, err: String(err) })
+      log.warn({ msg: 'cancelRun failed', sessionId, runId, err: String(err) })
     }
   }
 
-  const interruptWith = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, taskId: string): Promise<void> => {
+  const interruptWith = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, runId: string): Promise<void> => {
     try {
-      await serviceClient.interruptWith(sessionId, taskId)
-      log.info({ msg: 'interruptWith requested', sessionId, taskId })
+      await serviceClient.interruptWith(sessionId, runId)
+      log.info({ msg: 'interruptWith requested', sessionId, runId })
     } catch (err) {
-      log.warn({ msg: 'interruptWith failed', sessionId, taskId, err: String(err) })
+      log.warn({ msg: 'interruptWith failed', sessionId, runId, err: String(err) })
     }
   }
 
@@ -249,7 +249,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:updateSessionSettings', updateSessionSettings)
   ipcMain.handle('swarm:reorderSessions', reorderSessions)
   ipcMain.handle('swarm:submitGoal', submitGoal)
-  ipcMain.handle('swarm:cancelTask', cancelTask)
+  ipcMain.handle('swarm:cancelRun', cancelRun)
   ipcMain.handle('swarm:interruptWith', interruptWith)
   ipcMain.handle('swarm:decidePermission', decidePermission)
   ipcMain.handle('swarm:listCronJobsForSession', listCronJobsForSession)
@@ -377,7 +377,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:updateSessionSettings')
       ipcMain.removeHandler('swarm:reorderSessions')
       ipcMain.removeHandler('swarm:submitGoal')
-      ipcMain.removeHandler('swarm:cancelTask')
+      ipcMain.removeHandler('swarm:cancelRun')
       ipcMain.removeHandler('swarm:interruptWith')
       ipcMain.removeHandler('swarm:decidePermission')
       ipcMain.removeHandler('swarm:listCronJobsForSession')

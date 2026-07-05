@@ -54,7 +54,7 @@ describe('useResearchRepo', () => {
   it('always creates a fresh session and wires the full flow correctly', async () => {
     // Arrange: stub api methods
     const createSessionMock = vi.spyOn(api.swarmApi, 'createSession').mockResolvedValue({ sessionId: 'new-123' })
-    const submitGoalMock = vi.spyOn(api.swarmApi, 'submitGoal').mockResolvedValue({ taskId: 'task-xyz' })
+    const submitGoalMock = vi.spyOn(api.swarmApi, 'submitGoal').mockResolvedValue({ runId: 'task-xyz' })
     const updateSessionSettingsMock = vi
       .spyOn(api.swarmApi, 'updateSessionSettings')
       .mockResolvedValue(undefined as never)

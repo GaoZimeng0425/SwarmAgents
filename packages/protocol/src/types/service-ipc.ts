@@ -13,7 +13,7 @@ export type ServiceMethod =
   | 'updateSessionSettings'
   | 'reorderSessions'
   | 'decidePermission'
-  | 'cancelTask'
+  | 'cancelRun'
   | 'interruptWith'
   | 'setMcpServers'
   | 'getMcpStatus'

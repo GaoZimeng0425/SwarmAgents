@@ -8,7 +8,6 @@ const task = (over: Partial<RunRecord> & { id: string }): RunRecord => ({
   sessionId: '__system__',
   goal: 'goal',
   status: 'completed',
-  workerId: null,
   summary: null,
   startedAt: 0,
   attachments: [],
@@ -32,7 +31,7 @@ describe('buildScheduledRows', () => {
     const jobs = [{ id: 'j1', name: 'Daily report' }]
     const rows = buildScheduledRows(tasks, runs, jobs)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ taskId: 't1', name: 'Daily report', status: 'completed', summary: 'done' })
+    expect(rows[0]).toMatchObject({ runId: 't1', name: 'Daily report', status: 'completed', summary: 'done' })
   })
 
   it('falls back to task.goal when there is no run, no job, or a null job name', () => {
@@ -59,10 +58,10 @@ describe('buildScheduledRows', () => {
     const tasks = [
       task({ id: 'old', startedAt: 100 }),
       task({ id: 'new', startedAt: 200 }),
-      task({ id: 'child', startedAt: 250, parentTaskId: 'new' }),
+      task({ id: 'child', startedAt: 250, parentRunId: 'new' }),
     ]
     const rows = buildScheduledRows(tasks, [], [])
-    expect(rows.map((r) => r.taskId)).toEqual(['new', 'old'])
+    expect(rows.map((r) => r.runId)).toEqual(['new', 'old'])
   })
 })
 
@@ -70,8 +69,8 @@ describe('collectSubtree', () => {
   it('returns the root plus its transitive descendants', () => {
     const tasks = [
       task({ id: 'root' }),
-      task({ id: 'a', parentTaskId: 'root' }),
-      task({ id: 'b', parentTaskId: 'a' }),
+      task({ id: 'a', parentRunId: 'root' }),
+      task({ id: 'b', parentRunId: 'a' }),
       task({ id: 'other' }),
     ]
     const ids = collectSubtree(tasks, 'root')

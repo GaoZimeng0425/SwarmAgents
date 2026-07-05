@@ -5,9 +5,9 @@ import type { Attachment, UIEvent } from '@swarm/protocol'
 // renderer can interleave segments across tasks in true causal order — a spawned
 // sub-agent's block lands at its spawn point) and the event's ts (display only).
 export type Segment =
-  | { kind: 'user'; text: string; attachments: Attachment[]; key: string; taskId: string; ts: number; seq: number }
-  | { kind: 'assistant'; text: string; key: string; taskId: string; ts: number; seq: number }
-  | { kind: 'reasoning'; text: string; key: string; taskId: string; ts: number; seq: number }
+  | { kind: 'user'; text: string; attachments: Attachment[]; key: string; runId: string; ts: number; seq: number }
+  | { kind: 'assistant'; text: string; key: string; runId: string; ts: number; seq: number }
+  | { kind: 'reasoning'; text: string; key: string; runId: string; ts: number; seq: number }
   | {
       kind: 'tool'
       tool: string
@@ -17,12 +17,12 @@ export type Segment =
       /** Local path to an image the tool produced (e.g. a screenshot), if any. */
       imagePath?: string
       key: string
-      taskId: string
+      runId: string
       ts: number
       seq: number
     }
-  | { kind: 'event'; label: string; detail: string; key: string; taskId: string; ts: number; seq: number }
-  | { kind: 'error'; label: 'error' | 'stopped'; detail: string; key: string; taskId: string; ts: number; seq: number }
+  | { kind: 'event'; label: string; detail: string; key: string; runId: string; ts: number; seq: number }
+  | { kind: 'error'; label: 'error' | 'stopped'; detail: string; key: string; runId: string; ts: number; seq: number }
 
 function toolDetail(payload: unknown): string {
   const p = payload as { text?: string } | undefined
@@ -43,7 +43,7 @@ export function taskSegments(task: RunRecord): Segment[] {
   // sub-agent run has no human user event; its objective is shown via the
   // synthetic goal bubble here (SubagentBlock does not render the goal).
   const hasUserMessage = task.events.some(
-    (e) => e.kind === 'task.progress' && e.event.kind === 'llm.message' && e.event.role === 'user'
+    (e) => e.kind === 'run.progress' && e.event.kind === 'llm.message' && e.event.role === 'user'
   )
   if (!hasUserMessage) {
     out.push({
@@ -51,7 +51,7 @@ export function taskSegments(task: RunRecord): Segment[] {
       text: task.goal,
       attachments: task.attachments ?? [],
       key: `${task.id}-goal`,
-      taskId: task.id,
+      runId: task.id,
       ts: task.startedAt,
       // The goal bubble takes task.created's seq (events[0]) so it sorts at the
       // task's true position; fall back to startedAt when no events are present.
@@ -63,13 +63,13 @@ export function taskSegments(task: RunRecord): Segment[] {
   const pushAssistant = (text: string, key: string, ts: number, seq: number): void => {
     const last = out[out.length - 1]
     if (last && last.kind === 'assistant') last.text += text
-    else out.push({ kind: 'assistant', text, key, taskId: task.id, ts, seq })
+    else out.push({ kind: 'assistant', text, key, runId: task.id, ts, seq })
   }
 
   const pushReasoning = (text: string, key: string, ts: number, seq: number): void => {
     const last = out[out.length - 1]
     if (last && last.kind === 'reasoning') last.text += text
-    else out.push({ kind: 'reasoning', text, key, taskId: task.id, ts, seq })
+    else out.push({ kind: 'reasoning', text, key, runId: task.id, ts, seq })
   }
 
   // update_plan is rendered by PlanPanel, so its call AND following result are dropped.
@@ -89,7 +89,7 @@ export function taskSegments(task: RunRecord): Segment[] {
     const key = `${task.id}-${i}`
     // Per-event seq for ordering (makeRunEmit/replay always set it; ts is a defensive fallback).
     const seq = e.seq ?? e.ts
-    if (e.kind === 'task.progress') {
+    if (e.kind === 'run.progress') {
       const ev = e.event
       if (ev.kind === 'llm.message' && ev.role === 'assistant') {
         pushAssistant(typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content), key, e.ts, seq)
@@ -101,7 +101,7 @@ export function taskSegments(task: RunRecord): Segment[] {
           text: typeof ev.content === 'string' ? ev.content : JSON.stringify(ev.content),
           attachments: firstUserSegment ? (task.attachments ?? []) : [],
           key,
-          taskId: task.id,
+          runId: task.id,
           ts: e.ts,
           seq,
         })
@@ -121,7 +121,7 @@ export function taskSegments(task: RunRecord): Segment[] {
           input: ev.args ?? {},
           output: null,
           key,
-          taskId: task.id,
+          runId: task.id,
           ts: e.ts,
           seq,
         } as Extract<Segment, { kind: 'tool' }>
@@ -148,30 +148,30 @@ export function taskSegments(task: RunRecord): Segment[] {
             label: ev.ok ? 'tool result' : 'tool error',
             detail: toolDetail(ev.payload),
             key,
-            taskId: task.id,
+            runId: task.id,
             ts: e.ts,
             seq,
           })
         }
       } else if (ev.kind === 'error') {
         const label = ev.error.code === 'cancelled' ? 'stopped' : 'error'
-        out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, taskId: task.id, ts: e.ts, seq })
+        out.push({ kind: 'error', label, detail: ev.error.message ?? 'error', key, runId: task.id, ts: e.ts, seq })
       }
-    } else if (e.kind === 'task.permission_request') {
+    } else if (e.kind === 'run.permission_request') {
       out.push({
         kind: 'event',
         label: `permission (${e.risk})`,
         detail: e.summary,
         key,
-        taskId: task.id,
+        runId: task.id,
         ts: e.ts,
         seq,
       })
-    } else if (e.kind === 'task.error') {
+    } else if (e.kind === 'run.error') {
       const err = typeof e.error === 'object' && e.error ? (e.error as { message?: unknown; code?: unknown }) : null
       const msg = err && 'message' in err ? String(err.message) : 'error'
       const label = err?.code === 'cancelled' ? 'stopped' : 'error'
-      out.push({ kind: 'error', label, detail: msg, key, taskId: task.id, ts: e.ts, seq })
+      out.push({ kind: 'error', label, detail: msg, key, runId: task.id, ts: e.ts, seq })
     }
   })
 

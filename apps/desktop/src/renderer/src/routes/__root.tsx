@@ -9,7 +9,7 @@ import { NoProviderBanner } from '@/components/no-provider-banner'
 import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { ToolsPopover } from '@/components/tools-popover'
-import { useLoadSessions } from '@/hooks/use-tasks'
+import { useLoadSessions } from '@/hooks/use-runs'
 
 // Opt-in only — devtools overlap the UI and interfere with manual/automated UI
 // testing. Enable with `VITE_ROUTER_DEVTOOLS=true pnpm dev`.

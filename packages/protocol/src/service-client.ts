@@ -35,8 +35,8 @@ export type ServiceClient = {
     sessionId: string,
     goal: string,
     attachments?: import('./types/task').Attachment[],
-    options?: import('./types/task').TaskOptions
-  ): Promise<{ taskId: string }>
+    options?: import('./types/task').RunOptions
+  ): Promise<{ runId: string }>
   analyzeEmail(req: import('./types/ui').AnalyzeEmailRequest): Promise<import('./types/ui').AnalyzeEmailResult>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
   getRunEvents(sessionId: string): Promise<import('./types/task').RunEvent[]>
@@ -46,8 +46,8 @@ export type ServiceClient = {
   updateSessionSettings(sessionId: string, settings: import('./types/ui').SessionSettings): Promise<void>
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
-  cancelTask(sessionId: string, taskId: string): Promise<void>
-  interruptWith(sessionId: string, taskId: string): Promise<void>
+  cancelRun(sessionId: string, runId: string): Promise<void>
+  interruptWith(sessionId: string, runId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
@@ -169,11 +169,11 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     async decidePermission(sessionId, actionId, decision) {
       await call('decidePermission', [sessionId, actionId, decision])
     },
-    async cancelTask(sessionId, taskId) {
-      await call('cancelTask', [sessionId, taskId])
+    async cancelRun(sessionId, runId) {
+      await call('cancelRun', [sessionId, runId])
     },
-    async interruptWith(sessionId, taskId) {
-      await call('interruptWith', [sessionId, taskId])
+    async interruptWith(sessionId, runId) {
+      await call('interruptWith', [sessionId, runId])
     },
     async setMcpServers(configs) {
       await call('setMcpServers', [configs])

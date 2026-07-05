@@ -21,7 +21,6 @@ function task(overrides: Partial<RunRecord> = {}): RunRecord {
     sessionId: 's1',
     goal: 'do x',
     status: 'running',
-    workerId: null,
     summary: null,
     startedAt: 1,
     attachments: [],

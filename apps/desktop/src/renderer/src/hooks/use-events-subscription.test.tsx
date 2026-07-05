@@ -72,7 +72,7 @@ describe('useEventsSubscription — background session activity', () => {
   it('toasts and marks unread for a milestone event in a non-active session', async () => {
     const emit = mount()
     act(() => {
-      emit({ kind: 'task.created', sessionId: 'bg', taskId: 't1', goal: 'g', ts: 1 })
+      emit({ kind: 'run.created', sessionId: 'bg', runId: 't1', goal: 'g', ts: 1, seq: 1 })
     })
     await waitFor(() => expect(toast).toHaveBeenCalledTimes(1))
     expect(toast).toHaveBeenCalledWith('「Background」开始了新任务', expect.objectContaining({ id: 'activity-bg' }))
@@ -82,7 +82,7 @@ describe('useEventsSubscription — background session activity', () => {
   it('does nothing for the currently active session', async () => {
     const emit = mount()
     act(() => {
-      emit({ kind: 'task.created', sessionId: 'current', taskId: 't1', goal: 'g', ts: 1 })
+      emit({ kind: 'run.created', sessionId: 'current', runId: 't1', goal: 'g', ts: 1, seq: 1 })
     })
     await waitFor(() => expect(api.swarmApi.subscribeEvents).toHaveBeenCalled())
     expect(toast).not.toHaveBeenCalled()
@@ -93,11 +93,12 @@ describe('useEventsSubscription — background session activity', () => {
     const emit = mount()
     act(() => {
       emit({
-        kind: 'task.progress',
+        kind: 'run.progress',
         sessionId: 'bg',
-        taskId: 't1',
+        runId: 't1',
         event: { kind: 'reasoning', content: 'thinking', ts: 1 },
         ts: 1,
+        seq: 1,
       })
     })
     await waitFor(() => expect(useSessionsStore.getState().unread).toEqual({ bg: true }))

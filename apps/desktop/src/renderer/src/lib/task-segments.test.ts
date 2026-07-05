@@ -9,7 +9,6 @@ function rec(events: RunRecord['events'], attachments: RunRecord['attachments'] 
     sessionId: 's1',
     goal: 'do x',
     status: 'running',
-    workerId: null,
     summary: null,
     startedAt: 1,
     attachments,
@@ -17,7 +16,7 @@ function rec(events: RunRecord['events'], attachments: RunRecord['attachments'] 
   }
 }
 const prog = (event: unknown) =>
-  ({ kind: 'task.progress', sessionId: 's1', taskId: 't1', event, ts: 1 }) as RunRecord['events'][number]
+  ({ kind: 'run.progress', sessionId: 's1', runId: 't1', event, ts: 1 }) as RunRecord['events'][number]
 
 describe('taskSegments', () => {
   it('emits the goal as the first user segment when there is no user-message event (sub-agent path)', () => {
@@ -75,9 +74,9 @@ describe('taskSegments', () => {
     const segs = taskSegments(
       rec([
         {
-          kind: 'task.progress',
+          kind: 'run.progress',
           sessionId: 's1',
-          taskId: 't1',
+          runId: 't1',
           event: { kind: 'llm.message', role: 'user', content: 'hello', ts: 5 },
           ts: 5,
           seq: 7,
@@ -158,18 +157,28 @@ describe('taskSegments', () => {
     const stopped = taskSegments(
       rec([
         {
-          kind: 'task.error',
+          kind: 'run.error',
           sessionId: 's1',
-          taskId: 't1',
-          error: { code: 'cancelled', message: 'Stopped by user.' },
+          runId: 't1',
+          error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
           ts: 1,
+          seq: 1,
         },
       ])
     )
     expect(stopped.find((s) => s.kind === 'error')).toMatchObject({ label: 'stopped', detail: 'Stopped by user.' })
 
     const failed = taskSegments(
-      rec([{ kind: 'task.error', sessionId: 's1', taskId: 't1', error: { code: 'boom', message: 'nope' }, ts: 1 }])
+      rec([
+        {
+          kind: 'run.error',
+          sessionId: 's1',
+          runId: 't1',
+          error: { code: 'boom', message: 'nope', tier: 'fatal' },
+          ts: 1,
+          seq: 1,
+        },
+      ])
     )
     expect(failed.find((s) => s.kind === 'error')).toMatchObject({ label: 'error', detail: 'nope' })
   })
@@ -190,15 +199,15 @@ describe('taskSegments', () => {
     const segs = taskSegments(
       rec([
         {
-          kind: 'task.permission_request',
+          kind: 'run.permission_request',
           sessionId: 's1',
-          taskId: 't1',
-          workerId: 'w',
+          runId: 't1',
           actionId: 'a',
           risk: 'medium',
           summary: 'run rm',
           payload: {},
           ts: 1,
+          seq: 1,
         },
       ])
     )
@@ -282,9 +291,9 @@ describe('taskSegments seq', () => {
     const segs = taskSegments(
       rec([
         {
-          kind: 'task.progress',
+          kind: 'run.progress',
           sessionId: 's1',
-          taskId: 't1',
+          runId: 't1',
           event: { kind: 'tool.call', server: 'fs', tool: 'read_file', args: {}, ts: 5 },
           ts: 1,
           seq: 42,
@@ -299,9 +308,9 @@ describe('taskSegments seq', () => {
     const segs = taskSegments(
       rec([
         {
-          kind: 'task.created',
+          kind: 'run.created',
           sessionId: 's1',
-          taskId: 't1',
+          runId: 't1',
           goal: 'do x',
           ts: 10,
           seq: 7,

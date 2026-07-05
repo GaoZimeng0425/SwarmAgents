@@ -11,8 +11,7 @@ import { ComposerOverlay } from './composer-overlay'
 const prompt = (actionId: string): PermissionPrompt => ({
   actionId,
   sessionId: 'sess-1',
-  taskId: 'task-1',
-  workerId: null,
+  runId: 'task-1',
   risk: 'medium',
   summary: 'Run shell command',
   payload: { cmd: 'ls' },

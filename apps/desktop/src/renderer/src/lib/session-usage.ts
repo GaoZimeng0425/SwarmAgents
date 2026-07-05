@@ -12,7 +12,7 @@ import type { ConsumedResources } from '@swarm/protocol'
 export function latestTopLevelTask(records: RunRecord[]): RunRecord | undefined {
   let latest: RunRecord | undefined
   for (const r of records) {
-    if (r.parentTaskId) continue
+    if (r.parentRunId) continue
     if (!latest || r.startedAt > latest.startedAt) latest = r
   }
   return latest
@@ -36,7 +36,7 @@ export function sessionDisplayUsage(records: RunRecord[]): ConsumedResources | u
   let calls = 0
   let wallMs = 0
   for (const r of records) {
-    if (r.parentTaskId || !r.used) continue
+    if (r.parentRunId || !r.used) continue
     usdCents += r.used.usdCents
     calls += r.used.calls
     wallMs += r.used.wallMs

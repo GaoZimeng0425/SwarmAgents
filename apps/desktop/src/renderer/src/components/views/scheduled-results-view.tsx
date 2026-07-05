@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { RunRecord, TaskStatus } from '@shared/lib/apply-event'
+import type { RunRecord, RunStatus } from '@shared/lib/apply-event'
 import { format } from 'date-fns'
 import { CalendarClock, Check, ChevronRight, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -11,7 +11,7 @@ import { buildScheduledRows, collectSubtree, formatDuration } from '@/lib/schedu
 import { cn } from '@/lib/utils'
 
 // Status → colored outcome icon, mirroring the calendar's run tones.
-function StatusIcon({ status }: { status: TaskStatus }): React.JSX.Element {
+function StatusIcon({ status }: { status: RunStatus }): React.JSX.Element {
   if (status === 'completed') return <Check className="size-4 text-emerald-500" />
   if (status === 'failed') return <X className="size-4 text-destructive" />
   if (status === 'running' || status === 'pending') return <Loader2 className="size-4 animate-spin text-primary" />
@@ -30,11 +30,11 @@ export function ScheduledResultsView({
   const rows = buildScheduledRows(tasks, runs, jobs)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const toggle = (taskId: string): void =>
+  const toggle = (runId: string): void =>
     setExpanded((prev) => {
       const next = new Set(prev)
-      if (next.has(taskId)) next.delete(taskId)
-      else next.add(taskId)
+      if (next.has(runId)) next.delete(runId)
+      else next.add(runId)
       return next
     })
 
@@ -75,17 +75,17 @@ export function ScheduledResultsView({
     <ScrollArea className="flex-1">
       <div className="mx-auto flex max-w-3xl flex-col gap-3 p-4">
         {rows.map((row) => {
-          const open = expanded.has(row.taskId)
+          const open = expanded.has(row.runId)
           const preview = row.error ?? row.summary
           return (
             <div
               className="rounded-xl border border-border/60 bg-card/40 transition-colors"
-              data-card-id={row.taskId}
-              key={row.taskId}
+              data-card-id={row.runId}
+              key={row.runId}
             >
               <button
                 className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
-                onClick={() => toggle(row.taskId)}
+                onClick={() => toggle(row.runId)}
                 type="button"
               >
                 <StatusIcon status={row.status} />
@@ -118,7 +118,7 @@ export function ScheduledResultsView({
                     busy={false}
                     onCopy={onCopy}
                     showDayDividers={false}
-                    tasks={collectSubtree(tasks, row.taskId)}
+                    tasks={collectSubtree(tasks, row.runId)}
                   />
                 </div>
               )}

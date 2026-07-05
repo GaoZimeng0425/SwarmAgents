@@ -280,7 +280,7 @@ function createSegmentRenderer(opts: {
   busy: boolean
   onSend?: (text: string) => void
   onCopy: (text: string) => void
-  onDelete?: (taskId: string) => void
+  onDelete?: (runId: string) => void
   onOpenFile?: (file: ViewerFile) => void
 }): (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element {
   const { busy, onSend, onCopy, onDelete, onOpenFile } = opts
@@ -294,13 +294,13 @@ function createSegmentRenderer(opts: {
     </time>
   )
 
-  const messageActions = (text: string, taskId: string): React.JSX.Element => (
+  const messageActions = (text: string, runId: string): React.JSX.Element => (
     <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 group-[.is-user]:justify-end">
       <MessageAction label="Copy" onClick={() => onCopy(text)} tooltip="Copy message">
         <Copy className="size-3.5" />
       </MessageAction>
       {onDelete && (
-        <MessageAction label="Delete" onClick={() => onDelete(taskId)} tooltip="Delete message">
+        <MessageAction label="Delete" onClick={() => onDelete(runId)} tooltip="Delete message">
           <Trash2 className="size-3.5" />
         </MessageAction>
       )}
@@ -313,7 +313,7 @@ function createSegmentRenderer(opts: {
     }
     if (seg.kind === 'user') {
       return (
-        <Message className="group" data-task-id={seg.taskId} from="user" key={seg.key}>
+        <Message className="group" data-run-id={seg.runId} from="user" key={seg.key}>
           <MessageContent>
             {seg.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -330,14 +330,14 @@ function createSegmentRenderer(opts: {
             <span className="whitespace-pre-wrap">{seg.text}</span>
           </MessageContent>
           {messageTime(seg.ts)}
-          {messageActions(seg.text, seg.taskId)}
+          {messageActions(seg.text, seg.runId)}
         </Message>
       )
     }
     if (seg.kind === 'assistant') {
       const images = extractImagePaths(seg.text)
       return (
-        <Message className="group" data-task-id={seg.taskId} from="assistant" key={seg.key}>
+        <Message className="group" data-run-id={seg.runId} from="assistant" key={seg.key}>
           <MessageContent>
             <MessageResponse>{seg.text}</MessageResponse>
             {images.map((p) => (
@@ -345,7 +345,7 @@ function createSegmentRenderer(opts: {
             ))}
           </MessageContent>
           {messageTime(seg.ts)}
-          {messageActions(seg.text, seg.taskId)}
+          {messageActions(seg.text, seg.runId)}
         </Message>
       )
     }
@@ -415,7 +415,7 @@ type TaskTimelineProps = {
   busy: boolean
   onSend?: (text: string) => void
   onCopy: (text: string) => void
-  onDelete?: (taskId: string) => void
+  onDelete?: (runId: string) => void
   showDayDividers?: boolean
 }
 
@@ -426,7 +426,7 @@ export function useTimelineRenderer(opts: {
   busy: boolean
   onSend?: (text: string) => void
   onCopy: (text: string) => void
-  onDelete?: (taskId: string) => void
+  onDelete?: (runId: string) => void
 }): { renderSegment: ReturnType<typeof createSegmentRenderer>; sheet: React.JSX.Element | null } {
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
   const renderSegment = createSegmentRenderer({ ...opts, onOpenFile: setViewerFile })

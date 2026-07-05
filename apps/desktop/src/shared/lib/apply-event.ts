@@ -1,13 +1,12 @@
 import type { Attachment, ConsumedResources, PlanTodo, UIEvent } from '@swarm/protocol'
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
+export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_user' | 'cancelled'
 
 export type RunRecord = {
   id: string
   sessionId: string
   goal: string
-  status: TaskStatus
-  workerId: string | null
+  status: RunStatus
   summary: string | null
   startedAt: number
   attachments: Attachment[]
@@ -15,78 +14,75 @@ export type RunRecord = {
   contextTokens?: number
   contextWindow?: number
   plan?: PlanTodo[]
-  /** Set when this task is a spawned sub-agent (links to its parent). */
-  parentTaskId?: string
+  /** Set when this run is a spawned sub-agent (links to its parent). */
+  parentRunId?: string
   /** Sub-agent definition id, used to label the subagent block. */
   agentDefId?: string
   events: UIEvent[]
 }
 
-function setStatus(task: RunRecord, status: TaskStatus): RunRecord {
-  return { ...task, status }
+function setStatus(run: RunRecord, status: RunStatus): RunRecord {
+  return { ...run, status }
 }
 
-export function applyEvent(tasks: RunRecord[], e: UIEvent): RunRecord[] {
-  const taskId = 'taskId' in e ? e.taskId : null
-  if (!taskId) return tasks
+export function applyEvent(runs: RunRecord[], e: UIEvent): RunRecord[] {
+  // Only run.* events carry a runId; session.*/gmail.*/*.changed do not and are
+  // ignored. Narrowing on the presence of runId also narrows `e` to RunWireEvent.
+  if (!('runId' in e)) return runs
+  const runId = e.runId
 
-  if (e.kind === 'task.created') {
+  if (e.kind === 'run.created') {
     const created: RunRecord = {
-      id: e.taskId,
+      id: e.runId,
       sessionId: e.sessionId,
       goal: e.goal,
       status: 'pending',
-      workerId: null,
       summary: null,
       startedAt: e.ts,
       attachments: e.attachments ?? [],
-      parentTaskId: e.parentTaskId,
+      parentRunId: e.parentRunId,
       agentDefId: e.agentDefId,
       events: [e],
     }
-    const without = tasks.filter((t) => t.id !== e.taskId)
+    const without = runs.filter((r) => r.id !== e.runId)
     return [created, ...without]
   }
 
-  // Event for a task we have no record of (e.g. forwarded out of order, or a
-  // sub-agent whose task.created was missed). Create a stub and then fall through
+  // Event for a run we have no record of (e.g. forwarded out of order, or a
+  // sub-agent whose run.created was missed). Create a stub and then fall through
   // to apply this event's semantics — crucially so a terminal event (complete/
   // error) doesn't leave the stub stuck 'running', which would keep the composer
   // in a loading state forever.
-  let workingTasks = tasks
-  let idx = tasks.findIndex((t) => t.id === taskId)
+  let workingRuns = runs
+  let idx = runs.findIndex((r) => r.id === runId)
   if (idx === -1) {
     const stub: RunRecord = {
-      id: taskId,
-      sessionId: 'sessionId' in e ? (e.sessionId as string) : '',
-      goal: '(unknown task)',
+      id: runId,
+      sessionId: e.sessionId,
+      goal: '(unknown run)',
       status: 'running',
-      workerId: null,
       summary: null,
       startedAt: e.ts,
       attachments: [],
       events: [],
     }
-    workingTasks = [stub, ...tasks]
+    workingRuns = [stub, ...runs]
     idx = 0
   }
 
-  let updated: RunRecord = { ...workingTasks[idx], events: [...workingTasks[idx].events, e] }
+  let updated: RunRecord = { ...workingRuns[idx], events: [...workingRuns[idx].events, e] }
 
   switch (e.kind) {
-    case 'task.dispatched':
-      updated = { ...updated, status: 'running', workerId: e.workerId }
+    case 'run.dispatched':
+      updated = setStatus(updated, 'running')
       break
-    case 'task.complete':
+    case 'run.complete':
       updated = setStatus({ ...updated, summary: e.summary }, 'completed')
       break
-    case 'task.error': {
-      const code =
-        typeof e.error === 'object' && e.error && 'code' in e.error ? (e.error as { code: unknown }).code : undefined
-      updated = setStatus(updated, code === 'cancelled' ? 'cancelled' : 'failed')
+    case 'run.error':
+      updated = setStatus(updated, e.error.code === 'cancelled' ? 'cancelled' : 'failed')
       break
-    }
-    case 'task.usage':
+    case 'run.usage':
       updated = {
         ...updated,
         used: e.used,
@@ -94,26 +90,28 @@ export function applyEvent(tasks: RunRecord[], e: UIEvent): RunRecord[] {
         contextWindow: e.contextWindow ?? updated.contextWindow,
       }
       break
-    case 'task.plan':
+    case 'run.plan':
       updated = { ...updated, plan: e.todos }
       break
-    case 'task.permission_request':
+    case 'run.permission_request':
       updated = setStatus(updated, 'awaiting_user')
       break
-    case 'task.progress':
-      // A streamed progress event means the run resumed: a task parked on a
+    case 'run.progress':
+      // A streamed progress event means the run resumed: a run parked on a
       // permission prompt is executing again once the operator decides (the
       // granted tool runs, or the model keeps going after a deny). Nothing else
-      // resets it, so without this the task stays 'awaiting_user' for the rest
+      // resets it, so without this the run stays 'awaiting_user' for the rest
       // of the run and the composer's submit button never leaves its stop state
-      // until the terminal event. Only a parked task flips; a live run is untouched.
+      // until the terminal event. Only a parked run flips; a live run is untouched.
       if (updated.status === 'awaiting_user') updated = setStatus(updated, 'running')
       break
+    // run.spawned is append-only: the parent→child linkage rides parentRunId on
+    // the child's run.created, so here we only record the event on the parent.
     default:
       break
   }
 
-  const next = [...workingTasks]
+  const next = [...workingRuns]
   next[idx] = updated
   return next
 }

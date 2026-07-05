@@ -1,7 +1,7 @@
 import type { Risk } from '@swarm/protocol'
 
 export type PermissionRequest = {
-  taskId: string
+  runId: string
   actionId: string
   risk: Risk
   summary: string

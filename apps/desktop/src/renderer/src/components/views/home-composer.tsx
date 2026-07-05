@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ChatInput } from '@/components/chat-input'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useSubmitGoal } from '@/hooks/use-tasks'
+import { useSubmitGoal } from '@/hooks/use-runs'
 import { useComposerDefaults } from '@/stores/composer-defaults'
 
 /**

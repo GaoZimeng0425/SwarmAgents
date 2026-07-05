@@ -25,22 +25,12 @@ import type {
 import type { BudgetConfig } from './budgets'
 import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './calendar'
 import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } from './gmail'
-import type { Risk } from './ipc'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProviderInjection, ProvidersStateView } from './provider'
+import type { RunWireEvent } from './run'
 import type { Skill, SkillMutationResult } from './skill'
-import type {
-  Attachment,
-  ConsumedResources,
-  DelegationItem,
-  ExecutionMode,
-  PermissionMode,
-  PlanTodo,
-  TaskEvent,
-  TaskOptions,
-  TaskResult,
-} from './task'
+import type { Attachment, DelegateResult, ExecutionMode, PermissionMode, RunOptions, TaskEvent } from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
@@ -62,86 +52,7 @@ export type AnalyzeEmailResult = { ok: true } | { ok: false; code: 'no_provider'
 export type GmailAnalysis = { analysis: string; updatedAt: number }
 
 export type UIEvent =
-  | {
-      kind: 'task.created'
-      sessionId: string
-      taskId: string
-      goal: string
-      attachments?: Attachment[]
-      /** Set when this task is a spawned sub-agent; links it to its parent for grouped rendering. */
-      parentTaskId?: string
-      /** Sub-agent definition id (e.g. 'researcher'), used to label the subagent block. */
-      agentDefId?: string
-      ts: number
-      /** Global per-session monotonic order, assigned at emit and read back by replay. Replaces wall-clock ts as the timeline sort key. Optional so legacy/test UIEvents (built without makeEmit) still type-check; the renderer falls back to ts when absent. */
-      seq?: number
-    }
-  | { kind: 'task.dispatched'; sessionId: string; taskId: string; workerId: string; ts: number; seq?: number }
-  | { kind: 'task.progress'; sessionId: string; taskId: string; event: TaskEvent; ts: number; seq?: number }
-  | {
-      kind: 'task.tool_call'
-      sessionId: string
-      taskId: string
-      workerId: string
-      tool: string
-      args: unknown
-      ts: number
-      seq?: number
-    }
-  | {
-      kind: 'task.permission_request'
-      sessionId: string
-      taskId: string
-      workerId: string
-      actionId: string
-      risk: Risk
-      summary: string
-      payload: unknown
-      ts: number
-      seq?: number
-    }
-  | { kind: 'task.complete'; sessionId: string; taskId: string; summary: string; ts: number; seq?: number }
-  | { kind: 'task.error'; sessionId: string; taskId: string; error: unknown; ts: number; seq?: number }
-  | {
-      kind: 'task.usage'
-      sessionId: string
-      taskId: string
-      used: ConsumedResources
-      /** Latest turn's context occupancy and the model's context-window size (for the composer ring). */
-      contextTokens?: number
-      contextWindow?: number
-      /** Resolved run model id, for per-model usage attribution (replaces the
-       *  pre-4b session-snapshot join). */
-      model?: string
-      ts: number
-      seq?: number
-    }
-  | { kind: 'task.plan'; sessionId: string; taskId: string; todos: PlanTodo[]; ts: number; seq?: number }
-  | {
-      kind: 'task.delegation_plan'
-      sessionId: string
-      taskId: string
-      plan: DelegationItem[]
-      ts: number
-      seq?: number
-    }
-  | {
-      kind: 'task.handoff.spawned'
-      sessionId: string
-      parentTaskId: string
-      childTaskId: string
-      ts: number
-      seq?: number
-    }
-  | {
-      kind: 'task.handoff.completed'
-      sessionId: string
-      parentTaskId: string
-      childTaskId: string
-      childSummary: string
-      ts: number
-      seq?: number
-    }
+  | RunWireEvent
   | { kind: 'session.created'; sessionId: string; title: string | null; ts: number; seq?: number }
   | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number; seq?: number }
   | { kind: 'memory.changed'; ts: number; seq?: number }
@@ -216,7 +127,7 @@ export type CronRun = {
 
 export type PermissionDecision = 'grant' | 'deny' | 'skip'
 
-export type SubmitGoalResult = { taskId: string }
+export type SubmitGoalResult = { runId: string }
 
 export type ProvidersSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
@@ -421,11 +332,11 @@ export type SwarmBridge = {
     sessionId: string,
     goal: string,
     attachments?: Attachment[],
-    options?: TaskOptions
+    options?: RunOptions
   ): Promise<SubmitGoalResult>
   analyzeEmail(input: AnalyzeEmailInput): Promise<AnalyzeEmailResult>
-  cancelTask(sessionId: string, taskId: string): Promise<void>
-  interruptWith(sessionId: string, taskId: string): Promise<void>
+  cancelRun(sessionId: string, runId: string): Promise<void>
+  interruptWith(sessionId: string, runId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>
@@ -490,4 +401,4 @@ export type SwarmBridge = {
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.
-export type { TaskEvent, TaskResult }
+export type { DelegateResult, TaskEvent }

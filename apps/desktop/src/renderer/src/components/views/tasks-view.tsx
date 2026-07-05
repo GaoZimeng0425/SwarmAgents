@@ -10,7 +10,7 @@ import { RightPanel } from '@/components/right-panel'
 import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useCancelTask, useDecidePermission, useInterruptWith, useSubmitGoal, useTasks } from '@/hooks/use-tasks'
+import { useCancelRun, useDecidePermission, useInterruptWith, useRuns, useSubmitGoal } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
 import { classifyComposerTurns } from '@/lib/composer-turns'
 import { latestTopLevelTask, sessionDisplayUsage } from '@/lib/session-usage'
@@ -18,14 +18,14 @@ import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
 export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React.JSX.Element {
-  const tasks = useTasks()
+  const tasks = useRuns()
   const queue = usePermissionStore((s) => s.queue)
   const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
   const sessions = useSessionsStore((s) => s.sessions)
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
   const submitGoal = useSubmitGoal()
   const decide = useDecidePermission()
-  const cancelTask = useCancelTask()
+  const cancelRun = useCancelRun()
   const interruptWith = useInterruptWith()
   const { ready, state } = useProviders()
 
@@ -47,9 +47,9 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // order. The agent replaces its plan per turn, but every turn persists its own
   // copy, so grouping by task preserves the whole history.
   const planGroups = sortBy(
-    sessionTasks.filter((t) => !t.parentTaskId && t.plan && t.plan.length > 0),
+    sessionTasks.filter((t) => !t.parentRunId && t.plan && t.plan.length > 0),
     ['startedAt']
-  ).map((t) => ({ taskId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
+  ).map((t) => ({ runId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
   // The composer's inline todo strip shows only the in-flight turn's plan
   // (the latest group) — a live "what's happening now" strip, not history.
   const activePlan = planGroups[planGroups.length - 1]?.plan
@@ -126,7 +126,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           onExecutionModeChange={setExecutionMode}
           onPermissionModeChange={setPermissionMode}
           onStop={() => {
-            if (runningTask) cancelTask.mutate({ sessionId: runningTask.sessionId, taskId: runningTask.id })
+            if (runningTask) cancelRun.mutate({ sessionId: runningTask.sessionId, runId: runningTask.id })
           }}
           onSubmit={async (g, attachments) => {
             if (!ready) return
@@ -134,16 +134,16 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           }}
           overlay={
             <ComposerOverlay
-              onCancelQueued={(taskId) => {
-                if (selectedSessionId) cancelTask.mutate({ sessionId: selectedSessionId, taskId })
+              onCancelQueued={(runId) => {
+                if (selectedSessionId) cancelRun.mutate({ sessionId: selectedSessionId, runId })
               }}
               onDecide={(actionId, decision) => {
                 const p = sessionPrompts.find((x) => x.actionId === actionId)
                 if (!p) return
                 decide.mutate({ sessionId: p.sessionId, actionId, decision })
               }}
-              onInterrupt={(taskId) => {
-                if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, taskId })
+              onInterrupt={(runId) => {
+                if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, runId })
               }}
               prompts={sessionPrompts}
               queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}

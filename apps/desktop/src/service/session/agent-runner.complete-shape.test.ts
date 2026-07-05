@@ -62,14 +62,25 @@ describe('task.complete wire shape', () => {
 
     // Round-trip the REAL emitted payload through the REAL reducer: this is the
     // cross-layer drift the old fabricated-shape tests missed.
+    // The reducer now keys on run.* (the runner's task.* emit is bridged to run.*
+    // in Task 3); round-trip the emitted summary through a run.* wire so this
+    // stays a real cross-layer reducer check.
     const created: UIEvent = {
-      kind: 'task.created',
+      kind: 'run.created',
       sessionId: 'ses-shape',
-      taskId: 'r-shape',
+      runId: 'r-shape',
       goal: 'do it',
       ts: 1,
+      seq: 1,
     }
-    const wire = { kind: 'task.complete', sessionId: 'ses-shape', ...complete!.data } as UIEvent
+    const wire: UIEvent = {
+      kind: 'run.complete',
+      sessionId: 'ses-shape',
+      runId: 'r-shape',
+      summary: complete!.data.summary as string,
+      ts: 2,
+      seq: 2,
+    }
     const rows = applyEvent(applyEvent([], created), wire)
     expect(rows[0].status).toBe('completed')
     expect(rows[0].summary).toBe('done.')

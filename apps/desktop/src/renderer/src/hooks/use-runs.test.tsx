@@ -9,7 +9,7 @@ import * as api from '../lib/api'
 import { usePermissionStore } from '../stores/permission'
 import { useSessionsStore } from '../stores/sessions'
 import { useEventsSubscription } from './use-events-subscription'
-import { hydrateSession, RUNS_KEY, useDecidePermission, useSubmitGoal, useTasks } from './use-tasks'
+import { hydrateSession, RUNS_KEY, useDecidePermission, useRuns, useSubmitGoal } from './use-runs'
 
 // useEventsSubscription now navigates (toast jump) + toasts on background
 // activity; stub both so rendering it here needs no router/Toaster.
@@ -40,7 +40,7 @@ afterEach(() => {
 })
 
 describe('use-tasks + use-events-subscription', () => {
-  it('a task.created event populates useTasks()', async () => {
+  it('a run.created event populates useRuns()', async () => {
     let emit: (e: UIEvent) => void = () => {}
     vi.spyOn(api.swarmApi, 'subscribeEvents').mockImplementation((cb) => {
       emit = cb
@@ -52,7 +52,7 @@ describe('use-tasks + use-events-subscription', () => {
     const view = renderHook(
       () => {
         useEventsSubscription()
-        return useTasks()
+        return useRuns()
       },
       { wrapper: makeWrapper(qc) }
     )
@@ -61,7 +61,7 @@ describe('use-tasks + use-events-subscription', () => {
     await waitFor(() => expect(view.result.current).toEqual([]))
 
     await act(async () => {
-      emit({ kind: 'task.created', sessionId: 'ses-1', taskId: 't1', goal: 'do x', ts: 1 })
+      emit({ kind: 'run.created', sessionId: 'ses-1', runId: 't1', goal: 'do x', ts: 1, seq: 1 })
     })
 
     await waitFor(() => expect(view.result.current).toHaveLength(1))
@@ -81,11 +81,11 @@ describe('use-tasks + use-events-subscription', () => {
 
     act(() => {
       emit({
-        kind: 'task.permission_request',
+        kind: 'run.permission_request',
         ts: 1,
+        seq: 1,
         sessionId: 'sess-1',
-        taskId: 'task-1',
-        workerId: 'w-1',
+        runId: 'task-1',
         actionId: 'act-9',
         risk: 'high',
         summary: 'rm -rf /tmp/x',
@@ -102,7 +102,7 @@ describe('use-tasks + use-events-subscription', () => {
 describe('useSubmitGoal', () => {
   it('creates a session first when none is selected, then submits goal with that sessionId', async () => {
     const mockCreate = vi.fn().mockResolvedValue({ sessionId: 'ses-test' })
-    const mockSubmitGoal = vi.fn().mockResolvedValue({ taskId: 'task-1' })
+    const mockSubmitGoal = vi.fn().mockResolvedValue({ runId: 'task-1' })
 
     // Stub window.swarm
     Object.defineProperty(window, 'swarm', {
@@ -136,7 +136,7 @@ describe('useSubmitGoal', () => {
   it('uses the pre-selected session without creating a new one', async () => {
     useSessionsStore.getState().select('ses-existing')
 
-    const mockSubmitGoal = vi.fn().mockResolvedValue({ taskId: 'task-2' })
+    const mockSubmitGoal = vi.fn().mockResolvedValue({ runId: 'task-2' })
     vi.spyOn(api.swarmApi, 'submitGoal').mockImplementation((sessionId, goal) => mockSubmitGoal(sessionId, goal))
     const mockCreate = vi.fn()
     vi.spyOn(api.swarmApi, 'createSession').mockImplementation(mockCreate)
@@ -177,14 +177,14 @@ describe('hydrateSession', () => {
         parentRunId: null,
         seq: 1,
         ts: 1,
-        event: { kind: 'task.created', sessionId: 's', taskId: 'r1', goal: 'hi', ts: 1, seq: 1 },
+        event: { kind: 'run.created', sessionId: 's', runId: 'r1', goal: 'hi', ts: 1, seq: 1 },
       },
       {
         runId: 'r1',
         parentRunId: null,
         seq: 2,
         ts: 2,
-        event: { kind: 'task.complete', sessionId: 's', taskId: 'r1', summary: 'done', ts: 2, seq: 2 },
+        event: { kind: 'run.complete', sessionId: 's', runId: 'r1', summary: 'done', ts: 2, seq: 2 },
       },
     ]
     const qc = new QueryClient({

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { parseChoiceCard } from './choice-notification'
 
 const progress = (event: unknown): UIEvent =>
-  ({ kind: 'task.progress', sessionId: 'ses-1', taskId: 't1', event, ts: 1 }) as UIEvent
+  ({ kind: 'run.progress', sessionId: 'ses-1', runId: 't1', event, ts: 1 }) as UIEvent
 
 const toolCall = (tool: string, args: unknown): unknown => ({ kind: 'tool.call', server: 'agent', tool, args, ts: 1 })
 
@@ -48,7 +48,7 @@ describe('parseChoiceCard', () => {
 
   it('returns null for a non-progress event', () => {
     expect(
-      parseChoiceCard({ kind: 'task.complete', sessionId: 'ses-1', taskId: 't1', summary: 'x', ts: 1 } as UIEvent)
+      parseChoiceCard({ kind: 'run.complete', sessionId: 'ses-1', runId: 't1', summary: 'x', ts: 1 } as UIEvent)
     ).toBeNull()
   })
 })

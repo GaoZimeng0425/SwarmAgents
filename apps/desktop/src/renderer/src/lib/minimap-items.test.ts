@@ -11,7 +11,6 @@ function task(over: Partial<RunRecord>): RunRecord {
     sessionId: 's1',
     goal: 'g',
     status: 'completed',
-    workerId: null,
     summary: null,
     startedAt: 0,
     attachments: [],
@@ -25,22 +24,22 @@ describe('minimapItems', () => {
     expect(minimapItems([])).toEqual([])
   })
 
-  it('maps top-level tasks to {taskId, text, ts} ordered by startedAt', () => {
+  it('maps top-level tasks to {runId, text, ts} ordered by startedAt', () => {
     const items = minimapItems([
       task({ id: 'b', goal: 'second', startedAt: 20 }),
       task({ id: 'a', goal: 'first', startedAt: 10 }),
     ])
     expect(items).toEqual([
-      { taskId: 'a', text: 'first', ts: 10 },
-      { taskId: 'b', text: 'second', ts: 20 },
+      { runId: 'a', text: 'first', ts: 10 },
+      { runId: 'b', text: 'second', ts: 20 },
     ])
   })
 
-  it('excludes sub-agent tasks (parentTaskId set)', () => {
+  it('excludes sub-agent tasks (parentRunId set)', () => {
     const items = minimapItems([
       task({ id: 'top', startedAt: 1 }),
-      task({ id: 'sub', startedAt: 2, parentTaskId: 'top' }),
+      task({ id: 'sub', startedAt: 2, parentRunId: 'top' }),
     ])
-    expect(items.map((i) => i.taskId)).toEqual(['top'])
+    expect(items.map((i) => i.runId)).toEqual(['top'])
   })
 })

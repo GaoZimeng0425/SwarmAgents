@@ -3,8 +3,6 @@ import pino, { type DestinationStream, type Logger } from 'pino'
 
 export type LoggerBindings = {
   process: 'main' | 'worker' | 'test' | 'service'
-  workerId?: string
-  taskId?: string
 }
 
 const isDev = process.env.NODE_ENV !== 'production'

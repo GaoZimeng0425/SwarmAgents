@@ -577,7 +577,9 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
         if (terminal.has(runId)) continue
         const seq = seqCounter.nextSeq(s.id)
         const ts = Date.now()
-        const event: import('@swarm/protocol').UIEvent = {
+        // The pre-run.* engine still persists task.* events (migrated in Task 3);
+        // cast keeps this synthetic terminal on the old wire until then.
+        const event = {
           kind: 'task.error',
           sessionId: s.id,
           taskId: runId,
@@ -587,7 +589,7 @@ export function createSessionManager(cfg: SessionManagerConfig): SessionManager 
           error: { code: 'cancelled', message: 'run interrupted by restart', tier: 'fatal' },
           ts,
           seq,
-        }
+        } as unknown as import('@swarm/protocol').UIEvent
         store.appendRunEvent(s.id, runId, null, event)
         // Mark terminal cancelled so waiters (and the listener wired in
         // service/index.ts) fire. Idempotent: first terminal wins.

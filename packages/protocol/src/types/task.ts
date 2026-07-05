@@ -81,15 +81,17 @@ export const DelegationItemSchema = z.object({
 export type DelegationItem = z.infer<typeof DelegationItemSchema>
 
 // Composer-supplied options threaded from the renderer to session-manager.
-export const TaskOptionsSchema = z.object({
+export const RunOptionsSchema = z.object({
   cwd: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),
   executionMode: ExecutionModeSchema.optional(),
-  // Agent type id (from the agent store) to use for this top-level task.
+  // Agent type id (from the agent store) to use for this top-level run.
   // Resolved in session-manager; unknown ids fall back to DEFAULT_AGENT_DEF.
   agentType: z.string().optional(),
 })
-export type TaskOptions = z.infer<typeof TaskOptionsSchema>
+export type RunOptions = z.infer<typeof RunOptionsSchema>
+/** @deprecated Back-compat alias for the pre-run.* engine (removed in Task 3). */
+export type TaskOptions = RunOptions
 
 export const TaskEventSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -160,11 +162,16 @@ export const ArtifactSchema = z.object({
 })
 export type Artifact = z.infer<typeof ArtifactSchema>
 
-export const TaskResultSchema = z.object({
+export const DelegateResultSchema = z.object({
   summary: z.string(),
   artifacts: z.array(ArtifactSchema),
+  // Terminal disposition of a delegated child run, when known. Optional so
+  // legacy rows (result-only) still parse.
+  status: z.enum(['completed', 'failed', 'cancelled']).optional(),
 })
-export type TaskResult = z.infer<typeof TaskResultSchema>
+export type DelegateResult = z.infer<typeof DelegateResultSchema>
+/** @deprecated Back-compat alias for the pre-run.* engine (removed in Task 3). */
+export type TaskResult = DelegateResult
 
 export const AttachmentSchema = z.object({
   data: z.string(), // base64-encoded bytes (no data: prefix)

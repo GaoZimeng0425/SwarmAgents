@@ -137,7 +137,7 @@ describe('ConversationStore', () => {
       goal: 'g',
       ts: now,
       seq: 1,
-    })
+    } as unknown as UIEvent)
 
     const list = store.listSessions()
     const ids = list.map((s) => s.id)
@@ -164,15 +164,16 @@ describe('ConversationStore', () => {
       used: { tokens: number; calls: number; wallMs: number; usdCents: number; cacheRead: number; cacheWrite: number },
       model: string,
       ts: number
-    ) => ({
-      kind: 'task.usage' as const,
-      sessionId,
-      taskId: runId,
-      used,
-      model,
-      ts,
-      seq: 1,
-    })
+    ) =>
+      ({
+        kind: 'task.usage' as const,
+        sessionId,
+        taskId: runId,
+        used,
+        model,
+        ts,
+        seq: 1,
+      }) as unknown as UIEvent
 
     // Two top-level runs in the session.
     store.appendRunEvent(
@@ -241,14 +242,14 @@ describe('ConversationStore', () => {
   describe('run events', () => {
     it('appendRunEvent persists UIEvents and re-reads them with runId/parentRunId', () => {
       const store = createConversationStore(dbPath)
-      const ev: UIEvent = {
+      const ev = {
         kind: 'task.progress',
         sessionId: 's1',
         taskId: 'r1',
         event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 1 },
         ts: 1,
         seq: 1,
-      }
+      } as unknown as UIEvent
       store.appendRunEvent('s1', 'r1', null, ev)
       store.appendRunEvent('s1', 'r1', null, {
         kind: 'task.complete',
@@ -257,7 +258,7 @@ describe('ConversationStore', () => {
         summary: 'done',
         ts: 2,
         seq: 2,
-      })
+      } as unknown as UIEvent)
       store.appendRunEvent('s1', 'r2', 'r1', {
         kind: 'task.created',
         sessionId: 's1',
@@ -266,7 +267,7 @@ describe('ConversationStore', () => {
         parentTaskId: 'r1',
         ts: 3,
         seq: 3,
-      })
+      } as unknown as UIEvent)
       const rows = store.getRunEvents('s1')
       expect(rows).toHaveLength(3)
       expect(rows.map((r) => r.runId)).toEqual(['r1', 'r1', 'r2'])
@@ -310,7 +311,7 @@ describe('ConversationStore', () => {
       goal: 'g',
       ts: 1,
       seq: 1,
-    })
+    } as unknown as UIEvent)
     store.deleteSession('ses-d')
     expect(store.getSession('ses-d')).toBeUndefined()
     expect(store.getRunEvents('ses-d')).toEqual([])
@@ -490,28 +491,25 @@ describe('ConversationStore', () => {
       model: string,
       usedVal: ReturnType<typeof used>,
       ts: number
-    ) => ({
-      kind: 'task.usage' as const,
-      sessionId,
-      taskId: runId,
-      used: usedVal,
-      model,
-      ts,
-      seq: 1,
-    })
-    const progressEvent = (
-      sessionId: string,
-      runId: string,
-      inner: import('@swarm/protocol').TaskEvent,
-      ts: number
-    ) => ({
-      kind: 'task.progress' as const,
-      sessionId,
-      taskId: runId,
-      event: inner,
-      ts,
-      seq: 1,
-    })
+    ) =>
+      ({
+        kind: 'task.usage' as const,
+        sessionId,
+        taskId: runId,
+        used: usedVal,
+        model,
+        ts,
+        seq: 1,
+      }) as unknown as UIEvent
+    const progressEvent = (sessionId: string, runId: string, inner: import('@swarm/protocol').TaskEvent, ts: number) =>
+      ({
+        kind: 'task.progress' as const,
+        sessionId,
+        taskId: runId,
+        event: inner,
+        ts,
+        seq: 1,
+      }) as unknown as UIEvent
 
     store.appendRunEvent(
       'ses-a',

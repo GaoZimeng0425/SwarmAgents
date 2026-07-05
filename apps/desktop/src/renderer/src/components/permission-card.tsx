@@ -7,8 +7,8 @@
 // 处理(skip 栈顶)上移到 ComposerOverlay。
 import { useEffect, useRef } from 'react'
 import type { PermissionDecision } from '@swarm/protocol'
-
 import { Button } from '@swarm/ui'
+
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import type { PermissionPrompt } from '@/stores/permission'
@@ -42,7 +42,7 @@ export function PermissionCard({ prompt, onDecide, autoFocusDeny = false }: Prop
           <header>
             <h2 className={cn('font-medium text-base', isHigh && 'text-destructive')}>Action requires confirmation</h2>
             <p className="text-muted-foreground text-sm">
-              Task {prompt.taskId} · risk: <strong>{prompt.risk}</strong>
+              Run {prompt.runId} · risk: <strong>{prompt.risk}</strong>
             </p>
           </header>
           <div className="text-sm">{prompt.summary}</div>

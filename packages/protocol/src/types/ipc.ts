@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { TaskEventSchema, TaskResultSchema } from './task'
+import { TaskEventSchema } from './task'
 
 export const RiskSchema = z.enum(['low', 'medium', 'high'])
 export type Risk = z.infer<typeof RiskSchema>
@@ -16,15 +16,7 @@ const ToolResultSchema = z.union([
   z.object({ ok: z.literal(false), error: z.object({ code: z.string(), message: z.string() }) }),
 ])
 
-const ErrorRecordSchema = z.object({
-  code: z.string(),
-  message: z.string(),
-  tier: z.enum(['transient', 'recoverable', 'fatal', 'gave_up']),
-  stack: z.string().optional(),
-})
-
 export const InboundSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('task.cancel'), taskId: z.string() }),
   z.object({ type: z.literal('tool.result'), callId: z.string(), result: ToolResultSchema }),
   z.object({
     type: z.literal('permission.decision'),
@@ -32,12 +24,6 @@ export const InboundSchema = z.discriminatedUnion('type', [
     decision: z.enum(['grant', 'deny', 'skip']),
   }),
   z.object({ type: z.literal('shutdown') }),
-  z.object({
-    type: z.literal('task.handoff_result'),
-    parentTaskId: z.string(),
-    childTaskId: z.string(),
-    result: TaskResultSchema,
-  }),
 ])
 export type Inbound = z.infer<typeof InboundSchema>
 
@@ -57,14 +43,6 @@ export const OutboundSchema = z.discriminatedUnion('type', [
     payload: z.unknown(),
   }),
   z.object({ type: z.literal('progress'), event: TaskEventSchema }),
-  z.object({ type: z.literal('task.complete'), taskId: z.string(), result: TaskResultSchema }),
-  z.object({
-    type: z.literal('task.handoff'),
-    parentTaskId: z.string(),
-    newGoal: z.string(),
-    suggestedTools: z.array(z.string()).optional(),
-  }),
-  z.object({ type: z.literal('task.error'), taskId: z.string(), error: ErrorRecordSchema }),
   z.object({ type: z.literal('heartbeat'), ts: z.number() }),
 ])
 export type Outbound = z.infer<typeof OutboundSchema>

@@ -7,7 +7,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import { MEMORY_KEY } from '@/hooks/use-memory'
-import { RUNS_KEY } from '@/hooks/use-tasks'
+import { RUNS_KEY } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
 import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
@@ -16,28 +16,27 @@ import { routeToSection, useSettingsDialog } from '@/stores/settings-dialog'
 
 // Milestone events that warrant a toast for a background session. Streaming
 // noise (progress/usage/tool_call/plan/dispatched) only marks unread.
-const TOAST_KINDS = new Set(['task.created', 'task.complete', 'task.permission_request'])
+const TOAST_KINDS = new Set(['run.created', 'run.complete', 'run.permission_request'])
 
 function activityMessage(kind: string, title: string): string {
-  if (kind === 'task.created') return `「${title}」开始了新任务`
-  if (kind === 'task.complete') return `「${title}」任务已完成`
-  return `「${title}」需要你的回复` // task.permission_request
+  if (kind === 'run.created') return `「${title}」开始了新任务`
+  if (kind === 'run.complete') return `「${title}」任务已完成`
+  return `「${title}」需要你的回复` // run.permission_request
 }
 
 // Fire a native OS notification for a render_ui choice card. Guarded by the
 // browser permission; a no-op until the user grants it.
-function notifyChoice(title: string, body: string, taskId: string, onClick: () => void): void {
+function notifyChoice(title: string, body: string, runId: string, onClick: () => void): void {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
-  const n = new Notification(title, { body, tag: `choice-${taskId}` })
+  const n = new Notification(title, { body, tag: `choice-${runId}` })
   n.onclick = onClick
 }
 
-function buildPrompt(e: Extract<UIEvent, { kind: 'task.permission_request' }>): PermissionPrompt {
+function buildPrompt(e: Extract<UIEvent, { kind: 'run.permission_request' }>): PermissionPrompt {
   return {
     actionId: e.actionId,
     sessionId: e.sessionId,
-    taskId: e.taskId,
-    workerId: e.workerId,
+    runId: e.runId,
     risk: e.risk,
     summary: e.summary,
     payload: e.payload,
@@ -83,7 +82,7 @@ export function useEventsSubscription(): void {
 
       // Surface activity in sessions other than the one being viewed: mark the
       // session unread (dot in the list) and toast on milestone events.
-      if ('sessionId' in e && e.sessionId && e.kind.startsWith('task.')) {
+      if ('sessionId' in e && e.sessionId && e.kind.startsWith('run.')) {
         const store = useSessionsStore.getState()
         if (e.sessionId !== store.selectedSessionId) {
           store.markUnread(e.sessionId)
@@ -125,7 +124,7 @@ export function useEventsSubscription(): void {
       if (e.kind === 'memory.changed') {
         void qc.invalidateQueries({ queryKey: MEMORY_KEY })
       }
-      if (e.kind === 'task.permission_request') {
+      if (e.kind === 'run.permission_request') {
         // All risk levels (medium + high) surface in the inline permission panel.
         push(buildPrompt(e))
       }
@@ -133,12 +132,12 @@ export function useEventsSubscription(): void {
       // A render_ui single/multi-select card pings the OS, but only when the
       // user can't already see it: window unfocused, or a non-active session.
       const choice = parseChoiceCard(e)
-      if (choice && 'sessionId' in e && e.sessionId && 'taskId' in e) {
+      if (choice && 'sessionId' in e && e.sessionId && 'runId' in e) {
         const store = useSessionsStore.getState()
         const sid = e.sessionId
         if (!document.hasFocus() || sid !== store.selectedSessionId) {
           const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
-          notifyChoice(title, choice.question, e.taskId, () => {
+          notifyChoice(title, choice.question, e.runId, () => {
             window.focus()
             void navigate({ to: '/session/$sessionId', params: { sessionId: sid } })
           })

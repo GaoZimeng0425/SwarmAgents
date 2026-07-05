@@ -55,7 +55,7 @@ export function buildTimelineItems(tasks: RunRecord[], render: Render, opts: Opt
   const raw: Raw[] = []
   for (const t of ordered) {
     const segs = taskSegments(t)
-    if (t.parentTaskId) {
+    if (t.parentRunId) {
       raw.push({
         key: t.id,
         seq: t.events[0]?.seq ?? t.startedAt,

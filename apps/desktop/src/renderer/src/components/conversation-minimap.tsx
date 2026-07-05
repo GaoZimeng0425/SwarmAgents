@@ -13,7 +13,7 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
   const items = useMemo(() => minimapItems(tasks), [tasks])
   const [activeId, setActiveId] = useState<string | null>(null)
   // Stable dep: only changes when a turn is added/removed, not on every stream tick.
-  const idsKey = useMemo(() => items.map((it) => it.taskId).join('|'), [items])
+  const idsKey = useMemo(() => items.map((it) => it.runId).join('|'), [items])
 
   useEffect(() => {
     const ids = idsKey ? idsKey.split('|') : []
@@ -54,9 +54,9 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
 
   if (items.length < 2) return null
 
-  const jump = (taskId: string): void => {
+  const jump = (runId: string): void => {
     document
-      .querySelector<HTMLElement>(`[data-task-id="${taskId}"]`)
+      .querySelector<HTMLElement>(`[data-run-id="${runId}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 
@@ -67,7 +67,7 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
         className="absolute bottom-8 left-3 z-20 flex max-h-[55%] flex-col justify-end gap-1.5 overflow-hidden rounded-full bg-muted/60 p-2 ring-1 ring-border/50 backdrop-blur-sm"
       >
         {items.map((it) => {
-          const active = it.taskId === activeId
+          const active = it.runId === activeId
           const label = it.text.trim() ? it.text : '(empty message)'
           const trigger = (
             <button
@@ -76,12 +76,12 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
                 'h-1.5 rounded-full transition-all hover:bg-foreground/70',
                 active ? 'w-7 bg-primary' : 'w-4 bg-muted-foreground/40'
               )}
-              onClick={() => jump(it.taskId)}
+              onClick={() => jump(it.runId)}
               type="button"
             />
           )
           return (
-            <Tooltip key={it.taskId}>
+            <Tooltip key={it.runId}>
               <TooltipTrigger render={trigger} />
               <TooltipContent align="end" side="right">
                 <p className="line-clamp-4 max-w-xs whitespace-pre-wrap">{label}</p>

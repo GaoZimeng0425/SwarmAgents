@@ -18,15 +18,6 @@ describe('IPC schemas', () => {
     expect(() => OutboundSchema.parse({ type: 'heartbeat', ts: 123 })).not.toThrow()
   })
 
-  it('accepts a task.complete', () => {
-    const msg = {
-      type: 'task.complete',
-      taskId: '01HX0000000000000000000000',
-      result: { summary: 'done', artifacts: [] },
-    }
-    expect(() => OutboundSchema.parse(msg)).not.toThrow()
-  })
-
   it('rejects an unknown outbound type', () => {
     expect(() => OutboundSchema.parse({ type: 'bogus' })).toThrow()
   })

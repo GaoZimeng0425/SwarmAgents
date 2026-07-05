@@ -1,14 +1,14 @@
 import type { RunRecord } from '@shared/lib/apply-event'
 import { sortBy } from 'es-toolkit'
 
-export type MinimapItem = { taskId: string; text: string; ts: number }
+export type MinimapItem = { runId: string; text: string; ts: number }
 
-// One item per top-level user turn (sub-agent tasks carry parentTaskId and are
-// excluded). The user message text is the task goal. Ordered oldest-first to
+// One item per top-level user turn (sub-agent runs carry parentRunId and are
+// excluded). The user message text is the run goal. Ordered oldest-first to
 // match the transcript's top-to-bottom layout.
 export function minimapItems(tasks: RunRecord[]): MinimapItem[] {
   return sortBy(
-    tasks.filter((t) => !t.parentTaskId),
+    tasks.filter((t) => !t.parentRunId),
     ['startedAt']
-  ).map((t) => ({ taskId: t.id, text: t.goal, ts: t.startedAt }))
+  ).map((t) => ({ runId: t.id, text: t.goal, ts: t.startedAt }))
 }

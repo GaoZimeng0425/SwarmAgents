@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { ConversationMinimap } from '@/components/conversation-minimap'
 import { buildThreadItems, useTimelineRenderer } from '@/components/task-transcript'
 import { StickToBottomList, useStickToBottomList } from '@/components/viewers/stick-to-bottom-list'
-import { RUNS_KEY } from '@/hooks/use-tasks'
+import { RUNS_KEY } from '@/hooks/use-runs'
 import type { TimelineItem } from '@/lib/build-timeline-items'
 import { formatUsage, usageTooltip } from '@/lib/format-usage'
 import { sessionDisplayUsage } from '@/lib/session-usage'
@@ -67,8 +67,8 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
     void navigator.clipboard.writeText(text)
     toast.success('Message copied to clipboard')
   }
-  const onDelete = (taskId: string): void => {
-    qc.setQueryData<RunRecord[]>(RUNS_KEY, (prev = []) => prev.filter((t) => t.id !== taskId))
+  const onDelete = (runId: string): void => {
+    qc.setQueryData<RunRecord[]>(RUNS_KEY, (prev = []) => prev.filter((t) => t.id !== runId))
     toast.info('Message removed from view')
   }
 

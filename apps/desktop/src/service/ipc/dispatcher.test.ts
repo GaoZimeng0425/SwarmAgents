@@ -94,10 +94,10 @@ describe('dispatcher', () => {
     expect(dispatch('listSessions', [])).toEqual([{ id: 'ses-1' }])
   })
 
-  it('cancelTask routes to manager.cancelTask and returns ok', () => {
+  it('cancelRun routes to manager.cancelTask and returns ok', () => {
     const manager = mockManager()
     const dispatch = createDispatcher({ manager, registerProvider: vi.fn(), ...mcpDeps() })
-    const result = dispatch('cancelTask', ['ses-1', 'task-1'])
+    const result = dispatch('cancelRun', ['ses-1', 'task-1'])
     expect(manager.cancelTask).toHaveBeenCalledWith('ses-1', 'task-1')
     expect(result).toEqual({ ok: true })
   })

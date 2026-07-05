@@ -33,10 +33,7 @@ import type { AgentMutationResult } from '../agents/store'
 import type { ToolRegistry, ToolRisk, ToolRunContext } from '../tools/registry'
 import type { PermissionRegistry } from './permission-registry'
 
-const log = createLogger({
-  process: 'service',
-  workerId: 'service',
-}).child({ component: 'agent-runner' })
+const log = createLogger({ process: 'service' }).child({ component: 'agent-runner' })
 
 // `getModel`'s generics demand a literal model-id key per provider. Our
 // `ProviderInjection.model` is a runtime-validated string (Zod-checked at the

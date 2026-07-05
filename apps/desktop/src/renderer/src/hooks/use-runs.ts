@@ -6,9 +6,9 @@ import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
-export const RUNS_KEY = ['tasks'] as const
+export const RUNS_KEY = ['runs'] as const
 
-export function useTasks(): RunRecord[] {
+export function useRuns(): RunRecord[] {
   const { data } = useQuery<RunRecord[]>({
     queryKey: RUNS_KEY,
     queryFn: () => [],
@@ -32,7 +32,7 @@ export function useSubmitGoal() {
     }: {
       goal: string
       attachments?: import('@swarm/protocol').Attachment[]
-      options?: import('@swarm/protocol').TaskOptions
+      options?: import('@swarm/protocol').RunOptions
       forceNew?: boolean
     }): Promise<{ sessionId: string }> => {
       let sessionId = forceNew ? null : useSessionsStore.getState().selectedSessionId
@@ -97,18 +97,17 @@ export function useDecidePermission() {
   })
 }
 
-/** Cancel an in-flight task (aborts the agent run server-side). */
-export function useCancelTask() {
+/** Cancel an in-flight run (aborts the agent run server-side). */
+export function useCancelRun() {
   return useMutation({
-    mutationFn: ({ sessionId, taskId }: { sessionId: string; taskId: string }) =>
-      swarmApi.cancelTask(sessionId, taskId),
+    mutationFn: ({ sessionId, runId }: { sessionId: string; runId: string }) => swarmApi.cancelRun(sessionId, runId),
   })
 }
 
-/** Interrupt the running task and run a queued task next (promotes it to front). */
+/** Interrupt the running run and run a queued run next (promotes it to front). */
 export function useInterruptWith() {
   return useMutation({
-    mutationFn: ({ sessionId, taskId }: { sessionId: string; taskId: string }) =>
-      swarmApi.interruptWith(sessionId, taskId),
+    mutationFn: ({ sessionId, runId }: { sessionId: string; runId: string }) =>
+      swarmApi.interruptWith(sessionId, runId),
   })
 }

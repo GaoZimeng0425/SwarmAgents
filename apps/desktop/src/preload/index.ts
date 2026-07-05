@@ -294,8 +294,8 @@ const swarm: SwarmBridge = {
     ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
   analyzeEmail: (input: import('@swarm/protocol').AnalyzeEmailInput) =>
     ipcRenderer.invoke('swarm:analyzeEmail', input) as Promise<import('@swarm/protocol').AnalyzeEmailResult>,
-  cancelTask: (sessionId, taskId) => ipcRenderer.invoke('swarm:cancelTask', sessionId, taskId) as Promise<void>,
-  interruptWith: (sessionId, taskId) => ipcRenderer.invoke('swarm:interruptWith', sessionId, taskId) as Promise<void>,
+  cancelRun: (sessionId, runId) => ipcRenderer.invoke('swarm:cancelRun', sessionId, runId) as Promise<void>,
+  interruptWith: (sessionId, runId) => ipcRenderer.invoke('swarm:interruptWith', sessionId, runId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
   sessions: {
