@@ -140,3 +140,22 @@ describe('buildItems — mixed scope', () => {
     expect(chats).toEqual(['Gmail 摘要'])
   })
 })
+
+// Regression: term must be trimmed before filtering so leading/trailing
+// whitespace does not silently break the substring match.
+describe('buildItems — term trimming', () => {
+  it('trims whitespace in the term before filtering (command scope)', () => {
+    const items = buildItems('command', '  设置  ', baseInputs, cb)
+    expect(items.map((i) => i.title)).toEqual(['打开设置'])
+  })
+  it('trims whitespace in the term before filtering (mixed scope)', () => {
+    const items = buildItems('mixed', '  Gmail  ', baseInputs, cb)
+    expect(items.some((i) => i.kind === 'chat' && i.title === 'Gmail 摘要')).toBe(true)
+  })
+  it('mixed hero dispatch submits the TRIMMED goal (no trailing spaces)', async () => {
+    const items = buildItems('mixed', '  分析这段视频  ', baseInputs, cb)
+    const hero = items.find((i) => i.kind === 'dispatch')!
+    await hero.run()
+    expect(cb.submitGoal).toHaveBeenCalledWith('分析这段视频', 'ceo')
+  })
+})

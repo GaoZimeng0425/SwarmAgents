@@ -54,10 +54,14 @@ export type Callbacks = {
 /** Default formation used when the user submits the hero dispatch as-is. */
 const DEFAULT_FORMATION = 'ceo'
 
-/** Case-insensitive substring matcher. Empty term matches everything. */
+/**
+ * Case-insensitive substring matcher. `term` MUST already be trimmed +
+ * lowercased by the caller (we normalize once at the top of `buildItems`).
+ * Empty term matches everything.
+ */
 const matches = (term: string, text: string): boolean => {
   if (!term) return true
-  return text.toLowerCase().includes(term.toLowerCase())
+  return text.toLowerCase().includes(term)
 }
 
 // --- Per-kind builders -------------------------------------------------------
@@ -264,45 +268,47 @@ function serviceItems(services: BuildInputs['services'], cb: Callbacks): Palette
 }
 
 /**
- * Hero dispatch item for the mixed scope. When `term` is non-empty it submits
- * that goal; when empty it acts as a placeholder entry until the user types.
+ * Hero dispatch item for the mixed scope. When `trimmed` is non-empty it
+ * submits that goal; when empty it acts as a placeholder entry until the user
+ * types. `trimmed` is the already-trimmed (but original-case) term, so
+ * `submitGoal` never sees trailing spaces and the subtitle stays
+ * human-readable.
  */
-function heroItem(term: string, inputs: BuildInputs, cb: Callbacks): PaletteItem {
-  const goal = term.trim()
+function heroItem(trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteItem {
   return {
     id: 'dispatch:hero',
     kind: 'dispatch',
     title: '把目标交给 Agent',
-    subtitle: goal || undefined,
+    subtitle: trimmed || undefined,
     icon: 'Rocket',
     run: async () => {
-      const { sessionId } = await cb.submitGoal(goal, DEFAULT_FORMATION)
+      const { sessionId } = await cb.submitGoal(trimmed, DEFAULT_FORMATION)
       cb.navigate(`/session/${sessionId}`)
     },
     searchText: '把目标交给 agent dispatch',
-    preview: { type: 'dispatch', term: goal, formations: inputs.formations },
+    preview: { type: 'dispatch', term: trimmed, formations: inputs.formations },
   }
 }
 
 /** Mixed scope. Empty term shows a curated home row; non-empty term searches across sources. */
-function mixedItems(term: string, inputs: BuildInputs, cb: Callbacks): PaletteItem[] {
-  const hero = heroItem(term, inputs, cb)
+function mixedItems(t: string, trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteItem[] {
+  const hero = heroItem(trimmed, inputs, cb)
 
   // Empty-term home: hero + new-chat command + top-3 recent chats + services.
-  if (!term.trim()) {
+  if (!t) {
     const recent = [...inputs.sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 3)
     const newChat = commandItems(inputs, cb).find((i) => i.id === 'cmd:new-chat')!
     return [hero, newChat, ...chatItems(recent), ...serviceItems(inputs.services, cb)]
   }
 
   // With-query: hero always first, then everything that matches the term.
-  const commands = commandItems(inputs, cb).filter((i) => matches(term, i.searchText))
-  const chats = chatItems(inputs.sessions).filter((i) => matches(term, i.searchText))
-  const files = fileItems(inputs.artifacts, cb).filter((i) => matches(term, i.searchText))
-  const runs = taskRunItems(inputs.runningRuns).filter((i) => matches(term, i.searchText))
-  const crons = taskSchedItems(inputs.cronJobs).filter((i) => matches(term, i.searchText))
-  const memory = memoryItems(inputs.memory).filter((i) => matches(term, i.searchText))
-  const skills = skillItems(inputs.skills).filter((i) => matches(term, i.searchText))
+  const commands = commandItems(inputs, cb).filter((i) => matches(t, i.searchText))
+  const chats = chatItems(inputs.sessions).filter((i) => matches(t, i.searchText))
+  const files = fileItems(inputs.artifacts, cb).filter((i) => matches(t, i.searchText))
+  const runs = taskRunItems(inputs.runningRuns).filter((i) => matches(t, i.searchText))
+  const crons = taskSchedItems(inputs.cronJobs).filter((i) => matches(t, i.searchText))
+  const memory = memoryItems(inputs.memory).filter((i) => matches(t, i.searchText))
+  const skills = skillItems(inputs.skills).filter((i) => matches(t, i.searchText))
 
   return [hero, ...commands, ...chats, ...files, ...runs, ...crons, ...memory, ...skills]
 }
@@ -314,18 +320,24 @@ function mixedItems(term: string, inputs: BuildInputs, cb: Callbacks): PaletteIt
  * Pure: no React, no hooks, no I/O beyond the supplied callbacks' own bodies.
  */
 export function buildItems(scope: PaletteScope, term: string, inputs: BuildInputs, cb: Callbacks): PaletteItem[] {
+  // Normalize the term ONCE: trim, then lowercase. Everything downstream
+  // (matches(), the empty-check in mixedItems, and the hero dispatch payload)
+  // uses these two values, so leading/trailing whitespace is treated uniformly
+  // rather than only in some code paths.
+  const trimmed = term.trim()
+  const t = trimmed.toLowerCase()
   switch (scope) {
     case 'command':
-      return commandItems(inputs, cb).filter((i) => matches(term, i.searchText))
+      return commandItems(inputs, cb).filter((i) => matches(t, i.searchText))
     case 'agent':
-      return agentItems(inputs.formations, cb).filter((i) => matches(term, i.searchText))
+      return agentItems(inputs.formations, cb).filter((i) => matches(t, i.searchText))
     case 'task':
       return [...taskRunItems(inputs.runningRuns), ...taskSchedItems(inputs.cronJobs)].filter((i) =>
-        matches(term, i.searchText)
+        matches(t, i.searchText)
       )
     case 'file':
-      return fileItems(inputs.artifacts, cb).filter((i) => matches(term, i.searchText))
+      return fileItems(inputs.artifacts, cb).filter((i) => matches(t, i.searchText))
     case 'mixed':
-      return mixedItems(term, inputs, cb)
+      return mixedItems(t, trimmed, inputs, cb)
   }
 }
