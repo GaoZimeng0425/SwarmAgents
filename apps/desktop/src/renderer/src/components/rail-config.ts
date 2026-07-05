@@ -1,0 +1,86 @@
+// Pure rail configuration and navigation predicates. No React rendering, no
+// router imports — keeps the rail's source of truth testable without a router
+// context (matches the project's existing pure-logic test pattern, e.g. the
+// former service-grid.test.ts).
+
+import type { ComponentType } from 'react'
+import {
+  BarChart3,
+  CalendarClock,
+  Clock,
+  LayoutDashboard,
+  Mail,
+  MessageSquare,
+  Network,
+  TrendingUp,
+  Video,
+} from 'lucide-react'
+
+export type RailTarget =
+  // Navigates to a router path. `match` controls active-state matching:
+  //   - 'exact': active only when pathname === to (e.g. '/' for 任务台)
+  //   - 'prefix': active when pathname starts with to (e.g. '/session/' for 对话)
+  | { kind: 'route'; to: string; match: 'exact' | 'prefix' }
+  // Fires an in-component handler instead of navigating (e.g. 编队 → settings modal).
+  // Never shows an active state.
+  | { kind: 'action' }
+
+export type RailItem = {
+  key: string
+  label: string
+  icon: ComponentType<{ className?: string }>
+  target: RailTarget
+}
+
+export type RailSection = {
+  id: 'scenes' | 'services'
+  items: RailItem[]
+}
+
+// Single source of truth for the 64px rail. Footer items (设置 / 主题) are NOT
+// here: 设置 is an action with no route, and 主题 is a dedicated component, so
+// they are rendered directly in app-rail.tsx rather than forced into this shape.
+export const RAIL_SECTIONS: RailSection[] = [
+  {
+    id: 'scenes',
+    items: [
+      { key: 'home', label: '任务台', icon: LayoutDashboard, target: { kind: 'route', to: '/', match: 'exact' } },
+      { key: 'chat', label: '对话', icon: MessageSquare, target: { kind: 'route', to: '/session/', match: 'prefix' } },
+      // Agents live inside the SettingsDialog today (no /agents route yet); the
+      // rail opens that modal directly on the agents section.
+      { key: 'formation', label: '编队', icon: Network, target: { kind: 'action' } },
+      {
+        key: 'calendar',
+        label: '日历',
+        icon: CalendarClock,
+        target: { kind: 'route', to: '/scheduled', match: 'exact' },
+      },
+      { key: 'automation', label: '自动化', icon: Clock, target: { kind: 'route', to: '/scheduled', match: 'exact' } },
+      { key: 'usage', label: '用量', icon: BarChart3, target: { kind: 'route', to: '/usage', match: 'exact' } },
+    ],
+  },
+  {
+    id: 'services',
+    items: [
+      { key: 'gmail', label: 'Gmail', icon: Mail, target: { kind: 'route', to: '/gmail', match: 'exact' } },
+      {
+        key: 'trending',
+        label: 'GitHub 趋势',
+        icon: TrendingUp,
+        target: { kind: 'route', to: '/trending', match: 'exact' },
+      },
+      { key: 'bilibili', label: 'Bilibili', icon: Video, target: { kind: 'route', to: '/bilibili', match: 'exact' } },
+    ],
+  },
+]
+
+// A scene where the conversation surface (and thus the session list) is the
+// focus: the home landing and any /session/:id. SessionPanel renders iff true.
+export function isConversationScene(pathname: string): boolean {
+  return pathname === '/' || pathname.startsWith('/session/')
+}
+
+export function isActive(item: RailItem, pathname: string): boolean {
+  if (item.target.kind !== 'route') return false
+  return item.target.match === 'exact' ? pathname === item.target.to : pathname.startsWith(item.target.to)
+}
