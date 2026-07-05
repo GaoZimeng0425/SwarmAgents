@@ -231,3 +231,21 @@ input[type="radio"] {
 ::view-transition-new(root) {
   animation: none;
 }
+
+/* ⌘K palette scroll regions — thin, low-contrast, blends with the frosted panel. */
+.cmdscroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.cmdscroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.cmdscroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dark .cmdscroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
