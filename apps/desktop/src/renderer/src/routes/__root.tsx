@@ -1,11 +1,13 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Button, SidebarInset, SidebarProvider, SidebarTrigger, Toaster } from '@swarm/ui'
-import { createRootRoute, Outlet, useRouter } from '@tanstack/react-router'
+import { Button, SidebarInset, SidebarProvider, Toaster } from '@swarm/ui'
+import { createRootRoute, Outlet, useLocation, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 
-import { AppSidebar } from '@/components/app-sidebar'
+import { AppRail } from '@/components/app-rail'
 import { EventsBridge } from '@/components/events-bridge'
 import { NoProviderBanner } from '@/components/no-provider-banner'
+import { isConversationScene } from '@/components/rail-config'
+import { SessionPanel } from '@/components/session-panel'
 import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { ToolsPopover } from '@/components/tools-popover'
@@ -23,6 +25,7 @@ export const Route = createRootRoute({ component: RootLayout })
 
 function RootLayout(): React.JSX.Element {
   const loadSessions = useLoadSessions()
+  const location = useLocation()
   // Load the session list once for the whole app (the sidebar is always mounted).
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
   useEffect(() => {
@@ -41,15 +44,18 @@ function RootLayout(): React.JSX.Element {
           the chat area instead of showing raw desktop vibrancy. */}
       <SidebarProvider className="bg-(--window-content)">
         <TopBar />
-        <AppSidebar />
-        <SidebarInset className="min-w-0 overflow-hidden">
-          <main className="flex h-svh flex-col overflow-hidden pt-9">
-            <NoProviderBanner />
-            <div className="min-h-0 flex-1">
-              <Outlet />
-            </div>
-          </main>
-        </SidebarInset>
+        <div className="flex min-h-svh w-full">
+          <AppRail />
+          {isConversationScene(location.pathname) && <SessionPanel />}
+          <SidebarInset className="min-w-0 flex-1 overflow-hidden">
+            <main className="flex h-svh flex-col overflow-hidden pt-9">
+              <NoProviderBanner />
+              <div className="min-h-0 flex-1">
+                <Outlet />
+              </div>
+            </main>
+          </SidebarInset>
+        </div>
       </SidebarProvider>
       <Toaster />
       {SHOW_ROUTER_DEVTOOLS && (
@@ -79,7 +85,6 @@ function TopBar(): React.JSX.Element {
         className="flex items-center gap-0.5 pl-[88px]"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        <SidebarTrigger aria-label="Toggle sidebar" className="text-muted-foreground" />
         <Button
           aria-label="Back"
           className="text-muted-foreground"
