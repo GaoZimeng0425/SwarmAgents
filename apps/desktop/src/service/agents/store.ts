@@ -52,6 +52,7 @@ export function parseAgent(raw: string, id: string): AgentDefinition | undefined
     description: meta.description,
     systemPrompt: body,
     toolScope: meta.toolScope,
+    authoring: meta.authoring,
     role: meta.role,
     capabilities: meta.capabilities,
     team: meta.team,
@@ -68,9 +69,13 @@ export function serializeAgent(def: AgentDefinition): string {
   const lines = [
     `name: ${JSON.stringify(def.name)}`,
     `description: ${JSON.stringify(def.description)}`,
-    `toolScope: ${def.toolScope}`,
     `maxIterations: ${def.maxIterations}`,
   ]
+  // toolScope is optional since the authoring-gate collapse; writing it
+  // unconditionally serialized the literal "toolScope: undefined", which
+  // parseAgent then rejected — silently wiping the agent on the next reload.
+  if (def.toolScope) lines.push(`toolScope: ${def.toolScope}`)
+  if (def.authoring) lines.push('authoring: true')
   if (def.role) lines.push(`role: ${JSON.stringify(def.role)}`)
   if (def.capabilities?.length) lines.push(`capabilities: ${JSON.stringify(def.capabilities)}`)
   if (def.team) lines.push(`team: ${JSON.stringify(def.team)}`)

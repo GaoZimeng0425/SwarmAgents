@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentDefinition } from '@swarm/protocol'
+import { allowlistForAgent } from '@swarm/protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createAgentStore, parseAgent, serializeAgent, syncBuiltinAgents } from './store'
@@ -95,6 +96,17 @@ describe('createAgentStore', () => {
     expect(fresh.list().map((a) => a.id)).toEqual(['persisted'])
   })
 
+  it('old-style def (toolScope authoring, no flag) round-trips AND still resolves the privileged allowlist', () => {
+    const store = createAgentStore({ dir })
+    const legacy = def({ id: 'legacy-author', toolScope: 'authoring' })
+    expect(store.save(legacy).ok).toBe(true)
+    const parsed = createAgentStore({ dir }).get('legacy-author')
+    expect(parsed).toBeDefined()
+    expect(parsed?.toolScope).toBe('authoring')
+    // Chain parse → privilege: the legacy scope alone must keep the authoring grant.
+    expect(allowlistForAgent(parsed!)).toContain('authoring.*')
+  })
+
   it('round-trips role, capabilities, team and teamRole through save + reload', () => {
     const store = createAgentStore({ dir })
     const d = {
@@ -174,6 +186,27 @@ describe('syncBuiltinAgents', () => {
         .map((x) => x.id)
         .sort()
     ).toEqual(['a', 'pm-clone'])
+  })
+
+  // Regression (Task-5 review): serializeAgent wrote `toolScope: undefined` for
+  // defs without a toolScope, which parseAgent then rejected — the exact boot
+  // sequence (syncBuiltinAgents → createAgentStore) silently wiped most of the
+  // builtin roster once builtins dropped their toolScope strings.
+  it('boot sequence survives a def without toolScope and preserves authoring: true', () => {
+    const builtin: AgentDefinition = {
+      id: 'training-author',
+      name: 'Agent Author',
+      description: 'Use to write agent/skill definitions to disk.',
+      systemPrompt: 'You author agents.',
+      authoring: true,
+      maxIterations: 20,
+    }
+    syncBuiltinAgents(dir, [builtin])
+    const store = createAgentStore({ dir })
+    const got = store.get('training-author')
+    expect(got).toBeDefined()
+    expect(got?.authoring).toBe(true)
+    expect(got?.toolScope).toBeUndefined()
   })
 })
 
