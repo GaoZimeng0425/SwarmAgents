@@ -148,20 +148,20 @@ function agentItems(formations: BuildInputs['formations'], cb: Callbacks): Palet
   }))
 }
 
-function chatItems(sessions: BuildInputs['sessions']): PaletteItem[] {
+function chatItems(sessions: BuildInputs['sessions'], cb: Callbacks): PaletteItem[] {
   return sessions.map((s) => ({
     id: `chat:${s.id}`,
     kind: 'chat',
     title: s.title ?? '未命名对话',
     subtitle: s.agentType ?? undefined,
     icon: 'MessageSquare',
-    run: () => {},
+    run: () => cb.navigate(`/session/${s.id}`),
     searchText: `${s.title ?? ''} ${s.agentType ?? ''}`,
     preview: { type: 'chat', sessionId: s.id, title: s.title ?? '未命名对话' },
   }))
 }
 
-function taskRunItems(runs: BuildInputs['runningRuns']): PaletteItem[] {
+function taskRunItems(runs: BuildInputs['runningRuns'], cb: Callbacks): PaletteItem[] {
   return runs.map((r) => {
     const plan = r.plan ?? []
     const done = plan.filter((p) => p.status === 'completed').length
@@ -174,7 +174,7 @@ function taskRunItems(runs: BuildInputs['runningRuns']): PaletteItem[] {
       badge: r.status,
       progress,
       icon: 'LoaderCircle',
-      run: () => {},
+      run: () => cb.navigate(`/session/${r.sessionId}`),
       searchText: `${r.goal} ${r.summary ?? ''} ${r.status}`,
       preview: {
         type: 'taskRun',
@@ -185,7 +185,7 @@ function taskRunItems(runs: BuildInputs['runningRuns']): PaletteItem[] {
   })
 }
 
-function taskSchedItems(jobs: BuildInputs['cronJobs']): PaletteItem[] {
+function taskSchedItems(jobs: BuildInputs['cronJobs'], cb: Callbacks): PaletteItem[] {
   return jobs.map((j) => ({
     id: `cron:${j.id}`,
     kind: 'taskSched',
@@ -193,7 +193,7 @@ function taskSchedItems(jobs: BuildInputs['cronJobs']): PaletteItem[] {
     subtitle: j.cron,
     badge: j.lastStatus ?? undefined,
     icon: 'CalendarClock',
-    run: () => {},
+    run: () => cb.navigate('/scheduled'),
     searchText: `${j.name ?? ''} ${j.cron} ${j.lastStatus ?? ''}`,
     preview: {
       type: 'taskSched',
@@ -230,14 +230,14 @@ function fileItems(artifacts: BuildInputs['artifacts'], cb: Callbacks): PaletteI
   }))
 }
 
-function memoryItems(memory: BuildInputs['memory']): PaletteItem[] {
+function memoryItems(memory: BuildInputs['memory'], cb: Callbacks): PaletteItem[] {
   return memory.map((m) => ({
     id: `memory:${m.id}`,
     kind: 'memory',
     title: m.key,
     subtitle: m.category,
     icon: 'Brain',
-    run: () => {},
+    run: () => cb.openSettings('general'),
     searchText: `${m.key} ${m.category} ${m.content}`,
     preview: {
       type: 'info',
@@ -251,7 +251,7 @@ function memoryItems(memory: BuildInputs['memory']): PaletteItem[] {
   }))
 }
 
-function skillItems(skills: BuildInputs['skills']): PaletteItem[] {
+function skillItems(skills: BuildInputs['skills'], cb: Callbacks): PaletteItem[] {
   return skills.map((s) => ({
     id: `skill:${s.name}`,
     kind: 'skill',
@@ -259,7 +259,7 @@ function skillItems(skills: BuildInputs['skills']): PaletteItem[] {
     subtitle: s.description,
     badge: s.enabled === false ? '已禁用' : undefined,
     icon: 'Sparkles',
-    run: () => {},
+    run: () => cb.openSettings('skills'),
     searchText: `${s.name} ${s.description}`,
     preview: { type: 'info', title: s.name, desc: s.description, rows: [] },
   }))
@@ -293,6 +293,10 @@ function heroItem(trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteI
     subtitle: trimmed || undefined,
     icon: 'Rocket',
     run: async () => {
+      // Empty-goal guard: in the mixed-empty state the hero is the default
+      // selection (flat[0]), so a bare Enter must NOT submit a blank goal and
+      // navigate to a dead new session. Only dispatch when there is a term.
+      if (!trimmed) return
       const { sessionId } = await cb.submitGoal(trimmed, cb.pickedFormation ?? DEFAULT_FORMATION)
       cb.navigate(`/session/${sessionId}`)
     },
@@ -309,17 +313,17 @@ function mixedItems(t: string, trimmed: string, inputs: BuildInputs, cb: Callbac
   if (!t) {
     const recent = [...inputs.sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 3)
     const newChat = commandItems(inputs, cb).find((i) => i.id === 'cmd:new-chat')!
-    return [hero, newChat, ...chatItems(recent), ...serviceItems(inputs.services, cb)]
+    return [hero, newChat, ...chatItems(recent, cb), ...serviceItems(inputs.services, cb)]
   }
 
   // With-query: hero always first, then everything that matches the term.
   const commands = commandItems(inputs, cb).filter((i) => matches(t, i.searchText))
-  const chats = chatItems(inputs.sessions).filter((i) => matches(t, i.searchText))
+  const chats = chatItems(inputs.sessions, cb).filter((i) => matches(t, i.searchText))
   const files = fileItems(inputs.artifacts, cb).filter((i) => matches(t, i.searchText))
-  const runs = taskRunItems(inputs.runningRuns).filter((i) => matches(t, i.searchText))
-  const crons = taskSchedItems(inputs.cronJobs).filter((i) => matches(t, i.searchText))
-  const memory = memoryItems(inputs.memory).filter((i) => matches(t, i.searchText))
-  const skills = skillItems(inputs.skills).filter((i) => matches(t, i.searchText))
+  const runs = taskRunItems(inputs.runningRuns, cb).filter((i) => matches(t, i.searchText))
+  const crons = taskSchedItems(inputs.cronJobs, cb).filter((i) => matches(t, i.searchText))
+  const memory = memoryItems(inputs.memory, cb).filter((i) => matches(t, i.searchText))
+  const skills = skillItems(inputs.skills, cb).filter((i) => matches(t, i.searchText))
 
   return [hero, ...commands, ...chats, ...files, ...runs, ...crons, ...memory, ...skills]
 }
@@ -343,7 +347,7 @@ export function buildItems(scope: PaletteScope, term: string, inputs: BuildInput
     case 'agent':
       return agentItems(inputs.formations, cb).filter((i) => matches(t, i.searchText))
     case 'task':
-      return [...taskRunItems(inputs.runningRuns), ...taskSchedItems(inputs.cronJobs)].filter((i) =>
+      return [...taskRunItems(inputs.runningRuns, cb), ...taskSchedItems(inputs.cronJobs, cb)].filter((i) =>
         matches(t, i.searchText)
       )
     case 'file':

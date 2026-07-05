@@ -117,6 +117,40 @@ describe('buildItems — file scope', () => {
   })
 })
 
+// Regression (C1): each kind's run() must be wired to a real callback, not a no-op.
+describe('buildItems — run() wiring', () => {
+  it('chat run() navigates to the session route', () => {
+    const items = buildItems('mixed', 'Gmail', baseInputs, cb)
+    const chat = items.find((i) => i.kind === 'chat')!
+    chat.run()
+    expect(cb.navigate).toHaveBeenCalledWith('/session/s1')
+  })
+  it('taskRun run() navigates to the run session route', () => {
+    const items = buildItems('task', '', baseInputs, cb)
+    const run = items.find((i) => i.kind === 'taskRun')!
+    run.run()
+    expect(cb.navigate).toHaveBeenCalledWith('/session/s1')
+  })
+  it('taskSched run() navigates to the scheduled route', () => {
+    const items = buildItems('task', '', baseInputs, cb)
+    const sched = items.find((i) => i.kind === 'taskSched')!
+    sched.run()
+    expect(cb.navigate).toHaveBeenCalledWith('/scheduled')
+  })
+  it('memory run() opens settings (general tab)', () => {
+    const items = buildItems('mixed', '偏好', baseInputs, cb)
+    const memory = items.find((i) => i.kind === 'memory')!
+    memory.run()
+    expect(cb.openSettings).toHaveBeenCalledWith('general')
+  })
+  it('skill run() opens settings on the skills tab', () => {
+    const items = buildItems('mixed', 'imagegen', baseInputs, cb)
+    const skill = items.find((i) => i.kind === 'skill')!
+    skill.run()
+    expect(cb.openSettings).toHaveBeenCalledWith('skills')
+  })
+})
+
 describe('buildItems — mixed scope', () => {
   it('empty term yields hero dispatch + recent sessions + commands + services', () => {
     const items = buildItems('mixed', '', baseInputs, cb)
@@ -133,6 +167,14 @@ describe('buildItems — mixed scope', () => {
     await hero.run()
     expect(cb.submitGoal).toHaveBeenCalledWith('分析这段视频', 'ceo') // default formation
     expect(cb.navigate).toHaveBeenCalledWith('/session/new-1')
+  })
+  it('empty-term hero run() does NOT submit a blank goal (guarded)', async () => {
+    // `cb` is module-shared, so reset the call history to isolate this assertion.
+    vi.mocked(cb.submitGoal).mockClear()
+    const items = buildItems('mixed', '', baseInputs, cb)
+    const hero = items.find((i) => i.kind === 'dispatch')!
+    await hero.run()
+    expect(cb.submitGoal).not.toHaveBeenCalled()
   })
   it('with-query filters sessions/commands by term', () => {
     const items = buildItems('mixed', 'Gmail', baseInputs, cb)
