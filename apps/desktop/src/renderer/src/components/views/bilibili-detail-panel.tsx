@@ -203,7 +203,7 @@ export function BilibiliDetailPanel({
                 <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
                   {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
                 </Button>
-                {/* Opens the video in the local Bilibili app (bilipc:), falling back to the browser. */}
+                {/* Opens the video in the default browser. */}
                 <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
                   观看
                 </Button>

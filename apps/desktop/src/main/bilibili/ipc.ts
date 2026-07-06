@@ -45,24 +45,15 @@ const log = createLogger({ process: 'main' }).child({ component: 'bilibili-ipc' 
 // Broadcast channel for transcription stage updates (main -> all renderers).
 export const TRANSCRIBE_PROGRESS_CHANNEL = 'bilibili:transcribe:progress'
 
-// Opens a video in the local Bilibili desktop app via its `bilipc:` URL scheme,
-// falling back to the web page in the browser when the app isn't installed (the
-// scheme has no handler, so openExternal rejects). `openExternal` is injected so
-// the fallback logic is unit-testable without Electron's shell.
+// Opens a video in the default browser. The official desktop app's `bilipc://`
+// deep link was tried first historically, but its client-side handler silently
+// dropped the navigation (verified via the app's own log: it receives the URL
+// but never opens a player window), so the web URL is now the only path.
+// `openExternal` is injected so this is unit-testable without Electron's shell.
 export async function openVideo(bvid: string, openExternal: (url: string) => Promise<void>): Promise<void> {
-  const appUrl = `bilipc://video/${bvid}`
   const webUrl = `https://www.bilibili.com/video/${bvid}`
-  try {
-    await openExternal(appUrl)
-    log.info({ msg: 'opened video in app', bvid })
-  } catch (err) {
-    log.warn({
-      msg: 'app open failed; falling back to browser',
-      bvid,
-      err: err instanceof Error ? err.message : String(err),
-    })
-    await openExternal(webUrl)
-  }
+  await openExternal(webUrl)
+  log.info({ msg: 'opened video in browser', bvid })
 }
 
 export type ListDeps = {

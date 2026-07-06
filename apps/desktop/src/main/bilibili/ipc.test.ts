@@ -156,21 +156,11 @@ describe('wireBilibiliIpc / analysis cache queries', () => {
 })
 
 describe('openVideo', () => {
-  it('opens the bilipc app deep link and does not touch the web url on success', async () => {
+  it('opens the bilibili web url in the default browser', async () => {
     const opener = vi.fn(async () => undefined)
     await openVideo('BV1x', opener)
     expect(opener).toHaveBeenCalledTimes(1)
-    expect(opener).toHaveBeenCalledWith('bilipc://video/BV1x')
-  })
-
-  it('falls back to the web url when the app open rejects', async () => {
-    const opener = vi
-      .fn<(url: string) => Promise<void>>()
-      .mockRejectedValueOnce(new Error('no handler'))
-      .mockResolvedValueOnce(undefined)
-    await openVideo('BV1x', opener)
-    expect(opener).toHaveBeenNthCalledWith(1, 'bilipc://video/BV1x')
-    expect(opener).toHaveBeenNthCalledWith(2, 'https://www.bilibili.com/video/BV1x')
+    expect(opener).toHaveBeenCalledWith('https://www.bilibili.com/video/BV1x')
   })
 })
 
