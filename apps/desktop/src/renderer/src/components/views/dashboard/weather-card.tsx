@@ -3,9 +3,9 @@
 // conditions plus temperature / precipitation-probability trend charts (recharts).
 // When unconfigured, shows a guidance card that opens Settings → weather.
 import { useEffect } from 'react'
+import { Button } from '@swarm/ui'
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-import { Button } from '@swarm/ui'
 import { useWeather } from '@/hooks/use-weather'
 import { useSettingsDialog } from '@/stores/settings-dialog'
 
@@ -22,7 +22,7 @@ export function WeatherCard(): React.JSX.Element {
   useEffect(() => {
     const onVis = (): void => {
       if (document.visibilityState === 'visible') {
-        const age = forecast ? Date.now() - forecast.fetchedAt : Infinity
+        const age = forecast ? Date.now() - forecast.fetchedAt : Number.POSITIVE_INFINITY
         if (age > 30 * 60_000) void refresh()
       }
     }
@@ -66,13 +66,9 @@ export function WeatherCard(): React.JSX.Element {
         <div className="flex items-center gap-2 text-sm">
           <span>📍 {forecast?.location ?? '定位中…'}</span>
           {forecast && (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
-              {forecast.source === 'gps' ? 'gps' : 'ip'}
-            </span>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">{forecast.source}</span>
           )}
-          {forecast && (
-            <span className="text-muted-foreground text-xs">· {relativeTime(forecast.fetchedAt)}</span>
-          )}
+          {forecast && <span className="text-muted-foreground text-xs">· {relativeTime(forecast.fetchedAt)}</span>}
         </div>
         <button
           className="text-muted-foreground text-xs hover:text-foreground"

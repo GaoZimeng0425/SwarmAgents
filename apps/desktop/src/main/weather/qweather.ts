@@ -1,5 +1,5 @@
 // QWeather grid-hourly forecast client + normalizer. The fetcher signs a JWT
-// (jwt.ts) and GETs /v7/grid-forecast/24h?location=lng,lat; the normalizer
+// (jwt.ts) and GETs /v7/grid-weather/24h?location=lng,lat; the normalizer
 // converts the raw `hourly` payload into the WeatherHour view-model, turning
 // UTC fxTime into the user's local timezone and defaulting pop->0 when absent
 // (the grid-hourly endpoint does not guarantee pop).
@@ -7,7 +7,7 @@ import type { WeatherConfig, WeatherForecast, WeatherHour } from '@swarm/protoco
 
 import { signQWeatherJwt } from './jwt'
 
-// Raw shape of one entry in a QWeather /v7/grid-forecast/24h `hourly` array.
+// Raw shape of one entry in a QWeather /v7/grid-weather/24h `hourly` array.
 // Kept loose (string fields) because QWeather returns everything as strings.
 type RawHour = {
   fxTime?: string
@@ -39,9 +39,7 @@ export function normalizeHourly(raw: RawHour[]): WeatherHour[] {
     out.push({
       time: d.toString().includes('GMT')
         ? // toISOString drops offset; format with the local offset instead.
-          new Date(d.getTime() - d.getTimezoneOffset() * 60_000)
-            .toISOString()
-            .replace('Z', formatOffset(d))
+          new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().replace('Z', formatOffset(d))
         : d.toISOString(),
       tempC: num(r.temp),
       icon: r.icon ?? '',
@@ -72,16 +70,16 @@ type FetchOpts = {
   config: WeatherConfig
   lng: number
   lat: number
-  source: 'gps' | 'ip'
+  source: 'gps' | 'ip' | 'custom'
   locationLabel: string
 }
 
-// GET {host}/v7/grid-forecast/24h?location=lng,lat with a Bearer JWT.
+// GET {host}/v7/grid-weather/24h?location=lng,lat with a Bearer JWT.
 // Returns the normalized forecast; throws on non-200 HTTP or QWeather code !== "200".
 export async function fetchGridHourly(opts: FetchOpts): Promise<WeatherForecast> {
   const { config, lng, lat, source, locationLabel } = opts
   const token = await signQWeatherJwt(config)
-  const url = `${config.host.replace(/\/+$/, '')}/v7/grid-forecast/24h?location=${lng},${lat}`
+  const url = `${config.host.replace(/\/+$/, '')}/v7/grid-weather/24h?location=${lng},${lat}`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     throw new Error(`QWeather HTTP ${res.status} ${res.statusText}`)

@@ -8,6 +8,10 @@ export const WeatherConfig = z.object({
   projectId: z.string().default(''), // JWT sub
   credentialId: z.string().default(''), // JWT kid
   privateKeyPem: z.string().default(''),
+  // Optional custom location (city name, e.g. "北京"/"Shanghai"). When set it
+  // takes priority over GPS/IP: main geocodes it via QWeather GeoAPI. Not a
+  // secret, so it round-trips to the renderer in WeatherConfigView unredacted.
+  location: z.string().default(''),
 })
 export type WeatherConfig = z.infer<typeof WeatherConfig>
 
@@ -24,6 +28,7 @@ export const WeatherConfigView = z.object({
   projectId: z.string(),
   credentialId: z.string(),
   hasPrivateKey: z.boolean(),
+  location: z.string(),
 })
 export type WeatherConfigView = z.infer<typeof WeatherConfigView>
 
@@ -62,7 +67,7 @@ export const WeatherForecast = z.object({
   location: z.string(),
   lng: z.number(),
   lat: z.number(),
-  source: z.enum(['gps', 'ip']),
+  source: z.enum(['gps', 'ip', 'custom']),
   fetchedAt: z.number(),
   hours: z.array(WeatherHour).max(24),
 })
