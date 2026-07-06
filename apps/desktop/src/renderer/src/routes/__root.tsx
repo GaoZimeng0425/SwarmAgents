@@ -12,6 +12,7 @@ import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { ToolsPopover } from '@/components/tools-popover'
 import { useLoadSessions } from '@/hooks/use-runs'
+import { isValidSection, type SettingsSection } from '@/stores/settings-dialog'
 
 // Opt-in only — devtools overlap the UI and interfere with manual/automated UI
 // testing. Enable with `VITE_ROUTER_DEVTOOLS=true pnpm dev`.
@@ -21,7 +22,15 @@ const RouterDevtools = SHOW_ROUTER_DEVTOOLS
   ? lazy(() => import('@tanstack/react-router-devtools').then((m) => ({ default: m.TanStackRouterDevtools })))
   : (): null => null
 
-export const Route = createRootRoute({ component: RootLayout })
+export const Route = createRootRoute({
+  component: RootLayout,
+  // `?settings=<section>` drives the settings modal. Declared on __root so it
+  // works from any route. Hand-written validateSearch (not zod), matching the
+  // style of session.$sessionId.tsx. Unknown/absent values close the modal.
+  validateSearch: (search: Record<string, unknown>): { settings?: SettingsSection } => ({
+    settings: isValidSection(search.settings) ? search.settings : undefined,
+  }),
+})
 
 function RootLayout(): React.JSX.Element {
   const loadSessions = useLoadSessions()
