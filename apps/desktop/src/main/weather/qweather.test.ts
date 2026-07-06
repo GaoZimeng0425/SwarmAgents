@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeHourly } from './qweather'
+import { normalizeAir, normalizeHourly, normalizeIndices, normalizeMinutely, normalizeWarnings } from './qweather'
 
-// A representative QWeather /v7/grid-forecast/24h `hourly` entry. Field names
-// mirror the upstream payload (fxTime, temp, icon, text, windScale, windDir,
-// pop, precip, humidity, pressure, feelsLike).
+// A representative QWeather /v7/weather/24h `hourly` entry. Field names mirror
+// the upstream payload (fxTime, temp, icon, text, windScale, windDir, pop,
+// precip, humidity, pressure).
 const sampleHour = {
   fxTime: '2026-07-06T06:00+00:00', // UTC — normalizer must convert to local tz
   temp: '24',
@@ -16,7 +16,6 @@ const sampleHour = {
   precip: '0.0',
   humidity: '35',
   pressure: '1013',
-  feelsLike: '22',
 }
 
 describe('normalizeHourly', () => {
@@ -31,7 +30,6 @@ describe('normalizeHourly', () => {
     expect(h.windScale).toBe('3')
     expect(h.windDir).toBe('东北')
     expect(h.pressure).toBe(1013)
-    expect(h.feelsLikeC).toBe(22)
     // time is an ISO string with a timezone offset (not UTC Z).
     expect(h.time).toContain('T')
     expect(h.time).not.toContain('Z')
@@ -55,5 +53,60 @@ describe('normalizeHourly', () => {
 
   it('returns [] for an empty input', () => {
     expect(normalizeHourly([])).toEqual([])
+  })
+})
+
+describe('normalizeWarnings', () => {
+  it('maps raw warnings, defaulting missing fields to empty strings', () => {
+    const [w] = normalizeWarnings([
+      { id: '1', title: 't', typeName: '冰雹', level: '黄色', severityColor: 'Yellow', text: 'x' },
+    ])
+    expect(w).toMatchObject({ id: '1', typeName: '冰雹', severityColor: 'Yellow', status: '' })
+  })
+  it('returns [] for no warnings', () => {
+    expect(normalizeWarnings([])).toEqual([])
+  })
+})
+
+describe('normalizeIndices', () => {
+  it('maps raw indices', () => {
+    const [i] = normalizeIndices([{ type: '1', name: '运动指数', level: '3', category: '较不宜', text: 'x' }])
+    expect(i).toEqual({ type: '1', name: '运动指数', level: '3', category: '较不宜', text: 'x' })
+  })
+})
+
+describe('normalizeAir', () => {
+  it('numifies concentrations and keeps category/primary', () => {
+    const a = normalizeAir({
+      aqi: '99',
+      category: '良',
+      primary: 'O3',
+      pm2p5: '18',
+      pm10: '31',
+      o3: '199',
+      no2: '11',
+      so2: '3',
+      co: '0.4',
+      pubTime: 'x',
+    })
+    expect(a).toMatchObject({ aqi: 99, category: '良', primary: 'O3', pm2p5: 18, co: 0.4 })
+  })
+  it('returns null when the now object is absent', () => {
+    expect(normalizeAir(undefined)).toBeNull()
+  })
+})
+
+describe('normalizeMinutely', () => {
+  it('maps summary + points and numifies precip', () => {
+    const m = normalizeMinutely({
+      summary: '80分钟后雨就停了',
+      minutely: [{ fxTime: '2026-07-06T17:50+08:00', precip: '0.25', type: 'rain' }],
+    })
+    expect(m?.summary).toBe('80分钟后雨就停了')
+    expect(m?.points[0]).toEqual({ time: '2026-07-06T17:50+08:00', precipMm: 0.25, type: 'rain' })
+  })
+  it('returns null when minutely is empty', () => {
+    expect(normalizeMinutely({ summary: 'x', minutely: [] })).toBeNull()
+    expect(normalizeMinutely({})).toBeNull()
   })
 })

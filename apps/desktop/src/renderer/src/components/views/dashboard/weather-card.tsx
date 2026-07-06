@@ -2,12 +2,34 @@
 // runs renderer geolocation on mount + on a manual refresh, and renders current
 // conditions plus temperature / precipitation-probability trend charts (recharts).
 // When unconfigured, shows a guidance card that opens Settings → weather.
-import { useEffect } from 'react'
+
+import { useEffect, useState } from 'react'
+import type { AirQuality, Minutely, WeatherIndex, WeatherWarning } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { useWeather } from '@/hooks/use-weather'
 import { useSettingsDialog } from '@/stores/settings-dialog'
+
+// Severity color per QWeather `severityColor` (semantic, theme-independent).
+const SEVERITY_HEX: Record<string, string> = {
+  Yellow: '#c99700',
+  Blue: '#2f6bd8',
+  Orange: '#e2650f',
+  Red: '#d92d20',
+  White: '#6b7280',
+}
+const severityHex = (c: string): string => SEVERITY_HEX[c] ?? '#6b7280'
+
+// CN AQI category → representative band color.
+function aqiHex(category: string): string {
+  if (category === '优') return '#4a9e46'
+  if (category === '良') return '#b78a00'
+  if (category.includes('轻度')) return '#e2650f'
+  if (category.includes('中度')) return '#d92d20'
+  if (category.includes('重度') || category.includes('严重')) return '#8b1a1a'
+  return '#6b7280'
+}
 
 export function WeatherCard(): React.JSX.Element {
   const { config, forecast, status, error, refresh } = useWeather()
@@ -90,21 +112,29 @@ export function WeatherCard(): React.JSX.Element {
           </button>
         </div>
       )}
-      {status === 'ready' && current && (
+      {status === 'ready' && forecast && current && (
         <div className="mt-3 space-y-4">
+          {/* Active warnings (most important — surfaced first) */}
+          {forecast.warnings.length > 0 && <WarningBanner warnings={forecast.warnings} />}
+
           {/* Current conditions */}
-          <div className="flex items-center gap-4">
-            <span className="text-4xl">{current.icon}</span>
-            <div>
-              <div className="font-semibold text-3xl">{Math.round(current.tempC)}°</div>
-              <div className="text-muted-foreground text-sm">
-                {current.text} · 体感 {Math.round(current.feelsLikeC)}°
-              </div>
-              <div className="text-muted-foreground text-xs">
-                💧 {current.pop}% · 🌬 {current.windScale}级 {current.windDir} · 气压 {current.pressure}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">{current.icon}</span>
+              <div>
+                <div className="font-semibold text-3xl">{Math.round(current.tempC)}°</div>
+                <div className="text-muted-foreground text-sm">{current.text}</div>
+                <div className="text-muted-foreground text-xs">
+                  💧 {current.pop}% · ☔ {current.precipMm}mm · 🌬 {current.windScale}级 {current.windDir} · 气压{' '}
+                  {current.pressure}
+                </div>
               </div>
             </div>
+            {forecast.air && <AqiPill air={forecast.air} />}
           </div>
+
+          {/* Minutely precipitation nowcast */}
+          {forecast.minutely && <MinutelyStrip minutely={forecast.minutely} />}
 
           {/* Temperature trend */}
           <div>
@@ -144,9 +174,152 @@ export function WeatherCard(): React.JSX.Element {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* Air quality */}
+          {forecast.air && <AirTile air={forecast.air} />}
+
+          {/* Life indices */}
+          {forecast.indices.length > 0 && <IndicesGrid indices={forecast.indices} />}
         </div>
       )}
     </section>
+  )
+}
+
+function WarningBanner({ warnings }: { warnings: WeatherWarning[] }): React.JSX.Element {
+  const [openId, setOpenId] = useState<string | null>(warnings[0]?.id ?? null)
+  return (
+    <div className="space-y-2">
+      {warnings.map((w) => {
+        const hex = severityHex(w.severityColor)
+        const open = openId === w.id
+        return (
+          <button
+            className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-left"
+            key={w.id}
+            onClick={() => setOpenId(open ? null : w.id)}
+            style={{ borderLeftWidth: 3, borderLeftColor: hex }}
+            type="button"
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: hex }} />
+              <span className="flex-1 font-semibold text-sm">
+                {w.typeName}
+                {w.level}预警
+              </span>
+              <span
+                className="flex-none rounded-full px-1.5 py-0.5 font-medium text-white text-xs"
+                style={{ backgroundColor: hex }}
+              >
+                {w.level}
+              </span>
+            </div>
+            {open && <p className="mt-1.5 text-muted-foreground text-xs">{w.text}</p>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function AqiPill({ air }: { air: AirQuality }): React.JSX.Element {
+  const hex = aqiHex(air.category)
+  return (
+    <span
+      className="flex-none rounded-full border px-2.5 py-1 font-semibold text-xs"
+      style={{ color: hex, borderColor: hex, backgroundColor: `${hex}1f` }}
+    >
+      AQI {air.aqi} · {air.category}
+    </span>
+  )
+}
+
+function MinutelyStrip({ minutely }: { minutely: Minutely }): React.JSX.Element {
+  const max = Math.max(...minutely.points.map((p) => p.precipMm), 0.5)
+  return (
+    <div className="rounded-xl border border-border bg-muted/40 p-3">
+      <p className="mb-2 font-medium text-sm">☔ {minutely.summary || '未来 2 小时降水'}</p>
+      <div className="flex h-8 items-end gap-0.5">
+        {minutely.points.map((p) => (
+          <div
+            className="flex-1 rounded-t-sm"
+            key={p.time}
+            style={{
+              height: p.precipMm === 0 ? '3px' : `${Math.max(12, (p.precipMm / max) * 100)}%`,
+              backgroundColor: p.precipMm === 0 ? 'var(--border)' : 'var(--primary)',
+              opacity: p.precipMm === 0 ? 0.5 : 0.85,
+            }}
+          />
+        ))}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        <span>现在</span>
+        <span>+1h</span>
+        <span>+2h</span>
+      </div>
+    </div>
+  )
+}
+
+function AirTile({ air }: { air: AirQuality }): React.JSX.Element {
+  const hex = aqiHex(air.category)
+  const pollutants: [string, number, boolean][] = [
+    ['PM2.5', air.pm2p5, air.primary === 'PM2.5'],
+    ['PM10', air.pm10, false],
+    ['O₃', air.o3, air.primary === 'O3'],
+    ['NO₂', air.no2, false],
+    ['SO₂', air.so2, false],
+    ['CO', air.co, false],
+  ]
+  return (
+    <div>
+      <p className="mb-1 text-muted-foreground text-xs">空气质量</p>
+      <div className="flex items-center gap-4 rounded-xl border border-border bg-muted/40 p-3">
+        <div className="flex-none border-border border-r pr-4 text-center">
+          <div className="font-bold text-2xl tabular-nums" style={{ color: hex }}>
+            {air.aqi}
+          </div>
+          <div className="font-medium text-xs" style={{ color: hex }}>
+            {air.category}
+          </div>
+        </div>
+        <div className="grid flex-1 grid-cols-3 gap-x-3 gap-y-1 text-xs tabular-nums">
+          {pollutants.map(([k, v, pri]) => (
+            <div key={k}>
+              <span className="text-muted-foreground" style={pri ? { color: hex } : undefined}>
+                {k}
+                {pri ? '·主' : ''}
+              </span>{' '}
+              <span className="font-medium">{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function IndicesGrid({ indices }: { indices: WeatherIndex[] }): React.JSX.Element {
+  const [openType, setOpenType] = useState<string | null>(null)
+  const openText = indices.find((i) => i.type === openType)?.text
+  return (
+    <div>
+      <p className="mb-1 text-muted-foreground text-xs">生活指数</p>
+      <div className="grid grid-cols-3 gap-2">
+        {indices.map((i) => (
+          <button
+            className="rounded-lg border border-border p-2 text-left hover:border-foreground/30"
+            key={i.type}
+            onClick={() => setOpenType(openType === i.type ? null : i.type)}
+            type="button"
+          >
+            <div className="text-muted-foreground text-xs">{i.name.replace('指数', '')}</div>
+            <div className="font-semibold text-sm">{i.category}</div>
+          </button>
+        ))}
+      </div>
+      {openText && <p className="mt-2 text-muted-foreground text-xs">{openText}</p>}
+    </div>
   )
 }
 
