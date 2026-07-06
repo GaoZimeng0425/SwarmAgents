@@ -13,8 +13,11 @@ import { Streamdown } from 'streamdown'
 
 import { EmailHtml } from '@/components/email-html'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useThreadAnalysis } from '@/hooks/use-thread-analysis'
+import { swarmApi } from '@/lib/api'
 import { classifyAll, classifyThread, type GmailGroupKey } from '@/lib/gmail/classify-thread'
 import { cn } from '@/lib/utils'
+import { GmailAssistantCard } from './gmail-assistant-card'
 import { GmailGroupBar } from './gmail-group-bar'
 
 const PAGE_LIMIT = 50
@@ -67,12 +70,6 @@ export function GmailInboxView(): React.JSX.Element {
   const detail = useQuery({
     queryKey: ['gmail', 'thread', selectedId],
     queryFn: () => window.swarm.gmail.getThread(selectedId!),
-    enabled: linked && selectedId !== null,
-  })
-
-  const analyses = useQuery({
-    queryKey: ['gmail', 'analyses', selectedId],
-    queryFn: () => window.swarm.gmail.getAnalyses(selectedId!),
     enabled: linked && selectedId !== null,
   })
 
@@ -189,17 +186,7 @@ export function GmailInboxView(): React.JSX.Element {
           ) : !detail.data ? (
             <CenteredMessage text="未找到该邮件" />
           ) : (
-            <ScrollArea className="h-full pr-2" edgeFade>
-              <div className="flex flex-col gap-4 pb-6">
-                <div>
-                  <h2 className="font-semibold text-foreground text-lg">{detail.data.thread.subject || '(无主题)'}</h2>
-                  <p className="mt-1 text-muted-foreground text-xs">{detail.data.messages.length} 条消息</p>
-                </div>
-                {detail.data.messages.map((m) => (
-                  <MessageCard analyses={analyses.data} key={m.id} m={m} />
-                ))}
-              </div>
-            </ScrollArea>
+            <GmailThreadDetail data={detail.data} threadId={selectedId} />
           )}
         </div>
       </div>
@@ -207,13 +194,59 @@ export function GmailInboxView(): React.JSX.Element {
   )
 }
 
-function MessageCard({
-  m,
-  analyses,
+// The right-hand detail column. Extracted as its own component so
+// useThreadAnalysis (which calls hooks internally) is invoked unconditionally
+// — never behind a conditional-render branch. The thread input handed to the
+// hook is memoized on detail.data so it stays referentially stable across
+// renders; otherwise every parent re-render would re-subscribe + re-trigger
+// analyzeThread (the hook's effect deps include the thread object identity).
+function GmailThreadDetail({
+  data,
+  threadId,
 }: {
-  m: GmailMessage
-  analyses?: Record<string, GmailAnalysis>
+  data: { thread: { subject: string }; messages: GmailMessage[] }
+  threadId: string
 }): React.JSX.Element {
+  // Build the hook input from the loaded detail. Memoized so the object
+  // identity only changes when the underlying data actually changes — passing
+  // an inline literal here would re-fire analysis on every render.
+  const threadInput = useMemo(
+    () => ({
+      id: threadId,
+      subject: data.thread.subject,
+      messages: data.messages.map((m) => ({ from: m.fromAddr, dateMs: m.dateMs, bodyText: m.bodyText })),
+    }),
+    [threadId, data]
+  )
+  const analysis = useThreadAnalysis(threadInput)
+
+  const regenerate = (): void => {
+    // The hook's event subscription stays active after `done`, so re-firing
+    // analyzeThread streams a fresh result into the same state machine.
+    void swarmApi.analyzeThread({
+      threadId: threadInput.id,
+      subject: threadInput.subject,
+      messages: threadInput.messages,
+    })
+  }
+
+  return (
+    <ScrollArea className="h-full pr-2" edgeFade>
+      <div className="flex flex-col gap-4 pb-6">
+        <div>
+          <h2 className="font-semibold text-foreground text-lg">{data.thread.subject || '(无主题)'}</h2>
+          <p className="mt-1 text-muted-foreground text-xs">{data.messages.length} 条消息</p>
+        </div>
+        <GmailAssistantCard analysis={analysis} messageCount={data.messages.length} onRegenerate={regenerate} />
+        {data.messages.map((m) => (
+          <MessageCard key={m.id} m={m} />
+        ))}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function MessageCard({ m }: { m: GmailMessage }): React.JSX.Element {
   return (
     <article className="rounded-lg border border-border bg-card/60 p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
@@ -230,7 +263,6 @@ function MessageCard({
       ) : (
         <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-foreground/90 text-sm">{m.bodyText}</pre>
       )}
-      <MessageAnalysis cached={analyses?.[m.id]} message={m} />
     </article>
   )
 }
