@@ -21,6 +21,41 @@ const SEVERITY_HEX: Record<string, string> = {
 }
 const severityHex = (c: string): string => SEVERITY_HEX[c] ?? '#6b7280'
 
+// Theme-aware recharts tooltip (the default renders white-on-white in dark mode).
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    background: 'var(--popover)',
+    border: '1px solid var(--border)',
+    borderRadius: '8px',
+    fontSize: '12px',
+    padding: '6px 10px',
+    boxShadow: '0 4px 12px rgb(0 0 0 / 0.18)',
+  },
+  labelStyle: { color: 'var(--popover-foreground)', fontWeight: 600, marginBottom: '2px' },
+  itemStyle: { color: 'var(--popover-foreground)' },
+  cursor: { stroke: 'var(--border)', strokeWidth: 1 },
+} as const
+
+// Map a QWeather icon code (e.g. "302") to an emoji. Codes are grouped by range
+// per the QWeather icon set: 1xx clear/cloud, 3xx rain, 4xx snow, 5xx fog/haze.
+function weatherEmoji(code: string): string {
+  const n = Number(code)
+  if (!Number.isFinite(n)) return '🌡️'
+  if (n === 100) return '☀️'
+  if (n === 150) return '🌙' // 晴 (night)
+  if (n >= 101 && n <= 103) return '⛅' // 多云/少云/晴间多云
+  if (n >= 151 && n <= 153) return '⛅'
+  if (n === 104 || n === 154) return '☁️' // 阴
+  if (n >= 300 && n <= 303) return n >= 302 ? '⛈️' : '🌦️' // 阵雨/雷阵雨
+  if (n === 304) return '⛈️' // 雷阵雨伴冰雹
+  if (n >= 305 && n <= 399) return '🌧️' // 各类雨
+  if (n >= 400 && n <= 499) return '🌨️' // 雪
+  if (n >= 500 && n <= 515) return '🌫️' // 雾/霾/沙尘
+  if (n === 900) return '🥵'
+  if (n === 901) return '🥶'
+  return '🌡️'
+}
+
 // CN AQI category → representative band color.
 function aqiHex(category: string): string {
   if (category === '优') return '#4a9e46'
@@ -114,13 +149,14 @@ export function WeatherCard(): React.JSX.Element {
       )}
       {status === 'ready' && forecast && current && (
         <div className="mt-3 space-y-4">
-          {/* Active warnings (most important — surfaced first) */}
-          {forecast.warnings.length > 0 && <WarningBanner warnings={forecast.warnings} />}
+          {/* Active warnings (most important — surfaced first). Guard against a
+              stale main process that predates these fields (dev version skew). */}
+          {(forecast.warnings ?? []).length > 0 && <WarningBanner warnings={forecast.warnings ?? []} />}
 
           {/* Current conditions */}
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-              <span className="text-4xl">{current.icon}</span>
+              <span className="text-4xl">{weatherEmoji(current.icon)}</span>
               <div>
                 <div className="font-semibold text-3xl">{Math.round(current.tempC)}°</div>
                 <div className="text-muted-foreground text-sm">{current.text}</div>
@@ -141,11 +177,11 @@ export function WeatherCard(): React.JSX.Element {
             <p className="mb-1 text-muted-foreground text-xs">24h 温度趋势</p>
             <div className="h-24">
               <ResponsiveContainer height="100%" width="100%">
-                <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -28 }}>
+                <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="hour" fontSize={10} interval={3} stroke="var(--muted-foreground)" tickLine={false} />
-                  <YAxis fontSize={10} stroke="var(--muted-foreground)" tickLine={false} unit="°" width={40} />
+                  <YAxis fontSize={10} stroke="var(--muted-foreground)" tickLine={false} unit="°" width={34} />
                   <CartesianGrid horizontal={false} stroke="var(--border)" />
-                  <Tooltip />
+                  <Tooltip {...TOOLTIP_STYLE} formatter={(v) => [`${v}°`, '温度']} />
                   <Line dataKey="temp" dot={false} stroke="var(--foreground)" strokeWidth={2} type="monotone" />
                 </LineChart>
               </ResponsiveContainer>
@@ -157,11 +193,11 @@ export function WeatherCard(): React.JSX.Element {
             <p className="mb-1 text-muted-foreground text-xs">24h 降水概率</p>
             <div className="h-20">
               <ResponsiveContainer height="100%" width="100%">
-                <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -28 }}>
+                <AreaChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="hour" fontSize={10} interval={3} stroke="var(--muted-foreground)" tickLine={false} />
-                  <YAxis fontSize={10} stroke="var(--muted-foreground)" tickLine={false} unit="%" width={40} />
+                  <YAxis fontSize={10} stroke="var(--muted-foreground)" tickLine={false} unit="%" width={34} />
                   <CartesianGrid horizontal={false} stroke="var(--border)" />
-                  <Tooltip />
+                  <Tooltip {...TOOLTIP_STYLE} formatter={(v) => [`${v}%`, '降水概率']} />
                   <Area
                     dataKey="pop"
                     fill="var(--primary)"
@@ -179,7 +215,7 @@ export function WeatherCard(): React.JSX.Element {
           {forecast.air && <AirTile air={forecast.air} />}
 
           {/* Life indices */}
-          {forecast.indices.length > 0 && <IndicesGrid indices={forecast.indices} />}
+          {(forecast.indices ?? []).length > 0 && <IndicesGrid indices={forecast.indices ?? []} />}
         </div>
       )}
     </section>
