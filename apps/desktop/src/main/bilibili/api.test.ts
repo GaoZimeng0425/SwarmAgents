@@ -4,12 +4,37 @@ import { cookieHeader, getFavFolders, getNav, getWatchLater, toHttpsUrl } from '
 
 const creds = { sessdata: 's', biliJct: 'j', dedeUserId: '42' }
 
+// A nav payload carrying wbi keys; getFavFolders/getFavResources fetch this
+// first (via getWbiKeys) before their own signed request.
+const NAV_WITH_WBI = {
+  code: 0,
+  data: {
+    wbi_img: {
+      img_url: 'https://i0.hdslb.com/bfs/7eaa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.png',
+      sub_url: 'https://i0.hdslb.com/bfs/8bb16e9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c.png',
+    },
+  },
+}
+
 afterEach(() => vi.unstubAllGlobals())
 
 function mockJson(body: unknown): void {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }))
+  )
+}
+
+// Stubs fetch to return the nav (wbi keys) first, then `body` for the real call.
+// Use this for endpoints that sign with wbi (getFavFolders, getFavResources).
+function mockJsonWithWbi(body: unknown): void {
+  const responses = [
+    new Response(JSON.stringify(NAV_WITH_WBI), { status: 200 }),
+    new Response(JSON.stringify(body), { status: 200 }),
+  ]
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => responses.shift() as Response)
   )
 }
 
@@ -33,17 +58,17 @@ describe('getNav', () => {
 
 describe('getFavFolders', () => {
   it('maps folder list', async () => {
-    mockJson({ code: 0, data: { list: [{ id: 99, title: 'CS', media_count: 7 }] } })
+    mockJsonWithWbi({ code: 0, data: { list: [{ id: 99, title: 'CS', media_count: 7 }] } })
     expect(await getFavFolders(creds, 42)).toEqual([{ id: 99, title: 'CS', count: 7 }])
   })
 
   it('returns [] when data.list is null', async () => {
-    mockJson({ code: 0, data: { list: null } })
+    mockJsonWithWbi({ code: 0, data: { list: null } })
     expect(await getFavFolders(creds, 42)).toEqual([])
   })
 
   it('throws on non-zero code', async () => {
-    mockJson({ code: -400, message: 'bad request' })
+    mockJsonWithWbi({ code: -400, message: 'bad request' })
     await expect(getFavFolders(creds, 42)).rejects.toThrow(/-400/)
   })
 })

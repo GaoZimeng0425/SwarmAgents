@@ -4,7 +4,7 @@
 // { code, message, data }; a non-zero code is an error.
 import type { BiliCredentials, BiliFavFolder, BiliLoginStatus, BiliVideo } from '@swarm/protocol'
 
-import { keyFromUrl } from './wbi'
+import { encWbi, keyFromUrl } from './wbi'
 
 export const BILI_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
@@ -83,7 +83,10 @@ export async function getNav(c: BiliCredentials): Promise<BiliLoginStatus> {
 type FavFolderRow = { id: number; title: string; media_count: number }
 
 export async function getFavFolders(c: BiliCredentials, mid: number): Promise<BiliFavFolder[]> {
-  const url = `https://api.bilibili.com/x/v3/fav/folder/created/list-all?up_mid=${encodeURIComponent(String(mid))}`
+  // WBI-signed: the folder list endpoint started returning -412 风控 without it.
+  const { imgKey, subKey } = await getWbiKeys(c)
+  const query = encWbi({ up_mid: String(mid) }, imgKey, subKey, Math.floor(Date.now() / 1000))
+  const url = `https://api.bilibili.com/x/v3/fav/folder/created/list-all?${query}`
   const data = await get<{ list: FavFolderRow[] | null }>(url, c)
   const list = data.list ?? []
   return list.map((f) => ({ id: f.id, title: f.title, count: f.media_count }))
@@ -101,7 +104,15 @@ type FavMediaRow = {
 }
 
 export async function getFavResources(c: BiliCredentials, mediaId: number, folderTitle: string): Promise<BiliVideo[]> {
-  const url = `https://api.bilibili.com/x/v3/fav/resource/list?media_id=${encodeURIComponent(String(mediaId))}&ps=20&pn=1&platform=web`
+  // WBI-signed: the resource list endpoint returns -412 风控 without it.
+  const { imgKey, subKey } = await getWbiKeys(c)
+  const query = encWbi(
+    { media_id: String(mediaId), ps: '20', pn: '1', platform: 'web' },
+    imgKey,
+    subKey,
+    Math.floor(Date.now() / 1000)
+  )
+  const url = `https://api.bilibili.com/x/v3/fav/resource/list?${query}`
   const data = await get<{ medias: FavMediaRow[] | null }>(url, c)
   const medias = data.medias ?? []
   return medias.map((m) => ({
