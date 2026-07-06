@@ -11,7 +11,6 @@ export type SettingsSection =
   | 'gmail'
   | 'calendar'
   | 'skills'
-  | 'agents'
   | 'bilibili'
   | 'budgets'
   | 'permissions'
@@ -26,7 +25,6 @@ const SECTIONS: SettingsSection[] = [
   'gmail',
   'calendar',
   'skills',
-  'agents',
   'bilibili',
   'budgets',
   'permissions',

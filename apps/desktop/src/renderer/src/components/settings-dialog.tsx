@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle } from '@swarm/ui'
 import {
   Bot,
   Boxes,
@@ -11,13 +12,10 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Tv,
-  Users,
 } from 'lucide-react'
 
-import { Dialog, DialogContent, DialogTitle } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { AboutView } from '@/components/views/about-view'
-import { AgentsView } from '@/components/views/agents-view'
 import { BilibiliSettingsView } from '@/components/views/bilibili-settings-view'
 import { BudgetsView } from '@/components/views/budgets-view'
 import { CalendarSettingsView } from '@/components/views/calendar-view'
@@ -27,8 +25,8 @@ import { McpServersView } from '@/components/views/mcp-servers-view'
 import { PermissionsView } from '@/components/views/permissions-view'
 import { ProvidersView } from '@/components/views/providers-view'
 import { SkillsView } from '@/components/views/skills-view'
-import { WebSearchView } from '@/components/views/web-search-view'
 import { WeatherView } from '@/components/views/weather-view'
+import { WebSearchView } from '@/components/views/web-search-view'
 import { cn } from '@/lib/utils'
 import { type SettingsSection, useSettingsDialog } from '@/stores/settings-dialog'
 
@@ -41,7 +39,6 @@ const SECTIONS: { key: SettingsSection; label: string; icon: typeof SettingsIcon
   { key: 'gmail', label: 'Gmail', icon: Mail, View: GmailSettingsView },
   { key: 'calendar', label: 'Calendar', icon: Calendar, View: CalendarSettingsView },
   { key: 'skills', label: 'Skills', icon: Sparkles, View: SkillsView },
-  { key: 'agents', label: 'Agents', icon: Users, View: AgentsView },
   { key: 'bilibili', label: 'Bilibili', icon: Tv, View: BilibiliSettingsView },
   { key: 'budgets', label: 'Budgets', icon: DollarSign, View: BudgetsView },
   { key: 'permissions', label: 'Permissions', icon: Lock, View: PermissionsView },

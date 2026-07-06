@@ -99,9 +99,9 @@ function commandItems(inputs: BuildInputs, cb: Callbacks): PaletteItem[] {
       kind: 'command',
       title: '新建编队',
       icon: 'UsersRound',
-      run: () => cb.openSettings('agents'),
+      run: () => cb.navigate('/formations'),
       searchText: '新建编队 formation agent',
-      preview: { type: 'info', title: '新建编队', desc: '在设置中创建新的 Agent 编队', rows: [] },
+      preview: { type: 'info', title: '新建编队', desc: '创建新的 Agent 编队', rows: [] },
     },
     {
       id: 'cmd:open-settings',
