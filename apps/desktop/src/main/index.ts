@@ -22,6 +22,7 @@ import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initTrending } from './trending'
 import { initWebSearch } from './web-search'
+import { initWeather } from './weather'
 import { createMainWindow } from './windows/main-window'
 import { openSettings } from './windows/open-settings'
 
@@ -81,6 +82,9 @@ app.whenReady().then(async () => {
   const calendar = await initCalendar()
   log.info({ msg: 'calendar sidecar initialised' })
 
+  const weather = await initWeather()
+  log.info({ msg: 'weather initialised' })
+
   app.on('before-quit', () => {
     providers.dispose()
     mcpServers.dispose()
@@ -90,6 +94,7 @@ app.whenReady().then(async () => {
     bilibili.dispose()
     gmail.dispose()
     calendar.dispose()
+    weather.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')
