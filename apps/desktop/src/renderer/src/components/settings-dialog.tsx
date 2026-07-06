@@ -1,53 +1,13 @@
 import { Dialog, DialogContent, DialogTitle } from '@swarm/ui'
-import {
-  Bot,
-  Boxes,
-  Calendar,
-  CloudSun,
-  DollarSign,
-  Info,
-  Lock,
-  Mail,
-  Search,
-  Settings as SettingsIcon,
-  Sparkles,
-  Tv,
-} from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { AboutView } from '@/components/views/about-view'
-import { BilibiliSettingsView } from '@/components/views/bilibili-settings-view'
-import { BudgetsView } from '@/components/views/budgets-view'
-import { CalendarSettingsView } from '@/components/views/calendar-view'
-import { GeneralView } from '@/components/views/general-view'
-import { GmailSettingsView } from '@/components/views/gmail-view'
-import { McpServersView } from '@/components/views/mcp-servers-view'
-import { PermissionsView } from '@/components/views/permissions-view'
-import { ProvidersView } from '@/components/views/providers-view'
-import { SkillsView } from '@/components/views/skills-view'
-import { WeatherView } from '@/components/views/weather-view'
-import { WebSearchView } from '@/components/views/web-search-view'
+import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { cn } from '@/lib/utils'
-import { type SettingsSection, useSettingsDialog } from '@/stores/settings-dialog'
-
-const SECTIONS: { key: SettingsSection; label: string; icon: typeof SettingsIcon; View: () => React.JSX.Element }[] = [
-  { key: 'general', label: 'General', icon: SettingsIcon, View: GeneralView },
-  { key: 'providers', label: 'Providers', icon: Bot, View: ProvidersView },
-  { key: 'mcp', label: 'MCP Servers', icon: Boxes, View: McpServersView },
-  { key: 'web-search', label: 'Web Search', icon: Search, View: WebSearchView },
-  { key: 'weather', label: 'Weather', icon: CloudSun, View: WeatherView },
-  { key: 'gmail', label: 'Gmail', icon: Mail, View: GmailSettingsView },
-  { key: 'calendar', label: 'Calendar', icon: Calendar, View: CalendarSettingsView },
-  { key: 'skills', label: 'Skills', icon: Sparkles, View: SkillsView },
-  { key: 'bilibili', label: 'Bilibili', icon: Tv, View: BilibiliSettingsView },
-  { key: 'budgets', label: 'Budgets', icon: DollarSign, View: BudgetsView },
-  { key: 'permissions', label: 'Permissions', icon: Lock, View: PermissionsView },
-  { key: 'about', label: 'About', icon: Info, View: AboutView },
-]
+import { SECTIONS_REGISTRY } from '@/stores/settings-dialog'
 
 export function SettingsDialog(): React.JSX.Element {
-  const { open, section, openSettings, close } = useSettingsDialog()
-  const active = SECTIONS.find((s) => s.key === section) ?? SECTIONS[0]
+  const { open, section, openSettings, close } = useSettingsNav()
+  const active = SECTIONS_REGISTRY.find((s) => s.key === section) ?? SECTIONS_REGISTRY[0]
   const ActiveView = active.View
 
   return (
@@ -64,14 +24,16 @@ export function SettingsDialog(): React.JSX.Element {
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <nav className="flex w-52 shrink-0 flex-col gap-0.5 border-r bg-muted/30 px-3 py-4">
-          {SECTIONS.map(({ key, label, icon: Icon }) => (
+          {SECTIONS_REGISTRY.map(({ key, label, icon: Icon }) => (
             <button
               className={cn(
                 'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 key === section && 'bg-accent text-foreground'
               )}
               key={key}
-              onClick={() => openSettings(key)}
+              // Section switch = replace, so the back stack isn't cluttered
+              // with one entry per visited section.
+              onClick={() => openSettings(key, { replace: true })}
               type="button"
             >
               <Icon className="size-4" />
