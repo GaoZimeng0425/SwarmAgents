@@ -90,6 +90,7 @@
     "embla-carousel-react": "^8.6.0",
     "es-toolkit": "^1.49.0",
     "input-otp": "^1.4.2",
+    "jose": "^5.10.0",
     "jsdom": "^29.1.1",
     "ky": "^2.0.2",
     "lucide-react": "^1.23.0",
