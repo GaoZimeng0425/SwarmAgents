@@ -71,6 +71,13 @@ type SessionServiceConfig = {
   isSkillEnabled?: (name: string) => boolean
   /** Directory where session-markdown exports are written. Required for exportSessionMarkdown. */
   exportsDir?: string
+  /**
+   * Optional Claude-Code-style hooks sink. Invoked once per emitted run.*
+   * event with (eventName, evt); the dispatcher maps run.* kinds to the
+   * configured Claude event names (Notification/PermissionRequest/Stop/…).
+   * Fire-and-forget — a throwing/slow sink must never block emit.
+   */
+  dispatchHook?: (eventName: string, payload: unknown) => void
 }
 
 export type SessionService = {
@@ -175,7 +182,21 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       store.appendRunEvent(evt.sessionId, evt.runId, evt.parentRunId ?? null, evt)
     },
     markTerminal: (runId, status) => terminalRegistry.markTerminal(runId, status),
-    broadcast: (evt) => broadcaster.broadcast(evt.kind, evt),
+    broadcast: (evt) => {
+      broadcaster.broadcast(evt.kind, evt)
+      // Hooks sink: fire-and-forget alongside the wire broadcast. Guarded so
+      // a throwing dispatcher can never reject the emit path.
+      try {
+        cfg.dispatchHook?.(evt.kind, evt)
+      } catch (err) {
+        log.warn({
+          msg: 'dispatchHook threw',
+          kind: evt.kind,
+          runId: evt.runId,
+          err: err instanceof Error ? err.message : String(err),
+        })
+      }
+    },
   }
 
   // The permission registry emits the `run.permission_request` event for
@@ -204,6 +225,18 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         } as UIEvent)
       }
       broadcaster.broadcast(event, obj ? { ...rest, sessionId, runId, seq, ts } : data)
+      // Same hooks sink as emitPorts.broadcast — permissionEmit is the sole
+      // emit path for run.permission_request, so it must dispatch hooks too.
+      try {
+        if (runId) cfg.dispatchHook?.(event, { ...rest, sessionId, runId, seq, ts })
+      } catch (err) {
+        log.warn({
+          msg: 'dispatchHook threw',
+          kind: event,
+          runId,
+          err: err instanceof Error ? err.message : String(err),
+        })
+      }
     }
 
   // ---- Global concurrency pool → launch's acquireSlot(signal) ---------------
