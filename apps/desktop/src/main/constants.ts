@@ -42,6 +42,7 @@ export const paths = {
   // JSON, not a credential). Lets pricing auto-match offline and survive restart.
   openrouterCatalog: () => join(app.getPath('userData'), 'openrouter-catalog.json'),
   webSearch: () => join(app.getPath('userData'), 'web-search.enc'),
+  weather: () => join(app.getPath('userData'), 'weather.enc'),
   budgets: () => join(app.getPath('userData'), 'budgets.json'),
   gmail: () => join(app.getPath('userData'), 'gmail.enc'),
   gmailDb: () => join(app.getPath('userData'), 'gmail.db'),
