@@ -11,6 +11,7 @@
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
 import type {
   BiliAnalysis,
+  BiliDeleteResult,
   BiliListResult,
   BiliLoginStatus,
   BiliProcessResult,
@@ -230,6 +231,19 @@ export type BilibiliBridge = {
   onTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void) => () => void
   analyzedBvids: () => Promise<string[]>
   getAnalysis: (bvid: string) => Promise<BiliAnalysis | null>
+  // Remove a resource from Bilibili. Watch-later needs only bvid; a fav-folder
+  // video needs the fav* ids carried on BiliVideo, so it takes the whole video.
+  deleteWatchLater: (bvid: string) => Promise<BiliDeleteResult>
+  deleteFav: (video: BiliVideo) => Promise<BiliDeleteResult>
+  // Local archive: a "soft delete" that keeps the video card locally after it's
+  // gone from Bilibili. Backed by bilibili-archive.json.
+  archiveList: () => Promise<BiliVideo[]>
+  archivePut: (video: BiliVideo) => Promise<void>
+  archiveRemove: (bvid: string) => Promise<void>
+  // Pins: a local "favorite" shown in a top bar. Backed by bilibili-pins.json.
+  pinsList: () => Promise<BiliVideo[]>
+  pinsPut: (video: BiliVideo) => Promise<void>
+  pinsRemove: (bvid: string) => Promise<void>
 }
 
 export type GmailSetResult = { ok: true } | { ok: false; code: string; message: string }

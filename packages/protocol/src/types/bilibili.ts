@@ -11,6 +11,9 @@ export type BiliCredentials = {
 }
 
 // A favorites-folder or watch-later video, normalized for the UI.
+// The fav* fields are only present on favorites videos and carry the ids needed
+// to delete from a fav folder via the batch-del API (resources = oid:type,
+// scoped to media_id). Watch-later videos lack them.
 export type BiliVideo = {
   bvid: string
   title: string
@@ -19,7 +22,27 @@ export type BiliVideo = {
   durationSec: number
   intro: string
   source: string
+  favMediaId?: number
+  favOid?: number
+  favType?: number
 }
+
+// Schema mirror of BiliVideo, used to validate the on-disk archive/pin maps.
+// Optional fav* fields default to undefined when absent.
+export const BiliVideoSchema = z
+  .object({
+    bvid: z.string(),
+    title: z.string(),
+    cover: z.string(),
+    author: z.string(),
+    durationSec: z.number(),
+    intro: z.string(),
+    source: z.string(),
+    favMediaId: z.number().optional(),
+    favOid: z.number().optional(),
+    favType: z.number().optional(),
+  })
+  .strict()
 
 export type BiliFavFolder = {
   id: number
@@ -130,3 +153,8 @@ export type BiliTranscribeResult =
       code: 'no_config' | 'no_provider' | 'audio_failed' | 'ffmpeg_failed' | 'asr_failed' | 'llm_failed' | 'unknown'
       message: string
     }
+
+// Result of deleting a resource from Bilibili (watch-later or a fav folder).
+// `not_logged_in` is returned before any network call; other failures surface
+// the upstream message so the UI can show it.
+export type BiliDeleteResult = { ok: true } | { ok: false; code: 'not_logged_in' | 'unknown'; message: string }

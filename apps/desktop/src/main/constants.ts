@@ -40,6 +40,9 @@ export const paths = {
   providers: () => join(app.getPath('userData'), 'providers.enc'),
   bilibili: () => join(app.getPath('userData'), 'bilibili.bin'),
   bilibiliAnalysis: () => join(app.getPath('userData'), 'bilibili-analysis.json'),
+  // Locally retained video cards (soft-delete) and pinned videos.
+  bilibiliArchive: () => join(app.getPath('userData'), 'bilibili-archive.json'),
+  bilibiliPins: () => join(app.getPath('userData'), 'bilibili-pins.json'),
   // Locally-cached OpenRouter model catalog (public pricing/context data — plain
   // JSON, not a credential). Lets pricing auto-match offline and survive restart.
   openrouterCatalog: () => join(app.getPath('userData'), 'openrouter-catalog.json'),

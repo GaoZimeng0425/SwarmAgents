@@ -22,6 +22,7 @@ import { Sparkles } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
 import { BilibiliDetailPanel } from './bilibili-detail-panel'
+import { BilibiliVideoMenu } from './bilibili-video-menu'
 
 // Grid metrics — kept in sync with the inline grid template below. MIN_CARD is
 // the 11rem min column width the layout used before virtualization; GAP is the
@@ -29,8 +30,13 @@ import { BilibiliDetailPanel } from './bilibili-detail-panel'
 const MIN_CARD_PX = 176
 const GAP_PX = 12
 
-// Top-level view: the favorites folders, or the watch-later list.
-type Tab = 'favorites' | 'watch-later'
+// Which list the currently focused video came from — drives the action menu's
+// labels (un-fav vs clear watch-later) and whether a B站 delete is needed.
+export type VideoListContext = 'favorites' | 'watch-later' | 'archive'
+
+// Top-level view: the favorites folders, the watch-later list, or the local
+// archive (videos soft-deleted from Bilibili but kept as local cards).
+type Tab = 'favorites' | 'watch-later' | 'archive'
 // Favorites filter: a specific folder id, or every folder.
 type FolderFilter = number | 'all'
 
@@ -52,21 +58,39 @@ export function formatDuration(sec: number): string {
 }
 
 // Pure list builder so the tab/folder selection logic is unit-testable without
-// a DOM. In 'watch-later' the folder filter is ignored and no headers render
-// (the tab already names the section); in 'favorites' a numeric folderId limits
-// the output to that one folder.
-export function buildRows(data: BiliListResult, tab: Tab, folderId: FolderFilter, columns: number): GridRow[] {
+// a DOM. In 'watch-later'/'archive' the folder filter is ignored and no headers
+// render (the tab already names the section); in 'favorites' a numeric folderId
+// limits the output to that one folder. Pinned bvids are filtered out of the
+// favorites/watch-later lists — they live in the dedicated top bar — but stay
+// visible inside the archive tab.
+export function buildRows(
+  data: BiliListResult,
+  tab: Tab,
+  folderId: FolderFilter,
+  columns: number,
+  archive: BiliVideo[] = [],
+  pinnedSet: Set<string> = new Set()
+): GridRow[] {
   const rows: GridRow[] = []
+  const notPinned = (v: BiliVideo): boolean => !pinnedSet.has(v.bvid)
   if (tab === 'watch-later') {
-    chunk(data.watchLater, columns).forEach((group, i) => {
+    chunk(data.watchLater.filter(notPinned), columns).forEach((group, i) => {
       rows.push({ kind: 'grid', key: `grid:watch-later:${i}`, videos: group })
+    })
+    return rows
+  }
+  if (tab === 'archive') {
+    chunk(archive, columns).forEach((group, i) => {
+      rows.push({ kind: 'grid', key: `grid:archive:${i}`, videos: group })
     })
     return rows
   }
   const folders = folderId === 'all' ? data.folders : data.folders.filter((f) => f.folder.id === folderId)
   for (const { folder, videos } of folders) {
+    const visible = videos.filter(notPinned)
+    if (visible.length === 0) continue
     rows.push({ kind: 'header', key: `header:${folder.id}`, title: folder.title })
-    chunk(videos, columns).forEach((group, i) => {
+    chunk(visible, columns).forEach((group, i) => {
       rows.push({ kind: 'grid', key: `grid:${folder.id}:${i}`, videos: group })
     })
   }
@@ -77,20 +101,30 @@ function VideoCard({
   video,
   selected,
   analyzed,
+  pinned,
+  context,
   onClick,
+  onChanged,
+  onError,
 }: {
   video: BiliVideo
   selected: boolean
   analyzed: boolean
+  pinned: boolean
+  context: VideoListContext
   onClick: (v: BiliVideo) => void
+  onChanged: () => void
+  onError: (message: string) => void
 }): React.JSX.Element {
   return (
-    <button
-      className={`flex flex-col gap-1 rounded-md border p-2 text-left transition-colors hover:bg-sidebar-accent ${
+    // The card is a div (not a button) so the "..." menu trigger can sit inside
+    // it without nesting interactive elements. Click anywhere selects the video.
+    <div
+      className={`group relative flex cursor-pointer flex-col gap-1 rounded-md border p-2 text-left transition-colors hover:bg-sidebar-accent ${
         selected ? 'border-ring ring-2 ring-ring/50' : 'border-sidebar-border'
       }`}
+      data-bvid={video.bvid}
       onClick={() => onClick(video)}
-      type="button"
     >
       <div className="relative w-full">
         {video.cover ? (
@@ -106,10 +140,69 @@ function VideoCard({
             AI
           </span>
         ) : null}
+        {pinned ? (
+          <span className="absolute top-1 left-1 rounded bg-amber-500 px-1.5 py-0.5 font-medium text-[10px] text-white">
+            置顶
+          </span>
+        ) : null}
+      </div>
+      {/* Hover "..." overlay: anchored bottom-right so it doesn't cover the AI badge. */}
+      <div className="absolute right-1 bottom-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <BilibiliVideoMenu
+          context={context}
+          onChanged={onChanged}
+          onError={onError}
+          pinned={pinned}
+          trigger="dot"
+          video={video}
+        />
       </div>
       <div className="truncate font-medium text-foreground text-sm">{video.title}</div>
       <div className="truncate text-muted-foreground text-xs">{video.author}</div>
-    </button>
+    </div>
+  )
+}
+
+// Compact card for the pinned strip: small cover + title, click to open detail,
+// hover "..." for unpin/delete. context is 'archive' because a pin's lifecycle
+// (unpin/remove) mirrors an archived card and it never needs a B站 un-fav action.
+function PinnedCard({
+  video,
+  onSelect,
+  onChanged,
+  onError,
+}: {
+  video: BiliVideo
+  onSelect: (v: BiliVideo) => void
+  onChanged: () => void
+  onError: (message: string) => void
+}): React.JSX.Element {
+  return (
+    <div className="group relative flex w-44 shrink-0 cursor-pointer flex-col gap-1 rounded-md border border-amber-500/30 bg-amber-500/5 p-1.5 hover:bg-amber-500/10">
+      <div className="relative w-full" onClick={() => onSelect(video)}>
+        {video.cover ? (
+          <img
+            alt=""
+            className="aspect-video w-full rounded object-cover"
+            referrerPolicy="no-referrer"
+            src={video.cover}
+          />
+        ) : null}
+      </div>
+      <div className="truncate text-foreground text-xs" onClick={() => onSelect(video)}>
+        {video.title}
+      </div>
+      <div className="absolute right-0.5 bottom-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <BilibiliVideoMenu
+          context="archive"
+          onChanged={onChanged}
+          onError={onError}
+          pinned
+          trigger="dot"
+          video={video}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -130,6 +223,17 @@ export function BilibiliView(): React.JSX.Element {
     queryFn: () => swarmApi.bilibiliAnalyzedBvids(),
   })
   const analyzedSet = useMemo(() => new Set(analyzedQuery.data ?? []), [analyzedQuery.data])
+  // Local archive + pins are always available (no login required to read them),
+  // so they load independently of the B站 list.
+  const archiveQuery = useQuery({
+    queryKey: ['bilibili', 'archive'],
+    queryFn: () => swarmApi.bilibiliArchiveList(),
+  })
+  const pinsQuery = useQuery({
+    queryKey: ['bilibili', 'pins'],
+    queryFn: () => swarmApi.bilibiliPinsList(),
+  })
+  const pinsSet = useMemo(() => new Set((pinsQuery.data ?? []).map((v) => v.bvid)), [pinsQuery.data])
   const totalCount = useMemo(() => {
     const favs = listQuery.data?.folders ?? []
     const inFolders = favs.reduce((n, f) => n + f.videos.length, 0)
@@ -140,6 +244,7 @@ export function BilibiliView(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('favorites')
   const [folderId, setFolderId] = useState<FolderFilter>('all')
   const [selected, setSelected] = useState<BiliVideo | null>(null)
+  const [cardError, setCardError] = useState<string | null>(null)
 
   // Track the content width so the grid can be chunked into fixed-column rows
   // that match a responsive `auto-fill` layout. A callback ref (not an effect)
@@ -158,9 +263,13 @@ export function BilibiliView(): React.JSX.Element {
   }, [])
 
   const rows = useMemo(() => {
+    // Archive tab has no B站 list dependency; render from the local archive alone.
+    if (tab === 'archive') {
+      return buildRows({ folders: [], watchLater: [] }, 'archive', 'all', columns, archiveQuery.data ?? [], pinsSet)
+    }
     if (!listQuery.data) return []
-    return buildRows(listQuery.data, tab, folderId, columns)
-  }, [listQuery.data, tab, folderId, columns])
+    return buildRows(listQuery.data, tab, folderId, columns, archiveQuery.data ?? [], pinsSet)
+  }, [listQuery.data, archiveQuery.data, tab, folderId, columns, pinsSet])
 
   async function handleLogin(): Promise<void> {
     await swarmApi.bilibiliLogin()
@@ -189,6 +298,7 @@ export function BilibiliView(): React.JSX.Element {
           <TabsList>
             <TabsTrigger value="favorites">收藏夹</TabsTrigger>
             <TabsTrigger value="watch-later">稍后再看</TabsTrigger>
+            <TabsTrigger value="archive">本地存档</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -223,21 +333,42 @@ export function BilibiliView(): React.JSX.Element {
         <span className="text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
       </div>
 
+      {/* Pinned videos: a horizontal strip above the grid, shown only when non-empty. */}
+      {(pinsQuery.data?.length ?? 0) > 0 ? (
+        <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
+          {(pinsQuery.data ?? []).map((v) => (
+            <PinnedCard
+              key={v.bvid}
+              onChanged={() => setSelected(null)}
+              onError={setCardError}
+              onSelect={setSelected}
+              video={v}
+            />
+          ))}
+        </div>
+      ) : null}
+      {cardError ? <p className="text-destructive text-xs">{cardError}</p> : null}
+
       <div className="flex min-h-0 flex-1 gap-0">
-        {listQuery.isError ? (
+        {tab !== 'archive' && listQuery.isError ? (
           <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
             <p>加载失败</p>
             <Button onClick={() => void listQuery.refetch()} variant="outline">
               重试
             </Button>
           </div>
-        ) : listQuery.isPending ? (
+        ) : tab !== 'archive' && listQuery.isPending ? (
           <div className="py-12 text-center text-muted-foreground">加载中…</div>
         ) : (
           // measureRef tracks the available content width to derive the column count.
           <div className="min-h-0 flex-1" ref={measureRef}>
             <ScrollArea className="h-full">
               <div className="flex flex-col gap-3">
+                {rows.length === 0 ? (
+                  <p className="py-12 text-center text-muted-foreground">
+                    {tab === 'archive' ? '本地存档为空' : '暂无视频'}
+                  </p>
+                ) : null}
                 {rows.map((row) =>
                   row.kind === 'header' ? (
                     <h2 className="pt-2 font-medium text-foreground/80 text-sm" key={row.key}>
@@ -252,8 +383,12 @@ export function BilibiliView(): React.JSX.Element {
                       {row.videos.map((v) => (
                         <VideoCard
                           analyzed={analyzedSet.has(v.bvid)}
+                          context={tab}
                           key={v.bvid}
+                          onChanged={() => setSelected(null)}
                           onClick={setSelected}
+                          onError={setCardError}
+                          pinned={pinsSet.has(v.bvid)}
                           selected={selected?.bvid === v.bvid}
                           video={v}
                         />
@@ -265,7 +400,12 @@ export function BilibiliView(): React.JSX.Element {
             </ScrollArea>
           </div>
         )}
-        <BilibiliDetailPanel onClose={() => setSelected(null)} video={selected} />
+        <BilibiliDetailPanel
+          context={tab}
+          onClose={() => setSelected(null)}
+          pinned={selected ? pinsSet.has(selected.bvid) : false}
+          video={selected}
+        />
       </div>
     </div>
   )

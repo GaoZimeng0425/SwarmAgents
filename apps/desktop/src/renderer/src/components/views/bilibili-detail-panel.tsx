@@ -11,7 +11,8 @@ import { compact } from 'es-toolkit'
 import { Sparkles, X } from 'lucide-react'
 
 import { swarmApi } from '@/lib/api'
-import { formatDuration } from './bilibili-view'
+import { BilibiliVideoMenu } from './bilibili-video-menu'
+import { formatDuration, type VideoListContext } from './bilibili-view'
 import { TranscribeProgress } from './transcribe-progress'
 
 type DetailTab = 'analysis' | 'text'
@@ -75,9 +76,13 @@ function FullTextView({ label, text }: { label: string; text: string }): React.J
 
 export function BilibiliDetailPanel({
   video,
+  context,
+  pinned,
   onClose,
 }: {
   video: BiliVideo | null
+  context: VideoListContext
+  pinned: boolean
   onClose: () => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
@@ -98,6 +103,8 @@ export function BilibiliDetailPanel({
   })
   const [stage, setStage] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('analysis')
+  // Surfaces errors from the action menu (delete/pin). Cleared on video switch.
+  const [menuError, setMenuError] = useState<string | null>(null)
 
   // Cached analysis for this video, if it has been analyzed before.
   const analysisQuery = useQuery({
@@ -113,6 +120,7 @@ export function BilibiliDetailPanel({
     saveMutation.reset()
     setStage(null)
     setDetailTab('analysis')
+    setMenuError(null)
     // We intentionally omit the mutation objects from deps — we only want to reset on bvid change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.bvid])
@@ -158,10 +166,21 @@ export function BilibiliDetailPanel({
               <p className="text-muted-foreground text-xs">
                 {video.author} · {formatDuration(video.durationSec)}
               </p>
+              {menuError ? <p className="mt-1 text-destructive text-xs">{menuError}</p> : null}
             </div>
-            <Button aria-label="关闭详情" onClick={onClose} size="icon-sm" variant="ghost">
-              <X className="size-4" />
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <BilibiliVideoMenu
+                context={context}
+                onChanged={onClose}
+                onError={setMenuError}
+                pinned={pinned}
+                trigger="icon"
+                video={video}
+              />
+              <Button aria-label="关闭详情" onClick={onClose} size="icon-sm" variant="ghost">
+                <X className="size-4" />
+              </Button>
+            </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             {/* Left column: video metadata + actions. */}

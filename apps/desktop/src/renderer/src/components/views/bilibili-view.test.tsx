@@ -16,6 +16,9 @@ beforeEach(() => {
   vi.spyOn(swarmApi, 'bilibiliOnTranscribeProgress').mockReturnValue(() => {})
   vi.spyOn(swarmApi, 'bilibiliAnalyzedBvids').mockResolvedValue([])
   vi.spyOn(swarmApi, 'bilibiliGetAnalysis').mockResolvedValue(null)
+  // Local archive/pins have no login gate and load on mount; stub them empty.
+  vi.spyOn(swarmApi, 'bilibiliArchiveList').mockResolvedValue([])
+  vi.spyOn(swarmApi, 'bilibiliPinsList').mockResolvedValue([])
 })
 
 function wrap(node: React.ReactElement): React.ReactElement {
@@ -67,6 +70,23 @@ describe('buildRows', () => {
     expect(rows.some((r) => r.kind === 'header')).toBe(false)
     const bvids = rows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
     expect(bvids).toEqual(['BV2'])
+  })
+
+  it('filters pinned videos out of the favorites and watch-later lists', () => {
+    const pinned = new Set(['BV1'])
+    const favRows = buildRows(SAMPLE, 'favorites', 'all', 3, [], pinned)
+    const favBvids = favRows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
+    expect(favBvids).toEqual(['BV3'])
+    const wlRows = buildRows(SAMPLE, 'watch-later', 'all', 3, [], pinned)
+    const wlBvids = wlRows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
+    expect(wlBvids).toEqual(['BV2'])
+  })
+
+  it('archive tab renders the local archive regardless of pinned state', () => {
+    const archive = [{ bvid: 'BVA', title: '存档甲', cover: '', author: 'up', durationSec: 1, intro: '', source: 'CS' }]
+    const rows = buildRows({ folders: [], watchLater: [] }, 'archive', 'all', 3, archive, new Set(['BVA']))
+    const bvids = rows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
+    expect(bvids).toEqual(['BVA'])
   })
 })
 
@@ -201,7 +221,8 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
     vi.spyOn(swarmApi, 'bilibiliAnalyzedBvids').mockResolvedValue(['BV1'])
     render(wrap(<BilibiliView />))
-    const card = (await screen.findByText('视频甲')).closest('button') as HTMLElement
+    await screen.findByText('视频甲') // wait for the list to render
+    const card = document.querySelector('[data-bvid="BV1"]') as HTMLElement
     expect(within(card).getByText('AI')).toBeInTheDocument()
   })
 
@@ -251,5 +272,34 @@ describe('BilibiliView', () => {
     render(wrap(<BilibiliView />))
     await screen.findByText('me') // wait for render
     expect(screen.queryByText(/AI 已解析/)).not.toBeInTheDocument()
+  })
+
+  it('shows the pinned strip above the grid when pins are present', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue({ folders: [], watchLater: [] })
+    vi.spyOn(swarmApi, 'bilibiliPinsList').mockResolvedValue([
+      { bvid: 'BVP', title: '置顶甲', cover: '', author: 'up', durationSec: 1, intro: '', source: '收藏' },
+    ])
+    render(wrap(<BilibiliView />))
+    expect(await screen.findByText('置顶甲')).toBeInTheDocument()
+  })
+
+  it('shows the archive tab and lists archived videos', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue({ folders: [], watchLater: [] })
+    vi.spyOn(swarmApi, 'bilibiliArchiveList').mockResolvedValue([
+      { bvid: 'BVA', title: '存档甲', cover: '', author: 'up', durationSec: 1, intro: '', source: 'CS' },
+    ])
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByRole('tab', { name: /本地存档/ }))
+    expect(await screen.findByText('存档甲')).toBeInTheDocument()
+  })
+
+  it('shows an empty prompt on the archive tab when there are no archived videos', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue({ folders: [], watchLater: [] })
+    render(wrap(<BilibiliView />))
+    fireEvent.click(await screen.findByRole('tab', { name: /本地存档/ }))
+    expect(await screen.findByText('本地存档为空')).toBeInTheDocument()
   })
 })

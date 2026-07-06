@@ -42,6 +42,28 @@ export async function get<T>(url: string, c: BiliCredentials): Promise<T> {
   return body.data as T
 }
 
+// POST a form-encoded body. Mutation endpoints (delete fav/watch-later) require
+// the csrf token (bili_jct) both as a form field and via the session cookie,
+// plus UA/Referer to dodge -412 风控. Same envelope handling as get().
+export async function post<T>(url: string, form: Record<string, string>, c: BiliCredentials): Promise<T> {
+  const body = new URLSearchParams({ ...form, csrf: c.biliJct }).toString()
+  const res = await fetch(url, {
+    method: 'POST',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    headers: {
+      cookie: cookieHeader(c),
+      'user-agent': BILI_UA,
+      referer: BILI_REFERER,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  })
+  if (!res.ok) throw new Error(`Bilibili HTTP ${res.status} ${res.statusText} for ${url}`)
+  const json = (await res.json()) as Envelope<T>
+  if (json.code !== 0) throw new Error(`Bilibili API code ${json.code}: ${json.message ?? 'unknown'}`)
+  return json.data as T
+}
+
 type NavData = { isLogin?: boolean; uname?: string; mid?: number }
 
 export async function getNav(c: BiliCredentials): Promise<BiliLoginStatus> {
@@ -68,6 +90,8 @@ export async function getFavFolders(c: BiliCredentials, mid: number): Promise<Bi
 }
 
 type FavMediaRow = {
+  id: number
+  type: number
   bvid: string
   title: string
   cover: string
@@ -88,6 +112,11 @@ export async function getFavResources(c: BiliCredentials, mediaId: number, folde
     durationSec: m.duration,
     intro: m.intro ?? '',
     source: folderTitle,
+    // Carried through so the batch-del endpoint can remove this row later:
+    // resources = `<oid>:<type>` scoped to media_id.
+    favMediaId: mediaId,
+    favOid: m.id,
+    favType: m.type,
   }))
 }
 
@@ -131,4 +160,22 @@ export async function getCid(c: BiliCredentials, bvid: string): Promise<number> 
     c
   )
   return data.cid
+}
+
+// Remove a single video from the user's watch-later list.
+export async function deleteWatchLater(c: BiliCredentials, bvid: string): Promise<void> {
+  await post<unknown>('https://api.bilibili.com/x/v2/history/toview/del', { bvid }, c)
+}
+
+// Remove a single resource from a favorites folder. Bilibili's batch-del takes
+// `resources` as `oid:type` (comma-separated for batches) scoped to `media_id`.
+export async function deleteFavResource(c: BiliCredentials, mediaId: number, oid: number, type: number): Promise<void> {
+  await post<unknown>(
+    'https://api.bilibili.com/x/v3/fav/resource/batch-del',
+    {
+      media_id: String(mediaId),
+      resources: `${oid}:${type}`,
+    },
+    c
+  )
 }

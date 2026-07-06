@@ -1,9 +1,11 @@
-import type { BiliAnalysis } from '@swarm/protocol'
+import type { BiliAnalysis, BiliVideo } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AnalysisStore } from './analysis-store'
+import type { ArchiveStore } from './archive-store'
 import type { Auth } from './auth'
 import { buildList, openVideo, wireBilibiliIpc } from './ipc'
+import type { PinStore } from './pin-store'
 import type { Store } from './store'
 
 // In-memory analysis store for IPC tests.
@@ -15,6 +17,37 @@ function fakeAnalysisStore(): AnalysisStore & { _map: Map<string, BiliAnalysis> 
       m.set(a.bvid, a)
     },
     bvids: () => [...m.keys()],
+    _map: m,
+  }
+}
+
+// In-memory archive/pin stores keyed by bvid, mirroring the on-disk shape.
+function fakeArchiveStore(): ArchiveStore & { _map: Map<string, BiliVideo> } {
+  const m = new Map<string, BiliVideo>()
+  return {
+    list: () => [...m.values()],
+    put: async (v) => {
+      m.set(v.bvid, v)
+    },
+    remove: async (b) => {
+      m.delete(b)
+    },
+    has: (b) => m.has(b),
+    _map: m,
+  }
+}
+
+function fakePinStore(): PinStore & { _map: Map<string, BiliVideo> } {
+  const m = new Map<string, BiliVideo>()
+  return {
+    list: () => [...m.values()],
+    put: async (v) => {
+      m.set(v.bvid, v)
+    },
+    remove: async (b) => {
+      m.delete(b)
+    },
+    has: (b) => m.has(b),
     _map: m,
   }
 }
@@ -71,7 +104,14 @@ describe('wireBilibiliIpc / bilibili:process', () => {
       load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
       save: vi.fn(async () => undefined),
     }
-    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, analysisStore: fakeAnalysisStore(), getInjection: () => null })
+    wireBilibiliIpc({
+      auth: fakeAuth,
+      store: fakeStore,
+      analysisStore: fakeAnalysisStore(),
+      archiveStore: fakeArchiveStore(),
+      pinStore: fakePinStore(),
+      getInjection: () => null,
+    })
 
     // Act
     const result = await invokeHandler('bilibili:process', 'BV1test')
@@ -100,7 +140,14 @@ describe('wireBilibiliIpc / analysis cache queries', () => {
       source: 'subtitle',
       analyzedAt: '2026-06-28T00:00:00.000Z',
     })
-    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, analysisStore, getInjection: () => null })
+    wireBilibiliIpc({
+      auth: fakeAuth,
+      store: fakeStore,
+      analysisStore,
+      archiveStore: fakeArchiveStore(),
+      pinStore: fakePinStore(),
+      getInjection: () => null,
+    })
 
     expect(await invokeHandler('bilibili:analyzedBvids')).toEqual(['BV1'])
     expect(await invokeHandler('bilibili:getAnalysis', 'BV1')).toMatchObject({ bvid: 'BV1', source: 'subtitle' })
@@ -138,11 +185,103 @@ describe('wireBilibiliIpc / bilibili:save', () => {
       load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
       save: vi.fn(async () => undefined),
     }
-    wireBilibiliIpc({ auth: fakeAuth, store: fakeStore, analysisStore: fakeAnalysisStore(), getInjection: () => null })
+    wireBilibiliIpc({
+      auth: fakeAuth,
+      store: fakeStore,
+      analysisStore: fakeAnalysisStore(),
+      archiveStore: fakeArchiveStore(),
+      pinStore: fakePinStore(),
+      getInjection: () => null,
+    })
     const video = vid('BV1', 'CS')
     const summary = { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] }
     const result = await invokeHandler('bilibili:save', video, summary)
     expect(result).toMatchObject({ ok: false, code: 'no_vault' })
+  })
+})
+
+describe('wireBilibiliIpc / delete + archive + pins', () => {
+  // Shared fakes for the handlers below. Returns the stores so assertions can
+  // inspect the in-memory maps directly.
+  function buildHandlers(): {
+    archiveStore: ReturnType<typeof fakeArchiveStore>
+    pinStore: ReturnType<typeof fakePinStore>
+  } {
+    const fakeAuth: Auth = {
+      status: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      login: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      logout: vi.fn(async () => undefined),
+    }
+    const fakeStore: Store = {
+      load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
+      save: vi.fn(async () => undefined),
+    }
+    const archiveStore = fakeArchiveStore()
+    const pinStore = fakePinStore()
+    wireBilibiliIpc({
+      auth: fakeAuth,
+      store: fakeStore,
+      analysisStore: fakeAnalysisStore(),
+      archiveStore,
+      pinStore,
+      getInjection: () => null,
+    })
+    return { archiveStore, pinStore }
+  }
+
+  it('deleteWatchLater returns not_logged_in when credentials are absent', async () => {
+    const fakeAuth: Auth = {
+      status: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      login: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      logout: vi.fn(async () => undefined),
+    }
+    const fakeStore: Store = {
+      load: vi.fn(async () => ({ credentials: null, obsidian: null, transcription: null })),
+      save: vi.fn(async () => undefined),
+    }
+    wireBilibiliIpc({
+      auth: fakeAuth,
+      store: fakeStore,
+      analysisStore: fakeAnalysisStore(),
+      archiveStore: fakeArchiveStore(),
+      pinStore: fakePinStore(),
+      getInjection: () => null,
+    })
+    const result = await invokeHandler('bilibili:deleteWatchLater', 'BV1')
+    expect(result).toMatchObject({ ok: false, code: 'not_logged_in' })
+  })
+
+  it('deleteFav returns unknown when fav ids are missing on the video', async () => {
+    buildHandlers()
+    const video = vid('BV1', 'CS') // no favMediaId/favOid/favType
+    const result = await invokeHandler('bilibili:deleteFav', video)
+    expect(result).toMatchObject({ ok: false, code: 'unknown' })
+  })
+
+  it('archivePut/archiveList round-trips through the store', async () => {
+    const { archiveStore } = buildHandlers()
+    const video = { ...vid('BV1', 'CS'), favMediaId: 1, favOid: 2, favType: 2 }
+    await invokeHandler('bilibili:archivePut', video)
+    expect(archiveStore._map.get('BV1')).toEqual(video)
+    const list = (await invokeHandler('bilibili:archiveList')) as unknown[]
+    expect(list).toHaveLength(1)
+  })
+
+  it('archiveRemove deletes from the store', async () => {
+    const { archiveStore } = buildHandlers()
+    const video = vid('BV1', 'CS')
+    await invokeHandler('bilibili:archivePut', video)
+    await invokeHandler('bilibili:archiveRemove', 'BV1')
+    expect(archiveStore._map.has('BV1')).toBe(false)
+  })
+
+  it('pinsPut/pinsRemove mutate the pin store', async () => {
+    const { pinStore } = buildHandlers()
+    const video = vid('BVP', '收藏')
+    await invokeHandler('bilibili:pinsPut', video)
+    expect(pinStore._map.has('BVP')).toBe(true)
+    await invokeHandler('bilibili:pinsRemove', 'BVP')
+    expect(pinStore._map.has('BVP')).toBe(false)
   })
 })
 

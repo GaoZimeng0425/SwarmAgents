@@ -1,13 +1,15 @@
 // src/main/bilibili/ipc.ts
 //
 // Wires the Bilibili subsystem to Electron IPC: login/logout/status, an aggregated list
-// endpoint, video processing/open, and Obsidian config/save. buildList is exported for unit testing.
+// endpoint, video processing/open, Obsidian config/save, deletion (with local
+// archive), and pins. buildList is exported for unit testing.
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import type {
   BiliAnalysis,
   BiliCredentials,
+  BiliDeleteResult,
   BiliFavFolder,
   BiliListResult,
   BiliProcessResult,
@@ -24,10 +26,12 @@ import { TranscriptionConfigSchema } from '@swarm/protocol'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import type { AnalysisStore } from './analysis-store'
-import { getFavFolders, getFavResources, getWatchLater } from './api'
+import { deleteFavResource, deleteWatchLater, getFavFolders, getFavResources, getWatchLater } from './api'
+import type { ArchiveStore } from './archive-store'
 import { defaultAudioDeps, extractWav } from './audio'
 import type { Auth } from './auth'
 import { writeNote } from './obsidian'
+import type { PinStore } from './pin-store'
 import { processVideo } from './pipeline'
 import { defaultPlayUrlDeps, getDashAudioUrl } from './playurl'
 import type { Store } from './store'
@@ -97,11 +101,13 @@ export function wireBilibiliIpc(opts: {
   auth: Auth
   store: Store
   analysisStore: AnalysisStore
+  archiveStore: ArchiveStore
+  pinStore: PinStore
   getInjection: () => ProviderInjection | null
 }): {
   dispose: () => void
 } {
-  const { auth, store, analysisStore } = opts
+  const { auth, store, analysisStore, archiveStore, pinStore } = opts
   const deps: ListDeps = { getFavFolders, getFavResources, getWatchLater }
 
   // Populated when bilibili:list resolves so pipeline can look up title/author without refetch.
@@ -278,6 +284,72 @@ export function wireBilibiliIpc(opts: {
 
   ipcMain.handle('bilibili:getAnalysis', (_e, bvid: string): BiliAnalysis | null => analysisStore.get(bvid))
 
+  // Remove a video from Bilibili's watch-later list. Returns a result envelope
+  // (not a throw) so the renderer can surface failures inline. Archiving the
+  // card locally is the renderer's concern — it calls archivePut separately.
+  ipcMain.handle('bilibili:deleteWatchLater', async (_e, bvid: string): Promise<BiliDeleteResult> => {
+    const started = Date.now()
+    const cfg = await store.load()
+    if (!cfg.credentials) {
+      log.warn({ msg: 'deleteWatchLater called while logged out', bvid })
+      return { ok: false, code: 'not_logged_in', message: '未登录' }
+    }
+    try {
+      await deleteWatchLater(cfg.credentials, bvid)
+      log.info({ msg: 'watch-later deleted', bvid, durationMs: Date.now() - started })
+      return { ok: true }
+    } catch (err) {
+      log.error({ msg: 'watch-later delete failed', bvid, err: err instanceof Error ? err.message : String(err) })
+      return { ok: false, code: 'unknown', message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // Remove a favorites video from Bilibili. Needs the fav* ids (oid:type scoped
+  // to media_id) carried on the BiliVideo — the renderer passes the whole video.
+  ipcMain.handle('bilibili:deleteFav', async (_e, video: BiliVideo): Promise<BiliDeleteResult> => {
+    const started = Date.now()
+    const cfg = await store.load()
+    if (!cfg.credentials) {
+      log.warn({ msg: 'deleteFav called while logged out', bvid: video.bvid })
+      return { ok: false, code: 'not_logged_in', message: '未登录' }
+    }
+    if (video.favMediaId === undefined || video.favOid === undefined || video.favType === undefined) {
+      log.error({ msg: 'deleteFav missing fav ids', bvid: video.bvid })
+      return { ok: false, code: 'unknown', message: '缺少收藏夹资源信息' }
+    }
+    try {
+      await deleteFavResource(cfg.credentials, video.favMediaId, video.favOid, video.favType)
+      log.info({ msg: 'fav deleted', bvid: video.bvid, durationMs: Date.now() - started })
+      return { ok: true }
+    } catch (err) {
+      log.error({ msg: 'fav delete failed', bvid: video.bvid, err: err instanceof Error ? err.message : String(err) })
+      return { ok: false, code: 'unknown', message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // Local archive: a "soft delete" keeps the video card locally. Pure local
+  // state — no credentials, no network.
+  ipcMain.handle('bilibili:archiveList', (): BiliVideo[] => archiveStore.list())
+  ipcMain.handle('bilibili:archivePut', (_e, video: BiliVideo): Promise<void> => {
+    log.info({ msg: 'archive put', bvid: video.bvid })
+    return archiveStore.put(video)
+  })
+  ipcMain.handle('bilibili:archiveRemove', (_e, bvid: string): Promise<void> => {
+    log.info({ msg: 'archive remove', bvid })
+    return archiveStore.remove(bvid)
+  })
+
+  // Pins: local "favorites" shown in the page's top bar. Pure local state.
+  ipcMain.handle('bilibili:pinsList', (): BiliVideo[] => pinStore.list())
+  ipcMain.handle('bilibili:pinsPut', (_e, video: BiliVideo): Promise<void> => {
+    log.info({ msg: 'pin put', bvid: video.bvid })
+    return pinStore.put(video)
+  })
+  ipcMain.handle('bilibili:pinsRemove', (_e, bvid: string): Promise<void> => {
+    log.info({ msg: 'pin remove', bvid })
+    return pinStore.remove(bvid)
+  })
+
   log.info({ msg: 'bilibili IPC wired' })
   return {
     dispose(): void {
@@ -299,6 +371,14 @@ export function wireBilibiliIpc(opts: {
         'bilibili:transcribe',
         'bilibili:analyzedBvids',
         'bilibili:getAnalysis',
+        'bilibili:deleteWatchLater',
+        'bilibili:deleteFav',
+        'bilibili:archiveList',
+        'bilibili:archivePut',
+        'bilibili:archiveRemove',
+        'bilibili:pinsList',
+        'bilibili:pinsPut',
+        'bilibili:pinsRemove',
       ]) {
         ipcMain.removeHandler(ch)
       }

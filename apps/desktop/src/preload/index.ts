@@ -8,6 +8,7 @@ import type {
   ApiStyle,
   BiliAnalysis,
   BilibiliBridge,
+  BiliDeleteResult,
   BiliListResult,
   BiliLoginStatus,
   BiliProcessResult,
@@ -254,6 +255,15 @@ const bilibili: BilibiliBridge = {
   },
   analyzedBvids: () => ipcRenderer.invoke('bilibili:analyzedBvids') as Promise<string[]>,
   getAnalysis: (bvid: string) => ipcRenderer.invoke('bilibili:getAnalysis', bvid) as Promise<BiliAnalysis | null>,
+  deleteWatchLater: (bvid: string) =>
+    ipcRenderer.invoke('bilibili:deleteWatchLater', bvid) as Promise<BiliDeleteResult>,
+  deleteFav: (video: BiliVideo) => ipcRenderer.invoke('bilibili:deleteFav', video) as Promise<BiliDeleteResult>,
+  archiveList: () => ipcRenderer.invoke('bilibili:archiveList') as Promise<BiliVideo[]>,
+  archivePut: (video: BiliVideo) => ipcRenderer.invoke('bilibili:archivePut', video) as Promise<void>,
+  archiveRemove: (bvid: string) => ipcRenderer.invoke('bilibili:archiveRemove', bvid) as Promise<void>,
+  pinsList: () => ipcRenderer.invoke('bilibili:pinsList') as Promise<BiliVideo[]>,
+  pinsPut: (video: BiliVideo) => ipcRenderer.invoke('bilibili:pinsPut', video) as Promise<void>,
+  pinsRemove: (bvid: string) => ipcRenderer.invoke('bilibili:pinsRemove', bvid) as Promise<void>,
 }
 
 const gmail: GmailBridge = {
