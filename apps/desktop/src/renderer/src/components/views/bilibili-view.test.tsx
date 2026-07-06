@@ -233,4 +233,23 @@ describe('BilibiliView', () => {
     await waitFor(() => expect(save).toHaveBeenCalled())
     expect(await screen.findByText(/已保存/)).toBeInTheDocument()
   })
+
+  it('shows the AI stat chip with analyzed/total counts', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE) // 3 videos total (2 folders + 1 watch-later)
+    vi.spyOn(swarmApi, 'bilibiliAnalyzedBvids').mockResolvedValue(['BV1', 'BV3']) // 2 analyzed
+    render(wrap(<BilibiliView />))
+    expect(await screen.findByText(/AI 已解析/)).toBeInTheDocument()
+    const chip = screen.getByText(/AI 已解析/).closest('span')?.parentElement
+    expect(chip).toHaveTextContent('2')
+    expect(chip).toHaveTextContent('3')
+  })
+
+  it('hides the AI stat chip when there are no videos', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue({ folders: [], watchLater: [] })
+    render(wrap(<BilibiliView />))
+    await screen.findByText('me') // wait for render
+    expect(screen.queryByText(/AI 已解析/)).not.toBeInTheDocument()
+  })
 })

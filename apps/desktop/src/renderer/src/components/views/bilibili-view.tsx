@@ -17,6 +17,7 @@ import {
 } from '@swarm/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { chunk } from 'es-toolkit'
+import { Sparkles } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
@@ -129,6 +130,12 @@ export function BilibiliView(): React.JSX.Element {
     queryFn: () => swarmApi.bilibiliAnalyzedBvids(),
   })
   const analyzedSet = useMemo(() => new Set(analyzedQuery.data ?? []), [analyzedQuery.data])
+  const totalCount = useMemo(() => {
+    const favs = listQuery.data?.folders ?? []
+    const inFolders = favs.reduce((n, f) => n + f.videos.length, 0)
+    return inFolders + (listQuery.data?.watchLater.length ?? 0)
+  }, [listQuery.data])
+  const analyzedCount = analyzedSet.size
 
   const [tab, setTab] = useState<Tab>('favorites')
   const [folderId, setFolderId] = useState<FolderFilter>('all')
@@ -204,7 +211,16 @@ export function BilibiliView(): React.JSX.Element {
           </Select>
         ) : null}
 
-        <span className="ml-auto text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
+        {totalCount > 0 ? (
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-linear-to-br from-violet-500/10 to-primary/10 px-3 py-1 text-xs">
+            <Sparkles className="size-3 text-violet-500" />
+            <span className="font-semibold text-violet-700 dark:text-violet-300">
+              AI 已解析 <span className="tabular-nums">{analyzedCount}</span> /{' '}
+              <span className="tabular-nums">{totalCount}</span>
+            </span>
+          </span>
+        ) : null}
+        <span className="text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
       </div>
 
       <div className="flex min-h-0 flex-1 gap-0">
