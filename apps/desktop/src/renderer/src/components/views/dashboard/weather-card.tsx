@@ -11,9 +11,6 @@ import { useSettingsDialog } from '@/stores/settings-dialog'
 
 export function WeatherCard(): React.JSX.Element {
   const { config, forecast, status, error, refresh } = useWeather()
-  // openSettings('weather') targets the weather section. 'weather' joins the
-  // SettingsSection union in Task 12 (Settings view wiring); until then this
-  // is the single expected typecheck note in this file.
   const openSettings = useSettingsDialog((s) => s.openSettings)
 
   // Fetch on mount. The hook's refresh() handles geolocation + IPC.
@@ -33,7 +30,7 @@ export function WeatherCard(): React.JSX.Element {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [forecast, refresh])
 
-  const configured = !!config.projectId && !!config.credentialId && !!config.privateKeyPem
+  const configured = !!config.projectId && !!config.credentialId && config.hasPrivateKey
   if (!configured) {
     return (
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">

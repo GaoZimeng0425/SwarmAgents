@@ -4,7 +4,7 @@
 // coordinates (GPS via renderer args, else IP fallback), checks the cache, then
 // calls fetchGridHourly. Every business path is logged per AGENTS.md §5.
 import { createLogger } from '@shared/logger'
-import type { WeatherConfig, WeatherConfigOnDisk, WeatherForecast } from '@swarm/protocol'
+import type { WeatherConfig, WeatherConfigOnDisk, WeatherConfigView, WeatherForecast } from '@swarm/protocol'
 
 import { locateByIp, reverseGeocode } from './geo'
 import { fetchGridHourly } from './qweather'
@@ -14,12 +14,20 @@ const log = createLogger({ process: 'main' }).child({ component: 'weather-servic
 
 export type SetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
+// Redact the config to the renderer-visible projection: the private key PEM is
+// replaced by a hasPrivateKey boolean so the secret never crosses the IPC
+// boundary on read (matches providers/web-search/gmail). The service keeps the
+// full config internally for JWT signing; only the read path redacts.
+function toView(c: WeatherConfig): WeatherConfigView {
+  return { host: c.host, projectId: c.projectId, credentialId: c.credentialId, hasPrivateKey: !!c.privateKeyPem }
+}
+
 export type Service = {
-  getConfig(): WeatherConfig
+  getConfig(): WeatherConfigView
   setConfig(c: WeatherConfig): Promise<SetResult>
   /** lng/lat null → IP fallback. Throws on not-configured / fetch failure. */
   getForecast(lng: number | null, lat: number | null): Promise<WeatherForecast>
-  onConfigChanged(cb: (c: WeatherConfig) => void): () => void
+  onConfigChanged(cb: (c: WeatherConfigView) => void): () => void
 }
 
 const CACHE_TTL_MS = 30 * 60 * 1000
@@ -42,13 +50,13 @@ function validateConfig(c: WeatherConfig): string | null {
 export async function createService(opts: { store: Store }): Promise<Service> {
   const disk = await opts.store.load()
   let state: WeatherConfig = disk.weather
-  const listeners = new Set<(c: WeatherConfig) => void>()
+  const listeners = new Set<(c: WeatherConfigView) => void>()
 
   // Single-slot cache keyed by rounded "lng,lat".
   let cache: { key: string; forecast: WeatherForecast } | null = null
 
   const emit = (): void => {
-    for (const cb of listeners) cb(state)
+    for (const cb of listeners) cb(toView(state))
   }
 
   const persist = async (next: WeatherConfigOnDisk): Promise<SetResult> => {
@@ -65,7 +73,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
   }
 
   return {
-    getConfig: () => state,
+    getConfig: () => toView(state),
     async setConfig(c) {
       const err = validateConfig(c)
       if (err) return { ok: false, code: 'invalid', message: err }

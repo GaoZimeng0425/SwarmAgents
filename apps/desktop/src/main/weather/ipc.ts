@@ -41,7 +41,22 @@ export function wireWeatherIpc(args: { service: Service }): { dispose: () => voi
         })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err)
-          const code = message === 'not configured' ? 'not_configured' : 'fetch_failed'
+          // Map to the WeatherForecastResult.code union. geo.ts throws messages
+          // like "ip-api HTTP …", "ip-api returned no coordinates", or
+          // "QWeather GeoAPI …" — all locate failures. The service throws the
+          // literal "not configured" sentinel before any locate attempt.
+          const lower = message.toLowerCase()
+          const isLocate =
+            lower.includes('ip-api') ||
+            lower.includes('coordinates') ||
+            lower.includes('geoapi') ||
+            lower.includes('locate')
+          const code =
+            message === 'not configured'
+              ? 'not_configured'
+              : isLocate
+                ? 'locate_failed'
+                : 'fetch_failed'
           return { ok: false as const, code, message }
         })
     },

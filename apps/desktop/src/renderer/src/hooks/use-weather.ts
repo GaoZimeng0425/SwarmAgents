@@ -2,19 +2,20 @@
 // extended with forecast state (status machine: idle/locating/fetching/ready/error)
 // and a refresh() that runs geolocation in the renderer before asking main for data.
 import { useCallback, useEffect, useState } from 'react'
-import type { WeatherConfig, WeatherForecast } from '@swarm/protocol'
+import type { WeatherConfigView, WeatherForecast } from '@swarm/protocol'
 
 type Status = 'idle' | 'locating' | 'fetching' | 'ready' | 'error'
 
-const DEFAULT_CONFIG: WeatherConfig = {
+// Redacted read projection: no privateKeyPem (the PEM never crosses IPC on read).
+const DEFAULT_CONFIG: WeatherConfigView = {
   host: 'https://devapi.qweather.com',
   projectId: '',
   credentialId: '',
-  privateKeyPem: '',
+  hasPrivateKey: false,
 }
 
 export type UseWeather = {
-  config: WeatherConfig
+  config: WeatherConfigView
   forecast: WeatherForecast | null
   status: Status
   error: string | null
@@ -25,7 +26,7 @@ export type UseWeather = {
 }
 
 export function useWeather(): UseWeather {
-  const [config, setConfig] = useState<WeatherConfig>(DEFAULT_CONFIG)
+  const [config, setConfig] = useState<WeatherConfigView>(DEFAULT_CONFIG)
   const [forecast, setForecast] = useState<WeatherForecast | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)

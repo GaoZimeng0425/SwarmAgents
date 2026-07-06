@@ -58,7 +58,7 @@ import type {
   TranscriptionConfig,
   UIEvent,
   WeatherBridge,
-  WeatherConfig,
+  WeatherConfigView,
   WeatherForecast,
   WeatherForecastResult,
   WeatherSetResult,
@@ -172,7 +172,7 @@ const webSearch: WebSearchBridge = {
 }
 
 const weather: WeatherBridge = {
-  getConfig: () => ipcRenderer.invoke('weather:getConfig') as Promise<WeatherConfig>,
+  getConfig: () => ipcRenderer.invoke('weather:getConfig') as Promise<WeatherConfigView>,
   setConfig: (c) => ipcRenderer.invoke('weather:setConfig', c) as Promise<WeatherSetResult>,
   getForecast: (lng, lat) =>
     ipcRenderer.invoke('weather:getForecast', lng, lat) as Promise<WeatherForecastResult>,

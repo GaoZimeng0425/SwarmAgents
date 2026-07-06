@@ -15,6 +15,18 @@ export function defaultWeatherConfig(): WeatherConfig {
   return WeatherConfig.parse({})
 }
 
+// Renderer-visible projection of the config. The private key is replaced by a
+// hasPrivateKey boolean so the PEM never crosses the IPC boundary on read —
+// matches the providers/web-search/gmail redaction pattern. setConfig still
+// accepts the full WeatherConfig (write path) when the user pastes a new key.
+export const WeatherConfigView = z.object({
+  host: z.string(),
+  projectId: z.string(),
+  credentialId: z.string(),
+  hasPrivateKey: z.boolean(),
+})
+export type WeatherConfigView = z.infer<typeof WeatherConfigView>
+
 // On-disk wrapper. Matches the `{ <module>: <config> }` shape used by
 // web-search/gmail so the store layer is identical.
 export const WeatherConfigOnDisk = z.object({ weather: WeatherConfig })
