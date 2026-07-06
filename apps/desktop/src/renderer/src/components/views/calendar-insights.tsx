@@ -4,21 +4,18 @@ import type { InsightInput } from '@/lib/calendar/build-insights'
 import { buildCalendarInsights } from '@/lib/calendar/build-insights'
 import { cn } from '@/lib/utils'
 
-const TONE: Record<string, { wrap: string; tag: string; icon: string }> = {
+const TONE: Record<string, { wrap: string; tag: string }> = {
   danger: {
     wrap: 'border-red-500/20 bg-card',
     tag: 'text-red-600 dark:text-red-400',
-    icon: 'bg-red-500/10 text-red-500',
   },
   violet: {
     wrap: 'border-violet-500/20 bg-card',
     tag: 'text-violet-600 dark:text-violet-400',
-    icon: 'bg-violet-500/10 text-violet-500',
   },
   green: {
     wrap: 'border-emerald-500/20 bg-card',
     tag: 'text-emerald-600 dark:text-emerald-400',
-    icon: 'bg-emerald-500/10 text-emerald-500',
   },
 }
 
