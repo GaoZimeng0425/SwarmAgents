@@ -13,6 +13,9 @@ import type {
   BiliTranscribeProgress,
   BiliTranscribeResult,
   BiliVideo,
+  CalendarConfigView,
+  CalendarEvent,
+  CalendarLocalInput,
   CronJobSummary,
   CronRun,
   MemoryView,
@@ -84,6 +87,13 @@ export const swarmApi = {
     window.swarm.bilibili.onTranscribeProgress(cb),
   bilibiliAnalyzedBvids: (): Promise<string[]> => window.swarm.bilibili.analyzedBvids(),
   bilibiliGetAnalysis: (bvid: string): Promise<BiliAnalysis | null> => window.swarm.bilibili.getAnalysis(bvid),
+  // Calendar (page-surface subset; settings-panel OAuth methods stay on window.swarm.calendar directly).
+  calendarListInRange: (fromMs: number, toMs: number): Promise<CalendarEvent[]> =>
+    window.swarm.calendar.listInRange(fromMs, toMs),
+  calendarCreateLocal: (input: CalendarLocalInput): Promise<CalendarEvent> => window.swarm.calendar.createLocal(input),
+  calendarDeleteLocal: (id: string): Promise<boolean> => window.swarm.calendar.deleteLocal(id),
+  calendarOnStateChanged: (cb: (view: CalendarConfigView) => void): (() => void) =>
+    window.swarm.calendar.onStateChanged(cb),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
   listAllCronJobs: (): Promise<ScheduledTask[]> => window.swarm.cron.listAll(),
   listAllCronRuns: (): Promise<CronRun[]> => window.swarm.cron.listAllRuns(),

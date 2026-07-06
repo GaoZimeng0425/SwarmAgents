@@ -32,6 +32,7 @@ import { HtmlText } from '@/components/html-text'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCalendarEvents, useCreateLocalEvent, useDeleteLocalEvent } from '@/hooks/use-calendar'
 import { useAllCronJobs, useAllCronRuns, useCancelCronJob } from '@/hooks/use-cron'
+import { swarmApi } from '@/lib/api'
 import { occurrencesInRange } from '@/lib/cron-occurrences'
 import { cn } from '@/lib/utils'
 
@@ -93,7 +94,7 @@ export function ScheduledCalendarView(): React.JSX.Element {
   // Background daemon syncs push calendar:stateChanged; refetch the range.
   useEffect(
     () =>
-      window.swarm.calendar.onStateChanged(() => {
+      swarmApi.calendarOnStateChanged(() => {
         void qc.invalidateQueries({ queryKey: ['calendar'] })
       }),
     [qc]
