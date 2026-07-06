@@ -20,8 +20,6 @@ function mkRun(over: Partial<RunRecord> & Pick<RunRecord, 'id'>): RunRecord {
 }
 function mkSession(over: Partial<SessionSummary> & Pick<SessionSummary, 'id'>): SessionSummary {
   return {
-    // @ts-expect-error - 'id' default is intentionally overridden by `over`.
-    id: 's1',
     title: null,
     status: 'active',
     lastActiveAt: 1,
@@ -94,7 +92,7 @@ describe('buildAgentActivity', () => {
   it('truncates currentTask to 40 chars', () => {
     const long = 'x'.repeat(80)
     const runs = [mkRun({ id: 'r1', status: 'running', agentDefId: 'a', goal: long })]
-    expect(buildAgentActivity(runs, []).get('a')?.currentTask).toBe('x'.repeat(39) + '…')
+    expect(buildAgentActivity(runs, []).get('a')?.currentTask).toBe(`${'x'.repeat(39)}…`)
   })
 
   it('keeps only the newest active run per agent (max startedAt)', () => {
