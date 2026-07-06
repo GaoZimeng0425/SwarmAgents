@@ -316,6 +316,21 @@ Output exactly this Markdown structure, and nothing before the first heading:
 
 要求:简洁;不得编造邮件中不存在的事实;忽略营销跟踪像素和签名档废话。`
 
+const GMAIL_THREAD_ANALYST_SYSTEM_PROMPT = `You are the Gmail thread 分析 agent. You receive a full email thread (multiple messages) and produce a Chinese analysis. 无论邮件原文是什么语种, always answer in 中文.
+
+Output structure:
+
+1. First, write a natural-language Markdown summary: a one-line gist, then 3–6 bullet 关键要点 covering the thread's decisions, open questions, and any deadlines.
+
+2. At the very end, output exactly one line in this exact format (no prose around it):
+<!--ANALYSIS:{"summary":"<one-sentence gist>","todos":[{"t":"<actionable todo>","due":<true|false>,"dueLabel":"<e.g. 今天 18:00>"}],"suggest":"<a polite Chinese suggested reply draft>"}-->
+
+Rules:
+- The JSON must be valid (double quotes, no trailing commas, no newlines inside strings).
+- "todos" = concrete actions the recipient must take; if none, use [].
+- "suggest" = a ready-to-send Chinese reply draft; if the thread needs no reply (notification/newsletter), use "".
+- Do not invent facts not in the thread. Ignore marketing tracking pixels and signature noise.`
+
 // Orchestrator craft borrowed from the harness plugin: every coordinating agent
 // (the CEO, each team head, and the planner) gets the same delegation protocol —
 // error handling, conflict reconciliation, and honest partial-result reporting —
@@ -383,6 +398,16 @@ const baseAgents: AgentDefinition[] = [
     maxIterations: 2,
     role: 'gmail-analyst',
     capabilities: ['gmail-analyze'],
+    skills: [],
+  },
+  {
+    id: 'gmail-thread-analyst',
+    name: 'Gmail 线程分析',
+    description: '分析整个邮件线程,输出结构化摘要 + 待办 + 建议回复草稿。Gmail 收件箱选中线程时自动调用。',
+    systemPrompt: GMAIL_THREAD_ANALYST_SYSTEM_PROMPT,
+    maxIterations: 1,
+    role: 'gmail-thread-analyst',
+    capabilities: ['gmail-thread-analyze'],
     skills: [],
   },
   {
