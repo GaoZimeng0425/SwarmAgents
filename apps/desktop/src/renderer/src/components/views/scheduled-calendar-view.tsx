@@ -30,9 +30,11 @@ import {
 
 import { HtmlText } from '@/components/html-text'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { CalendarInsights } from '@/components/views/calendar-insights'
 import { useCalendarEvents, useCreateLocalEvent, useDeleteLocalEvent } from '@/hooks/use-calendar'
 import { useAllCronJobs, useAllCronRuns, useCancelCronJob } from '@/hooks/use-cron'
 import { swarmApi } from '@/lib/api'
+import type { InsightInput } from '@/lib/calendar/build-insights'
 import { occurrencesInRange } from '@/lib/cron-occurrences'
 import { cn } from '@/lib/utils'
 
@@ -288,7 +290,7 @@ export function ScheduledCalendarView(): React.JSX.Element {
       </div>
 
       {selected && (
-        <aside className="flex w-[300px] shrink-0 flex-col border-border/60 border-l bg-sidebar/40 backdrop-blur-sm">
+        <aside className="flex w-[320px] shrink-0 flex-col border-border/60 border-l bg-sidebar/40 backdrop-blur-sm">
           <div className="flex h-12 items-center justify-between border-border/60 border-b px-4">
             <div className="flex flex-col leading-tight">
               <span className="font-medium text-[13px]">{format(selected, 'M 月 d 日 EEEE')}</span>
@@ -489,6 +491,19 @@ export function ScheduledCalendarView(): React.JSX.Element {
                   </div>
                 )
               })}
+
+              {/* Agent insights (front-end derived; nothing to show when no rules fire) */}
+              <CalendarInsights
+                items={selectedItems.map(
+                  (it): InsightInput => ({
+                    kind: it.kind === 'event' ? 'event' : it.kind === 'projection' ? 'projection' : 'run',
+                    source: it.kind === 'event' ? it.event.source : 'task',
+                    title: itemLabel(it),
+                    startMs: it.kind === 'event' ? it.event.startMs : it.at.getTime(),
+                    endMs: it.kind === 'event' ? it.event.endMs : it.at.getTime(),
+                  })
+                )}
+              />
             </div>
           </ScrollArea>
         </aside>
