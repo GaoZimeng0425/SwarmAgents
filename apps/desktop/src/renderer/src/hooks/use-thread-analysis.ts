@@ -55,33 +55,57 @@ export function useThreadAnalysis(thread: ThreadAnalysisInput | null): ThreadAna
     if (cache.isPending) return // wait for the cache query to resolve
 
     // Cache miss: trigger analysis and stream the deltas. `thread` is non-null
-    // here (threadId !== null implies thread !== null).
+    // here (threadId !== null implies thread !== null). The effect can't be
+    // async (it must return the cleanup synchronously), so the analyze call is
+    // awaited inside an inner async function that populates a closure-local
+    // `off` once the subscription is actually created.
     setState({ phase: 'streaming', summaryText: '' })
-    void swarmApi.analyzeThread({
-      threadId,
-      subject: thread!.subject,
-      messages: thread!.messages,
-    })
 
     let summaryText = ''
-    const off = window.swarm.subscribeEvents((e: UIEvent) => {
-      if (e.kind === 'gmail.threadAnalysisDelta' && e.threadId === threadId) {
-        summaryText += e.text
-        setState({ phase: 'streaming', summaryText })
-      } else if (e.kind === 'gmail.threadAnalysisComplete' && e.threadId === threadId) {
-        setState({ phase: 'done', summary: e.summary, todos: e.todos, suggest: e.suggest })
-        // Persist via the preload bridge directly (matches MessageAnalysis's
-        // saveAnalysis call site — not routed through swarmApi).
-        void window.swarm.gmail.saveThreadAnalysis(threadId, {
-          summary: e.summary,
-          todos: e.todos,
-          suggest: e.suggest,
-        })
-      } else if (e.kind === 'gmail.threadAnalysisError' && e.threadId === threadId) {
-        setState({ phase: 'error', error: e.error })
+    let off: (() => void) | undefined
+    void (async () => {
+      // Await the ack: a missing provider (or other preflight failure) returns
+      // {ok:false} synchronously with NO follow-up event, so without branching
+      // here the card would hang on "分析中…" forever. Show a retryable error
+      // instead and never subscribe.
+      const ack = await swarmApi.analyzeThread({
+        threadId,
+        subject: thread!.subject,
+        messages: thread!.messages,
+      })
+      if (!ack.ok) {
+        setState({ phase: 'error', error: ack.message })
+        return
       }
-    })
-    return off
+
+      off = window.swarm.subscribeEvents((e: UIEvent) => {
+        if (e.kind === 'gmail.threadAnalysisDelta' && e.threadId === threadId) {
+          // The agent appends a trailing `<!--ANALYSIS:{...}-->` JSON block
+          // carrying the structured payload. Hide it from the streamed text the
+          // moment the sentinel begins — once it starts, nothing after it is a
+          // human-readable summary, and showing it would flash raw JSON before
+          // the card snaps to the one-sentence `summary` on done.
+          const combined = summaryText + e.text
+          const cut = combined.indexOf('<!--ANALYSIS')
+          summaryText = cut === -1 ? combined : combined.slice(0, cut)
+          setState({ phase: 'streaming', summaryText })
+        } else if (e.kind === 'gmail.threadAnalysisComplete' && e.threadId === threadId) {
+          setState({ phase: 'done', summary: e.summary, todos: e.todos, suggest: e.suggest })
+          // Persist via the preload bridge directly (matches MessageAnalysis's
+          // saveAnalysis call site — not routed through swarmApi).
+          void window.swarm.gmail.saveThreadAnalysis(threadId, {
+            summary: e.summary,
+            todos: e.todos,
+            suggest: e.suggest,
+          })
+        } else if (e.kind === 'gmail.threadAnalysisError' && e.threadId === threadId) {
+          setState({ phase: 'error', error: e.error })
+        }
+      })
+    })()
+    return () => {
+      off?.()
+    }
   }, [thread, threadId, cache.data, cache.isPending])
 
   return state

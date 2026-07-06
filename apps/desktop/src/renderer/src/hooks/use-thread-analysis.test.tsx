@@ -97,6 +97,39 @@ describe('useThreadAnalysis', () => {
     })
   })
 
+  it('shows an error phase and does NOT subscribe when analyzeThread acks failure (no provider)', async () => {
+    vi.mocked(swarmApi.analyzeThread).mockResolvedValue({
+      ok: false,
+      code: 'no_provider',
+      message: '请先在 设置 → 模型 配置提供商。',
+    })
+    const subscribeSpy = vi.spyOn(window.swarm, 'subscribeEvents')
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { result } = renderHook(() => useThreadAnalysis(thread), { wrapper: makeWrapper(qc) })
+
+    await waitFor(() => expect(swarmApi.analyzeThread).toHaveBeenCalled())
+    await waitFor(() => expect(result.current.phase).toBe('error'))
+    if (result.current.phase === 'error') {
+      expect(result.current.error).toBe('请先在 设置 → 模型 配置提供商。')
+    }
+    // No provider ⇒ no event stream ⇒ the subscription must never be created.
+    expect(subscribeSpy).not.toHaveBeenCalled()
+  })
+
+  it('hides the trailing <!--ANALYSIS JSON block while streaming', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { result } = renderHook(() => useThreadAnalysis(thread), { wrapper: makeWrapper(qc) })
+    await waitFor(() => expect(swarmApi.analyzeThread).toHaveBeenCalled())
+
+    // A delta whose tail begins the sentinel (closing `-->` not yet streamed).
+    await act(async () => {
+      emit?.({ kind: 'gmail.threadAnalysisDelta', threadId: 't1', text: '一些摘要<!--ANALYSIS:{', ts: 1 })
+    })
+    expect(result.current.phase).toBe('streaming')
+    expect((result.current as { summaryText?: string }).summaryText).not.toContain('<!--ANALYSIS')
+    expect((result.current as { summaryText?: string }).summaryText).toContain('一些摘要')
+  })
+
   it('reaches error on threadAnalysisError', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => useThreadAnalysis(thread), { wrapper: makeWrapper(qc) })
