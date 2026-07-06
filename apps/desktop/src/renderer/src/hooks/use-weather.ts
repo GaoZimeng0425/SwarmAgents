@@ -1,8 +1,14 @@
 // Subscribes to the QWeather config + forecast from main. Mirrors use-web-search,
 // extended with forecast state (status machine: idle/locating/fetching/ready/error)
 // and a refresh() that runs geolocation in the renderer before asking main for data.
-import { useCallback, useEffect, useState } from 'react'
+//
+// State lives in a module-level zustand store (not per-component useState) so the
+// dashboard strip, the drawer and the detail body all read the SAME forecast: the
+// strip is the sole fetch owner, but the drawer/detail must see what it fetched
+// even though they mount later than the `weather:forecastChanged` push.
+import { useEffect } from 'react'
 import type { WeatherConfigView, WeatherForecast } from '@swarm/protocol'
+import { create } from 'zustand'
 
 type Status = 'idle' | 'locating' | 'fetching' | 'ready' | 'error'
 
@@ -26,34 +32,19 @@ export type UseWeather = {
   clear(): void
 }
 
-export function useWeather(): UseWeather {
-  const [config, setConfig] = useState<WeatherConfigView>(DEFAULT_CONFIG)
-  const [forecast, setForecast] = useState<WeatherForecast | null>(null)
-  const [status, setStatus] = useState<Status>('idle')
-  const [error, setError] = useState<string | null>(null)
+type WeatherStore = UseWeather & {
+  /** Reloads config from main. Not part of the public UseWeather shape. */
+  _loadConfig(): Promise<void>
+}
 
-  // Load config once + subscribe to pushed forecasts.
-  useEffect(() => {
-    let cancelled = false
-    void window.swarm.weather.getConfig().then((c) => {
-      if (!cancelled) setConfig(c)
-    })
-    const offForecast = window.swarm.weather.onForecast((f) => {
-      if (!cancelled) {
-        setForecast(f)
-        setStatus('ready')
-        setError(null)
-      }
-    })
-    return () => {
-      cancelled = true
-      offForecast()
-    }
-  }, [])
+export const useWeatherStore = create<WeatherStore>()((set) => ({
+  config: DEFAULT_CONFIG,
+  forecast: null,
+  status: 'idle',
+  error: null,
 
-  const refresh = useCallback(async (): Promise<void> => {
-    setStatus('locating')
-    setError(null)
+  refresh: async (): Promise<void> => {
+    set({ status: 'locating', error: null })
 
     // Renderer-side geolocation (OS permission prompt). On any failure, fall
     // through to IP fallback by passing null coords to main.
@@ -74,24 +65,48 @@ export function useWeather(): UseWeather {
       }
     }
 
-    setStatus('fetching')
+    set({ status: 'fetching' })
     const r = await window.swarm.weather.getForecast(lng, lat)
     if (r.ok) {
       // The push handler will also fire; setting here is harmless and covers
       // the case where the push ordering is delayed.
-      setForecast(r.forecast)
-      setStatus('ready')
+      set({ forecast: r.forecast, status: 'ready' })
     } else {
-      setError(r.message)
-      setStatus('error')
+      set({ error: r.message, status: 'error' })
     }
+  },
+
+  clear: (): void => {
+    set({ forecast: null, status: 'idle', error: null })
+  },
+
+  _loadConfig: async (): Promise<void> => {
+    if (typeof window === 'undefined' || !window.swarm?.weather) return
+    const config = await window.swarm.weather.getConfig()
+    set({ config })
+  },
+}))
+
+// The forecast push listener is global state, not per-component: bind it once
+// no matter how many components call useWeather().
+let bound = false
+function bindForecastListener(): void {
+  if (bound) return
+  if (typeof window === 'undefined' || !window.swarm?.weather) return
+  bound = true
+  window.swarm.weather.onForecast((forecast) => {
+    useWeatherStore.setState({ forecast, status: 'ready', error: null })
+  })
+}
+
+export function useWeather(): UseWeather {
+  // Bind the push listener once globally, and reload config on every mount so
+  // reopening Settings (which writes config via a different call) is reflected.
+  useEffect(() => {
+    bindForecastListener()
+    void useWeatherStore.getState()._loadConfig()
   }, [])
 
-  const clear = useCallback((): void => {
-    setForecast(null)
-    setStatus('idle')
-    setError(null)
-  }, [])
-
+  const { config, forecast, status, error, refresh, clear } = useWeatherStore()
   return { config, forecast, status, error, refresh, clear }
 }
