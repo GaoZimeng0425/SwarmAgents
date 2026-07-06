@@ -2,6 +2,7 @@ import {
   Bot,
   Boxes,
   Calendar,
+  CloudSun,
   DollarSign,
   Info,
   Lock,
@@ -27,6 +28,7 @@ import { PermissionsView } from '@/components/views/permissions-view'
 import { ProvidersView } from '@/components/views/providers-view'
 import { SkillsView } from '@/components/views/skills-view'
 import { WebSearchView } from '@/components/views/web-search-view'
+import { WeatherView } from '@/components/views/weather-view'
 import { cn } from '@/lib/utils'
 import { type SettingsSection, useSettingsDialog } from '@/stores/settings-dialog'
 
@@ -35,6 +37,7 @@ const SECTIONS: { key: SettingsSection; label: string; icon: typeof SettingsIcon
   { key: 'providers', label: 'Providers', icon: Bot, View: ProvidersView },
   { key: 'mcp', label: 'MCP Servers', icon: Boxes, View: McpServersView },
   { key: 'web-search', label: 'Web Search', icon: Search, View: WebSearchView },
+  { key: 'weather', label: 'Weather', icon: CloudSun, View: WeatherView },
   { key: 'gmail', label: 'Gmail', icon: Mail, View: GmailSettingsView },
   { key: 'calendar', label: 'Calendar', icon: Calendar, View: CalendarSettingsView },
   { key: 'skills', label: 'Skills', icon: Sparkles, View: SkillsView },
