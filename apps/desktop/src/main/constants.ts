@@ -32,6 +32,9 @@ export const paths = {
   // userData — credentials + DB/memory, not for hand-editing.
   db: () => join(app.getPath('userData'), 'agent-service.db'),
   memory: () => join(app.getPath('userData'), 'agent-memory.json'),
+  // Session-markdown exports (the command palette's "export" action). Plain
+  // .md files the user opens outside the app, so userData (not swarmHome).
+  exports: () => join(app.getPath('userData'), 'exports'),
   providers: () => join(app.getPath('userData'), 'providers.enc'),
   bilibili: () => join(app.getPath('userData'), 'bilibili.bin'),
   bilibiliAnalysis: () => join(app.getPath('userData'), 'bilibili-analysis.json'),

@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
@@ -16,6 +18,7 @@ import { ulid } from 'ulid'
 
 import { withAgentTypes } from '../agents/prompt'
 import type { AgentStore } from '../agents/store'
+import { buildMarkdown } from '../conversation/markdown-export'
 import type { ConversationStore } from '../conversation/store'
 import { createAgentDirectory } from '../directory/receptionist'
 import type { Broadcaster } from '../ipc/broadcaster'
@@ -66,6 +69,8 @@ type SessionServiceConfig = {
   getBudgetConfig?: () => BudgetConfig
   /** Live predicate from the tool-toggles store; disabled skills are dropped from the catalog. */
   isSkillEnabled?: (name: string) => boolean
+  /** Directory where session-markdown exports are written. Required for exportSessionMarkdown. */
+  exportsDir?: string
 }
 
 export type SessionService = {
@@ -93,6 +98,8 @@ export type SessionService = {
   reorderSessions(orderedIds: string[]): void
   listSessions(): import('@swarm/protocol').SessionSummary[]
   getRunEvents(sessionId: string): import('@swarm/protocol').RunEvent[]
+  /** Build a markdown transcript of the session and write it to exportsDir; returns the file path. */
+  exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
   /** In-memory terminal-status registry (query directly: isTerminal/getStatus). */
   terminalRegistry: TerminalRegistry
@@ -698,6 +705,18 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
 
     getRunEvents(sessionId) {
       return store.getRunEvents(sessionId)
+    },
+
+    async exportSessionMarkdown(sessionId) {
+      const rows = store.getRunEvents(sessionId)
+      const md = buildMarkdown(rows)
+      const dir = cfg.exportsDir
+      if (!dir) throw new Error('exportSessionMarkdown: exportsDir not configured')
+      await mkdir(dir, { recursive: true })
+      const file = join(dir, `${sessionId}-${Date.now()}.md`)
+      await writeFile(file, md, 'utf8')
+      log.info({ msg: 'session exported', sessionId, path: file })
+      return { path: file }
     },
 
     getUsageStats(rangeDays) {

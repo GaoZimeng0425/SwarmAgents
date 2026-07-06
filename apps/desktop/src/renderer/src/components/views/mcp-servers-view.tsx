@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react'
 import type { McpConnectionState, McpServerConfig, McpToolRisk, McpTransport } from '@swarm/protocol'
+import {
+  Badge,
+  Button,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+} from '@swarm/ui'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Badge } from '@swarm/ui'
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
-import { NativeSelect, NativeSelectOption } from '@swarm/ui'
-import { Switch } from '@swarm/ui'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@swarm/ui'
-import { Textarea } from '@swarm/ui'
 import { useMcpServers } from '@/hooks/use-mcp-servers'
 import { cn } from '@/lib/utils'
 import { SettingsHeader } from './settings-primitives'
@@ -348,9 +354,9 @@ function AddServerForm(): React.JSX.Element {
     <div className="rounded-xl border bg-card p-4">
       <h3 className="mb-3 font-medium text-sm">Add or edit servers</h3>
       {/* The shared Tabs root defaults to a flex ROW (its `data-horizontal:flex-col`
-          never matches the `data-orientation` attribute), so stack explicitly —
-          the same workaround right-panel uses — to keep the JSON/Form switch on
-          its own line above the inputs instead of beside them. */}
+          never matches the `data-orientation` attribute), so stack explicitly to
+          keep the JSON/Form switch on its own line above the inputs instead of
+          beside them. */}
       <Tabs className="flex-col gap-3" defaultValue="json">
         <TabsList>
           <TabsTrigger value="json">JSON</TabsTrigger>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
-import { HomeComposer } from '@/components/views/home-composer'
+import { HomeDashboard } from '@/components/views/home-dashboard'
 import { useSessionsStore } from '@/stores/sessions'
 
 export const Route = createFileRoute('/')({ component: IndexView })
@@ -13,5 +13,5 @@ function IndexView(): React.JSX.Element {
   useEffect(() => {
     select(null)
   }, [select])
-  return <HomeComposer />
+  return <HomeDashboard />
 }

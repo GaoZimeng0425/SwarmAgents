@@ -95,7 +95,7 @@ function PlanGroupBlock({ group }: { group: PlanGroup }): React.JSX.Element {
 /**
  * Codex-style working plan, grouped by turn so the whole session's execution
  * history stays visible (each group expandable/collapsible). Rendered inside
- * RightPanel's Plan tab.
+ * WorkspacePanel's 计划 tab.
  */
 export function PlanPanel({ groups }: Props): React.JSX.Element {
   return (

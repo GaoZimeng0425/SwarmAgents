@@ -6,8 +6,8 @@ import { ChatIdBadge } from '@/components/chat-id-badge'
 import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
-import { RightPanel } from '@/components/right-panel'
 import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
+import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
 import { useCancelRun, useDecidePermission, useInterruptWith, useRuns, useSubmitGoal } from '@/hooks/use-runs'
@@ -158,7 +158,16 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           usdCents={sessionUsage?.usdCents}
         />
       </div>
-      <RightPanel planGroups={planGroups} />
+      <WorkspacePanel
+        onDecide={(actionId, decision) => {
+          const p = sessionPrompts.find((x) => x.actionId === actionId)
+          if (!p) return
+          decide.mutate({ sessionId: p.sessionId, actionId, decision })
+        }}
+        planGroups={planGroups}
+        runs={sessionTasks}
+        session={session}
+      />
     </div>
   )
 }
