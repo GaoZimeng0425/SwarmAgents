@@ -17,6 +17,7 @@ describe('WeatherConfig', () => {
       projectId: '',
       credentialId: '',
       privateKeyPem: '',
+      location: '',
     })
   })
 
