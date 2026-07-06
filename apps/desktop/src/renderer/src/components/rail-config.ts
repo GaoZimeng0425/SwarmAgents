@@ -34,7 +34,7 @@ export const RAIL_SECTIONS: RailSection[] = [
     id: 'scenes',
     items: [
       { key: 'home', label: '任务台', icon: LayoutDashboard, target: { kind: 'route', to: '/', match: 'exact' } },
-      { key: 'chat', label: '对话', icon: MessageSquare, target: { kind: 'route', to: '/session/', match: 'prefix' } },
+      { key: 'chat', label: '对话', icon: MessageSquare, target: { kind: 'route', to: '/session', match: 'prefix' } },
       { key: 'formation', label: '编队', icon: Network, target: { kind: 'route', to: '/formations', match: 'exact' } },
       {
         key: 'calendar',
@@ -60,11 +60,11 @@ export const RAIL_SECTIONS: RailSection[] = [
 ]
 
 // A scene where the conversation surface (and thus the session list) is the
-// focus: any path under /session/. The home route '/' is the dashboard (full
-// width, no list), so it is NOT a conversation scene. SessionPanel renders iff
-// true.
+// focus: the /session index and any /session/<id> detail. The home route '/' is
+// the dashboard (full width, no list), so it is NOT a conversation scene.
+// SessionPanel renders iff true.
 export function isConversationScene(pathname: string): boolean {
-  return pathname.startsWith('/session/')
+  return pathname.startsWith('/session')
 }
 
 export function isActive(item: RailItem, pathname: string): boolean {

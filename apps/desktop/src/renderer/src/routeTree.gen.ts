@@ -16,6 +16,7 @@ import { Route as GmailRouteImport } from './routes/gmail'
 import { Route as FormationsRouteImport } from './routes/formations'
 import { Route as BilibiliRouteImport } from './routes/bilibili'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SessionIndexRouteImport } from './routes/session.index'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
 
 const UsageRoute = UsageRouteImport.update({
@@ -53,6 +54,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionIndexRoute = SessionIndexRouteImport.update({
+  id: '/session/',
+  path: '/session/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
   id: '/session/$sessionId',
   path: '/session/$sessionId',
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
+  '/session/': typeof SessionIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
+  '/session': typeof SessionIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
+  '/session/': typeof SessionIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/trending'
     | '/usage'
     | '/session/$sessionId'
+    | '/session/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/trending'
     | '/usage'
     | '/session/$sessionId'
+    | '/session'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/trending'
     | '/usage'
     | '/session/$sessionId'
+    | '/session/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   TrendingRoute: typeof TrendingRoute
   UsageRoute: typeof UsageRoute
   SessionSessionIdRoute: typeof SessionSessionIdRoute
+  SessionIndexRoute: typeof SessionIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -185,6 +198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/session/': {
+      id: '/session/'
+      path: '/session'
+      fullPath: '/session/'
+      preLoaderRoute: typeof SessionIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/session/$sessionId': {
       id: '/session/$sessionId'
       path: '/session/$sessionId'
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrendingRoute: TrendingRoute,
   UsageRoute: UsageRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,
+  SessionIndexRoute: SessionIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

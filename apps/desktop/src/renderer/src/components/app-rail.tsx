@@ -21,9 +21,7 @@ export function AppRail(): React.JSX.Element {
 
   const onClick = (item: RailItem) => {
     if (item.target.kind !== 'route') return
-    // '/session/' is a prefix match target, not a real route — route to the
-    // landing where the user picks/starts a conversation.
-    navigate({ to: item.target.to === '/session/' ? '/' : item.target.to })
+    void navigate({ to: item.target.to })
   }
 
   return (

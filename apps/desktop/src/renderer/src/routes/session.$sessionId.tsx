@@ -31,10 +31,11 @@ function SessionView(): React.JSX.Element {
   }, [sessionId, select, qc])
 
   // Unknown id (stale hash / deleted elsewhere): once the list has loaded and
-  // does not contain it, fall back to the empty state.
+  // does not contain it, fall back to the session list (stays in the
+  // conversation scene rather than dropping onto the dashboard).
   useEffect(() => {
     if (sessions.length > 0 && !sessions.some((s) => s.id === sessionId)) {
-      void navigate({ to: '/' })
+      void navigate({ to: '/session' })
     }
   }, [sessions, sessionId, navigate])
 

@@ -14,3 +14,5 @@ references
 .tanstack
 .claire
 .turbo
+
+*.pem

@@ -26,7 +26,7 @@ describe('RAIL_SECTIONS', () => {
       routes.map((i) => (i.target.kind === 'route' ? { key: i.key, to: i.target.to, match: i.target.match } : null))
     ).toEqual([
       { key: 'home', to: '/', match: 'exact' },
-      { key: 'chat', to: '/session/', match: 'prefix' },
+      { key: 'chat', to: '/session', match: 'prefix' },
       { key: 'formation', to: '/formations', match: 'exact' },
       { key: 'calendar', to: '/scheduled', match: 'exact' },
       { key: 'gmail', to: '/gmail', match: 'exact' },
@@ -44,6 +44,7 @@ describe('RAIL_SECTIONS', () => {
 describe('isConversationScene', () => {
   it('is true only on session routes (NOT the home route, which is the dashboard)', () => {
     expect(isConversationScene('/')).toBe(false)
+    expect(isConversationScene('/session')).toBe(true)
     expect(isConversationScene('/session/abc')).toBe(true)
     expect(isConversationScene('/session/abc/def')).toBe(true)
   })
@@ -55,7 +56,6 @@ describe('isConversationScene', () => {
     expect(isConversationScene('/trending')).toBe(false)
     expect(isConversationScene('/bilibili')).toBe(false)
     expect(isConversationScene('/usage')).toBe(false)
-    expect(isConversationScene('/sessions')).toBe(false) // prefix is '/session/'
   })
 })
 
