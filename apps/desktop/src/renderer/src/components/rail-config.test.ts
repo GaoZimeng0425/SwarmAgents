@@ -1,14 +1,4 @@
-import {
-  BarChart3,
-  CalendarClock,
-  Clock,
-  LayoutDashboard,
-  Mail,
-  MessageSquare,
-  Network,
-  TrendingUp,
-  Video,
-} from 'lucide-react'
+import { CalendarClock, LayoutDashboard, Mail, MessageSquare, Network, TrendingUp, Video } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import { isActive, isConversationScene, RAIL_SECTIONS, type RailItem } from '@/components/rail-config'
@@ -18,17 +8,10 @@ describe('RAIL_SECTIONS', () => {
     expect(RAIL_SECTIONS.map((s) => s.id)).toEqual(['scenes', 'services'])
   })
 
-  it('scenes list matches the design in order with the right icons', () => {
+  it('scenes list matches the design in order with the right icons (4 items; 自动化 merged into 日历, 用量 moved to footer)', () => {
     const scenes = RAIL_SECTIONS[0].items
-    expect(scenes.map((i) => i.label)).toEqual(['任务台', '对话', '编队', '日历', '自动化', '用量'])
-    expect(scenes.map((i) => i.icon)).toEqual([
-      LayoutDashboard,
-      MessageSquare,
-      Network,
-      CalendarClock,
-      Clock,
-      BarChart3,
-    ])
+    expect(scenes.map((i) => i.label)).toEqual(['任务台', '对话', '编队', '日历'])
+    expect(scenes.map((i) => i.icon)).toEqual([LayoutDashboard, MessageSquare, Network, CalendarClock])
   })
 
   it('services list matches the design in order with the right icons', () => {
@@ -37,25 +20,24 @@ describe('RAIL_SECTIONS', () => {
     expect(services.map((i) => i.icon)).toEqual([Mail, TrendingUp, Video])
   })
 
-  it('routes every route item to its expected path with the expected match mode', () => {
+  it('routes every route item to its expected path with the expected match mode (formations included, no automation/usage)', () => {
     const routes = RAIL_SECTIONS.flatMap((s) => s.items).filter((i) => i.target.kind === 'route')
     expect(
       routes.map((i) => (i.target.kind === 'route' ? { key: i.key, to: i.target.to, match: i.target.match } : null))
     ).toEqual([
       { key: 'home', to: '/', match: 'exact' },
       { key: 'chat', to: '/session/', match: 'prefix' },
+      { key: 'formation', to: '/formations', match: 'exact' },
       { key: 'calendar', to: '/scheduled', match: 'exact' },
-      { key: 'automation', to: '/scheduled', match: 'exact' },
-      { key: 'usage', to: '/usage', match: 'exact' },
       { key: 'gmail', to: '/gmail', match: 'exact' },
       { key: 'trending', to: '/trending', match: 'exact' },
       { key: 'bilibili', to: '/bilibili', match: 'exact' },
     ])
   })
 
-  it('marks only the formation item as an action', () => {
+  it('has no action items (编队 is now a route)', () => {
     const actions = RAIL_SECTIONS.flatMap((s) => s.items).filter((i) => i.target.kind === 'action')
-    expect(actions.map((i) => i.key)).toEqual(['formation'])
+    expect(actions.map((i) => i.key)).toEqual([])
   })
 })
 
@@ -68,10 +50,11 @@ describe('isConversationScene', () => {
 
   it('is false on every other route', () => {
     expect(isConversationScene('/scheduled')).toBe(false)
-    expect(isConversationScene('/usage')).toBe(false)
+    expect(isConversationScene('/formations')).toBe(false)
     expect(isConversationScene('/gmail')).toBe(false)
     expect(isConversationScene('/trending')).toBe(false)
     expect(isConversationScene('/bilibili')).toBe(false)
+    expect(isConversationScene('/usage')).toBe(false)
     expect(isConversationScene('/sessions')).toBe(false) // prefix is '/session/'
   })
 })
@@ -89,13 +72,8 @@ describe('isActive', () => {
     expect(isActive(find('chat'), '/')).toBe(false)
   })
 
-  it('lights up both calendar and automation on the shared /scheduled route', () => {
-    expect(isActive(find('calendar'), '/scheduled')).toBe(true)
-    expect(isActive(find('automation'), '/scheduled')).toBe(true)
-  })
-
-  it('is never active for action items', () => {
+  it('lights up the formation item on /formations', () => {
+    expect(isActive(find('formation'), '/formations')).toBe(true)
     expect(isActive(find('formation'), '/')).toBe(false)
-    expect(isActive(find('formation'), '/scheduled')).toBe(false)
   })
 })

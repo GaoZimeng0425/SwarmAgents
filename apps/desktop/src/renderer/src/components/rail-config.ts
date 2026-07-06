@@ -3,17 +3,7 @@
 // context (a pure-logic test pattern used elsewhere in this codebase).
 
 import type { ComponentType } from 'react'
-import {
-  BarChart3,
-  CalendarClock,
-  Clock,
-  LayoutDashboard,
-  Mail,
-  MessageSquare,
-  Network,
-  TrendingUp,
-  Video,
-} from 'lucide-react'
+import { CalendarClock, LayoutDashboard, Mail, MessageSquare, Network, TrendingUp, Video } from 'lucide-react'
 
 export type RailTarget =
   // Navigates to a router path. `match` controls active-state matching:
@@ -45,17 +35,13 @@ export const RAIL_SECTIONS: RailSection[] = [
     items: [
       { key: 'home', label: '任务台', icon: LayoutDashboard, target: { kind: 'route', to: '/', match: 'exact' } },
       { key: 'chat', label: '对话', icon: MessageSquare, target: { kind: 'route', to: '/session/', match: 'prefix' } },
-      // Agents live inside the SettingsDialog today (no /agents route yet); the
-      // rail opens that modal directly on the agents section.
-      { key: 'formation', label: '编队', icon: Network, target: { kind: 'action' } },
+      { key: 'formation', label: '编队', icon: Network, target: { kind: 'route', to: '/formations', match: 'exact' } },
       {
         key: 'calendar',
         label: '日历',
         icon: CalendarClock,
         target: { kind: 'route', to: '/scheduled', match: 'exact' },
       },
-      { key: 'automation', label: '自动化', icon: Clock, target: { kind: 'route', to: '/scheduled', match: 'exact' } },
-      { key: 'usage', label: '用量', icon: BarChart3, target: { kind: 'route', to: '/usage', match: 'exact' } },
     ],
   },
   {

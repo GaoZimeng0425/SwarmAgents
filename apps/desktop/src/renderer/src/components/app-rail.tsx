@@ -1,13 +1,12 @@
 // 64px icon rail — the app's primary navigation. Two grouped sections
-// (场景 / 服务) rendered from rail-config.ts, plus a footer (设置). Theme
-// lives in Settings → 通用. Route items navigate via TanStack Router; the
-// single action item (编队) opens the agents section of the SettingsDialog.
-// Active state is derived from useLocation so prefix matches (对话) and
-// shared routes (日历+自动化 both on /scheduled) light up correctly.
+// (场景 / 服务) rendered from rail-config.ts, plus a footer (用量 + 设置).
+// Theme lives in Settings → 通用. All items are routes; 编队 goes to
+// /formations. Active state is derived from useLocation so prefix matches
+// (对话) light up correctly.
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Settings } from 'lucide-react'
+import { BarChart3, Settings } from 'lucide-react'
 
 import { isActive, RAIL_SECTIONS, type RailItem } from '@/components/rail-config'
 import { useSettingsDialog } from '@/stores/settings-dialog'
@@ -20,19 +19,11 @@ export function AppRail(): React.JSX.Element {
   const navigate = useNavigate()
   const openSettings = useSettingsDialog((s) => s.openSettings)
 
-  // Action items don't navigate; the formation item opens the agents settings.
-  const runAction = (item: RailItem) => {
-    if (item.key === 'formation') openSettings('agents')
-  }
-
   const onClick = (item: RailItem) => {
-    if (item.target.kind === 'route') {
-      // '/session/' is a prefix match target, not a real route — route to the
-      // landing where the user picks/starts a conversation.
-      navigate({ to: item.target.to === '/session/' ? '/' : item.target.to })
-    } else {
-      runAction(item)
-    }
+    if (item.target.kind !== 'route') return
+    // '/session/' is a prefix match target, not a real route — route to the
+    // landing where the user picks/starts a conversation.
+    navigate({ to: item.target.to === '/session/' ? '/' : item.target.to })
   }
 
   return (
@@ -71,7 +62,24 @@ export function AppRail(): React.JSX.Element {
 
       <div className="flex-1" />
 
-      {/* Footer: settings (modal). Theme lives in Settings → 通用 now. */}
+      {/* Footer: 用量 (route) + 设置 (modal). Theme lives in Settings → 通用. */}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              aria-current={pathname === '/usage' ? 'page' : undefined}
+              aria-label="用量"
+              className={iconBtn}
+              data-active={pathname === '/usage' || undefined}
+              onClick={() => navigate({ to: '/usage' })}
+              type="button"
+            >
+              <BarChart3 />
+            </button>
+          }
+        />
+        <TooltipContent side="right">用量</TooltipContent>
+      </Tooltip>
       <Tooltip>
         <TooltipTrigger
           render={
