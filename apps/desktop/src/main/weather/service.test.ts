@@ -114,6 +114,7 @@ describe('weather service', () => {
       indices: [],
       air: null,
       minutely: null,
+      now: null,
     })
     locateByIpMock.mockResolvedValue({ lng: 1, lat: 2, city: 'x' })
     await expect(svc.getForecast(null, null)).resolves.toBeDefined()
@@ -154,6 +155,7 @@ describe('weather service', () => {
       indices: [],
       air: null,
       minutely: null,
+      now: null,
     })
     locateByIpMock.mockResolvedValue({ lng: 116.4, lat: 39.9, city: '北京市' })
     reverseGeocodeMock.mockResolvedValue('北京市')
@@ -177,6 +179,7 @@ describe('weather service', () => {
       indices: [],
       air: null,
       minutely: null,
+      now: null,
     }))
     const svc = await createService({
       store: memStore({ weather: { ...validCfg.weather, location: '北京' } } as never),
@@ -210,6 +213,7 @@ describe('weather service', () => {
       indices: [],
       air: null,
       minutely: null,
+      now: null,
     })
     fetchWarningsMock.mockResolvedValue([
       {
@@ -260,6 +264,7 @@ describe('weather service', () => {
       indices: [],
       air: null,
       minutely: null,
+      now: null,
     })
     fetchAirMock.mockRejectedValue(new Error('QWeather HTTP 402'))
     fetchMinutelyMock.mockRejectedValue(new Error('QWeather code 404')) // China-only endpoint elsewhere
@@ -286,6 +291,7 @@ describe('weather service', () => {
         indices: [],
         air: null,
         minutely: null,
+        now: null,
       }
     })
     locateByIpMock

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeAir, normalizeHourly, normalizeIndices, normalizeMinutely, normalizeWarnings } from './qweather'
+import {
+  normalizeAir,
+  normalizeHourly,
+  normalizeIndices,
+  normalizeMinutely,
+  normalizeNow,
+  normalizeWarnings,
+} from './qweather'
 
 // A representative QWeather /v7/weather/24h `hourly` entry. Field names mirror
 // the upstream payload (fxTime, temp, icon, text, windScale, windDir, pop,
@@ -108,5 +115,46 @@ describe('normalizeMinutely', () => {
   it('returns null when minutely is empty', () => {
     expect(normalizeMinutely({ summary: 'x', minutely: [] })).toBeNull()
     expect(normalizeMinutely({})).toBeNull()
+  })
+})
+
+describe('normalizeNow', () => {
+  const raw = {
+    obsTime: '2026-07-07T02:00+00:00',
+    temp: '28',
+    feelsLike: '31',
+    icon: '101',
+    text: '多云',
+    humidity: '58',
+    windScale: '3',
+    windDir: '东南风',
+    windSpeed: '12',
+    pressure: '1006',
+    vis: '16',
+    precip: '0.0',
+  }
+
+  it('coerces numeric strings and keeps labels', () => {
+    const n = normalizeNow(raw)
+    expect(n).not.toBeNull()
+    expect(n).toMatchObject({
+      temp: 28,
+      feelsLike: 31,
+      humidity: 58,
+      windSpeed: 12,
+      pressure: 1006,
+      vis: 16,
+      precip: 0,
+      windScale: '3',
+      windDir: '东南风',
+      icon: '101',
+      text: '多云',
+    })
+    // obsTime is normalized to an ISO string with a local offset
+    expect(typeof n?.obsTime).toBe('string')
+  })
+
+  it('returns null when raw is undefined', () => {
+    expect(normalizeNow(undefined)).toBeNull()
   })
 })

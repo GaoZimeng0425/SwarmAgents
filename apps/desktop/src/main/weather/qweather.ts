@@ -11,6 +11,7 @@ import type {
   WeatherForecast,
   WeatherHour,
   WeatherIndex,
+  WeatherNow,
   WeatherWarning,
 } from '@swarm/protocol'
 
@@ -86,6 +87,55 @@ function formatOffset(d: Date): string {
   return `${sign}${hh}:${mm}`
 }
 
+// ── Current observation (/v7/weather/now) ──────────────────────────────────
+
+type RawNow = {
+  obsTime?: string
+  temp?: string
+  feelsLike?: string
+  icon?: string
+  text?: string
+  humidity?: string
+  windScale?: string
+  windDir?: string
+  windSpeed?: string
+  pressure?: string
+  vis?: string
+  precip?: string
+}
+
+/** Convert a raw QWeather `now` object into WeatherNow (pure). null when absent. */
+export function normalizeNow(raw: RawNow | undefined): WeatherNow | null {
+  if (!raw?.obsTime) return null
+  const d = new Date(raw.obsTime)
+  const obsTime = Number.isNaN(d.getTime())
+    ? raw.obsTime
+    : d.toString().includes('GMT')
+      ? new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().replace('Z', formatOffset(d))
+      : d.toISOString()
+  return {
+    temp: num(raw.temp),
+    feelsLike: num(raw.feelsLike),
+    icon: raw.icon ?? '',
+    text: raw.text ?? '',
+    humidity: num(raw.humidity),
+    windScale: raw.windScale ?? '',
+    windDir: raw.windDir ?? '',
+    windSpeed: num(raw.windSpeed),
+    pressure: num(raw.pressure),
+    vis: num(raw.vis),
+    precip: num(raw.precip),
+    obsTime,
+  }
+}
+
+// GET {host}/v7/weather/now?location=lng,lat → WeatherNow | null. Supplementary
+// (non-fatal): the service treats a throw as `now = null`.
+export async function fetchNow(config: WeatherConfig, lng: number, lat: number): Promise<WeatherNow | null> {
+  const body = await qwGet(config, `/v7/weather/now?location=${lng},${lat}`)
+  return normalizeNow(body.now as RawNow | undefined)
+}
+
 type FetchOpts = {
   config: WeatherConfig
   lng: number
@@ -110,6 +160,7 @@ export async function fetchHourly(opts: FetchOpts): Promise<WeatherForecast> {
     indices: [],
     air: null,
     minutely: null,
+    now: null,
   }
 }
 
