@@ -1,30 +1,10 @@
-import { useState } from 'react'
 import type { AgentDefinition, AgentListItem } from '@swarm/protocol'
-import { buildDelegationEdges, buildOrgForest, type OrgNode } from '@swarm/shared'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Button,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@swarm/ui'
-import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { buildOrgForest, type OrgNode } from '@swarm/shared'
+import { Button } from '@swarm/ui'
+import { Copy, Pencil, Trash2 } from 'lucide-react'
 
-import { useAgentMutations } from '@/hooks/use-agent-mutations'
 import type { AgentActivity } from '@/lib/formations/build-agent-activity'
 import { cn } from '@/lib/utils'
-import { AgentDetail } from './agent-detail'
-import { AgentFormSheet } from './agent-form-sheet'
-import { DelegationLinks } from './delegation-links'
 
 const MAX_CAPS = 3
 
@@ -227,109 +207,6 @@ export function OrgTree({
           </ul>
         </div>
       )}
-    </div>
-  )
-}
-
-type SheetState = { open: false } | { open: true; mode: 'create' | 'edit' | 'duplicate'; agent?: AgentListItem }
-
-/** Stateful wrapper: single-select org tree with CRUD affordances and a detail panel. */
-export function OrgTreeView({ agents }: { agents: AgentDefinition[] }): React.JSX.Element {
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [sheet, setSheet] = useState<SheetState>({ open: false })
-  const [pendingDelete, setPendingDelete] = useState<AgentListItem | null>(null)
-  const [error, setError] = useState<string | undefined>(undefined)
-  const { save, remove } = useAgentMutations()
-  const edges = buildDelegationEdges(agents)
-  const highlightedIds = new Set(edges.filter((e) => e.from === expanded).map((e) => e.to))
-
-  const toggle = (id: string): void => setExpanded((prev) => (prev === id ? null : id))
-  const selected = expanded ? agents.find((a) => a.id === expanded) : undefined
-
-  const onSubmit = async (def: AgentDefinition): Promise<void> => {
-    const r = await save(def)
-    if (r.ok) {
-      setSheet({ open: false })
-      setError(undefined)
-    } else {
-      setError(r.message)
-      toast.error(r.message)
-    }
-  }
-
-  const confirmDelete = async (): Promise<void> => {
-    if (!pendingDelete) return
-    const r = await remove(pendingDelete.id)
-    if (!r.ok) toast.error(r.message)
-    setPendingDelete(null)
-  }
-
-  return (
-    <div>
-      <div className="mb-3 flex justify-end">
-        <Button aria-label="New agent" className="gap-1.5" onClick={() => setSheet({ open: true, mode: 'create' })}>
-          <Plus className="size-4" />
-          New Agent
-        </Button>
-      </div>
-
-      <OrgTree
-        agents={agents}
-        expanded={expanded}
-        highlightedIds={highlightedIds}
-        onDelete={(a) => setPendingDelete(a)}
-        onDuplicate={(a) => setSheet({ open: true, mode: 'duplicate', agent: a })}
-        onEdit={(a) => setSheet({ open: true, mode: 'edit', agent: a })}
-        onToggle={toggle}
-      />
-      <Sheet onOpenChange={(o) => !o && setExpanded(null)} open={selected !== undefined}>
-        <SheetContent className="overflow-y-auto sm:max-w-md" side="right">
-          {selected && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{selected.name}</SheetTitle>
-              </SheetHeader>
-              <div className="px-4 pb-4">
-                <AgentDetail agent={selected} />
-                <DelegationLinks
-                  agentId={selected.id}
-                  agents={agents}
-                  edges={edges}
-                  onSelect={(id) => setExpanded(id)}
-                />
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      <AgentFormSheet
-        agent={sheet.open ? sheet.agent : undefined}
-        agents={agents}
-        error={error}
-        mode={sheet.open ? sheet.mode : 'create'}
-        onOpenChange={(o) => {
-          if (!o) {
-            setSheet({ open: false })
-            setError(undefined)
-          }
-        }}
-        onSubmit={onSubmit}
-        open={sheet.open}
-      />
-
-      <AlertDialog onOpenChange={(o) => !o && setPendingDelete(null)} open={pendingDelete !== null}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete agent "{pendingDelete?.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>This removes its AGENT.md from disk. This cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void confirmDelete()}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
