@@ -96,7 +96,11 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
             deps.broadcaster.broadcast('gmail.threadAnalysisDelta', { threadId, text: ev.content, ts: Date.now() })
           }
         } else if (evt.kind === 'run.complete') {
-          accumulated += evt.summary // ensure the final summary is included
+          // NOTE: do NOT append evt.summary here. Per translator.ts, the
+          // run.complete summary is exactly the trimmed concatenation of the
+          // same llm.message deltas already accumulated above via run.progress;
+          // appending it again doubles the markdown (and any malformed
+          // <!--ANALYSIS:{...}--> block) in the degradation path.
           const payload = parseThreadPayload(accumulated)
           deps.broadcaster.broadcast('gmail.threadAnalysisComplete', {
             threadId,
