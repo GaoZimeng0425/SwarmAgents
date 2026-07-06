@@ -31,6 +31,7 @@ import type {
   GmailMessage,
   GmailSetResult,
   GmailThread,
+  GmailThreadAnalysis,
   MacPermissions,
   McpBridge,
   McpMutationResult,
@@ -52,6 +53,7 @@ import type {
   SkillMutationResult,
   SubmitGoalResult,
   SwarmBridge,
+  ThreadAnalysisPayload,
   ToolGroupInfo,
   ToolToggles,
   ToolTogglesBridge,
@@ -174,8 +176,7 @@ const webSearch: WebSearchBridge = {
 const weather: WeatherBridge = {
   getConfig: () => ipcRenderer.invoke('weather:getConfig') as Promise<WeatherConfigView>,
   setConfig: (c) => ipcRenderer.invoke('weather:setConfig', c) as Promise<WeatherSetResult>,
-  getForecast: (lng, lat) =>
-    ipcRenderer.invoke('weather:getForecast', lng, lat) as Promise<WeatherForecastResult>,
+  getForecast: (lng, lat) => ipcRenderer.invoke('weather:getForecast', lng, lat) as Promise<WeatherForecastResult>,
   onForecast: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: WeatherForecast): void => cb(payload)
     ipcRenderer.on(WEATHER_FORECAST_CHANNEL, listener)
@@ -277,6 +278,10 @@ const gmail: GmailBridge = {
     ipcRenderer.invoke('gmail:getAnalyses', threadId) as Promise<
       Record<string, import('@swarm/protocol').GmailAnalysis>
     >,
+  getThreadAnalysis: (threadId: string) =>
+    ipcRenderer.invoke('gmail:getThreadAnalysis', threadId) as Promise<GmailThreadAnalysis | null>,
+  saveThreadAnalysis: (threadId: string, analysis: ThreadAnalysisPayload) =>
+    ipcRenderer.invoke('gmail:saveThreadAnalysis', threadId, analysis) as Promise<void>,
   onStateChanged: (cb: (view: GmailConfigView) => void) => {
     const listener = (_e: unknown, view: GmailConfigView): void => cb(view)
     ipcRenderer.on('gmail:stateChanged', listener)
@@ -315,6 +320,8 @@ const swarm: SwarmBridge = {
     ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
   analyzeEmail: (input: import('@swarm/protocol').AnalyzeEmailInput) =>
     ipcRenderer.invoke('swarm:analyzeEmail', input) as Promise<import('@swarm/protocol').AnalyzeEmailResult>,
+  analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) =>
+    ipcRenderer.invoke('swarm:analyzeThread', input) as Promise<import('@swarm/protocol').AnalyzeThreadResult>,
   cancelRun: (sessionId, runId) => ipcRenderer.invoke('swarm:cancelRun', sessionId, runId) as Promise<void>,
   interruptWith: (sessionId, runId) => ipcRenderer.invoke('swarm:interruptWith', sessionId, runId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>

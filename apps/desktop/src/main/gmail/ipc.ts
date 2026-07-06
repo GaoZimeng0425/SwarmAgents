@@ -44,6 +44,12 @@ export function wireGmailIpc(args: { service: Service }): {
     service.saveAnalysis(String(messageId), String(analysis))
   )
   ipcMain.handle('gmail:getAnalyses', (_e, threadId: string) => service.getAnalyses(String(threadId)))
+  ipcMain.handle('gmail:getThreadAnalysis', (_e, threadId: string) => service.getThreadAnalysis(String(threadId)))
+  ipcMain.handle(
+    'gmail:saveThreadAnalysis',
+    (_e, threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload) =>
+      service.saveThreadAnalysis(String(threadId), analysis)
+  )
 
   const mainRpcHandlers: MainRpcHandlers = {
     'gmail.search': (q, limit) => Promise.resolve(service.search(String(q), Number(limit ?? 20))),
@@ -71,6 +77,8 @@ export function wireGmailIpc(args: { service: Service }): {
         'gmail:search',
         'gmail:saveAnalysis',
         'gmail:getAnalyses',
+        'gmail:getThreadAnalysis',
+        'gmail:saveThreadAnalysis',
       ]) {
         ipcMain.removeHandler(ch)
       }

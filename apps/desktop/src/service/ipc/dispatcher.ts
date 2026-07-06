@@ -26,6 +26,7 @@ import type { SessionService } from '../session/session-service'
 type DispatcherConfig = {
   service: SessionService
   analyzeEmail(req: import('@swarm/protocol').AnalyzeEmailRequest): import('@swarm/protocol').AnalyzeEmailResult
+  analyzeThread(req: import('@swarm/protocol').AnalyzeThreadRequest): import('@swarm/protocol').AnalyzeThreadResult
   registerProvider(provider: ProviderInjection): void
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): McpServerStatus[]
@@ -75,6 +76,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'analyzeEmail': {
         const [req] = args as [import('@swarm/protocol').AnalyzeEmailRequest]
         return cfg.analyzeEmail(req)
+      }
+      case 'analyzeThread': {
+        const [req] = args as [import('@swarm/protocol').AnalyzeThreadRequest]
+        return cfg.analyzeThread(req)
       }
       case 'listSessions':
         return service.listSessions()

@@ -25,6 +25,8 @@ export type Cache = {
   countMessages(): number
   saveAnalysis(messageId: string, analysis: string): void
   getAnalyses(threadId: string): Record<string, import('@swarm/protocol').GmailAnalysis>
+  getThreadAnalysis(threadId: string): import('@swarm/protocol').GmailThreadAnalysis | null
+  saveThreadAnalysis(threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload): void
   listRecent(input: { limit: number; label?: string }): GmailThread[]
   stats(): ThreadStats
   setStats(stats: ThreadStats): void
@@ -45,6 +47,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(threadId);
 CREATE INDEX IF NOT EXISTS idx_messages_date ON messages(dateMs);
 CREATE TABLE IF NOT EXISTS analyses (
   messageId TEXT PRIMARY KEY, analysis TEXT, updatedAt INTEGER
+);
+CREATE TABLE IF NOT EXISTS thread_analyses (
+  threadId TEXT PRIMARY KEY, summary TEXT, todos TEXT, suggest TEXT, updatedAt INTEGER
 );
 CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value TEXT);
 `
@@ -220,6 +225,37 @@ export function createCache(opts: { filePath: string }): Cache {
     return out
   }
 
+  // Thread-level analysis cache: todos stored as a JSON string (sqlite needs a
+  // string for the array); getThreadAnalysis parses it back. Upsert keyed by
+  // threadId so re-analysis replaces the prior row.
+  const upsertThreadAnalysis = db.prepare(
+    `INSERT INTO thread_analyses (threadId, summary, todos, suggest, updatedAt)
+     VALUES (@threadId, @summary, @todos, @suggest, @updatedAt)
+     ON CONFLICT(threadId) DO UPDATE SET
+       summary=@summary, todos=@todos, suggest=@suggest, updatedAt=@updatedAt`
+  )
+  const getThreadAnalysis: Cache['getThreadAnalysis'] = (threadId) => {
+    const r = db.prepare('SELECT * FROM thread_analyses WHERE threadId = ?').get(threadId) as
+      | { threadId: string; summary: string; todos: string; suggest: string; updatedAt: number }
+      | undefined
+    if (!r) return null
+    return {
+      summary: r.summary,
+      todos: JSON.parse(r.todos) as import('@swarm/protocol').Todo[],
+      suggest: r.suggest,
+      updatedAt: r.updatedAt,
+    }
+  }
+  const saveThreadAnalysis: Cache['saveThreadAnalysis'] = (threadId, analysis) => {
+    upsertThreadAnalysis.run({
+      threadId,
+      summary: analysis.summary,
+      todos: JSON.stringify(analysis.todos),
+      suggest: analysis.suggest,
+      updatedAt: Date.now(),
+    })
+  }
+
   return {
     upsertThreads,
     upsertMessages,
@@ -230,6 +266,8 @@ export function createCache(opts: { filePath: string }): Cache {
     countMessages,
     saveAnalysis,
     getAnalyses,
+    getThreadAnalysis,
+    saveThreadAnalysis,
     listRecent,
     stats,
     setStats,

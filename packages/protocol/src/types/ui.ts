@@ -250,6 +250,8 @@ export type GmailBridge = {
   search(query: string, limit: number): Promise<GmailThread[]>
   saveAnalysis(messageId: string, analysis: string): Promise<void>
   getAnalyses(threadId: string): Promise<Record<string, GmailAnalysis>>
+  getThreadAnalysis(threadId: string): Promise<GmailThreadAnalysis | null>
+  saveThreadAnalysis(threadId: string, analysis: ThreadAnalysisPayload): Promise<void>
 }
 
 export type CalendarSetResult = { ok: true } | { ok: false; code: string; message: string }
@@ -406,6 +408,7 @@ export type SwarmBridge = {
     options?: RunOptions
   ): Promise<SubmitGoalResult>
   analyzeEmail(input: AnalyzeEmailInput): Promise<AnalyzeEmailResult>
+  analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
   cancelRun(sessionId: string, runId: string): Promise<void>
   interruptWith(sessionId: string, runId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
