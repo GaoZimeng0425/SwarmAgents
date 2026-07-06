@@ -109,10 +109,17 @@ vi.mock('../../stores/search-dialog', () => ({
     sel({ open: true, close: closeMock, toggle: toggleMock, openSearch: vi.fn() }),
 }))
 
-// openSettings is wired into the 「打开设置」 command's run().
+// openSettings is wired into the 「打开设置」 command's run(). The dialog now
+// sources it from useSettingsNav (router-derived); mock the hook directly so
+// the component mounts without a router context.
 const openSettingsMock = vi.fn()
-vi.mock('../../stores/settings-dialog', () => ({
-  useSettingsDialog: (sel: (s: any) => any) => sel({ openSettings: openSettingsMock }),
+vi.mock('../../hooks/use-settings-nav', () => ({
+  useSettingsNav: () => ({
+    open: false,
+    section: null,
+    openSettings: openSettingsMock,
+    close: vi.fn(),
+  }),
 }))
 
 vi.mock('../../stores/composer-defaults', () => ({

@@ -19,12 +19,12 @@ import { useTheme } from 'next-themes'
 
 import { usePaletteData } from '../../hooks/use-palette-data'
 import { useSubmitGoal } from '../../hooks/use-runs'
+import { useSettingsNav } from '../../hooks/use-settings-nav'
 import { swarmApi } from '../../lib/api'
 import type { Callbacks } from '../../lib/palette/build-items'
 import type { PaletteItem } from '../../lib/palette/types'
 import { useComposerDefaults } from '../../stores/composer-defaults'
 import { useSearchDialog } from '../../stores/search-dialog'
-import { useSettingsDialog } from '../../stores/settings-dialog'
 import { PaletteInput } from './palette-input'
 import { PaletteResults } from './palette-results'
 import { PreviewSwitch } from './preview'
@@ -57,7 +57,7 @@ export type PaletteDialogProps = {
 
 export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
   const navigate = useNavigate()
-  const openSettings = useSettingsDialog((s) => s.openSettings)
+  const { openSettings } = useSettingsNav()
   const { theme, setTheme } = useTheme()
   const setComposerAgent = useComposerDefaults((s) => s.setAgentType)
   const submitGoal = useSubmitGoal()
@@ -76,7 +76,7 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
       },
       openSettings: (section) => {
         close()
-        openSettings(section as never)
+        void openSettings(section as never)
       },
       cycleTheme: () => {
         // next-themes `theme` is a loose string; coerce into the union the

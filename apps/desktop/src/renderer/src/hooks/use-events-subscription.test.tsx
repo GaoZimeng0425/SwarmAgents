@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as api from '../lib/api'
 import { useSessionsStore } from '../stores/sessions'
-import { useSettingsDialog } from '../stores/settings-dialog'
 import { useEventsSubscription } from './use-events-subscription'
 
 vi.mock('sonner', () => ({ toast: vi.fn() }))
@@ -17,6 +16,20 @@ const navigateSpy = vi.fn()
 vi.mock('@tanstack/react-router', async (orig) => ({
   ...(await orig<typeof import('@tanstack/react-router')>()),
   useNavigate: () => navigateSpy,
+}))
+
+// useEventsSubscription now sources openSettings from useSettingsNav
+// (router-derived). Mock the hook so the component mounts without a router
+// context; the settings-navigation test asserts the spy is invoked with the
+// section mapped from the deep-link route.
+const openSettingsSpy = vi.fn()
+vi.mock('./use-settings-nav', () => ({
+  useSettingsNav: () => ({
+    open: false,
+    section: null,
+    openSettings: openSettingsSpy,
+    close: vi.fn(),
+  }),
 }))
 
 function makeWrapper(qc: QueryClient) {
@@ -108,12 +121,13 @@ describe('useEventsSubscription — background session activity', () => {
 
 describe('useEventsSubscription — settings navigation', () => {
   it('opens the settings dialog at the mapped section when main pushes swarm:navigate-settings', () => {
-    useSettingsDialog.setState({ open: false, section: 'general' })
     mount()
     expect(settingsNavCb).toBeTypeOf('function')
     settingsNavCb?.('/settings/providers')
-    expect(useSettingsDialog.getState().open).toBe(true)
-    expect(useSettingsDialog.getState().section).toBe('providers')
+    // openSettings (router-derived via useSettingsNav) is called with the
+    // section mapped from the deep-link route; the legacy /settings route is
+    // NOT passed to navigate.
+    expect(openSettingsSpy).toHaveBeenCalledWith('providers')
     expect(navigateSpy).not.toHaveBeenCalledWith({ to: '/settings/providers' })
   })
 })

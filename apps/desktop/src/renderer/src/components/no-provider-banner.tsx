@@ -1,11 +1,11 @@
 import { Button } from '@swarm/ui'
 
 import { useProviders } from '@/hooks/use-providers'
-import { useSettingsDialog } from '@/stores/settings-dialog'
+import { useSettingsNav } from '@/hooks/use-settings-nav'
 
 export function NoProviderBanner(): React.JSX.Element | null {
   const { ready } = useProviders()
-  const openSettings = useSettingsDialog((s) => s.openSettings)
+  const { openSettings } = useSettingsNav()
   if (ready) return null
 
   return (

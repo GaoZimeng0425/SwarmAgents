@@ -12,11 +12,13 @@ import { useEventsSubscription } from './use-events-subscription'
 import { hydrateSession, RUNS_KEY, useDecidePermission, useRuns, useSubmitGoal } from './use-runs'
 
 // useEventsSubscription now navigates (toast jump) + toasts on background
-// activity; stub both so rendering it here needs no router/Toaster.
+// activity + reads the settings search param via useSettingsNav; stub the
+// router hooks it touches so rendering it here needs no router/Toaster.
 vi.mock('sonner', () => ({ toast: vi.fn() }))
 vi.mock('@tanstack/react-router', async (orig) => ({
   ...(await orig<typeof import('@tanstack/react-router')>()),
   useNavigate: () => vi.fn(),
+  useSearch: () => ({}),
 }))
 
 function makeWrapper(qc: QueryClient) {

@@ -9,7 +9,7 @@ import { useLocation, useNavigate } from '@tanstack/react-router'
 import { BarChart3, Settings } from 'lucide-react'
 
 import { isActive, RAIL_SECTIONS, type RailItem } from '@/components/rail-config'
-import { useSettingsDialog } from '@/stores/settings-dialog'
+import { useSettingsNav } from '@/hooks/use-settings-nav'
 
 const iconBtn =
   'flex size-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-foreground [&_svg]:size-5'
@@ -17,7 +17,7 @@ const iconBtn =
 export function AppRail(): React.JSX.Element {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const openSettings = useSettingsDialog((s) => s.openSettings)
+  const { openSettings } = useSettingsNav()
 
   const onClick = (item: RailItem) => {
     if (item.target.kind !== 'route') return

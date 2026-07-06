@@ -8,11 +8,12 @@ import { toast } from 'sonner'
 
 import { MEMORY_KEY } from '@/hooks/use-memory'
 import { RUNS_KEY } from '@/hooks/use-runs'
+import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { swarmApi } from '@/lib/api'
 import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
-import { routeToSection, useSettingsDialog } from '@/stores/settings-dialog'
+import { routeToSection } from '@/stores/settings-dialog'
 
 // Milestone events that warrant a toast for a background session. Streaming
 // noise (progress/usage/tool_call/plan/dispatched) only marks unread.
@@ -47,6 +48,7 @@ export function useEventsSubscription(): void {
   const qc = useQueryClient()
   const push = usePermissionStore((s) => s.push)
   const navigate = useNavigate()
+  const { openSettings } = useSettingsNav()
 
   // Ask once for OS-notification permission so choice cards can ping the user.
   useEffect(() => {
@@ -69,12 +71,13 @@ export function useEventsSubscription(): void {
 
   // Main → renderer Settings open (menu / deep-link). Mounted app-wide via
   // EventsBridge, so it works regardless of the current route. Opens the
-  // settings dialog at the mapped section instead of navigating to a route.
+  // settings dialog at the mapped section by setting the ?settings= search
+  // param (router-derived now, via useSettingsNav).
   useEffect(() => {
     return swarmApi.onNavigateToSettings((route) => {
-      useSettingsDialog.getState().openSettings(routeToSection(route))
+      openSettings(routeToSection(route))
     })
-  }, [])
+  }, [openSettings])
 
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {

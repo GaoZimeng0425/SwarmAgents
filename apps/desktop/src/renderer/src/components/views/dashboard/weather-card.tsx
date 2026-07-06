@@ -8,8 +8,8 @@ import type { AirQuality, Minutely, WeatherIndex, WeatherWarning } from '@swarm/
 import { Button } from '@swarm/ui'
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
+import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { useWeather } from '@/hooks/use-weather'
-import { useSettingsDialog } from '@/stores/settings-dialog'
 
 // Severity color per QWeather `severityColor` (semantic, theme-independent).
 const SEVERITY_HEX: Record<string, string> = {
@@ -68,7 +68,7 @@ function aqiHex(category: string): string {
 
 export function WeatherCard(): React.JSX.Element {
   const { config, forecast, status, error, refresh } = useWeather()
-  const openSettings = useSettingsDialog((s) => s.openSettings)
+  const { openSettings } = useSettingsNav()
 
   // Fetch on mount. The hook's refresh() handles geolocation + IPC.
   useEffect(() => {
