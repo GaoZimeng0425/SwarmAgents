@@ -75,4 +75,39 @@ describe('PermissionRegistry', () => {
     ).resolves.toBe('deny')
     expect(broadcast).not.toHaveBeenCalled()
   })
+
+  it('grant_always resolves the request as grant and auto-grants later same-tool requests', async () => {
+    const broadcast = vi.fn()
+    const registry = createPermissionRegistry(broadcast)
+
+    const first = registry.request({ taskId: 't1', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
+    const [, data] = broadcast.mock.calls[0] as [string, { actionId: string }]
+    registry.resolve(data.actionId, 'grant_always')
+    // The engine only understands 'grant' — grant_always is translated.
+    await expect(first).resolves.toBe('grant')
+
+    // A later request for the SAME tool auto-grants with no new prompt.
+    broadcast.mockClear()
+    await expect(
+      registry.request({ taskId: 't2', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
+    ).resolves.toBe('grant')
+    expect(broadcast).not.toHaveBeenCalled()
+  })
+
+  it('grant_always is scoped per tool name — a different tool still prompts', async () => {
+    const broadcast = vi.fn()
+    const registry = createPermissionRegistry(broadcast)
+
+    const first = registry.request({ taskId: 't1', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
+    const [, data] = broadcast.mock.calls[0] as [string, { actionId: string }]
+    registry.resolve(data.actionId, 'grant_always')
+    await first
+
+    broadcast.mockClear()
+    const other = registry.request({ taskId: 't2', toolName: 'shell.exec', risk: 'high', summary: 's', payload: {} })
+    expect(broadcast).toHaveBeenCalledOnce() // not auto-granted; a prompt is broadcast
+    const [, d2] = broadcast.mock.calls[0] as [string, { actionId: string }]
+    registry.resolve(d2.actionId, 'deny')
+    await expect(other).resolves.toBe('deny')
+  })
 })

@@ -422,6 +422,59 @@ describe('SessionService', () => {
     await vi.waitFor(() => expect(service.terminalRegistry.getStatus(runId)).toBe('completed'))
   })
 
+  it('9a. a WORK run inherits the session full permission mode: risky tool bypasses the prompt', async () => {
+    simulateTool = 'risky'
+    const { registry } = stubRegistry('risky')
+    const store = createFakeStore()
+    const { broadcaster, calls } = stubBroadcaster()
+    const service = createSessionService({
+      store: store as never,
+      broadcaster,
+      maxConcurrent: 5,
+      getProvider: () => undefined,
+      toolRegistry: registry,
+    })
+    const { sessionId } = service.createSession(provider)
+    store.setSessionSettings(sessionId, { permissionMode: 'full' })
+
+    const r = await service.runWork(sessionId, 'do risky work')
+    expect(r.status).toBe('completed')
+    expect(calls.some((c) => c.event === 'run.permission_request')).toBe(false)
+  })
+
+  it('9b. a delegated CHILD run inherits the session full permission mode: no prompt', async () => {
+    holdPrompt = true
+    simulateTool = 'risky'
+    const { registry } = stubRegistry('risky')
+    const store = createFakeStore()
+    const { broadcaster, calls } = stubBroadcaster()
+    const ctxs: ToolRunContext[] = []
+    // Capture each run's ctx off the registry so we can drive spawnChild.
+    const capturing = {
+      resolve: (allow: string[], ctx: ToolRunContext) => {
+        ctxs.push(ctx)
+        return registry.resolve(allow, ctx)
+      },
+    } as unknown as ToolRegistry
+    const service = createSessionService({
+      store: store as never,
+      broadcaster,
+      maxConcurrent: 5,
+      getProvider: () => undefined,
+      toolRegistry: capturing,
+    })
+    const { sessionId } = service.createSession(provider)
+    store.setSessionSettings(sessionId, { permissionMode: 'full' })
+    service.submitPrompt(sessionId, 'parent')
+    await vi.waitFor(() => expect(ctxs.length).toBeGreaterThan(0))
+
+    holdPrompt = false
+    const child = await ctxs[0].spawnChild('risky child work')
+    expect(child.status).toBe('completed')
+    expect(calls.some((c) => c.event === 'run.permission_request')).toBe(false)
+    releaseAllHeld()
+  })
+
   it('10. deleteSession aborts running + queued runs (both cancelled) and drops the store rows', async () => {
     holdPrompt = true
     const { service, store, calls } = makeService()

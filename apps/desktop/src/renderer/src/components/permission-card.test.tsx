@@ -31,6 +31,12 @@ describe('PermissionCard', () => {
   it('fires the matching decision for each action button', () => {
     const onDecide = vi.fn()
     render(<PermissionCard onDecide={onDecide} prompt={basePrompt} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }))
+    expect(onDecide).toHaveBeenCalledWith('act-1', 'skip')
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(onDecide).toHaveBeenCalledWith('act-1', 'grant')
+    fireEvent.click(screen.getByRole('button', { name: 'Always allow' }))
+    expect(onDecide).toHaveBeenCalledWith('act-1', 'grant_always')
     fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
     expect(onDecide).toHaveBeenCalledWith('act-1', 'deny')
   })

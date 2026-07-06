@@ -125,7 +125,11 @@ export type CronRun = {
   error: string | null
 }
 
-export type PermissionDecision = 'grant' | 'deny' | 'skip'
+// 'grant_always' grants THIS request and auto-grants every later request for the
+// same tool name in the session (in-memory, session lifetime). The engine never
+// sees it: the permission registry records the tool and resolves the pending as
+// 'grant'.
+export type PermissionDecision = 'grant' | 'deny' | 'skip' | 'grant_always'
 
 export type SubmitGoalResult = { runId: string }
 

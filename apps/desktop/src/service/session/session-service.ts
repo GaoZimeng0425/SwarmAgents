@@ -355,6 +355,9 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         prompt: goal,
         budget: budgets().sub,
         tools: suggestedTools ?? allowlistForAgent(def),
+        // A sub-agent inherits the session's live permission mode: once the user
+        // grants 'full' for the session, delegated children must not re-prompt.
+        getPermissionMode: () => resolvePermissionMode(session.id),
         maxIterationsOverride: budgets().maxIterations,
       },
       basePorts(session)
@@ -390,7 +393,9 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         tools,
         cwd: options.cwd,
         executionMode: options.executionMode,
-        permissionMode: options.permissionMode,
+        // An explicit per-run override wins; otherwise inherit the session's live
+        // permission mode so agent-authored work runs honor a session 'full' grant.
+        getPermissionMode: () => options.permissionMode ?? resolvePermissionMode(sessionId),
         maxIterationsOverride: budgets().maxIterations,
       },
       basePorts(session)

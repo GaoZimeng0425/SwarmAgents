@@ -67,6 +67,14 @@ export function PermissionCard({ prompt, onDecide, autoFocusDeny = false }: Prop
             </Button>
             <Button
               onClick={() => {
+                onDecide(prompt.actionId, 'grant_always')
+              }}
+              variant="outline"
+            >
+              Always allow
+            </Button>
+            <Button
+              onClick={() => {
                 onDecide(prompt.actionId, 'deny')
               }}
               ref={denyRef}
