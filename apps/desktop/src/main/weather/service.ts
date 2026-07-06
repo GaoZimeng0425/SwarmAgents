@@ -1,13 +1,14 @@
 // QWeather config + forecast state machine. Single source of truth for the
 // encrypted config and the 30-min in-memory forecast cache. Wraps the Store
 // with input validation and a config-change broadcast; getForecast resolves
-// coordinates (GPS via renderer args, else IP fallback), checks the cache, then
-// calls fetchGridHourly. Every business path is logged per AGENTS.md §5.
+// coordinates (custom location > GPS > IP), checks the cache, then fetches the
+// hourly forecast plus supplementary products (warnings/indices/air/minutely) in
+// parallel. Every business path is logged per AGENTS.md §5.
 import { createLogger } from '@shared/logger'
 import type { WeatherConfig, WeatherConfigOnDisk, WeatherConfigView, WeatherForecast } from '@swarm/protocol'
 
 import { geocodeCity, locateByIp, reverseGeocode } from './geo'
-import { fetchGridHourly } from './qweather'
+import { fetchAir, fetchHourly, fetchIndices, fetchMinutely, fetchWarnings } from './qweather'
 import type { Store } from './store'
 
 const log = createLogger({ process: 'main' }).child({ component: 'weather-service' })
@@ -114,9 +115,19 @@ export async function createService(opts: { store: Store }): Promise<Service> {
           coordLat = geo.lat
           source = 'custom'
           label = geo.name
-          log.info({ msg: 'weather custom location geocoded', query: state.location, label, lng: coordLng, lat: coordLat })
+          log.info({
+            msg: 'weather custom location geocoded',
+            query: state.location,
+            label,
+            lng: coordLng,
+            lat: coordLat,
+          })
         } catch (e) {
-          log.error({ msg: 'weather custom location geocode failed', query: state.location, err: e instanceof Error ? e.message : String(e) })
+          log.error({
+            msg: 'weather custom location geocode failed',
+            query: state.location,
+            err: e instanceof Error ? e.message : String(e),
+          })
           throw e
         }
       } else if (lng != null && lat != null) {
@@ -124,7 +135,10 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         coordLat = lat
         source = 'gps'
         label = await reverseGeocode(state, lng, lat).catch((e) => {
-          log.warn({ msg: 'reverse geocode failed; using coords as label', err: e instanceof Error ? e.message : String(e) })
+          log.warn({
+            msg: 'reverse geocode failed; using coords as label',
+            err: e instanceof Error ? e.message : String(e),
+          })
           return `${round(lng)},${round(lat)}`
         })
       } else {
@@ -144,18 +158,40 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       const started = Date.now()
       log.info({ msg: 'weather fetch', lng: coordLng, lat: coordLat, source })
       try {
-        const forecast = await fetchGridHourly({
-          config: state,
-          lng: coordLng,
-          lat: coordLat,
-          source,
-          locationLabel: label,
-        })
+        // Fetch the core hourly forecast plus the four supplementary products in
+        // parallel. Only the hourly fetch is required — warnings/indices/air/
+        // minutely are non-fatal, so each degrades to []/null on failure and the
+        // card still renders. Minutely is China-only and 404s elsewhere.
+        const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e))
+        const [core, warnings, indices, air, minutely] = await Promise.all([
+          fetchHourly({ config: state, lng: coordLng, lat: coordLat, source, locationLabel: label }),
+          fetchWarnings(state, coordLng, coordLat).catch((e) => {
+            log.warn({ msg: 'weather warnings fetch failed', err: errMsg(e) })
+            return []
+          }),
+          fetchIndices(state, coordLng, coordLat).catch((e) => {
+            log.warn({ msg: 'weather indices fetch failed', err: errMsg(e) })
+            return []
+          }),
+          fetchAir(state, coordLng, coordLat).catch((e) => {
+            log.warn({ msg: 'weather air fetch failed', err: errMsg(e) })
+            return null
+          }),
+          fetchMinutely(state, coordLng, coordLat).catch((e) => {
+            log.warn({ msg: 'weather minutely fetch failed', err: errMsg(e) })
+            return null
+          }),
+        ])
+        const forecast = { ...core, warnings, indices, air, minutely }
         cache = { key, forecast }
         log.info({
           msg: 'weather fetched',
           durationMs: Date.now() - started,
           hours: forecast.hours.length,
+          warnings: warnings.length,
+          indices: indices.length,
+          air: air !== null,
+          minutely: minutely !== null,
           cached: false,
         })
         return forecast

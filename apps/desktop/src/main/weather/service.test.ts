@@ -7,19 +7,38 @@ import type { Store } from './store'
 // module-eval time and `await import` is cached, so per-test inline mocks can't
 // rewire an already-evaluated `./service`). The mock fns are re-seeded per test
 // via vi.resetAllMocks() in beforeEach.
-vi.mock('./qweather', () => ({ fetchGridHourly: vi.fn() }))
+vi.mock('./qweather', () => ({
+  fetchHourly: vi.fn(),
+  fetchWarnings: vi.fn(),
+  fetchIndices: vi.fn(),
+  fetchAir: vi.fn(),
+  fetchMinutely: vi.fn(),
+}))
 vi.mock('./geo', () => ({ locateByIp: vi.fn(), reverseGeocode: vi.fn(), geocodeCity: vi.fn() }))
 
 import { geocodeCity, locateByIp, reverseGeocode } from './geo'
-import { fetchGridHourly } from './qweather'
+import { fetchAir, fetchHourly, fetchIndices, fetchMinutely, fetchWarnings } from './qweather'
 import { createService } from './service'
 
 // vi.mocked() narrows the imported (real-typed) functions to their Mock type so
 // .mockResolvedValue / .mockImplementation typecheck against the real signature.
-const fetchGridHourlyMock = vi.mocked(fetchGridHourly)
+const fetchHourlyMock = vi.mocked(fetchHourly)
+const fetchWarningsMock = vi.mocked(fetchWarnings)
+const fetchIndicesMock = vi.mocked(fetchIndices)
+const fetchAirMock = vi.mocked(fetchAir)
+const fetchMinutelyMock = vi.mocked(fetchMinutely)
 const locateByIpMock = vi.mocked(locateByIp)
 const reverseGeocodeMock = vi.mocked(reverseGeocode)
 const geocodeCityMock = vi.mocked(geocodeCity)
+
+// Supplementary fetchers default to empty/null so getForecast resolves; tests
+// that assert on them override per-case. Re-seeded after resetAllMocks().
+function seedSupplementary(): void {
+  fetchWarningsMock.mockResolvedValue([])
+  fetchIndicesMock.mockResolvedValue([])
+  fetchAirMock.mockResolvedValue(null)
+  fetchMinutelyMock.mockResolvedValue(null)
+}
 
 // In-memory store; the on-disk store is covered by store.test.ts.
 function memStore(
@@ -56,6 +75,7 @@ describe('weather service', () => {
     // `vi.unstub()` was renamed `vi.unstubAllGlobals()`; we don't stub globals
     // here, so resetAllMocks is the only reset we need.
     vi.resetAllMocks()
+    seedSupplementary()
   })
 
   it('getConfig returns defaults when the store is empty', async () => {
@@ -83,13 +103,17 @@ describe('weather service', () => {
     const r = await svc.setConfig({ ...validCfg.weather, host: 'https://api.qweather.com', privateKeyPem: '' })
     expect(r.ok).toBe(true)
     // Forecast still works, proving the stored key was preserved (signable).
-    fetchGridHourlyMock.mockResolvedValue({
+    fetchHourlyMock.mockResolvedValue({
       location: 'x',
       lng: 1,
       lat: 2,
       source: 'ip',
       fetchedAt: Date.now(),
       hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
     })
     locateByIpMock.mockResolvedValue({ lng: 1, lat: 2, city: 'x' })
     await expect(svc.getForecast(null, null)).resolves.toBeDefined()
@@ -119,13 +143,17 @@ describe('weather service', () => {
   it('uses cached forecast within 30 min for the same rounded coords', async () => {
     // fetchedAt must be "now" so the TTL check (Date.now() - fetchedAt < 30min)
     // holds on the second call — the brief's literal 1_000 (1970) would always miss.
-    fetchGridHourlyMock.mockResolvedValue({
+    fetchHourlyMock.mockResolvedValue({
       location: '北京市',
       lng: 116.4,
       lat: 39.9,
       source: 'gps',
       fetchedAt: Date.now(),
       hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
     })
     locateByIpMock.mockResolvedValue({ lng: 116.4, lat: 39.9, city: '北京市' })
     reverseGeocodeMock.mockResolvedValue('北京市')
@@ -133,18 +161,22 @@ describe('weather service', () => {
     const a = await svc.getForecast(null, null)
     const b = await svc.getForecast(null, null)
     expect(a).toBe(b) // same object reference → cache hit
-    expect(fetchGridHourlyMock).toHaveBeenCalledTimes(1)
+    expect(fetchHourlyMock).toHaveBeenCalledTimes(1)
   })
 
   it('prefers the custom location over GPS + IP (source=custom)', async () => {
     geocodeCityMock.mockResolvedValue({ lng: 116.41, lat: 39.9, name: '北京市' })
-    fetchGridHourlyMock.mockImplementation(async (opts) => ({
+    fetchHourlyMock.mockImplementation(async (opts) => ({
       location: opts.locationLabel,
       lng: opts.lng,
       lat: opts.lat,
       source: opts.source,
       fetchedAt: Date.now(),
       hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
     }))
     const svc = await createService({
       store: memStore({ weather: { ...validCfg.weather, location: '北京' } } as never),
@@ -166,11 +198,95 @@ describe('weather service', () => {
     await expect(svc.getForecast(null, null)).rejects.toThrow(/GeoAPI/)
   })
 
+  it('merges warnings/indices/air/minutely into the forecast', async () => {
+    fetchHourlyMock.mockResolvedValue({
+      location: '北京市',
+      lng: 116.4,
+      lat: 39.9,
+      source: 'ip',
+      fetchedAt: Date.now(),
+      hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
+    })
+    fetchWarningsMock.mockResolvedValue([
+      {
+        id: '1',
+        title: 't',
+        typeName: '冰雹',
+        level: '黄色',
+        severityColor: 'Yellow',
+        text: 'x',
+        pubTime: '',
+        startTime: '',
+        endTime: '',
+        status: 'active',
+      },
+    ])
+    fetchIndicesMock.mockResolvedValue([{ type: '1', name: '运动指数', level: '3', category: '较不宜', text: 'x' }])
+    fetchAirMock.mockResolvedValue({
+      aqi: 99,
+      category: '良',
+      primary: 'O3',
+      pm2p5: 18,
+      pm10: 31,
+      no2: 11,
+      so2: 3,
+      co: 0.4,
+      o3: 199,
+      pubTime: '',
+    })
+    fetchMinutelyMock.mockResolvedValue({ summary: '80分钟后雨就停了', points: [] })
+    locateByIpMock.mockResolvedValue({ lng: 116.4, lat: 39.9, city: '北京市' })
+    const svc = await createService({ store: memStore(validCfg as never) })
+    const f = await svc.getForecast(null, null)
+    expect(f.warnings).toHaveLength(1)
+    expect(f.indices[0]?.name).toBe('运动指数')
+    expect(f.air?.aqi).toBe(99)
+    expect(f.minutely?.summary).toBe('80分钟后雨就停了')
+  })
+
+  it('still returns the forecast when a supplementary fetch fails (graceful degrade)', async () => {
+    fetchHourlyMock.mockResolvedValue({
+      location: 'x',
+      lng: 1,
+      lat: 2,
+      source: 'ip',
+      fetchedAt: Date.now(),
+      hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
+    })
+    fetchAirMock.mockRejectedValue(new Error('QWeather HTTP 402'))
+    fetchMinutelyMock.mockRejectedValue(new Error('QWeather code 404')) // China-only endpoint elsewhere
+    locateByIpMock.mockResolvedValue({ lng: 1, lat: 2, city: 'x' })
+    const svc = await createService({ store: memStore(validCfg as never) })
+    const f = await svc.getForecast(null, null)
+    expect(f.air).toBeNull()
+    expect(f.minutely).toBeNull()
+    expect(f.location).toBe('x') // core forecast still returned
+  })
+
   it('treats a different rounded coordinate as a cache miss', async () => {
     let calls = 0
-    fetchGridHourlyMock.mockImplementation(async () => {
+    fetchHourlyMock.mockImplementation(async () => {
       calls += 1
-      return { location: 'x', lng: 1, lat: 2, source: 'gps', fetchedAt: Date.now(), hours: [] }
+      return {
+        location: 'x',
+        lng: 1,
+        lat: 2,
+        source: 'gps',
+        fetchedAt: Date.now(),
+        hours: [],
+        warnings: [],
+        indices: [],
+        air: null,
+        minutely: null,
+      }
     })
     locateByIpMock
       .mockResolvedValueOnce({ lng: 116.4, lat: 39.9, city: 'a' })

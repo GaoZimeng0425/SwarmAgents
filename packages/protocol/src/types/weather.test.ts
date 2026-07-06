@@ -61,7 +61,6 @@ describe('WeatherHour', () => {
       windScale: '3',
       windDir: 'NE',
       pressure: 1013,
-      feelsLikeC: 22,
     })
     expect(h.tempC).toBe(24)
   })
@@ -80,6 +79,10 @@ describe('WeatherForecast', () => {
       source: 'gps',
       fetchedAt: 1_700_000_000_000,
       hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
     })
     expect(f.source).toBe('gps')
   })
@@ -93,6 +96,10 @@ describe('WeatherForecast', () => {
         source: 'wifi',
         fetchedAt: 1,
         hours: [],
+        warnings: [],
+        indices: [],
+        air: null,
+        minutely: null,
       })
     ).toThrow()
   })
@@ -109,8 +116,20 @@ describe('WeatherForecast', () => {
       windScale: '0',
       windDir: 'N',
       pressure: 1000,
-      feelsLikeC: 1,
     }))
-    expect(() => WeatherForecast.parse({ location: 'x', lng: 1, lat: 2, source: 'gps', fetchedAt: 1, hours })).toThrow()
+    expect(() =>
+      WeatherForecast.parse({
+        location: 'x',
+        lng: 1,
+        lat: 2,
+        source: 'gps',
+        fetchedAt: 1,
+        hours,
+        warnings: [],
+        indices: [],
+        air: null,
+        minutely: null,
+      })
+    ).toThrow()
   })
 })
