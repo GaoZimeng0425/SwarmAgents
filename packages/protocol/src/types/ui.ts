@@ -32,6 +32,7 @@ import type { RunWireEvent } from './run'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, DelegateResult, ExecutionMode, PermissionMode, RunOptions, TaskEvent } from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
+import type { WeatherConfig, WeatherConfigView, WeatherForecast } from './weather'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
 /** Renderer→Main: analyze one email. Main injects the active provider before
@@ -297,6 +298,22 @@ export type WebSearchBridge = {
   onStateChanged(cb: (v: WebSearchConfigView) => void): () => void
 }
 
+export type WeatherSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
+
+export type WeatherForecastResult =
+  | { ok: true; forecast: WeatherForecast }
+  | { ok: false; code: 'not_configured' | 'locate_failed' | 'fetch_failed'; message: string }
+
+export type WeatherBridge = {
+  getConfig(): Promise<WeatherConfigView>
+  setConfig(c: WeatherConfig): Promise<WeatherSetResult>
+  /** lng/lat null → IP fallback in main. */
+  getForecast(lng: number | null, lat: number | null): Promise<WeatherForecastResult>
+  /** Pushed from main whenever a fresh forecast is fetched. */
+  onForecast(cb: (f: WeatherForecast) => void): () => void
+  onConfigChanged(cb: (c: WeatherConfigView) => void): () => void
+}
+
 export type BudgetsSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
 export type BudgetsBridge = {
@@ -412,6 +429,7 @@ export type SwarmBridge = {
   providers: ProvidersBridge
   mcp: McpBridge
   webSearch: WebSearchBridge
+  weather: WeatherBridge
   budgets: BudgetsBridge
   skills: SkillBridge
   toolToggles: ToolTogglesBridge

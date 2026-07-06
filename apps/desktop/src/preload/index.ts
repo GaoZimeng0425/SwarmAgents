@@ -57,6 +57,11 @@ import type {
   ToolTogglesBridge,
   TranscriptionConfig,
   UIEvent,
+  WeatherBridge,
+  WeatherConfigView,
+  WeatherForecast,
+  WeatherForecastResult,
+  WeatherSetResult,
   WebSearchBridge,
   WebSearchConfigView,
   WebSearchKeyId,
@@ -74,6 +79,7 @@ const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
 const MCP_CONFIG_CHANGED_CHANNEL = 'mcp:configChanged'
 const MCP_STATUS_CHANNEL = 'mcp:status'
 const WEB_SEARCH_STATE_CHANNEL = 'webSearch:stateChanged'
+const WEATHER_FORECAST_CHANNEL = 'weather:forecastChanged'
 const BUDGETS_STATE_CHANNEL = 'budgets:stateChanged'
 
 const providers: ProvidersBridge = {
@@ -163,6 +169,21 @@ const webSearch: WebSearchBridge = {
       ipcRenderer.removeListener(WEB_SEARCH_STATE_CHANNEL, listener)
     }
   },
+}
+
+const weather: WeatherBridge = {
+  getConfig: () => ipcRenderer.invoke('weather:getConfig') as Promise<WeatherConfigView>,
+  setConfig: (c) => ipcRenderer.invoke('weather:setConfig', c) as Promise<WeatherSetResult>,
+  getForecast: (lng, lat) =>
+    ipcRenderer.invoke('weather:getForecast', lng, lat) as Promise<WeatherForecastResult>,
+  onForecast: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WeatherForecast): void => cb(payload)
+    ipcRenderer.on(WEATHER_FORECAST_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(WEATHER_FORECAST_CHANNEL, listener)
+    }
+  },
+  onConfigChanged: () => () => {},
 }
 
 const budgets: BudgetsBridge = {
@@ -377,6 +398,7 @@ const swarm: SwarmBridge = {
   providers,
   mcp,
   webSearch,
+  weather,
   budgets,
   skills,
   toolToggles,

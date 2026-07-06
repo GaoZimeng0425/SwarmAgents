@@ -14,6 +14,7 @@ import { DashboardTopbar } from '@/components/views/dashboard/dashboard-topbar'
 import { RecentList } from '@/components/views/dashboard/recent-list'
 import { RunningCards } from '@/components/views/dashboard/running-cards'
 import { ScheduledList } from '@/components/views/dashboard/scheduled-list'
+import { WeatherCard } from '@/components/views/dashboard/weather-card'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useAllCronJobs, useAllCronRuns } from '@/hooks/use-cron'
 import { useNow } from '@/hooks/use-now'
@@ -87,6 +88,9 @@ export function HomeDashboard(): React.JSX.Element {
             />
           </div>
         </section>
+
+        {/* 天气 */}
+        <WeatherCard />
 
         {/* 进行中 */}
         <RunningCards awaiting={awaiting} running={running} />
