@@ -6,7 +6,7 @@
 import { createLogger } from '@shared/logger'
 import type { WeatherConfig, WeatherConfigOnDisk, WeatherConfigView, WeatherForecast } from '@swarm/protocol'
 
-import { locateByIp, reverseGeocode } from './geo'
+import { geocodeCity, locateByIp, reverseGeocode } from './geo'
 import { fetchGridHourly } from './qweather'
 import type { Store } from './store'
 
@@ -19,7 +19,13 @@ export type SetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_f
 // boundary on read (matches providers/web-search/gmail). The service keeps the
 // full config internally for JWT signing; only the read path redacts.
 function toView(c: WeatherConfig): WeatherConfigView {
-  return { host: c.host, projectId: c.projectId, credentialId: c.credentialId, hasPrivateKey: !!c.privateKeyPem }
+  return {
+    host: c.host,
+    projectId: c.projectId,
+    credentialId: c.credentialId,
+    hasPrivateKey: !!c.privateKeyPem,
+    location: c.location,
+  }
 }
 
 export type Service = {
@@ -75,9 +81,18 @@ export async function createService(opts: { store: Store }): Promise<Service> {
   return {
     getConfig: () => toView(state),
     async setConfig(c) {
-      const err = validateConfig(c)
+      // Empty PEM means "keep the existing stored key": the renderer only ever
+      // sees the redacted view, so an unchanged key round-trips back empty.
+      // Merge it in before validating so partial edits (host/ids) don't force
+      // the user to re-paste the secret on every save. A first-time save with
+      // no stored key still fails validation below.
+      const merged: WeatherConfig =
+        c.privateKeyPem.trim() === '' && state.privateKeyPem.trim() !== ''
+          ? { ...c, privateKeyPem: state.privateKeyPem }
+          : c
+      const err = validateConfig(merged)
       if (err) return { ok: false, code: 'invalid', message: err }
-      return persist({ weather: c })
+      return persist({ weather: merged })
     },
     async getForecast(lng, lat) {
       const err = validateConfig(state)
@@ -86,12 +101,25 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         throw new Error('not configured')
       }
 
-      // Resolve coordinates + label.
+      // Resolve coordinates + label by priority: custom location > GPS > IP.
       let coordLng: number
       let coordLat: number
-      let source: 'gps' | 'ip'
+      let source: 'gps' | 'ip' | 'custom'
       let label: string
-      if (lng != null && lat != null) {
+      if (state.location.trim() !== '') {
+        // Custom city name wins when set: geocode it via QWeather GeoAPI.
+        try {
+          const geo = await geocodeCity(state, state.location)
+          coordLng = geo.lng
+          coordLat = geo.lat
+          source = 'custom'
+          label = geo.name
+          log.info({ msg: 'weather custom location geocoded', query: state.location, label, lng: coordLng, lat: coordLat })
+        } catch (e) {
+          log.error({ msg: 'weather custom location geocode failed', query: state.location, err: e instanceof Error ? e.message : String(e) })
+          throw e
+        }
+      } else if (lng != null && lat != null) {
         coordLng = lng
         coordLat = lat
         source = 'gps'

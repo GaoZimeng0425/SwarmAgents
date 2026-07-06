@@ -1,8 +1,7 @@
 import { generateKeyPairSync, type KeyObject } from 'node:crypto'
+import type { WeatherConfig } from '@swarm/protocol'
 import { jwtVerify } from 'jose'
 import { describe, expect, it } from 'vitest'
-
-import type { WeatherConfig } from '@swarm/protocol'
 
 import { signQWeatherJwt } from './jwt'
 
@@ -23,6 +22,7 @@ describe('signQWeatherJwt', () => {
       projectId: 'proj_abc',
       credentialId: 'cred_xyz',
       privateKeyPem,
+      location: '',
     }
 
     const token = await signQWeatherJwt(cfg)
@@ -41,7 +41,11 @@ describe('signQWeatherJwt', () => {
   it('sets an expiry no further than 5 minutes out', async () => {
     const { privateKeyPem, publicKey } = ed25519Pem()
     const cfg: WeatherConfig = {
-      host: 'x', projectId: 'p', credentialId: 'c', privateKeyPem,
+      host: 'x',
+      projectId: 'p',
+      credentialId: 'c',
+      privateKeyPem,
+      location: '',
     }
     const token = await signQWeatherJwt(cfg)
     const spki = publicKey.export({ format: 'pem', type: 'spki' })

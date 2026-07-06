@@ -31,13 +31,11 @@ export async function locateByIp(): Promise<{ lng: number; lat: number; city: st
   }
 }
 
-type GeoApiResult = { code?: string; location?: { name: string }[] }
+// QWeather city-lookup entries carry lat/lon (strings) alongside the name. The
+// reverse path only needs the name; geocodeCity() also needs the coordinates.
+type GeoApiResult = { code?: string; location?: { name: string; lat?: string; lon?: string }[] }
 
-export async function reverseGeocode(
-  cfg: WeatherConfig,
-  lng: number,
-  lat: number,
-): Promise<string> {
+export async function reverseGeocode(cfg: WeatherConfig, lng: number, lat: number): Promise<string> {
   const token = await signQWeatherJwt(cfg)
   const url = `${cfg.host.replace(/\/+$/, '')}/geo/v2/city/lookup?location=${lng},${lat}`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
@@ -47,4 +45,29 @@ export async function reverseGeocode(
     throw new Error(`QWeather GeoAPI code ${body.code ?? 'unknown'}`)
   }
   return body.location[0].name
+}
+
+// Forward-geocode a custom city name (e.g. "北京"/"Shanghai") to coordinates via
+// the same QWeather GeoAPI endpoint (location param is the query string instead
+// of lng,lat). Returns the first match's coords + canonical name. Throws on
+// HTTP failure, a non-"200" QWeather code, or an unparseable lat/lon.
+export async function geocodeCity(
+  cfg: WeatherConfig,
+  query: string
+): Promise<{ lng: number; lat: number; name: string }> {
+  const token = await signQWeatherJwt(cfg)
+  const url = `${cfg.host.replace(/\/+$/, '')}/geo/v2/city/lookup?location=${encodeURIComponent(query)}`
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`QWeather GeoAPI HTTP ${res.status}`)
+  const body = (await res.json()) as GeoApiResult
+  const top = body.location?.[0]
+  if (body.code !== '200' || !top) {
+    throw new Error(`QWeather GeoAPI code ${body.code ?? 'unknown'}`)
+  }
+  const lng = Number(top.lon)
+  const lat = Number(top.lat)
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    throw new Error(`QWeather GeoAPI returned no coordinates for "${query}"`)
+  }
+  return { lng, lat, name: top.name }
 }

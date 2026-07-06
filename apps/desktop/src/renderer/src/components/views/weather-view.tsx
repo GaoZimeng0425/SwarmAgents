@@ -8,7 +8,7 @@ import { Section, SettingsHeader } from './settings-primitives'
 // Writable fields tracked in the draft. The PEM is held separately (pemDraft)
 // because the config read from main is the redacted view — the secret never
 // round-trips back out, so the textarea starts empty on every load.
-type Draft = Pick<WeatherConfig, 'host' | 'projectId' | 'credentialId'>
+type Draft = Pick<WeatherConfig, 'host' | 'projectId' | 'credentialId' | 'location'>
 
 export function WeatherView(): React.JSX.Element {
   const { config } = useWeather()
@@ -16,6 +16,7 @@ export function WeatherView(): React.JSX.Element {
     host: config.host,
     projectId: config.projectId,
     credentialId: config.credentialId,
+    location: config.location,
   })
   const [pemDraft, setPemDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -25,40 +26,47 @@ export function WeatherView(): React.JSX.Element {
   // textarea is deliberately NOT repopulated — it always starts empty so the
   // saved secret is never echoed back into the renderer.
   useEffect(() => {
-    setDraft({ host: config.host, projectId: config.projectId, credentialId: config.credentialId })
+    setDraft({
+      host: config.host,
+      projectId: config.projectId,
+      credentialId: config.credentialId,
+      location: config.location,
+    })
   }, [config])
 
   const save = async (): Promise<void> => {
     setBusy(true)
     setError(null)
-    // setConfig needs the FULL config (the write path carries the PEM).
+    // An empty PEM tells main to keep the existing stored key; a non-empty one
+    // replaces it. Either way we send the full config shape (the write path).
     const full: WeatherConfig = {
       host: draft.host,
       projectId: draft.projectId,
       credentialId: draft.credentialId,
       privateKeyPem: pemDraft,
+      location: draft.location,
     }
     const r = await window.swarm.weather.setConfig(full)
     setBusy(false)
     if (!r.ok) setError(r.message)
   }
 
-  // The PEM is required on every save: the redacted view never echoes the
-  // secret back, so there is no way to re-send the existing key without the
-  // user re-pasting it. validateConfig on the main side rejects an empty PEM.
-  const canSave = !busy && pemDraft.trim().length > 0
+  // A key is required only for first-time setup. Once one is saved, leaving the
+  // PEM blank keeps the stored key (main merges it in), so host/id edits save
+  // without re-pasting the secret.
+  const canSave = !busy && (config.hasPrivateKey || pemDraft.trim().length > 0)
 
   return (
     <div className="space-y-5">
       <SettingsHeader
-        title="Weather"
         description={
           <>
-            QWeather (和风天气) grid-point hourly forecast for the dashboard card. Credentials are encrypted at rest
-            via the system Keychain. Generate an Ed25519 key pair in the QWeather console, register the public key as a
+            QWeather (和风天气) grid-point hourly forecast for the dashboard card. Credentials are encrypted at rest via
+            the system Keychain. Generate an Ed25519 key pair in the QWeather console, register the public key as a
             credential, then paste the Project ID, Credential ID, and the private key PEM below.
           </>
         }
+        title="Weather"
       />
 
       <Section label="Host">
@@ -69,6 +77,18 @@ export function WeatherView(): React.JSX.Element {
         />
         <p className="text-muted-foreground text-xs">
           Public dev host: <code>https://devapi.qweather.com</code>. Commercial: <code>https://api.qweather.com</code>.
+        </p>
+      </Section>
+
+      <Section label="Location (custom)">
+        <Input
+          onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+          placeholder="e.g. 北京 / Shanghai / 朝阳区（leave blank to auto-detect）"
+          value={draft.location}
+        />
+        <p className="text-muted-foreground text-xs">
+          City name. When set it takes priority over auto-location — the app geocodes it via QWeather. Leave blank to
+          use device location, falling back to IP.
         </p>
       </Section>
 
@@ -96,7 +116,7 @@ export function WeatherView(): React.JSX.Element {
           onChange={(e) => setPemDraft(e.target.value)}
           placeholder={
             config.hasPrivateKey
-              ? '••••• saved — type to replace (required on every save)'
+              ? '••••• saved — leave blank to keep, or paste a new key to replace'
               : '-----BEGIN PRIVATE KEY-----\n…\n-----END PRIVATE KEY-----'
           }
           rows={6}
@@ -104,8 +124,10 @@ export function WeatherView(): React.JSX.Element {
         />
         <p className="text-muted-foreground text-xs">
           {config.hasPrivateKey && <span className="mr-1">✓ private key saved.</span>}
-          Paste your private key PEM. Required on every save (the key is not echoed back for security). Stored encrypted;
-          never leaves the main process.
+          {config.hasPrivateKey
+            ? 'Leave blank to keep the saved key, or paste a new one to replace it.'
+            : 'Paste your private key PEM.'}{' '}
+          The key is never echoed back for security. Stored encrypted; never leaves the main process.
         </p>
       </Section>
 
@@ -114,9 +136,7 @@ export function WeatherView(): React.JSX.Element {
           Save
         </Button>
         {error && <span className="text-destructive text-xs">{error}</span>}
-        {!error && config.hasPrivateKey && (
-          <span className="text-muted-foreground text-xs">✓ configured</span>
-        )}
+        {!error && config.hasPrivateKey && <span className="text-muted-foreground text-xs">✓ configured</span>}
       </div>
     </div>
   )

@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { defaultWeatherConfigOnDisk } from '@swarm/protocol'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Store } from './store'
 
@@ -9,9 +8,9 @@ import type { Store } from './store'
 // rewire an already-evaluated `./service`). The mock fns are re-seeded per test
 // via vi.resetAllMocks() in beforeEach.
 vi.mock('./qweather', () => ({ fetchGridHourly: vi.fn() }))
-vi.mock('./geo', () => ({ locateByIp: vi.fn(), reverseGeocode: vi.fn() }))
+vi.mock('./geo', () => ({ locateByIp: vi.fn(), reverseGeocode: vi.fn(), geocodeCity: vi.fn() }))
 
-import { locateByIp, reverseGeocode } from './geo'
+import { geocodeCity, locateByIp, reverseGeocode } from './geo'
 import { fetchGridHourly } from './qweather'
 import { createService } from './service'
 
@@ -20,9 +19,12 @@ import { createService } from './service'
 const fetchGridHourlyMock = vi.mocked(fetchGridHourly)
 const locateByIpMock = vi.mocked(locateByIp)
 const reverseGeocodeMock = vi.mocked(reverseGeocode)
+const geocodeCityMock = vi.mocked(geocodeCity)
 
 // In-memory store; the on-disk store is covered by store.test.ts.
-function memStore(initial: Store['load'] extends () => Promise<infer S> ? S : never = defaultWeatherConfigOnDisk()): Store {
+function memStore(
+  initial: Store['load'] extends () => Promise<infer S> ? S : never = defaultWeatherConfigOnDisk()
+): Store {
   let state = initial
   return {
     async load() {
@@ -43,6 +45,7 @@ const validCfg = {
     projectId: 'p',
     credentialId: 'c',
     privateKeyPem: '-----BEGIN PRIVATE KEY-----\nMI…\n-----END PRIVATE KEY-----\n',
+    location: '',
   },
 }
 
@@ -72,6 +75,32 @@ describe('weather service', () => {
     const r = await svc.setConfig(validCfg.weather)
     expect(r.ok).toBe(true)
     expect(svc.getConfig().projectId).toBe('p')
+  })
+
+  it('keeps the stored key when setConfig sends an empty PEM (partial edit)', async () => {
+    const svc = await createService({ store: memStore(validCfg as never) })
+    // Simulate the renderer saving a host change with a blank PEM textarea.
+    const r = await svc.setConfig({ ...validCfg.weather, host: 'https://api.qweather.com', privateKeyPem: '' })
+    expect(r.ok).toBe(true)
+    // Forecast still works, proving the stored key was preserved (signable).
+    fetchGridHourlyMock.mockResolvedValue({
+      location: 'x',
+      lng: 1,
+      lat: 2,
+      source: 'ip',
+      fetchedAt: Date.now(),
+      hours: [],
+    })
+    locateByIpMock.mockResolvedValue({ lng: 1, lat: 2, city: 'x' })
+    await expect(svc.getForecast(null, null)).resolves.toBeDefined()
+    expect(svc.getConfig().host).toBe('https://api.qweather.com')
+  })
+
+  it('rejects a first-time save with an empty PEM (no stored key to keep)', async () => {
+    const svc = await createService({ store: memStore() })
+    const r = await svc.setConfig({ ...validCfg.weather, privateKeyPem: '' })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.code).toBe('invalid')
   })
 
   it('broadcasts onConfigChanged after a successful save', async () => {
@@ -105,6 +134,36 @@ describe('weather service', () => {
     const b = await svc.getForecast(null, null)
     expect(a).toBe(b) // same object reference → cache hit
     expect(fetchGridHourlyMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefers the custom location over GPS + IP (source=custom)', async () => {
+    geocodeCityMock.mockResolvedValue({ lng: 116.41, lat: 39.9, name: '北京市' })
+    fetchGridHourlyMock.mockImplementation(async (opts) => ({
+      location: opts.locationLabel,
+      lng: opts.lng,
+      lat: opts.lat,
+      source: opts.source,
+      fetchedAt: Date.now(),
+      hours: [],
+    }))
+    const svc = await createService({
+      store: memStore({ weather: { ...validCfg.weather, location: '北京' } } as never),
+    })
+    // Pass GPS coords too: the custom location must still win.
+    const f = await svc.getForecast(121.4, 31.2)
+    expect(geocodeCityMock).toHaveBeenCalledWith(expect.objectContaining({ location: '北京' }), '北京')
+    expect(locateByIpMock).not.toHaveBeenCalled()
+    expect(f.source).toBe('custom')
+    expect(f.location).toBe('北京市')
+    expect([f.lng, f.lat]).toEqual([116.41, 39.9])
+  })
+
+  it('surfaces a geocode failure when the custom location is unresolvable', async () => {
+    geocodeCityMock.mockRejectedValue(new Error('QWeather GeoAPI code 404'))
+    const svc = await createService({
+      store: memStore({ weather: { ...validCfg.weather, location: 'Nowhereville' } } as never),
+    })
+    await expect(svc.getForecast(null, null)).rejects.toThrow(/GeoAPI/)
   })
 
   it('treats a different rounded coordinate as a cache miss', async () => {

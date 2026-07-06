@@ -12,6 +12,7 @@ const DEFAULT_CONFIG: WeatherConfigView = {
   projectId: '',
   credentialId: '',
   hasPrivateKey: false,
+  location: '',
 }
 
 export type UseWeather = {
