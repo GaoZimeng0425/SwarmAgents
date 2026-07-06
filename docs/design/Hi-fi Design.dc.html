@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1" name="viewport" >
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta content="canvas" name="design_doc_mode" ><style>
+body{margin:0;background:#ecebe7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.6)}
+.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.12);overflow:hidden}
+.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}
+</style></helmet>
+
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">「指挥一群 Agent」定位 — Agents 升为一级「编队」,rail 重排为 场景 / 服务 两段</span></div>
+<div class="dv-opts">
+
+<!-- ================= 4a 编队命令中心 ================= -->
+<div class="dv-opt" id="4a">
+<div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>编队命令中心 — 组织树 + 谁在干活 + 委派实时点亮,点 Agent 看详情</div>
+<div class="dv-card" data-screen-label="编队命令中心" style="width:1280px;height:800px;display:flex;background:#f4f4f2;color:#1c1c1e">
+
+  <!-- rail (two-section) -->
+  <div style="width:64px;display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;border-right:1px solid rgba(0,0,0,.06);background:#eeeeea">
+    <div style="display:flex;gap:7px;margin-bottom:18px;align-self:flex-start;padding-left:16px">
+      <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span>
+    </div>
+    <!-- 场景 -->
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="任务台">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="7.5" rx="2" width="7.5" x="3" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="3" y="13.5" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="13.5" ></rect></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="对话">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center;position:relative" title="编队">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20a5.5 5.5 0 0 1 11 0"></path><path d="M16 6.5a3 3 0 0 1 0 5.5M20.5 20a5.2 5.2 0 0 0-4-5"></path></svg>
+        <span style="position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:#3478f6;box-shadow:0 0 0 2px #1c1c1e"></span>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="日历">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="16" rx="2.5" width="18" x="3" y="4.5" ></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
+      </div>
+    </div>
+    <!-- divider -->
+    <div style="width:22px;height:1px;background:rgba(0,0,0,.1);margin:10px 0"></div>
+    <!-- 连接的服务 -->
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="Gmail">
+        <svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="17" ><rect height="14" rx="2.5" width="18" x="3" y="5" ></rect><path d="m3.5 6.5 8.5 6 8.5-6"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="GitHub 趋势">
+        <svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="17" ><path d="M3 17l6-6 4 4 8-8"></path><path d="M17 7h4v4"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="Bilibili 收藏">
+        <svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="17" ><rect height="13" rx="3" width="18" x="3" y="7" ></rect><path d="m7 3 3 4M17 3l-3 4M9 13v2M15 13v2"></path></svg>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="用量">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M4 19.5V10M12 19.5V4.5M20 19.5v-7"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="设置">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="3.2"></circle><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.36.95A7 7 0 0 0 14.08 5L13.7 2.5h-4L9.3 5a7 7 0 0 0-2.42 1.4l-2.36-.95-2 3.46 2 1.55A7 7 0 0 0 4.38 12c0 .48.05.94.14 1.4l-2 1.55 2 3.46 2.36-.95c.7.62 1.52 1.1 2.42 1.4l.4 2.64h4l.4-2.64a7 7 0 0 0 2.42-1.4l2.36.95 2-3.46-2-1.55c.09-.46.14-.92.14-1.4z"></path></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- org tree -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+    <div style="height:52px;display:flex;align-items:center;padding:0 24px;gap:12px;border-bottom:1px solid rgba(0,0,0,.05)">
+      <span style="font-size:15px;font-weight:600">编队</span>
+      <span style="font-size:12px;color:#86868b">7 个 Agent</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#3478f6;font-weight:500"><span style="width:6px;height:6px;border-radius:50%;background:#3478f6;box-shadow:0 0 0 3px rgba(52,120,246,.18)"></span>2 正在工作</span>
+      <div style="flex:1"></div>
+      <div style="display:flex;background:rgba(0,0,0,.05);border-radius:8px;padding:2px;gap:2px">
+        <span style="font-size:11.5px;font-weight:600;color:#1c1c1e;background:#fff;border-radius:6px;padding:4px 11px;box-shadow:0 1px 2px rgba(0,0,0,.06)">编队</span>
+        <span style="font-size:11.5px;color:#86868b;padding:4px 11px">列表</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:#fff;background:#1c1c1e;border-radius:8px;padding:6px 12px">
+        <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24" width="13" ><path d="M12 5v14M5 12h14"></path></svg>新建 Agent
+      </div>
+    </div>
+
+    <div style="flex:1;overflow:hidden;padding:22px 28px;display:flex;flex-direction:column;gap:6px">
+      <!-- 总控 (root) -->
+      <div style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:12px;padding:12px 14px;box-shadow:0 1px 2px rgba(0,0,0,.04)">
+        <div style="width:30px;height:30px;border-radius:9px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="15" ><path d="M12 3l2.5 4.5L19 9l-3.5 3.5L16 17l-4-2-4 2 .5-4.5L5 9l4.5-1.5z"></path></svg></div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600">总控 Agent</span><span style="font-size:12px;font-family:ui-monospace,Menlo,monospace;color:#86868b">orchestrator</span><span style="font-size:10.5px;font-weight:600;background:rgba(52,120,246,.1);color:#3478f6;border-radius:5px;padding:2px 6px">CEO</span><span style="font-size:11px;color:#86868b">scope: all</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#3478f6;font-weight:500"><span style="width:6px;height:6px;border-radius:50%;background:#3478f6;box-shadow:0 0 0 3px rgba(52,120,246,.18)"></span>正在编排 · 已委派 2 个子任务</div>
+        </div>
+      </div>
+
+      <!-- 工程团队 -->
+      <div style="margin-left:15px;border-left:1px solid rgba(0,0,0,.1);padding-left:16px;display:flex;flex-direction:column;gap:6px;margin-top:2px">
+        <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.02em;padding-top:6px">工程团队</div>
+        <!-- 编码 (selected + running) -->
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid #1c1c1e;border-radius:11px;padding:11px 13px;box-shadow:0 0 0 2px rgba(28,28,30,.08)">
+          <div style="width:28px;height:28px;border-radius:8px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="14" stroke="#48484a" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14" ><path d="m8 8-4 4 4 4M16 8l4 4-4 4"></path></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600">编码 Agent</span><span style="font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#86868b">coder</span><span style="font-size:11px;color:#86868b">scope: repo</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">edit</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">shell</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">test</span></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:#3478f6;font-weight:500"><span style="width:5px;height:5px;border-radius:50%;background:#3478f6"></span>运行中 · 修复登录 token 竞态 · 13/18 步</div>
+          </div>
+        </div>
+        <!-- 测试 (delegation target — amber ring) -->
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:11px;padding:11px 13px;box-shadow:0 0 0 2px rgba(226,176,107,.4)">
+          <div style="width:28px;height:28px;border-radius:8px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="14" stroke="#48484a" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14" ><path d="M9 3h6M10 3v5l-4 9a2 2 0 0 0 1.8 3h8.4a2 2 0 0 0 1.8-3l-4-9V3"></path></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600">测试 Agent</span><span style="font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#86868b">qa</span><span style="font-size:11px;color:#86868b">scope: repo</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">test</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">shell</span></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:#a3690f;font-weight:500"><svg fill="none" height="11" stroke="#c77d1e" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24" width="11" ><path d="M5 12h14M12 5l7 7-7 7"></path></svg>被「编码 Agent」委派</div>
+          </div>
+        </div>
+        <!-- 评审 (delegation target) -->
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:11px;padding:11px 13px;box-shadow:0 0 0 2px rgba(226,176,107,.4)">
+          <div style="width:28px;height:28px;border-radius:8px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="14" stroke="#48484a" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path><path d="M14 6.5 9 11.5"></path></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600">评审 Agent</span><span style="font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#86868b">reviewer</span><span style="font-size:11px;color:#86868b">scope: read</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">read</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">comment</span></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:#a3690f;font-weight:500"><svg fill="none" height="11" stroke="#c77d1e" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24" width="11" ><path d="M5 12h14M12 5l7 7-7 7"></path></svg>被「编码 Agent」委派</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 研究团队 -->
+      <div style="margin-left:15px;border-left:1px solid rgba(0,0,0,.1);padding-left:16px;display:flex;flex-direction:column;gap:6px;margin-top:2px">
+        <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.02em;padding-top:6px">研究团队</div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:11px;padding:11px 13px">
+          <div style="width:28px;height:28px;border-radius:8px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="14" stroke="#48484a" stroke-linecap="round" stroke-width="1.9" viewBox="0 0 24 24" width="14" ><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600">研究 Agent</span><span style="font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#86868b">researcher</span><span style="font-size:11px;color:#86868b">scope: web</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">web</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">fetch</span></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:#3478f6;font-weight:500"><span style="width:5px;height:5px;border-radius:50%;background:#3478f6"></span>运行中 · 整理本周 GitHub 趋势 · 5/9 步</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:11px;padding:11px 13px">
+          <div style="width:28px;height:28px;border-radius:8px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="14" stroke="#48484a" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14" ><path d="M12 20h9"></path><path d="M16.5 3.5a2 2 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600">写作 Agent</span><span style="font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#86868b">writer</span><span style="font-size:11px;color:#86868b">scope: none</span><span style="font-size:10px;background:#f0efec;color:#48484a;border-radius:4px;padding:1px 5px">write</span></div>
+            <div style="margin-top:5px;font-size:11.5px;color:#b0b0b4">空闲</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 独立 Agent -->
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+        <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.04em;text-transform:uppercase">独立 Agent</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:11px;padding:10px 13px">
+            <div style="width:28px;height:28px;border-radius:8px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="14" stroke="#48484a" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14" ><path d="M12 3v10M8 9l4 4 4-4M5 19h14"></path></svg></div>
+            <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px"><span style="font-size:13px;font-weight:600">转写 Agent</span><span style="font-size:11px;font-family:ui-monospace,Menlo,monospace;color:#86868b">transcriber</span></div><div style="margin-top:3px;font-size:11px;color:#b0b0b4">空闲 · scope: media</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:11px;padding:10px 13px">
+            <div style="width:28px;height:28px;border-radius:8px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="14" stroke="#48484a" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14" ><rect height="14" rx="2.5" width="18" x="3" y="5" ></rect><path d="m3.5 6.5 8.5 6 8.5-6"></path></svg></div>
+            <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px"><span style="font-size:13px;font-weight:600">邮件摘要 Agent</span><span style="font-size:11px;font-family:ui-monospace,Menlo,monospace;color:#86868b">summarizer</span></div><div style="margin-top:3px;font-size:11px;color:#b0b0b4">定时 每天 9:00 · scope: gmail</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- detail panel -->
+  <div style="width:328px;border-left:1px solid rgba(0,0,0,.06);background:#f7f7f5;display:flex;flex-direction:column">
+    <div style="padding:18px 18px 14px;border-bottom:1px solid rgba(0,0,0,.06);display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;border-radius:9px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16" ><path d="m8 8-4 4 4 4M16 8l4 4-4 4"></path></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:600">编码 Agent</div><div style="font-size:11.5px;font-family:ui-monospace,Menlo,monospace;color:#86868b">coder · 工程团队</div></div>
+        <svg fill="none" height="16" stroke="#86868b" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16" ><path d="M12 20h9"></path><path d="M16.5 3.5a2 2 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#3478f6;background:rgba(52,120,246,.09);border-radius:999px;padding:4px 10px;align-self:flex-start;font-weight:500"><span style="width:5px;height:5px;border-radius:50%;background:#3478f6"></span>运行中 · 13/18 步</div>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:16px 18px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.03em">工具范围</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:11.5px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:6px;padding:3px 9px">仓库读写</span><span style="font-size:11.5px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:6px;padding:3px 9px">终端</span><span style="font-size:11.5px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:6px;padding:3px 9px">运行测试</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.03em">系统提示</div>
+        <div style="font-size:12px;line-height:1.6;color:#48484a;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:10px;padding:11px 12px;max-height:140px;overflow:hidden">你是一名严谨的工程 Agent。定位问题先复现,改动保持最小 diff;每次修改后运行相关测试。涉及删除文件或破坏性命令时,委派前必须请求人工审批。测试与评审分别委派给「测试 Agent」和「评审 Agent」…</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px;border-top:1px solid rgba(0,0,0,.06);padding-top:14px">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px"><span style="font-size:11.5px;color:#86868b">委派给</span><span style="font-size:11.5px;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:6px;padding:3px 9px">测试 Agent</span><span style="font-size:11.5px;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:6px;padding:3px 9px">评审 Agent</span></div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px"><span style="font-size:11.5px;color:#86868b">被调用</span><span style="font-size:11.5px;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:6px;padding:3px 9px">总控 Agent</span></div>
+        <div style="font-size:10.5px;color:#b0b0b4;font-style:italic">委派关系由提示词解析,非运行时调用</div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#fff;background:#1c1c1e;border-radius:9px;padding:8px 0">编辑</div>
+        <div style="width:38px;text-align:center;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.1);border-radius:9px;padding:8px 0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" style="vertical-align:middle" viewBox="0 0 24 24" width="14" ><rect height="11" rx="2" width="11" x="9" y="9" ></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></div>
+        <div style="width:38px;text-align:center;font-size:12px;color:#86868b;border:1px solid rgba(0,0,0,.1);border-radius:9px;padding:8px 0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" style="vertical-align:middle" viewBox="0 0 24 24" width="14" ><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"></path></svg></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<div style="font:400 11.5px/1.5 system-ui;color:rgba(0,0,0,.5);max-width:660px">Agents 从设置弹窗提到 rail 一级「编队」。这一屏把真实代码里的 org-tree + 委派 + CRUD 做成活的指挥台:蓝点=正在干活,琥珀环=当前选中 Agent 的委派目标(点「编码 Agent」→「测试/评审」自动点亮)。团队分组、独立 Agent、system prompt、Delegates to / Called by 全部来自代码。</div>
+</div>
+
+<!-- ================= 4b 新建 / 编辑 Agent ================= -->
+<div class="dv-opt" id="4b">
+<div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>新建 / 编辑 Agent — 右侧抽屉,定义角色、团队、范围、能力、委派与提示词</div>
+<div class="dv-card" data-screen-label="新建Agent" style="width:440px;height:720px;display:flex;flex-direction:column;background:#fff;color:#1c1c1e">
+  <div style="height:56px;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid rgba(0,0,0,.06)">
+    <span style="font-size:15px;font-weight:600;flex:1">新建 Agent</span>
+    <svg fill="none" height="18" stroke="#86868b" stroke-linecap="round" stroke-width="1.9" viewBox="0 0 24 24" width="18" ><path d="M6 6l12 12M18 6L6 18"></path></svg>
+  </div>
+  <div style="flex:1;overflow:hidden;padding:20px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <label style="font-size:12px;font-weight:600;color:#48484a">名称</label>
+      <div style="border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:9px 12px;font-size:13.5px;color:#1c1c1e">部署 Agent</div>
+    </div>
+    <div style="display:flex;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+        <label style="font-size:12px;font-weight:600;color:#48484a">角色 <span style="font-family:ui-monospace,Menlo,monospace;color:#b0b0b4;font-weight:400">role</span></label>
+        <div style="border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:9px 12px;font-size:13px;font-family:ui-monospace,Menlo,monospace;color:#48484a">deployer</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+        <label style="font-size:12px;font-weight:600;color:#48484a">团队</label>
+        <div style="border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:9px 12px;font-size:13.5px;color:#48484a;display:flex;align-items:center"><span style="flex:1">工程团队</span><svg fill="none" height="13" stroke="#b0b0b4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="13" ><path d="M6 9l6 6 6-6"></path></svg></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="font-size:12px;font-weight:600;color:#48484a">工具范围 <span style="font-weight:400;color:#b0b0b4">scope</span></label>
+      <div style="display:flex;background:rgba(0,0,0,.05);border-radius:9px;padding:2px;gap:2px">
+        <span style="flex:1;text-align:center;font-size:11.5px;color:#86868b;padding:6px 0;border-radius:7px">无</span>
+        <span style="flex:1;text-align:center;font-size:11.5px;color:#86868b;padding:6px 0;border-radius:7px">只读</span>
+        <span style="flex:1;text-align:center;font-size:11.5px;font-weight:600;color:#1c1c1e;background:#fff;border-radius:7px;padding:6px 0;box-shadow:0 1px 2px rgba(0,0,0,.06)">仓库</span>
+        <span style="flex:1;text-align:center;font-size:11.5px;color:#86868b;padding:6px 0;border-radius:7px">联网</span>
+        <span style="flex:1;text-align:center;font-size:11.5px;color:#86868b;padding:6px 0;border-radius:7px">全部</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="font-size:12px;font-weight:600;color:#48484a">能力</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;background:#f4f4f2;border-radius:6px;padding:4px 9px">shell<svg fill="none" height="10" stroke="#86868b" stroke-linecap="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;background:#f4f4f2;border-radius:6px;padding:4px 9px">deploy<svg fill="none" height="10" stroke="#86868b" stroke-linecap="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#86868b;border:1px dashed rgba(0,0,0,.2);border-radius:6px;padding:4px 9px"><svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M12 5v14M5 12h14"></path></svg>添加</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="font-size:12px;font-weight:600;color:#48484a">可委派给</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <span style="font-size:11.5px;background:#f4f4f2;border-radius:6px;padding:4px 9px">测试 Agent</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#86868b;border:1px dashed rgba(0,0,0,.2);border-radius:6px;padding:4px 9px"><svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M12 5v14M5 12h14"></path></svg>添加</span>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-height:0">
+      <label style="font-size:12px;font-weight:600;color:#48484a">系统提示</label>
+      <div style="flex:1;border:1px solid rgba(0,0,0,.12);border-radius:10px;padding:11px 12px;font-size:12.5px;line-height:1.65;color:#48484a;overflow:hidden">你是部署 Agent。仅在测试全绿后执行部署;任何生产环境变更都要请求人工审批。回滚方案先准备好再动手。</div>
+    </div>
+  </div>
+  <div style="padding:14px 20px;border-top:1px solid rgba(0,0,0,.06);display:flex;gap:10px">
+    <div style="flex:1"></div>
+    <div style="font-size:13px;font-weight:500;color:#48484a;border:1px solid rgba(0,0,0,.12);border-radius:9px;padding:9px 18px">取消</div>
+    <div style="font-size:13px;font-weight:600;color:#fff;background:#1c1c1e;border-radius:9px;padding:9px 20px">创建 Agent</div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">试试说:"编队出一版深色" · "加一个『委派流』动态连线图" · "把 4a 的正在工作抽成顶部一条实时条" · "做成可点击原型"</p>
+</section>
+
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">深色版 — <a class="dv-oid" href="#2a">2a</a> / <a class="dv-oid" href="#2b">2b</a> 的 macOS 原生深色模式</span></div>
+<div class="dv-opts">
+
+<!-- ================= 3a 任务台首页 · 深色 ================= -->
+<div class="dv-opt" id="3a">
+<div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>任务台首页 · 深色</div>
+<div class="dv-card" data-screen-label="任务台首页 深色" style="width:1280px;height:800px;display:flex;background:#1e1e20;color:#f2f2f4;border-color:rgba(255,255,255,.12)">
+
+  <!-- rail -->
+  <div style="width:64px;display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;border-right:1px solid rgba(255,255,255,.07);background:#19191b">
+    <div style="display:flex;gap:7px;margin-bottom:18px;align-self:flex-start;padding-left:16px">
+      <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;background:#f2f2f4;color:#1c1c1e;display:flex;align-items:center;justify-content:center" title="任务台">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="7.5" rx="2" width="7.5" x="3" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="3" y="13.5" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="13.5" ></rect></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="对话">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="日历">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="16" rx="2.5" width="18" x="3" y="4.5" ></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="自动化">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="用量">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M4 19.5V10M12 19.5V4.5M20 19.5v-7"></path></svg>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="设置">
+      <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="3.2"></circle><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.36.95A7 7 0 0 0 14.08 5L13.7 2.5h-4L9.3 5a7 7 0 0 0-2.42 1.4l-2.36-.95-2 3.46 2 1.55A7 7 0 0 0 4.38 12c0 .48.05.94.14 1.4l-2 1.55 2 3.46 2.36-.95c.7.62 1.52 1.1 2.42 1.4l.4 2.64h4l.4-2.64a7 7 0 0 0 2.42-1.4l2.36.95 2-3.46-2-1.55c.09-.46.14-.92.14-1.4z"></path></svg>
+    </div>
+  </div>
+
+  <!-- dashboard -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+    <div style="height:52px;display:flex;align-items:center;padding:0 28px;gap:10px">
+      <span style="font-size:13px;font-weight:600;color:#98989d">任务台</span>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#409cff;background:rgba(10,132,255,.16);border-radius:999px;padding:4px 12px;font-weight:500"><span style="width:6px;height:6px;border-radius:50%;background:#409cff"></span>2 个运行中</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#98989d;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:4px 10px">搜索 <span style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px">⌘K</span></div>
+    </div>
+
+    <div style="flex:1;overflow:hidden;padding:20px 96px 32px;display:flex;flex-direction:column;gap:28px;max-width:1088px;margin:0 auto;width:100%;box-sizing:border-box">
+
+      <!-- composer -->
+      <div style="display:flex;flex-direction:column;gap:16px;margin-top:26px">
+        <div style="font-size:26px;font-weight:600;letter-spacing:-.02em">今天想让 swarm 做点什么?</div>
+        <div style="background:#29292c;border:1px solid rgba(255,255,255,.09);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:16px 18px 14px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:14.5px;color:#636366">描述一个目标,或按 ⌘⏎ 从剪贴板开始…</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#c8c8cc;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 10px">
+              <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="13" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+              ~/repo/desktop
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#c8c8cc;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 10px">
+              <svg fill="none" height="13" stroke="#a78bfa" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="13" ><path d="m12 3 1.9 5.8L20 10.7l-5.1 3.8L16 21l-4-3.6L8 21l1.1-6.5L4 10.7l6.1-1.9z"></path></svg>
+              Claude Opus 4.5 ▾
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#c8c8cc;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 10px">默认 Agent ▾</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#c8c8cc;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 10px">需审批 ▾</div>
+            <div style="flex:1"></div>
+            <div style="width:34px;height:34px;border-radius:10px;background:#f2f2f4;color:#1c1c1e;display:flex;align-items:center;justify-content:center">
+              <svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="15" ><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- running -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:600">进行中</span><span style="font-size:12px;color:#636366">3</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="background:#29292c;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#409cff;box-shadow:0 0 0 3px rgba(10,132,255,.25)"></span><span style="font-size:11.5px;font-weight:500;color:#409cff">运行中 · 4 分钟</span></div>
+            <div style="font-size:14px;font-weight:600;line-height:1.35">修复登录页 token 刷新竞态</div>
+            <div style="font-size:12px;color:#98989d;font-family:ui-monospace,'SF Mono',Menlo,monospace;background:rgba(255,255,255,.05);border-radius:8px;padding:7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▸ pnpm vitest auth.test.ts …</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#636366"><span>~/repo/desktop</span><span style="flex:1"></span><span>12/18 步</span></div>
+          </div>
+          <div style="background:#29292c;border:1px solid rgba(232,163,61,.55);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 3px rgba(232,163,61,.14)">
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#e8a33d"></span><span style="font-size:11.5px;font-weight:500;color:#e8a33d">等待审批</span></div>
+            <div style="font-size:14px;font-weight:600;line-height:1.35">重构 provider 配置 API</div>
+            <div style="font-size:12px;color:#c8c8cc;background:rgba(232,163,61,.1);border-radius:8px;padding:7px 9px;line-height:1.45">请求执行:<span style="font-family:ui-monospace,'SF Mono',Menlo,monospace">rm -rf out/ && pnpm build</span></div>
+            <div style="display:flex;gap:8px">
+              <div style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#1c1c1e;background:#f2f2f4;border-radius:8px;padding:6px 0">允许</div>
+              <div style="flex:1;text-align:center;font-size:12px;font-weight:500;color:#c8c8cc;border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:6px 0">拒绝</div>
+            </div>
+          </div>
+          <div style="background:#29292c;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#409cff;box-shadow:0 0 0 3px rgba(10,132,255,.25)"></span><span style="font-size:11.5px;font-weight:500;color:#409cff">运行中 · 12 分钟</span></div>
+            <div style="font-size:14px;font-weight:600;line-height:1.35">整理本周 GitHub 趋势并写摘要</div>
+            <div style="font-size:12px;color:#98989d;font-family:ui-monospace,'SF Mono',Menlo,monospace;background:rgba(255,255,255,.05);border-radius:8px;padding:7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▸ 抓取 trending 第 2 页…</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#636366"><span>研究任务</span><span style="flex:1"></span><span>5/9 步</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- scheduled + recent -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:600">定时任务</span><span style="font-size:12px;color:#409cff;font-weight:500;margin-left:auto">查看日历 →</span></div>
+          <div style="background:#29292c;border:1px solid rgba(255,255,255,.08);border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)">
+              <span style="font-size:12px;font-family:ui-monospace,Menlo,monospace;color:#98989d;width:64px">每天 9:00</span><span style="font-size:13px;flex:1">抓取 GitHub 趋势</span><span style="font-size:11.5px;color:#34c265">上次成功</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+              <span style="font-size:12px;font-family:ui-monospace,Menlo,monospace;color:#98989d;width:64px">周一 8:30</span><span style="font-size:13px;flex:1">Gmail 收件箱摘要</span><span style="font-size:11.5px;color:#636366">3 天后</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:600">最近完成</span></div>
+          <div style="background:#29292c;border:1px solid rgba(255,255,255,.08);border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)">
+              <svg fill="none" height="14" stroke="#34c265" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+              <span style="font-size:13px;flex:1">补全 IPC 合约测试</span><span style="font-size:11.5px;color:#636366">1 小时前</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+              <svg fill="none" height="14" stroke="#34c265" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+              <span style="font-size:13px;flex:1">B 站收藏夹转写字幕</span><span style="font-size:11.5px;color:#636366">昨天</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ================= 3b 会话工作台 · 深色 ================= -->
+<div class="dv-opt" id="3b">
+<div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>会话工作台 · 深色</div>
+<div class="dv-card" data-screen-label="会话工作台 深色" style="width:1280px;height:800px;display:flex;background:#1e1e20;color:#f2f2f4;border-color:rgba(255,255,255,.12)">
+
+  <!-- rail (chat active) -->
+  <div style="width:64px;display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;border-right:1px solid rgba(255,255,255,.07);background:#19191b">
+    <div style="display:flex;gap:7px;margin-bottom:18px;align-self:flex-start;padding-left:16px">
+      <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="任务台">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="7.5" rx="2" width="7.5" x="3" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="3" y="13.5" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="13.5" ></rect></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;background:#f2f2f4;color:#1c1c1e;display:flex;align-items:center;justify-content:center" title="对话">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="日历">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="16" rx="2.5" width="18" x="3" y="4.5" ></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="自动化">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="用量">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M4 19.5V10M12 19.5V4.5M20 19.5v-7"></path></svg>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="width:40px;height:40px;border-radius:11px;color:#98989d;display:flex;align-items:center;justify-content:center" title="设置">
+      <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="3.2"></circle><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.36.95A7 7 0 0 0 14.08 5L13.7 2.5h-4L9.3 5a7 7 0 0 0-2.42 1.4l-2.36-.95-2 3.46 2 1.55A7 7 0 0 0 4.38 12c0 .48.05.94.14 1.4l-2 1.55 2 3.46 2.36-.95c.7.62 1.52 1.1 2.42 1.4l.4 2.64h4l.4-2.64a7 7 0 0 0 2.42-1.4l2.36.95 2-3.46-2-1.55c.09-.46.14-.92.14-1.4z"></path></svg>
+    </div>
+  </div>
+
+  <!-- session list -->
+  <div style="width:236px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;background:#202022">
+    <div style="padding:16px 14px 10px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:600;flex:1">对话</span>
+        <svg fill="none" height="16" stroke="#98989d" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="16" ><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <div style="width:26px;height:26px;border-radius:8px;background:#f2f2f4;color:#1c1c1e;display:flex;align-items:center;justify-content:center">
+          <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24" width="13" ><path d="M12 5v14M5 12h14"></path></svg>
+        </div>
+      </div>
+      <div style="display:flex;background:rgba(255,255,255,.05);border-radius:9px;padding:2px;gap:2px">
+        <span style="flex:1;text-align:center;font-size:11.5px;color:#98989d;padding:4px 0;border-radius:7px">默认</span>
+        <span style="flex:1;text-align:center;font-size:11.5px;font-weight:600;color:#f2f2f4;background:#39393d;border-radius:7px;padding:4px 0">按目录</span>
+      </div>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:0 8px;display:flex;flex-direction:column;gap:2px">
+      <div style="font-size:11px;font-weight:600;color:#636366;padding:8px 8px 4px;display:flex;align-items:center;gap:5px">
+        <svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M6 9l6 6 6-6"></path></svg>
+        <svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="11" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+        <span style="flex:1">~/repo/desktop</span><span style="color:#4d4d51;font-weight:500">3</span>
+      </div>
+      <div style="background:#2e2e31;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#409cff"></span><span style="font-size:12.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">修复登录页 token 刷新竞态</span></div>
+        <div style="display:flex;align-items:center;font-size:11px;color:#98989d"><span>运行中 · 12/18 步</span><span style="flex:1"></span><span style="color:#636366">$0.19</span></div>
+      </div>
+      <div style="padding:9px 10px;display:flex;flex-direction:column;gap:4px;border-radius:10px">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#e8a33d"></span><span style="font-size:12.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c8c8cc">重构 provider 配置 API</span></div>
+        <div style="display:flex;align-items:center;font-size:11px;color:#636366"><span>等待审批</span><span style="flex:1"></span><span>$0.07</span></div>
+      </div>
+      <div style="padding:9px 10px;border-radius:10px;display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;color:#c8c8cc;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">补全 IPC 合约测试</span><span style="font-size:11px;color:#636366">$0.12</span></div>
+      <div style="font-size:11px;font-weight:600;color:#636366;padding:12px 8px 4px;display:flex;align-items:center;gap:5px">
+        <svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M6 9l6 6 6-6"></path></svg>
+        <svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="11" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+        <span style="flex:1">研究任务</span><span style="color:#4d4d51;font-weight:500">2</span>
+      </div>
+      <div style="padding:9px 10px;display:flex;flex-direction:column;gap:4px;border-radius:10px">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#409cff"></span><span style="font-size:12.5px;flex:1;color:#c8c8cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">整理本周 GitHub 趋势</span></div>
+        <div style="display:flex;align-items:center;font-size:11px;color:#636366"><span>运行中 · 5/9 步</span><span style="flex:1"></span><span>$0.31</span></div>
+      </div>
+      <div style="padding:9px 10px;border-radius:10px;display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;color:#c8c8cc;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">B 站收藏夹转写字幕</span><span style="font-size:11px;color:#636366">$0.08</span></div>
+    </div>
+  </div>
+
+  <!-- chat -->
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#262628;position:relative">
+    <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:5px;background:#1c1c1e;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:10px 7px;box-shadow:0 10px 28px rgba(0,0,0,.5)" title="跳到会话中的某条提问" >
+      <span style="width:18px;height:5px;border-radius:3px;background:rgba(255,255,255,.2)"></span>
+      <span style="width:18px;height:10px;border-radius:3px;background:rgba(255,255,255,.2)"></span>
+      <span style="width:18px;height:6px;border-radius:3px;background:#409cff;box-shadow:0 0 0 3px rgba(64,156,255,.2)"></span>
+      <span style="width:18px;height:12px;border-radius:3px;background:rgba(255,255,255,.14)"></span>
+      <span style="width:18px;height:5px;border-radius:3px;background:rgba(255,255,255,.14)"></span>
+    </div>
+    <div style="height:52px;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid rgba(255,255,255,.07)">
+      <span style="font-size:13.5px;font-weight:600">修复登录页 token 刷新竞态</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#409cff;background:rgba(10,132,255,.16);border-radius:999px;padding:3px 10px;font-weight:500"><span style="width:5px;height:5px;border-radius:50%;background:#409cff"></span>运行中</span>
+      <div style="flex:1"></div>
+      <span style="font-size:11.5px;color:#636366">上下文 41%</span>
+      <svg fill="none" height="16" stroke="#98989d" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="16" ><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:24px 28px;display:flex;flex-direction:column;gap:20px">
+      <div style="align-self:flex-end;max-width:70%;background:#3a3a3e;border-radius:14px 14px 4px 14px;padding:11px 14px;font-size:13.5px;line-height:1.55">登录页偶发跳回登录态,怀疑是 token 刷新有竞态,帮我定位并修复,跑通测试。</div>
+      <div style="max-width:88%;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13.5px;line-height:1.65;color:#f2f2f4">定位到了:<span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;background:rgba(255,255,255,.08);border-radius:5px;padding:1px 5px">refreshToken()</span> 在并发 401 时会被触发两次,第二次用已失效的 refresh token,导致整个会话被登出。我先加互斥锁,再补一个并发场景的测试。</div>
+        <div style="border:1px solid rgba(255,255,255,.09);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#2c2c2f;font-size:12px;color:#c8c8cc">
+            <svg fill="none" height="13" stroke="#34c265" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="13" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+            <span style="font-weight:500">编辑</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#98989d">src/lib/auth.ts</span><span style="color:#34c265;font-family:ui-monospace,Menlo,monospace">+18</span><span style="color:#ff6961;font-family:ui-monospace,Menlo,monospace">-6</span>
+            <span style="flex:1"></span><svg fill="none" height="12" stroke="#636366" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="12" ><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(255,255,255,.09);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#2c2c2f;font-size:12px;color:#c8c8cc">
+            <span style="width:12px;height:12px;border:2px solid rgba(64,156,255,.3);border-top-color:#409cff;border-radius:50%;display:inline-block"></span>
+            <span style="font-weight:500">终端</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#98989d">pnpm vitest auth.test.ts</span>
+            <span style="flex:1"></span><span style="font-size:11px;color:#636366">运行 38s</span>
+          </div>
+          <div style="padding:10px 12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;line-height:1.7;color:#c8c8cc;background:#232325">
+            <div>✓ refresh dedupes concurrent 401s <span style="color:#636366">12ms</span></div>
+            <div>✓ keeps session when refresh races logout <span style="color:#636366">9ms</span></div>
+            <div style="color:#636366">▌ running: expiry edge case…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:0 20px 18px;display:flex;flex-direction:column">
+      <!-- 浮现的审批 -->
+      <div style="margin-bottom:12px;background:#2b2620;border:1px solid rgba(232,163,61,.5);border-radius:14px;box-shadow:0 0 0 3px rgba(232,163,61,.1);padding:13px 15px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <svg fill="none" height="15" stroke="#e8a33d" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="15" ><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
+          <span style="font-size:12.5px;font-weight:600;color:#e8a33d">需要你的审批</span>
+          <span style="flex:1"></span>
+          <span style="font-size:11px;color:#8a8a8f">步骤 13 / 18</span>
+        </div>
+        <div style="font-size:13px;color:#e6e6e8;line-height:1.55">Agent 请求执行 <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;background:rgba(232,163,61,.14);color:#f0c37a;border-radius:5px;padding:1px 6px">rm -rf out/ &amp;&amp; pnpm build</span>，会删除构建产物目录。</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:12px;font-weight:600;color:#1c1c1e;background:#e8a33d;border-radius:8px;padding:6px 15px">允许</div>
+          <div style="font-size:12px;font-weight:500;color:#e6c690;border:1px solid rgba(232,163,61,.4);border-radius:8px;padding:6px 12px">本会话始终允许</div>
+          <div style="font-size:12px;font-weight:500;color:#c8c8cc;border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:6px 12px">拒绝</div>
+          <span style="flex:1"></span>
+          <span style="font-size:11.5px;color:#8a8a8f">查看差异 →</span>
+        </div>
+      </div>
+      <!-- 输入框 -->
+      <div style="border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:12px;background:#2c2c2f">
+        <div style="font-size:13.5px;color:#636366">追加说明或提出修改…</div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#c8c8cc;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px">
+            <svg fill="none" height="13" stroke="#a78bfa" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="13" ><path d="m12 3 1.9 5.8L20 10.7l-5.1 3.8L16 21l-4-3.6L8 21l1.1-6.5L4 10.7l6.1-1.9z"></path></svg>
+            Claude Opus 4.5 <span style="color:#636366">▾</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#c8c8cc;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px">
+            <svg fill="none" height="13" stroke="#98989d" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="13" ><rect height="12" rx="2.5" width="16" x="4" y="8" ></rect><path d="M12 8V4M9 14h.01M15 14h.01"></path></svg>
+            编码 Agent <span style="color:#636366">▾</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:#c8c8cc;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px">
+            <svg fill="none" height="13" stroke="#98989d" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="13" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 11v5M9.5 13.5h5"></path></svg>
+            添加目录
+          </div>
+          <svg fill="none" height="15" stroke="#98989d" stroke-linecap="round" stroke-width="1.8" style="margin-left:1px" viewBox="0 0 24 24" width="15" ><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8L13 5a3.7 3.7 0 0 1 5.2 5.2l-8.2 8.2a1.8 1.8 0 0 1-2.6-2.6l7.6-7.6"></path></svg>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#8a8a8f" title="上下文用量 41%">
+            <svg height="16" viewBox="0 0 36 36" width="16" ><circle cx="18" cy="18" fill="none" r="15" stroke="rgba(255,255,255,.14)" stroke-width="3.5"></circle><circle cx="18" cy="18" fill="none" r="15" stroke="#409cff" stroke-dasharray="94.2" stroke-dashoffset="55.6" stroke-linecap="round" stroke-width="3.5" transform="rotate(-90 18 18)"></circle></svg>
+            41%
+          </div>
+          <span style="font-size:11.5px;color:#636366">⏎ 发送</span>
+          <div style="width:30px;height:30px;border-radius:9px;background:#f2f2f4;color:#1c1c1e;display:flex;align-items:center;justify-content:center">
+            <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="13" ><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- workspace panel -->
+  <div style="width:300px;border-left:1px solid rgba(255,255,255,.07);background:#202022;display:flex;flex-direction:column">
+    <div style="display:flex;gap:2px;padding:12px 12px 0;border-bottom:1px solid rgba(255,255,255,.07)">
+      <span style="font-size:12px;font-weight:600;padding:7px 12px;background:#2e2e31;border:1px solid rgba(255,255,255,.1);border-bottom:none;border-radius:9px 9px 0 0;color:#f2f2f4">计划</span>
+      <span style="font-size:12px;padding:7px 12px;color:#98989d">时间线</span>
+      <span style="font-size:12px;padding:7px 12px;color:#98989d">产出物</span>
+      <span style="font-size:12px;padding:7px 12px;color:#98989d;display:flex;align-items:center;gap:5px">审批<span style="min-width:15px;height:15px;border-radius:8px;background:#e8a33d;color:#1c1c1e;font-size:9.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px">1</span></span>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:16px 14px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px">
+        <svg fill="none" height="14" stroke="#34c265" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+        <span style="font-size:12.5px;color:#98989d;text-decoration:line-through">复现竞态并定位根因</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px">
+        <svg fill="none" height="14" stroke="#34c265" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+        <span style="font-size:12.5px;color:#98989d;text-decoration:line-through">refreshToken 加互斥与去重</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;background:rgba(10,132,255,.12)">
+        <span style="width:12px;height:12px;border:2px solid rgba(64,156,255,.3);border-top-color:#409cff;border-radius:50%;display:inline-block;flex:none"></span>
+        <span style="font-size:12.5px;font-weight:600;color:#f2f2f4">补并发场景单测并跑通</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;opacity:.55">
+        <span style="width:12px;height:12px;border:1.6px solid #636366;border-radius:50%;display:inline-block;flex:none"></span>
+        <span style="font-size:12.5px;color:#c8c8cc">回归登录/登出全流程</span>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:11px;font-weight:600;color:#636366;letter-spacing:.02em">正在执行</div>
+        <div style="background:#131315;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:11px 12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.7;color:#c8c8cc">
+          <div style="color:#8a8a8f">$ pnpm vitest auth.test.ts</div>
+          <div><span style="color:#4ade80">✓</span> dedupes concurrent 401s</div>
+          <div><span style="color:#4ade80">✓</span> refresh races logout</div>
+          <div style="color:#8a8a8f">▌ expiry edge case…</div>
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#636366;padding:0 2px">
+        <span>用时 4 分 12 秒</span><span style="flex:1"></span><span>28.4k tokens</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div style="font:400 11.5px/1.5 system-ui;color:rgba(0,0,0,.5);max-width:640px">macOS 原生深色:底 #1E1E20 / 面 #29292C,发丝线换成 7% 白;主按钮为反转墨色(浅色实心),蓝色换 macOS 深色系 #409CFF,状态色整体提亮一档保证对比度。实现上映射到现有 .dark oklch token,毛玻璃 vibrancy 保持。</div>
+</div>
+
+</div>
+<p class="dv-next">试试说:"就按这套做可点击原型" · "细化设置/日历界面" · "给 <a class="dv-oid" href="#3b">3b</a> 加窗口毛玻璃质感"</p>
+</section>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">高保真 — 合成方向:<a class="dv-oid" href="#1b">1b</a> rail 导航 + <a class="dv-oid" href="#1c">1c</a> 任务台首页 + <a class="dv-oid" href="#1d">1d</a> 右侧工作区</span></div>
+<div class="dv-opts">
+
+<!-- ================= 2a 任务台首页 ================= -->
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>任务台首页 — 打开应用即看到:发起任务 + 全部并行 Agent 状态</div>
+<div class="dv-card" data-screen-label="任务台首页" style="width:1280px;height:800px;display:flex;background:#f4f4f2;color:#1c1c1e">
+
+  <!-- rail -->
+  <div style="width:64px;display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;border-right:1px solid rgba(0,0,0,.06);background:#eeeeea">
+    <div style="display:flex;gap:7px;margin-bottom:18px;align-self:flex-start;padding-left:16px">
+      <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center" title="任务台">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="7.5" rx="2" width="7.5" x="3" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="3" y="13.5" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="13.5" ></rect></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="对话">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="日历">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="16" rx="2.5" width="18" x="3" y="4.5" ></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="自动化">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="用量">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M4 19.5V10M12 19.5V4.5M20 19.5v-7"></path></svg>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="设置">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="3.2"></circle><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.36.95A7 7 0 0 0 14.08 5L13.7 2.5h-4L9.3 5a7 7 0 0 0-2.42 1.4l-2.36-.95-2 3.46 2 1.55A7 7 0 0 0 4.38 12c0 .48.05.94.14 1.4l-2 1.55 2 3.46 2.36-.95c.7.62 1.52 1.1 2.42 1.4l.4 2.64h4l.4-2.64a7 7 0 0 0 2.42-1.4l2.36.95 2-3.46-2-1.55c.09-.46.14-.92.14-1.4z"></path></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- dashboard -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+    <div style="height:52px;display:flex;align-items:center;padding:0 28px;gap:10px">
+      <span style="font-size:13px;font-weight:600;color:#86868b">任务台</span>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#3478f6;background:rgba(52,120,246,.09);border-radius:999px;padding:4px 12px;font-weight:500"><span style="width:6px;height:6px;border-radius:50%;background:#3478f6"></span>2 个运行中</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#86868b;border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:4px 10px">搜索 <span style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:rgba(0,0,0,.05);border-radius:4px;padding:1px 5px">⌘K</span></div>
+    </div>
+
+    <div style="flex:1;overflow:hidden;padding:20px 96px 32px;display:flex;flex-direction:column;gap:28px;max-width:1088px;margin:0 auto;width:100%;box-sizing:border-box">
+
+      <!-- composer -->
+      <div style="display:flex;flex-direction:column;gap:16px;margin-top:26px">
+        <div style="font-size:26px;font-weight:600;letter-spacing:-.02em">今天想让 swarm 做点什么?</div>
+        <div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.04);padding:16px 18px 14px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:14.5px;color:#b0b0b4">描述一个目标,或按 ⌘⏎ 从剪贴板开始…</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:5px 10px">
+              <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="13" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+              ~/repo/desktop
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:5px 10px">
+              <svg fill="none" height="13" stroke="#7c5cf0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="13" ><path d="m12 3 1.9 5.8L20 10.7l-5.1 3.8L16 21l-4-3.6L8 21l1.1-6.5L4 10.7l6.1-1.9z"></path></svg>
+              Claude Opus 4.5 ▾
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:5px 10px">默认 Agent ▾</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:5px 10px">需审批 ▾</div>
+            <div style="flex:1"></div>
+            <div style="width:34px;height:34px;border-radius:10px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center">
+              <svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="15" ><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- running -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:600">进行中</span><span style="font-size:12px;color:#b0b0b4">3</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#3478f6;box-shadow:0 0 0 3px rgba(52,120,246,.18)"></span><span style="font-size:11.5px;font-weight:500;color:#3478f6">运行中 · 4 分钟</span></div>
+            <div style="font-size:14px;font-weight:600;line-height:1.35">修复登录页 token 刷新竞态</div>
+            <div style="font-size:12px;color:#86868b;font-family:ui-monospace,'SF Mono',Menlo,monospace;background:#f6f6f4;border-radius:8px;padding:7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▸ pnpm vitest auth.test.ts …</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#b0b0b4"><span>~/repo/desktop</span><span style="flex:1"></span><span>12/18 步</span></div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2b06b;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 3px rgba(226,176,107,.14)">
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#c77d1e"></span><span style="font-size:11.5px;font-weight:500;color:#a3690f">等待审批</span></div>
+            <div style="font-size:14px;font-weight:600;line-height:1.35">重构 provider 配置 API</div>
+            <div style="font-size:12px;color:#48484a;background:#fbf4e8;border-radius:8px;padding:7px 9px;line-height:1.45">请求执行:<span style="font-family:ui-monospace,'SF Mono',Menlo,monospace">rm -rf out/ && pnpm build</span></div>
+            <div style="display:flex;gap:8px">
+              <div style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#fff;background:#1c1c1e;border-radius:8px;padding:6px 0">允许</div>
+              <div style="flex:1;text-align:center;font-size:12px;font-weight:500;color:#48484a;border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:6px 0">拒绝</div>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#3478f6;box-shadow:0 0 0 3px rgba(52,120,246,.18)"></span><span style="font-size:11.5px;font-weight:500;color:#3478f6">运行中 · 12 分钟</span></div>
+            <div style="font-size:14px;font-weight:600;line-height:1.35">整理本周 GitHub 趋势并写摘要</div>
+            <div style="font-size:12px;color:#86868b;font-family:ui-monospace,'SF Mono',Menlo,monospace;background:#f6f6f4;border-radius:8px;padding:7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▸ 抓取 trending 第 2 页…</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#b0b0b4"><span>研究任务</span><span style="flex:1"></span><span>5/9 步</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- scheduled + recent -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:600">定时任务</span><span style="font-size:12px;color:#3478f6;font-weight:500;margin-left:auto">查看日历 →</span></div>
+          <div style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(0,0,0,.05)">
+              <span style="font-size:12px;font-family:ui-monospace,Menlo,monospace;color:#86868b;width:64px">每天 9:00</span><span style="font-size:13px;flex:1">抓取 GitHub 趋势</span><span style="font-size:11.5px;color:#2e9e5b">上次成功</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+              <span style="font-size:12px;font-family:ui-monospace,Menlo,monospace;color:#86868b;width:64px">周一 8:30</span><span style="font-size:13px;flex:1">Gmail 收件箱摘要</span><span style="font-size:11.5px;color:#b0b0b4">3 天后</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:600">最近完成</span></div>
+          <div style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(0,0,0,.05)">
+              <svg fill="none" height="14" stroke="#2e9e5b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+              <span style="font-size:13px;flex:1">补全 IPC 合约测试</span><span style="font-size:11.5px;color:#b0b0b4">1 小时前</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+              <svg fill="none" height="14" stroke="#2e9e5b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+              <span style="font-size:13px;flex:1">B 站收藏夹转写字幕</span><span style="font-size:11.5px;color:#b0b0b4">昨天</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div style="font:400 11.5px/1.5 system-ui;color:rgba(0,0,0,.5);max-width:640px">点「进行中」卡片进入 <a class="dv-oid" href="#2b">2b</a> 的会话工作台。审批不用进会话,直接在卡片上处理。日历/用量/自动化从底部图标九宫格升级为 rail 一级导航。</div>
+</div>
+
+<!-- ================= 2b 会话工作台 ================= -->
+<div class="dv-opt" id="2b">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>会话工作台 — 左对话流、右工作区(计划/时间线/产出物/审批)</div>
+<div class="dv-card" data-screen-label="会话工作台" style="width:1280px;height:800px;display:flex;background:#f4f4f2;color:#1c1c1e">
+
+  <!-- rail (chat active) -->
+  <div style="width:64px;display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;border-right:1px solid rgba(0,0,0,.06);background:#eeeeea">
+    <div style="display:flex;gap:7px;margin-bottom:18px;align-self:flex-start;padding-left:16px">
+      <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="任务台">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="7.5" rx="2" width="7.5" x="3" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="3" ></rect><rect height="7.5" rx="2" width="7.5" x="3" y="13.5" ></rect><rect height="7.5" rx="2" width="7.5" x="13.5" y="13.5" ></rect></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center" title="对话">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="日历">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><rect height="16" rx="2.5" width="18" x="3" y="4.5" ></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="自动化">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+      </div>
+      <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="用量">
+        <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><path d="M4 19.5V10M12 19.5V4.5M20 19.5v-7"></path></svg>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="width:40px;height:40px;border-radius:11px;color:#86868b;display:flex;align-items:center;justify-content:center" title="设置">
+      <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" ><circle cx="12" cy="12" r="3.2"></circle><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.36.95A7 7 0 0 0 14.08 5L13.7 2.5h-4L9.3 5a7 7 0 0 0-2.42 1.4l-2.36-.95-2 3.46 2 1.55A7 7 0 0 0 4.38 12c0 .48.05.94.14 1.4l-2 1.55 2 3.46 2.36-.95c.7.62 1.52 1.1 2.42 1.4l.4 2.64h4l.4-2.64a7 7 0 0 0 2.42-1.4l2.36.95 2-3.46-2-1.55c.09-.46.14-.92.14-1.4z"></path></svg>
+    </div>
+  </div>
+
+  <!-- session list -->
+  <div style="width:236px;border-right:1px solid rgba(0,0,0,.06);display:flex;flex-direction:column;background:#f7f7f5">
+    <div style="padding:16px 14px 10px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:600;flex:1">对话</span>
+        <svg fill="none" height="16" stroke="#86868b" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="16" ><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <div style="width:26px;height:26px;border-radius:8px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center">
+          <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24" width="13" ><path d="M12 5v14M5 12h14"></path></svg>
+        </div>
+      </div>
+      <div style="display:flex;background:rgba(0,0,0,.05);border-radius:9px;padding:2px;gap:2px">
+        <span style="flex:1;text-align:center;font-size:11.5px;color:#86868b;padding:4px 0;border-radius:7px">默认</span>
+        <span style="flex:1;text-align:center;font-size:11.5px;font-weight:600;color:#1c1c1e;background:#fff;border-radius:7px;padding:4px 0;box-shadow:0 1px 2px rgba(0,0,0,.06)">按目录</span>
+      </div>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:0 8px;display:flex;flex-direction:column;gap:2px">
+      <div style="font-size:11px;font-weight:600;color:#b0b0b4;padding:8px 8px 4px;display:flex;align-items:center;gap:5px">
+        <svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M6 9l6 6 6-6"></path></svg>
+        <svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="11" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+        <span style="flex:1">~/repo/desktop</span><span style="color:#c8c8cc;font-weight:500">3</span>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.04)">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#3478f6"></span><span style="font-size:12.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">修复登录页 token 刷新竞态</span></div>
+        <div style="display:flex;align-items:center;font-size:11px;color:#86868b"><span>运行中 · 12/18 步</span><span style="flex:1"></span><span style="color:#b0b0b4">$0.19</span></div>
+      </div>
+      <div style="padding:9px 10px;display:flex;flex-direction:column;gap:4px;border-radius:10px">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#c77d1e"></span><span style="font-size:12.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#48484a">重构 provider 配置 API</span></div>
+        <div style="display:flex;align-items:center;font-size:11px;color:#b0b0b4"><span>等待审批</span><span style="flex:1"></span><span>$0.07</span></div>
+      </div>
+      <div style="padding:9px 10px;border-radius:10px;display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;color:#48484a;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">补全 IPC 合约测试</span><span style="font-size:11px;color:#b0b0b4">$0.12</span></div>
+      <div style="font-size:11px;font-weight:600;color:#b0b0b4;padding:12px 8px 4px;display:flex;align-items:center;gap:5px">
+        <svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="10" ><path d="M6 9l6 6 6-6"></path></svg>
+        <svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="11" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+        <span style="flex:1">研究任务</span><span style="color:#c8c8cc;font-weight:500">2</span>
+      </div>
+      <div style="padding:9px 10px;display:flex;flex-direction:column;gap:4px;border-radius:10px">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#3478f6"></span><span style="font-size:12.5px;flex:1;color:#48484a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">整理本周 GitHub 趋势</span></div>
+        <div style="display:flex;align-items:center;font-size:11px;color:#b0b0b4"><span>运行中 · 5/9 步</span><span style="flex:1"></span><span>$0.31</span></div>
+      </div>
+      <div style="padding:9px 10px;border-radius:10px;display:flex;align-items:center;gap:6px"><span style="font-size:12.5px;color:#48484a;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">B 站收藏夹转写字幕</span><span style="font-size:11px;color:#b0b0b4">$0.08</span></div>
+    </div>
+  </div>
+
+  <!-- chat -->
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;position:relative">
+    <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:5px;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:999px;padding:10px 7px;box-shadow:0 10px 28px rgba(0,0,0,.12)" title="跳到会话中的某条提问" >
+      <span style="width:18px;height:5px;border-radius:3px;background:rgba(0,0,0,.14)"></span>
+      <span style="width:18px;height:10px;border-radius:3px;background:rgba(0,0,0,.14)"></span>
+      <span style="width:18px;height:6px;border-radius:3px;background:#3478f6;box-shadow:0 0 0 3px rgba(52,120,246,.18)"></span>
+      <span style="width:18px;height:12px;border-radius:3px;background:rgba(0,0,0,.09)"></span>
+      <span style="width:18px;height:5px;border-radius:3px;background:rgba(0,0,0,.09)"></span>
+    </div>
+    <div style="height:52px;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid rgba(0,0,0,.06)">
+      <span style="font-size:13.5px;font-weight:600">修复登录页 token 刷新竞态</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#3478f6;background:rgba(52,120,246,.09);border-radius:999px;padding:3px 10px;font-weight:500"><span style="width:5px;height:5px;border-radius:50%;background:#3478f6"></span>运行中</span>
+      <div style="flex:1"></div>
+      <span style="font-size:11.5px;color:#b0b0b4">上下文 41%</span>
+      <svg fill="none" height="16" stroke="#86868b" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="16" ><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:24px 28px;display:flex;flex-direction:column;gap:20px">
+      <div style="align-self:flex-end;max-width:70%;background:#f4f4f2;border-radius:14px 14px 4px 14px;padding:11px 14px;font-size:13.5px;line-height:1.55">登录页偶发跳回登录态,怀疑是 token 刷新有竞态,帮我定位并修复,跑通测试。</div>
+      <div style="max-width:88%;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13.5px;line-height:1.65;color:#1c1c1e">定位到了:<span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;background:#f6f6f4;border-radius:5px;padding:1px 5px">refreshToken()</span> 在并发 401 时会被触发两次,第二次用已失效的 refresh token,导致整个会话被登出。我先加互斥锁,再补一个并发场景的测试。</div>
+        <div style="border:1px solid rgba(0,0,0,.07);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fafaf8;font-size:12px;color:#48484a">
+            <svg fill="none" height="13" stroke="#2e9e5b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="13" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+            <span style="font-weight:500">编辑</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#86868b">src/lib/auth.ts</span><span style="color:#2e9e5b;font-family:ui-monospace,Menlo,monospace">+18</span><span style="color:#d64541;font-family:ui-monospace,Menlo,monospace">-6</span>
+            <span style="flex:1"></span><svg fill="none" height="12" stroke="#b0b0b4" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="12" ><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(0,0,0,.07);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fafaf8;font-size:12px;color:#48484a">
+            <span style="width:12px;height:12px;border:2px solid rgba(52,120,246,.3);border-top-color:#3478f6;border-radius:50%;display:inline-block"></span>
+            <span style="font-weight:500">终端</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#86868b">pnpm vitest auth.test.ts</span>
+            <span style="flex:1"></span><span style="font-size:11px;color:#b0b0b4">运行 38s</span>
+          </div>
+          <div style="padding:10px 12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;line-height:1.7;color:#48484a;background:#fff">
+            <div>✓ refresh dedupes concurrent 401s <span style="color:#b0b0b4">12ms</span></div>
+            <div>✓ keeps session when refresh races logout <span style="color:#b0b0b4">9ms</span></div>
+            <div style="color:#b0b0b4">▌ running: expiry edge case…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:0 20px 18px;display:flex;flex-direction:column">
+      <!-- 浮现的审批 -->
+      <div style="margin-bottom:12px;background:#fdf8ef;border:1px solid #e2b06b;border-radius:14px;box-shadow:0 12px 32px rgba(120,90,20,.16),0 0 0 3px rgba(226,176,107,.16);padding:13px 15px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <svg fill="none" height="15" stroke="#c77d1e" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="15" ><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
+          <span style="font-size:12.5px;font-weight:600;color:#a3690f">需要你的审批</span>
+          <span style="flex:1"></span>
+          <span style="font-size:11px;color:#b0b0b4">步骤 13 / 18</span>
+        </div>
+        <div style="font-size:13px;color:#48484a;line-height:1.55">Agent 请求执行 <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;background:#f6ead2;color:#8a5a12;border-radius:5px;padding:1px 6px">rm -rf out/ &amp;&amp; pnpm build</span>，会删除构建产物目录。</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:12px;font-weight:600;color:#fff;background:#c77d1e;border-radius:8px;padding:6px 15px">允许</div>
+          <div style="font-size:12px;font-weight:500;color:#8a5a12;border:1px solid #e2b06b;border-radius:8px;padding:6px 12px">本会话始终允许</div>
+          <div style="font-size:12px;font-weight:500;color:#48484a;border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:6px 12px">拒绝</div>
+          <span style="flex:1"></span>
+          <span style="font-size:11.5px;color:#a3690f">查看差异 →</span>
+        </div>
+      </div>
+      <!-- 输入框 -->
+      <div style="border:1px solid rgba(0,0,0,.1);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+        <div style="font-size:13.5px;color:#b0b0b4">追加说明或提出修改…</div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:5px 9px">
+            <svg fill="none" height="13" stroke="#7c5cf0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="13" ><path d="m12 3 1.9 5.8L20 10.7l-5.1 3.8L16 21l-4-3.6L8 21l1.1-6.5L4 10.7l6.1-1.9z"></path></svg>
+            Claude Opus 4.5 <span style="color:#b0b0b4">▾</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:5px 9px">
+            <svg fill="none" height="13" stroke="#86868b" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="13" ><rect height="12" rx="2.5" width="16" x="4" y="8" ></rect><path d="M12 8V4M9 14h.01M15 14h.01"></path></svg>
+            编码 Agent <span style="color:#b0b0b4">▾</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:#48484a;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:5px 9px">
+            <svg fill="none" height="13" stroke="#86868b" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="13" ><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 11v5M9.5 13.5h5"></path></svg>
+            添加目录
+          </div>
+          <svg fill="none" height="15" stroke="#86868b" stroke-linecap="round" stroke-width="1.8" style="margin-left:1px" viewBox="0 0 24 24" width="15" ><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8L13 5a3.7 3.7 0 0 1 5.2 5.2l-8.2 8.2a1.8 1.8 0 0 1-2.6-2.6l7.6-7.6"></path></svg>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#86868b" title="上下文用量 41%">
+            <svg height="16" viewBox="0 0 36 36" width="16" ><circle cx="18" cy="18" fill="none" r="15" stroke="rgba(0,0,0,.1)" stroke-width="3.5"></circle><circle cx="18" cy="18" fill="none" r="15" stroke="#3478f6" stroke-dasharray="94.2" stroke-dashoffset="55.6" stroke-linecap="round" stroke-width="3.5" transform="rotate(-90 18 18)"></circle></svg>
+            41%
+          </div>
+          <span style="font-size:11.5px;color:#b0b0b4">⏎ 发送</span>
+          <div style="width:30px;height:30px;border-radius:9px;background:#1c1c1e;color:#fff;display:flex;align-items:center;justify-content:center">
+            <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="13" ><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- workspace panel -->
+  <div style="width:300px;border-left:1px solid rgba(0,0,0,.06);background:#f7f7f5;display:flex;flex-direction:column">
+    <div style="display:flex;gap:2px;padding:12px 12px 0;border-bottom:1px solid rgba(0,0,0,.06)">
+      <span style="font-size:12px;font-weight:600;padding:7px 12px;background:#fff;border:1px solid rgba(0,0,0,.07);border-bottom:none;border-radius:9px 9px 0 0;color:#1c1c1e">计划</span>
+      <span style="font-size:12px;padding:7px 12px;color:#86868b">时间线</span>
+      <span style="font-size:12px;padding:7px 12px;color:#86868b">产出物</span>
+      <span style="font-size:12px;padding:7px 12px;color:#86868b;display:flex;align-items:center;gap:5px">审批<span style="min-width:15px;height:15px;border-radius:8px;background:#c77d1e;color:#fff;font-size:9.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px">1</span></span>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:16px 14px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px">
+        <svg fill="none" height="14" stroke="#2e9e5b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+        <span style="font-size:12.5px;color:#86868b;text-decoration:line-through">复现竞态并定位根因</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px">
+        <svg fill="none" height="14" stroke="#2e9e5b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="14" ><path d="M4 12.5l5 5L20 6.5"></path></svg>
+        <span style="font-size:12.5px;color:#86868b;text-decoration:line-through">refreshToken 加互斥与去重</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;background:rgba(52,120,246,.07)">
+        <span style="width:12px;height:12px;border:2px solid rgba(52,120,246,.3);border-top-color:#3478f6;border-radius:50%;display:inline-block;flex:none"></span>
+        <span style="font-size:12.5px;font-weight:600;color:#1c1c1e">补并发场景单测并跑通</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;opacity:.55">
+        <span style="width:12px;height:12px;border:1.6px solid #b0b0b4;border-radius:50%;display:inline-block;flex:none"></span>
+        <span style="font-size:12.5px;color:#48484a">回归登录/登出全流程</span>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.02em">正在执行</div>
+        <div style="background:#1c1c1e;border-radius:10px;padding:11px 12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.7;color:#c8c8cc">
+          <div style="color:#8a8a8f">$ pnpm vitest auth.test.ts</div>
+          <div><span style="color:#4ade80">✓</span> dedupes concurrent 401s</div>
+          <div><span style="color:#4ade80">✓</span> refresh races logout</div>
+          <div style="color:#8a8a8f">▌ expiry edge case…</div>
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#b0b0b4;padding:0 2px">
+        <span>用时 4 分 12 秒</span><span style="flex:1"></span><span>28.4k tokens</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div style="font:400 11.5px/1.5 system-ui;color:rgba(0,0,0,.5);max-width:640px">工具调用在对话流中折叠为单行卡片,过程细节(实时终端、计划勾选)移到右侧工作区,对话流保持干净。工作区可整体收起,变成 <a class="dv-oid" href="#1a">1a</a> 式纯对话。</div>
+</div>
+
+<!-- ================= 2c 设计语言 ================= -->
+<div class="dv-opt" id="2c">
+<div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>设计语言 — 令牌与规则</div>
+<div class="dv-card" style="width:420px;padding:24px;display:flex;flex-direction:column;gap:22px;background:#fff;color:#1c1c1e">
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.04em">色彩 — 中性为底,状态即色彩</div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px"><div style="height:40px;border-radius:8px;background:#f4f4f2;border:1px solid rgba(0,0,0,.06)"></div><span style="font-size:10px;font-family:ui-monospace,Menlo,monospace;color:#86868b">底 #F4F4F2</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px"><div style="height:40px;border-radius:8px;background:#fff;border:1px solid rgba(0,0,0,.1)"></div><span style="font-size:10px;font-family:ui-monospace,Menlo,monospace;color:#86868b">面 #FFFFFF</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px"><div style="height:40px;border-radius:8px;background:#1c1c1e"></div><span style="font-size:10px;font-family:ui-monospace,Menlo,monospace;color:#86868b">墨 #1C1C1E</span></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px"><div style="height:28px;border-radius:8px;background:#3478f6"></div><span style="font-size:10px;font-family:ui-monospace,Menlo,monospace;color:#86868b">运行 #3478F6</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px"><div style="height:28px;border-radius:8px;background:#c77d1e"></div><span style="font-size:10px;font-family:ui-monospace,Menlo,monospace;color:#86868b">待审 #C77D1E</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px"><div style="height:28px;border-radius:8px;background:#2e9e5b"></div><span style="font-size:10px;font-family:ui-monospace,Menlo,monospace;color:#86868b">完成 #2E9E5B</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px"><div style="height:28px;border-radius:8px;background:#d64541"></div><span style="font-size:10px;font-family:ui-monospace,Menlo,monospace;color:#86868b">失败 #D64541</span></div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.04em">字体 — 系统栈,克制的层级</div>
+    <div style="font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.2">标题 26/600</div>
+    <div style="font-size:13.5px;line-height:1.6">正文 13.5/400 — 对话与内容的默认尺寸,行高 1.6。</div>
+    <div style="font-size:12px;color:#86868b">辅助 12/400 — 元信息、时间戳、路径。</div>
+    <div style="font-size:12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;background:#f6f6f4;border-radius:6px;padding:4px 8px;align-self:flex-start">等宽只用于代码与命令</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:11px;font-weight:600;color:#b0b0b4;letter-spacing:.04em">规则</div>
+    <div style="display:flex;flex-direction:column;gap:7px;font-size:12.5px;line-height:1.5;color:#48484a">
+      <div style="display:flex;gap:8px"><span style="color:#1c1c1e;font-weight:600">01</span>唯一主按钮是墨色;蓝色只表示"正在运行",不作装饰。</div>
+      <div style="display:flex;gap:8px"><span style="color:#1c1c1e;font-weight:600">02</span>分隔靠 6% 黑发丝线与底/面两级灰,不用投影分层;投影只给浮层。</div>
+      <div style="display:flex;gap:8px"><span style="color:#1c1c1e;font-weight:600">03</span>工具调用默认折叠为一行;过程细节住在右侧工作区,不打断对话。</div>
+      <div style="display:flex;gap:8px"><span style="color:#1c1c1e;font-weight:600">04</span>圆角三档:6 / 10 / 14px。图标 lucide 1.8px 线宽,18px。</div>
+      <div style="display:flex;gap:8px"><span style="color:#1c1c1e;font-weight:600">05</span>深色模式:底 #1E1E20、面 #2A2A2C、墨反转为 #F2F2F4,状态色不变。</div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">试试说:"把 <a class="dv-oid" href="#2b">2b</a> 出一版深色" · "工作区默认收起,悬浮显示" · "任务台卡片加进度条" · "做成可点击原型"</p>
+</section>
+</x-dc>
+</body>
+</html>

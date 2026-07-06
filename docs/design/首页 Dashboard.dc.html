@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1" name="viewport" >
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0d0d0f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI Variable','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.dashscroll::-webkit-scrollbar{width:9px}
+.dashscroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:9px;border:2px solid transparent;background-clip:padding-box}
+.dashscroll::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+
+<div style="padding:36px;display:flex;justify-content:center;background:#0d0d0f;min-height:100vh">
+  <div data-screen-label="首页 · 任务台" style="position:relative;width:1000px;border-radius:14px;overflow:hidden;background:#1a1a1c;box-shadow:0 40px 100px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.09);display:flex;flex-direction:column">
+
+    <!-- window chrome -->
+    <div style="flex:none;height:40px;display:flex;align-items:center;padding:0 16px;background:#1f1f22;border-bottom:1px solid rgba(255,255,255,.06)">
+      <div style="display:flex;gap:8px"><span style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></span><span style="width:12px;height:12px;border-radius:50%;background:#febc2e"></span><span style="width:12px;height:12px;border-radius:50%;background:#28c840"></span></div>
+      <span style="flex:1;text-align:center;font:600 12px system-ui;color:#8a8a8d;margin-left:-60px">swarm</span>
+    </div>
+
+    <!-- topbar -->
+    <div style="flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 28px">
+      <span style="font:600 13px system-ui;color:#8a8a8d">任务台</span>
+      <span style="flex:1"></span>
+      <span style="display:flex;align-items:center;gap:6px;background:rgba(91,140,255,.12);color:#7ba0ff;font:500 12px system-ui;padding:4px 11px;border-radius:999px"><span style="width:6px;height:6px;border-radius:50%;background:#5b8cff"></span>2 个运行中</span>
+      <button style="display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#8a8a8d;font:500 12px system-ui;padding:5px 10px;border-radius:9px;cursor:pointer" type="button" >搜索<kbd style="font:600 10.5px ui-monospace,Menlo,monospace;background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px">⌘K</kbd></button>
+    </div>
+
+    <!-- scrollable body -->
+    <div class="dashscroll">
+      <div style="max-width:940px;margin:0 auto;padding:8px 28px 32px;display:flex;flex-direction:column;gap:26px">
+
+        <!-- COMPOSER -->
+        <section style="display:flex;flex-direction:column;gap:14px">
+          <h2 style="margin:0;font:600 25px system-ui;letter-spacing:-.02em;color:#fafafa">今天想让 swarm 做点什么?</h2>
+          <div style="border:1px solid rgba(255,255,255,.1);background:#202022;border-radius:16px;padding:15px 16px">
+            <div style="font:400 14px system-ui;color:#6a6a6d">描述一个目标,或按 ⌘⏎ 从剪贴板开始…</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:16px">
+              <span style="font:500 11.5px system-ui;color:#a8a8ab;background:rgba(255,255,255,.06);padding:5px 10px;border-radius:8px;white-space:nowrap">📁 ~/project</span>
+              <span style="font:500 11.5px system-ui;color:#a8a8ab;background:rgba(255,255,255,.06);padding:5px 10px;border-radius:8px;white-space:nowrap">🤖 研究编队</span>
+              <span style="font:500 11.5px system-ui;color:#a8a8ab;background:rgba(255,255,255,.06);padding:5px 10px;border-radius:8px;white-space:nowrap">🛡 默认权限</span>
+              <span style="flex:1"></span>
+              <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;background:#5b8cff"><svg fill="none" height="16" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="16" ><path d="M12 19V5"></path><path d="m6 11 6-6 6 6"></path></svg></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- WEATHER (compact status strip, click to expand) -->
+        <button onClick="{{ open }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.09);background:#1d1d1f;border-radius:14px;padding:11px 16px;cursor:pointer;color:#fafafa;font-family:inherit;display:flex;align-items:center;gap:12px" style-hover="border:1px solid rgba(255,255,255,.16);background:#232326" type="button" >
+          <span style="font-size:24px;line-height:1;flex:none">⛅</span>
+          <div style="display:flex;align-items:baseline;gap:1px;flex:none"><span style="font:400 23px system-ui;letter-spacing:-.01em;font-variant-numeric:tabular-nums">28</span><span style="font:400 13px system-ui;color:#9a9a9d">°</span></div>
+          <div style="min-width:0;flex:none">
+            <div style="font:600 12.5px system-ui;color:#ededf0;white-space:nowrap">北京市 · 朝阳区</div>
+            <div style="font:500 11px system-ui;color:#8a8a8d;white-space:nowrap">多云 · 体感 31° · 降水 20%</div>
+          </div>
+
+          <span style="flex:1"></span>
+
+          <span style="flex:none;display:flex;align-items:center;gap:4px;font:600 10.5px system-ui;color:#e8c454;background:rgba(217,163,0,.13);padding:4px 8px;border-radius:999px;white-space:nowrap"><svg fill="none" height="11" stroke="#e8c454" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" viewBox="0 0 24 24" width="11" ><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>高温预警</span>
+          <span style="flex:none;font:600 10.5px system-ui;color:#c99a2e;background:rgba(201,154,46,.13);padding:4px 8px;border-radius:999px;white-space:nowrap">AQI 良 78</span>
+
+          <svg height="26" preserveAspectRatio="none" style="flex:none;display:block;opacity:.9" viewBox="0 0 80 26" width="80" >
+            <defs><linearGradient id="dspk" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity=".3"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
+            <path d="{{ sparkArea }}" fill="url(#dspk)"></path>
+            <path d="{{ sparkLine }}" fill="none" stroke="#8ea3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" vector-effect="non-scaling-stroke"></path>
+          </svg>
+
+          <svg fill="none" height="15" stroke="#6a6a6d" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" style="flex:none" viewBox="0 0 24 24" width="15" ><path d="M9 6l6 6-6 6"></path></svg>
+        </button>
+
+        <!-- 进行中 -->
+        <section>
+          <h2 style="margin:0 0 12px;display:flex;align-items:baseline;gap:8px;font:600 13px system-ui;color:#fafafa">进行中<span style="font:400 12px system-ui;color:#8a8a8d;font-variant-numeric:tabular-nums">2</span></h2>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <sc-for as="r" hint-placeholder-count="3" list="{{ running }}" >
+              <div style="{{ r.cardStyle }}">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="width:7px;height:7px;border-radius:50%;background:{{ r.dot }};box-shadow:{{ r.dotGlow }}"></span>
+                  <span style="font:500 11.5px system-ui;color:{{ r.statusColor }}">{{ r.status }}</span>
+                </div>
+                <h3 style="margin:0;font:600 14px system-ui;color:#fafafa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.goal }}</h3>
+                <sc-if hint-placeholder-val="" value="{{ r.approve }}" >
+                  <div style="display:flex;gap:8px;margin-top:2px">
+                    <span style="flex:1;text-align:center;border-radius:9px;background:#fafafa;color:#1a1a1c;font:600 12px system-ui;padding:6px 0">✓ 允许</span>
+                    <span style="flex:1;text-align:center;border-radius:9px;border:1px solid rgba(255,255,255,.14);color:#9a9a9d;font:500 12px system-ui;padding:6px 0">✕ 拒绝</span>
+                  </div>
+                </sc-if>
+                <sc-if hint-placeholder-val="" value="{{ r.meta }}" >
+                  <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;font:400 11.5px system-ui;color:#8a8a8d"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.cwd }}</span><span style="margin-left:8px;flex:none;font-variant-numeric:tabular-nums">{{ r.step }}</span></div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <!-- 定时任务 + 最近完成 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
+          <section>
+            <h2 style="margin:0 0 12px;display:flex;align-items:baseline;gap:8px;font:600 13px system-ui;color:#fafafa">定时任务<button style="margin-left:auto;display:flex;align-items:center;gap:4px;border:none;background:transparent;cursor:pointer;font:500 12px system-ui;color:#7ba0ff" type="button" >查看日历<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="12" ><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button></h2>
+            <ul style="margin:0;padding:0;list-style:none;border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;background:#202022">
+              <sc-for as="s" hint-placeholder-count="3" list="{{ scheduled }}" >
+                <li style="{{ s.rowStyle }}">
+                  <span style="width:60px;flex:none;font:500 12px ui-monospace,Menlo,monospace;color:#8a8a8d">{{ s.time }}</span>
+                  <span style="flex:1;min-width:0;font:400 13px system-ui;color:#ededf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.name }}</span>
+                  <span style="flex:none;font:500 11.5px system-ui;color:{{ s.tone }}">{{ s.statusLabel }}</span>
+                </li>
+              </sc-for>
+            </ul>
+          </section>
+          <section>
+            <h2 style="margin:0 0 12px;font:600 13px system-ui;color:#fafafa">最近完成</h2>
+            <ul style="margin:0;padding:0;list-style:none;border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;background:#202022">
+              <sc-for as="r" hint-placeholder-count="4" list="{{ recent }}" >
+                <li style="{{ r.rowStyle }}">
+                  <svg fill="none" height="14" stroke="#4ade80" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" style="flex:none" viewBox="0 0 24 24" width="14" ><path d="M20 6 9 17l-5-5"></path></svg>
+                  <span style="flex:1;min-width:0;font:400 13px system-ui;color:#ededf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span>
+                  <span style="flex:none;font:400 11.5px system-ui;color:#8a8a8d">{{ r.time }}</span>
+                </li>
+              </sc-for>
+            </ul>
+          </section>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- WEATHER DRAWER -->
+    <sc-if hint-placeholder-val="" value="{{ isOpen }}" >
+      <div onClick="{{ close }}" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:5"></div>
+      <div style="position:absolute;top:0;right:0;bottom:0;width:380px;z-index:6;box-shadow:-24px 0 70px rgba(0,0,0,.6)">
+        <dc-import hint-size="380px,100%" name="天气详情" on-close="{{ close }}" ></dc-import>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script data-dc-script type="text/x-dc" >
+class Component extends DCLogic {
+  state = { open: false }
+
+  componentDidMount() {
+    this._esc = (e) => { if (e.key === 'Escape' && this.state.open) this.setState({ open: false }) }
+    document.addEventListener('keydown', this._esc)
+  }
+  componentWillUnmount() { if (this._esc) document.removeEventListener('keydown', this._esc) }
+
+  spark() {
+    const temps = [28,29,30,31,31,30,29,28,26,25,24,24,23,23,23,24,26,28,29,30,30,29,28,28]
+    const W = 80, H = 26, pt = 4, pb = 5
+    const min = Math.min(...temps), max = Math.max(...temps)
+    const rng = (max - min) || 1
+    const n = temps.length
+    const pts = temps.map((v, i) => [(i / (n - 1)) * W, pt + (1 - (v - min) / rng) * (H - pt - pb)])
+    const line = 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L')
+    return { line, area: line + ` L${W} ${H} L0 ${H} Z`, dot: pts[0] }
+  }
+
+  renderVals() {
+    const sp = this.spark()
+    const cardBase = 'display:flex;flex-direction:column;gap:9px;min-height:118px;border-radius:16px;padding:15px 16px;background:#202022'
+
+    const running = [
+      { status: '运行中 · 12:34', goal: '分析 B站「研发日常」收藏夹', cwd: '~/project', step: '第 3 / 8 步', kind: 'run' },
+      { status: '运行中 · 04:12', goal: '整理今日 Gmail 收件箱', cwd: 'Gmail', step: '第 2 / 5 步', kind: 'run' },
+      { status: '等待审批', goal: '重构搜索弹窗为统一命令台', kind: 'await' },
+    ].map((r) => {
+      const aw = r.kind === 'await'
+      return {
+        ...r,
+        cardStyle: cardBase + ';border:1px solid ' + (aw ? 'rgba(240,180,92,.55);box-shadow:0 0 0 3px rgba(240,180,92,.12)' : 'rgba(255,255,255,.1)'),
+        dot: aw ? '#f0b45c' : '#5b8cff',
+        dotGlow: aw ? 'none' : '0 0 0 3px rgba(91,140,255,.2)',
+        statusColor: aw ? '#f0b45c' : '#7ba0ff',
+        approve: aw ? true : '',
+        meta: aw ? '' : true,
+      }
+    })
+
+    const sched = [
+      { time: '09:00', name: 'GitHub 趋势日报', statusLabel: '已完成', tone: '#4ade80' },
+      { time: '10:00', name: '项目周报生成', statusLabel: '待运行', tone: '#8a8a8d' },
+      { time: '18:30', name: 'B站收藏批量解析', statusLabel: '失败', tone: '#f87171' },
+    ]
+    const scheduled = sched.map((s, i) => ({ ...s, rowStyle: 'display:flex;align-items:center;gap:10px;padding:12px 15px' + (i < sched.length - 1 ? ';border-bottom:1px solid rgba(255,255,255,.07)' : '') }))
+
+    const rec = [
+      { name: '竞品分析报告', time: '2 小时前' },
+      { name: 'Gmail 自动分类规则', time: '昨天' },
+      { name: '周报-W23 生成', time: '昨天' },
+      { name: '趋势快照导出', time: '3 天前' },
+    ]
+    const recent = rec.map((r, i) => ({ ...r, rowStyle: 'display:flex;align-items:center;gap:10px;padding:12px 15px' + (i < rec.length - 1 ? ';border-bottom:1px solid rgba(255,255,255,.07)' : '') }))
+
+    return {
+      isOpen: this.state.open ? true : '',
+      open: () => this.setState({ open: true }),
+      close: () => this.setState({ open: false }),
+      sparkLine: sp.line, sparkArea: sp.area,
+      sparkDotX: sp.dot[0].toFixed(1), sparkDotY: sp.dot[1].toFixed(1),
+      running, scheduled, recent,
+    }
+  }
+}
+</script>
+</body>
+</html>

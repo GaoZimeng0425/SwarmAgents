@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1" name="viewport" >
+<script src="./support.js"></script>
+<template data-bg-color="#7a7fae" id="__bundler_thumbnail" >
+<svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+<rect fill="#faf9f7" height="320" rx="42" stroke="rgba(0,0,0,.12)" stroke-width="2" width="600" x="300" y="250" />
+<circle cx="360" cy="330" fill="none" r="16" stroke="#5e5ce6" stroke-width="6"/>
+<line stroke="#5e5ce6" stroke-linecap="round" stroke-width="6" x1="372" x2="386" y1="342" y2="356" />
+<rect fill="rgba(0,0,0,.1)" height="28" rx="10" width="300" x="410" y="316" />
+<rect fill="rgba(94,92,230,.16)" height="34" rx="10" width="34" x="330" y="400" />
+<path d="M347 407l4 9 9 4-9 3-4 9-3-9-9-3 9-4z" fill="#5e5ce6"/>
+<rect fill="rgba(0,0,0,.16)" height="18" rx="8" width="230" x="384" y="408" />
+<rect fill="rgba(0,0,0,.06)" height="34" rx="10" width="34" x="330" y="460" />
+<rect fill="rgba(0,0,0,.1)" height="18" rx="8" width="180" x="384" y="468" />
+<rect fill="rgba(0,0,0,.06)" height="34" rx="10" width="34" x="330" y="512" />
+<rect fill="rgba(0,0,0,.1)" height="18" rx="8" width="210" x="384" y="520" />
+</svg>
+</template>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta content="canvas" name="design_doc_mode" >
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#c9c7c1;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.cmdscroll::-webkit-scrollbar{width:8px}
+.cmdscroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.16);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+.cmdscroll::-webkit-scrollbar-track{background:transparent}
+#cmd-input::placeholder{color:#a8a8a2}
+.dv-oid{font:600 11px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(0,0,0,.09);color:#1a1a1a;border-radius:5px;text-decoration:none}
+kbd{font:600 10.5px ui-monospace,Menlo,monospace;color:#6b6b70;background:rgba(0,0,0,.06);border:.5px solid rgba(0,0,0,.1);border-radius:5px;padding:2px 6px;line-height:1;box-shadow:0 1px 0 rgba(0,0,0,.05)}
+</style>
+</helmet>
+
+<div style="padding:40px 44px 72px;display:flex;flex-direction:column;gap:14px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;max-width:1360px">
+    <span class="dv-oid" id="1a">1a</span>
+    <span style="font:600 14px system-ui;color:#1a1a1a">统一命令台 · ⌘K 重构 —— 搜索 · 导航 · 命令 · 直接指派 Agent(一个框做全部)</span>
+    <span style="font:400 12.5px system-ui;color:rgba(0,0,0,.5)">可交互:点进去打字、上下键选择、试 <kbd style="padding:1px 5px">&gt;</kbd> <kbd style="padding:1px 5px">@</kbd> <kbd style="padding:1px 5px">#</kbd> <kbd style="padding:1px 5px">/</kbd> 前缀</span>
+  </div>
+
+  <!-- ══════════ DESKTOP SCENE ══════════ -->
+  <div data-screen-label="统一命令台" style="position:relative;width:1360px;height:860px;border-radius:14px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.14);background:linear-gradient(150deg,#6a7fb5 0%,#8a7fae 42%,#b98aa6 72%,#c9a08e 100%)">
+
+    <!-- wallpaper soft blobs -->
+    <div style="position:absolute;top:-120px;right:-80px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.28),transparent 70%)"></div>
+    <div style="position:absolute;bottom:-160px;left:-60px;width:560px;height:560px;border-radius:50%;background:radial-gradient(circle,rgba(80,60,120,.35),transparent 70%)"></div>
+
+    <!-- menubar -->
+    <div style="position:absolute;top:0;left:0;right:0;height:28px;display:flex;align-items:center;gap:18px;padding:0 16px;background:rgba(255,255,255,.16);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);color:#fff;font:600 12.5px system-ui">
+      <svg fill="#fff" height="15" viewBox="0 0 24 24" width="15" ><path d="M16.5 3c-1.2.06-2.6.8-3.4 1.8-.7.9-1.3 2.2-1.1 3.5 1.3.1 2.7-.7 3.5-1.7.8-1 1.3-2.3 1-3.6zM19 17c-.6 1.4-1.3 2.7-2.4 2.7-1 0-1.4-.7-2.6-.7-1.2 0-1.6.7-2.6.7-1.1 0-1.9-1.4-2.5-2.8-1.3-2.9-1.5-6.4.1-8.2.8-.9 1.9-1.4 3-1.4 1.1 0 1.8.7 2.7.7.9 0 1.4-.7 2.7-.7 1 0 2 .5 2.8 1.3-2.4 1.5-2 5.1.3 6.4z"></path></svg>
+      <span style="font-weight:700">Swarm</span><span style="font-weight:500;opacity:.85">文件</span><span style="font-weight:500;opacity:.85">编辑</span><span style="font-weight:500;opacity:.85">视图</span>
+      <span style="flex:1"></span>
+      <svg fill="none" height="15" stroke="#fff" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="15" ><path d="M5 12.5a13 13 0 0 1 14 0M8 15.5a8 8 0 0 1 8 0M11 18.3a3 3 0 0 1 2 0"></path></svg>
+      <span style="font-variant-numeric:tabular-nums;font-weight:600">100%</span>
+      <span style="font-variant-numeric:tabular-nums;font-weight:600">周二 14:32</span>
+    </div>
+
+    <!-- faint app window behind -->
+    <div style="position:absolute;top:70px;left:70px;right:70px;bottom:56px;border-radius:12px;background:rgba(244,244,242,.5);border:.5px solid rgba(255,255,255,.4);filter:blur(1.5px)"></div>
+
+    <!-- dim overlay -->
+    <div style="position:absolute;inset:0;background:rgba(30,26,40,.28);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)"></div>
+
+    <!-- ══════════ PALETTE ══════════ -->
+    <div style="position:absolute;top:96px;left:50%;transform:translateX(-50%);width:760px;max-height:660px;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;background:rgba(250,249,247,.82);backdrop-filter:blur(40px) saturate(1.4);-webkit-backdrop-filter:blur(40px) saturate(1.4);box-shadow:0 32px 90px rgba(0,0,0,.4),0 0 0 .5px rgba(0,0,0,.16),inset 0 .5px 0 rgba(255,255,255,.6);color:#1c1c1e">
+
+      <!-- INPUT ROW -->
+      <div style="flex:none;display:flex;align-items:center;gap:11px;padding:15px 18px;border-bottom:.5px solid rgba(0,0,0,.09)">
+        <div style="flex:none;color:{{ scope.color }}">
+          <svg fill="none" height="21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="21" ><sc-for as="d" hint-placeholder-count="1" list="{{ scope.iconPaths }}" ><path d="{{ d }}"></path></sc-for></svg>
+        </div>
+        <sc-if hint-placeholder-val="" value="{{ scope.pill }}" >
+          <div style="flex:none;display:flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border-radius:8px;background:{{ scope.pillBg }};color:{{ scope.color }};font:600 12.5px system-ui">{{ scope.pill }}<button onClick="{{ clearScope }}" style="display:flex;align-items:center;justify-content:center;width:17px;height:17px;border:none;background:rgba(0,0,0,.08);border-radius:5px;cursor:pointer;color:inherit" title="返回 (esc)" type="button" ><svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="3" viewBox="0 0 24 24" width="10" ><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+        </sc-if>
+        <input autocomplete="off" id="cmd-input" onInput="{{ onInput }}" onKeyDown="{{ onKey }}" placeholder="{{ scope.placeholder }}" spellcheck="false" style="flex:1;min-width:0;border:none;background:transparent;outline:none;font:400 20px system-ui;color:#1c1c1e;padding:0" value="{{ query }}" />
+        <div style="flex:none;display:flex;align-items:center;gap:7px">
+          <span style="font:500 11.5px system-ui;color:#a8a8a2;font-variant-numeric:tabular-nums">{{ resultCount }} 结果</span>
+        </div>
+      </div>
+
+      <!-- BODY: results + preview -->
+      <div style="flex:1;min-height:0;display:flex">
+
+        <!-- RESULTS -->
+        <div class="cmdscroll" style="flex:1;min-width:0;overflow-y:auto;padding:8px 8px 10px">
+          <sc-for as="g" hint-placeholder-count="3" list="{{ groups }}" >
+            <div style="padding:0 6px">
+              <div style="display:flex;align-items:center;gap:8px;padding:11px 8px 5px">
+                <span style="font:600 11px system-ui;letter-spacing:.03em;color:#9a9a94;text-transform:uppercase">{{ g.heading }}</span>
+                <span style="flex:1;height:.5px;background:rgba(0,0,0,.06)"></span>
+              </div>
+              <sc-for as="it" hint-placeholder-count="3" list="{{ g.items }}" >
+                <button onClick="{{ it.onClick }}" onMouseEnter="{{ it.onHover }}" style="{{ it.rowStyle }}" type="button" >
+                  <div style="{{ it.iconWrap }}">
+                    <svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.85" viewBox="0 0 24 24" width="17" ><sc-for as="d" hint-placeholder-count="1" list="{{ it.iconPaths }}" ><path d="{{ d }}"></path></sc-for></svg>
+                  </div>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <div style="font:{{ it.titleFont }};color:#1c1c1e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.tPre }}<span style="color:#4b45c4;background:rgba(94,92,230,.16);border-radius:3px;padding:0 1px">{{ it.tMatch }}</span>{{ it.tPost }}</div>
+                    <sc-if hint-placeholder-val="{{ true }}" value="{{ it.hasSub }}" >
+                      <div style="font:400 12px/1.4 system-ui;color:#8a8a84;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.sPre }}<span style="color:#4b45c4;font-weight:600">{{ it.sMatch }}</span>{{ it.sPost }}</div>
+                    </sc-if>
+                  </div>
+                  <sc-if hint-placeholder-val="" value="{{ it.progress }}" >
+                    <div style="flex:none;display:flex;align-items:center;gap:7px;margin-right:2px"><div style="width:52px;height:5px;border-radius:3px;background:rgba(0,0,0,.09);overflow:hidden"><div style="height:100%;width:{{ it.progress }};background:#5e5ce6;border-radius:3px"></div></div></div>
+                  </sc-if>
+                  <sc-if hint-placeholder-val="" value="{{ it.badge }}" >
+                    <span style="flex:none;font:600 10px system-ui;letter-spacing:.02em;color:{{ it.badgeColor }};background:{{ it.badgeBg }};border-radius:5px;padding:3px 7px">{{ it.badge }}</span>
+                  </sc-if>
+                  <sc-if hint-placeholder-val="" value="{{ it.meta }}" >
+                    <span style="flex:none;font:500 11.5px ui-monospace,Menlo,monospace;color:#a8a8a2">{{ it.meta }}</span>
+                  </sc-if>
+                  <sc-if hint-placeholder-val="" value="{{ it.selected }}" >
+                    <svg fill="none" height="15" stroke="#b0b0aa" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" style="flex:none" viewBox="0 0 24 24" width="15" ><path d="M9 6l6 6-6 6"></path></svg>
+                  </sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </sc-for>
+
+          <sc-if hint-placeholder-val="" value="{{ isEmpty }}" >
+            <div style="padding:56px 20px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+              <svg fill="none" height="30" stroke="#c2c2bc" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="30" ><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+              <div style="font:500 13.5px system-ui;color:#9a9a94">没有匹配「{{ query }}」的结果</div>
+              <div style="font:400 12px system-ui;color:#b6b6b0">试试直接把它交给 Agent —— 回车即新建任务</div>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- PREVIEW -->
+        <div class="cmdscroll" style="width:296px;flex:none;overflow-y:auto;border-left:.5px solid rgba(0,0,0,.08);background:rgba(255,255,255,.4)">
+          <div style="padding:18px 18px 20px;display:flex;flex-direction:column;gap:14px">
+
+            <!-- header -->
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <div style="{{ pv.iconWrap }}">
+                <svg fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="22" ><sc-for as="d" hint-placeholder-count="1" list="{{ pv.iconPaths }}" ><path d="{{ d }}"></path></sc-for></svg>
+              </div>
+              <div style="font:600 16px/1.35 system-ui;color:#1c1c1e">{{ pv.title }}</div>
+              <sc-if hint-placeholder-val="" value="{{ pv.kindLabel }}" >
+                <span style="align-self:flex-start;font:600 10.5px system-ui;letter-spacing:.02em;color:{{ pv.color }};background:{{ pv.tint }};border-radius:6px;padding:3px 8px">{{ pv.kindLabel }}</span>
+              </sc-if>
+            </div>
+
+            <!-- DISPATCH -->
+            <sc-if hint-placeholder-val="" value="{{ pv.isDispatch }}" >
+              <div style="display:flex;flex-direction:column;gap:13px">
+                <div style="font:400 12.5px/1.55 system-ui;color:#6b6b70">回车会新建一个任务,让所选编队立即开始执行。你可随时在任务台查看进度。</div>
+                <div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 10.5px system-ui;letter-spacing:.04em;color:#9a9a94;text-transform:uppercase">执行编队</span>
+                  <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:9px;background:#fff;border:.5px solid rgba(0,0,0,.1)"><span style="width:22px;height:22px;border-radius:7px;background:rgba(94,92,230,.14);display:flex;align-items:center;justify-content:center"><svg fill="none" height="13" stroke="#5e5ce6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="13" ><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 6.5a3 3 0 0 1 0 5.5M20.5 20a5.2 5.2 0 0 0-4-5"></path></svg></span><span style="flex:1;font:600 13px system-ui;color:#1c1c1e">研究编队</span><svg fill="none" height="13" stroke="#a8a8a2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="13" ><path d="m6 9 6 6 6-6"></path></svg></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 10.5px system-ui;letter-spacing:.04em;color:#9a9a94;text-transform:uppercase">预计步骤</span>
+                  <sc-for as="s" hint-placeholder-count="3" list="{{ pv.steps }}" ><div style="display:flex;gap:9px;font:400 12.5px/1.45 system-ui;color:#4a4a50"><span style="flex:none;width:18px;height:18px;border-radius:50%;background:rgba(94,92,230,.12);color:#5e5ce6;font:600 10px system-ui;display:flex;align-items:center;justify-content:center;margin-top:1px">{{ s.n }}</span><span>{{ s.t }}</span></div></sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- CHAT -->
+            <sc-if hint-placeholder-val="" value="{{ pv.isChat }}" >
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <sc-for as="m" hint-placeholder-count="3" list="{{ pv.msgs }}" ><div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10.5px system-ui;color:{{ m.color }}">{{ m.role }}</span><span style="font:400 12.5px/1.5 system-ui;color:#4a4a50">{{ m.text }}</span></div></sc-for>
+                <div style="font:400 11px system-ui;color:#b0b0aa;margin-top:2px">更新于 {{ pv.updated }} · {{ pv.count }} 条消息</div>
+              </div>
+            </sc-if>
+
+            <!-- TASK RUNNING -->
+            <sc-if hint-placeholder-val="" value="{{ pv.isTaskRun }}" >
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div><div style="display:flex;justify-content:space-between;font:600 12px system-ui;color:#4a4a50;margin-bottom:6px"><span>{{ pv.stepText }}</span><span style="color:#5e5ce6">{{ pv.progress }}</span></div><div style="height:7px;border-radius:4px;background:rgba(0,0,0,.08);overflow:hidden"><div style="height:100%;width:{{ pv.progress }};background:linear-gradient(90deg,#5e5ce6,#7a76d8);border-radius:4px"></div></div></div>
+                <div style="display:flex;flex-direction:column;gap:7px"><span style="font:600 10.5px system-ui;letter-spacing:.04em;color:#9a9a94;text-transform:uppercase">实时日志</span><sc-for as="l" hint-placeholder-count="3" list="{{ pv.logs }}" ><div style="display:flex;gap:8px;font:400 11.5px/1.4 ui-monospace,Menlo,monospace;color:#6b6b70"><span style="color:#c2c2bc">{{ l.t }}</span><span style="flex:1">{{ l.m }}</span></div></sc-for></div>
+              </div>
+            </sc-if>
+
+            <!-- TASK SCHEDULED -->
+            <sc-if hint-placeholder-val="" value="{{ pv.isTaskSched }}" >
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;flex-direction:column;gap:8px"><sc-for as="r" hint-placeholder-count="3" list="{{ pv.rows }}" ><div style="display:flex;justify-content:space-between;gap:12px;font:400 12.5px system-ui"><span style="color:#9a9a94">{{ r.k }}</span><span style="color:#3a3a40;font-weight:500;text-align:right">{{ r.v }}</span></div></sc-for></div>
+                <div style="padding:11px;border-radius:9px;background:#fff;border:.5px solid rgba(0,0,0,.08)"><div style="font:600 10.5px system-ui;color:#9a9a94;text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px">上次结果</div><div style="font:400 12.5px/1.5 system-ui;color:#4a4a50">{{ pv.last }}</div></div>
+              </div>
+            </sc-if>
+
+            <!-- INFO (command/service/agent/file/memory/skill) -->
+            <sc-if hint-placeholder-val="" value="{{ pv.isInfo }}" >
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <sc-if hint-placeholder-val="" value="{{ pv.desc }}" ><div style="font:400 12.5px/1.55 system-ui;color:#6b6b70">{{ pv.desc }}</div></sc-if>
+                <sc-if hint-placeholder-val="" value="{{ pv.hasRows }}" ><div style="display:flex;flex-direction:column;gap:8px"><sc-for as="r" hint-placeholder-count="2" list="{{ pv.rows }}" ><div style="display:flex;justify-content:space-between;gap:12px;font:400 12.5px system-ui"><span style="color:#9a9a94">{{ r.k }}</span><span style="color:#3a3a40;font-weight:500;text-align:right">{{ r.v }}</span></div></sc-for></div></sc-if>
+              </div>
+            </sc-if>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="flex:none;height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;border-top:.5px solid rgba(0,0,0,.09);background:rgba(255,255,255,.32)">
+        <span style="width:19px;height:19px;border-radius:5px;background:rgba(94,92,230,.12);display:flex;align-items:center;justify-content:center;flex:none"><svg fill="none" height="12" stroke="#5e5ce6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="12" ><path d="M13 2 3 14h7l-1 8 9-12h-7z"></path></svg></span>
+        <span style="font:500 12px system-ui;color:#8a8a84;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">{{ footerLabel }}</span>
+        <span style="flex:1"></span>
+        <div style="display:flex;align-items:center;gap:6px;font:500 12px system-ui;color:#6b6b70"><span>{{ primaryAction }}</span><kbd>↵</kbd></div>
+        <span style="width:.5px;height:18px;background:rgba(0,0,0,.12)"></span>
+        <div style="display:flex;align-items:center;gap:6px;font:500 12px system-ui;color:#6b6b70"><span>操作</span><kbd>⌘K</kbd></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script type="text/x-dc" >
+class Component extends DCLogic {
+  state = { query: '', sel: 0 }
+
+  componentDidMount() {
+    setTimeout(() => { const el = document.getElementById('cmd-input'); if (el) el.focus() }, 60)
+  }
+
+  // ── icon path sets (24x24 stroke) ──
+  ic = {
+    search: ['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z', 'm21 21-4.3-4.3'],
+    spark: ['M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z'],
+    chat: ['M21 11.5a8.4 8.4 0 0 1-9 8.5 8.4 8.4 0 0 1-4-1L3 20l1.5-4a8.5 8.5 0 1 1 15.5-4.5z'],
+    plus: ['M12 5v14M5 12h14'],
+    clock: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 7.5v5l3.2 1.8'],
+    file: ['M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z', 'M14 3v5h5'],
+    mail: ['M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z', 'm3.5 6.5 8.5 6 8.5-6'],
+    cal: ['M5 4.5h14a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2z', 'M3 9.5h18M8 2.5v4M16 2.5v4'],
+    video: ['M4 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z', 'm7 3 3 4M17 3l-3 4M10 12v4M14 12v4'],
+    trend: ['M3 17l6-6 4 4 8-8', 'M17 7h4v4'],
+    team: ['M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M3.5 20a5.5 5.5 0 0 1 11 0', 'M16 6.5a3 3 0 0 1 0 5.5M20.5 20a5.2 5.2 0 0 0-4-5'],
+    gear: ['M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z', 'M19 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V20a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z'],
+    moon: ['M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'],
+    export: ['M12 3v12', 'M8 7l4-4 4 4', 'M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4'],
+    brain: ['M9.5 3A3.5 3.5 0 0 0 6 6.5 3 3 0 0 0 5 12.3V16a3 3 0 0 0 4.5 2.6', 'M14.5 3A3.5 3.5 0 0 1 18 6.5 3 3 0 0 1 19 12.3V16a3 3 0 0 1-4.5 2.6', 'M12 4v15'],
+    bolt: ['M13 2 3 14h7l-1 8 9-12h-7z'],
+    arrow: ['M4 12h15', 'M13 6l6 6-6 6'],
+  }
+
+  data() {
+    const I = this.ic
+    return {
+      command: [
+        { title: '新建对话', sub: '开始一个空白会话', meta: '⌘N', icon: I.plus, c: '#3478f6', desc: '打开一个全新的空白对话,直接开始输入。', rows: [['快捷键', '⌘N'], ['位置', '侧栏顶部 +']] },
+        { title: '新建定时任务', sub: '让 Agent 按计划自动执行', icon: I.clock, c: '#ff9500', desc: '设定时间与频率,Agent 会到点自动开跑并把结果推给你。', rows: [['触发', 'Cron / 自然语言'], ['去处', '任务台 › 定时']] },
+        { title: '新建编队', sub: '组合多个 Agent 协作', icon: I.team, c: '#5e5ce6', desc: '把多个 Agent 编成一队分工协作,处理更复杂的目标。' },
+        { title: '打开设置', sub: '偏好 · 服务连接 · 模型', meta: '⌘,', icon: I.gear, c: '#6b6b70', desc: '管理账户、已连接服务、模型与外观。', rows: [['快捷键', '⌘,']] },
+        { title: '切换外观 · 浅色 / 深色', sub: '跟随系统或手动切换', icon: I.moon, c: '#6b6b70', desc: '在浅色、深色与跟随系统之间切换。' },
+        { title: '导出当前对话为 Markdown', sub: '连同 Agent 产出一起导出', icon: I.export, c: '#34c759', desc: '把当前对话及其生成的文件打包导出为 .md。' },
+      ],
+      agent: [
+        { title: '研究编队', sub: '检索 · 阅读 · 归纳 · 3 个 Agent', icon: I.team, c: '#5e5ce6', desc: '擅长深度调研:并行检索、逐篇精读、结构化归纳成报告。', rows: [['成员', '检索 · 阅读 · 写作'], ['本周运行', '14 次']] },
+        { title: '日报编队', sub: '每日汇总邮件 / 日历 / 趋势', icon: I.team, c: '#5e5ce6', desc: '每天把邮件、日程、GitHub 趋势汇总成一份简报。', rows: [['成员', '2 个 Agent'], ['绑定任务', '每日 09:00']] },
+        { title: '监控编队', sub: '盯盘 GitHub 趋势与关键词', icon: I.team, c: '#5e5ce6', desc: '持续监控关键词与仓库,有变化就通知你。' },
+        { title: '通用 Agent', sub: '单个多面手 · 什么都能聊', icon: I.spark, c: '#5e5ce6', desc: '一个全能 Agent,适合临时、开放式的任务。' },
+      ],
+      taskRun: [
+        { title: '分析 B站「研发日常」收藏夹', sub: '进行中 · 第 3 / 8 步', progress: '42%', icon: I.spark, c: '#5e5ce6', stepText: '正在解析视频字幕', logs: [['14:30', '拉取收藏列表 214 项'], ['14:31', '筛出未解析 128 项'], ['14:32', '解析中 54 / 128…']] },
+        { title: '整理今日 Gmail 收件箱', sub: '进行中 · 已分类 18 封', progress: '70%', icon: I.mail, c: '#ea4335', stepText: '按标签归档中', logs: [['14:28', '读取未读 26 封'], ['14:30', '识别 4 个标签'], ['14:31', '归档 18 / 26…']] },
+      ],
+      taskSched: [
+        { title: '每日 09:00 · GitHub 趋势日报', sub: '下次运行 明早 09:00', icon: I.clock, c: '#ff9500', rows: [['频率', '每天 09:00'], ['下次', '明早 09:00'], ['编队', '日报编队']], last: '昨日整理了 12 个热门仓库,置顶「bun v2」。' },
+        { title: '每周一 10:00 · 项目周报', sub: '下次运行 周一 10:00', icon: I.clock, c: '#ff9500', rows: [['频率', '每周一 10:00'], ['下次', '周一 10:00'], ['编队', '通用 Agent']], last: '上周汇总了 23 项任务产出成周报草稿。' },
+      ],
+      file: [
+        { title: '竞品分析.md', sub: '研究编队生成 · 2 天前 · 12 KB', icon: I.file, c: '#3478f6', desc: '一份对比 4 款同类产品的结构化分析。', rows: [['来源', '研究编队'], ['大小', '12 KB'], ['修改', '2 天前']] },
+        { title: '周报-W23.pdf', sub: '导出 · 5 天前 · 340 KB', icon: I.file, c: '#ea4335', rows: [['来源', '手动导出'], ['大小', '340 KB'], ['修改', '5 天前']] },
+        { title: 'bili-summary.json', sub: 'B站分析任务生成 · 昨天', icon: I.file, c: '#ff9500', rows: [['来源', 'B站分析任务'], ['修改', '昨天']] },
+        { title: '趋势快照-0623.png', sub: 'GitHub 趋势任务 · 昨天', icon: I.file, c: '#34c759', rows: [['来源', 'GitHub 趋势任务'], ['修改', '昨天']] },
+      ],
+      chat: [
+        { title: '重构搜索弹窗方案', body: '把 ⌘K 变成统一命令台,直接指派 Agent 是核心', updated: '刚刚', count: 12, msgs: [['你', '⌘K 现在只能搜标题,太浪费了'], ['Agent', '可以把它做成统一命令台:搜索 + 命令 + 直接指派'], ['你', '对,直接输入目标回车就开跑']] },
+        { title: 'B站收藏批量解析', body: '给每个视频生成一句话结论和核心要点', updated: '2 小时前', count: 8, msgs: [['你', '帮我把研发日常收藏夹都解析一遍'], ['Agent', '好的,正在逐个生成摘要与要点']] },
+        { title: 'Gmail 自动分类规则', body: '按发件人和主题把邮件分到不同标签', updated: '昨天', count: 21, msgs: [['你', '订阅类邮件太多了'], ['Agent', '我加了三条规则自动归档']] },
+        { title: 'GitHub 趋势监控', body: '每天筛选 star 增长最快的仓库', updated: '3 天前', count: 6, msgs: [['你', '盯一下 AI Agent 相关的新仓库'], ['Agent', '已建每日趋势任务']] },
+        { title: '周报自动生成', body: '汇总本周所有任务产出成周报', updated: '上周', count: 15, msgs: [['你', '周五帮我出一份周报'], ['Agent', '已排每周一 10:00 自动生成']] },
+      ],
+      service: [
+        { title: 'Bilibili 收藏', sub: '214 个视频 · AI 已解析 86', icon: I.video, c: '#fb7299', desc: '你的 B站收藏库,已被 Agent 解析成可检索的知识库。', rows: [['视频', '214'], ['已解析', '86'], ['收藏夹', '5']] },
+        { title: '日历', sub: '今天 3 个日程', icon: I.cal, c: '#3478f6', desc: '查看与安排日程,Agent 可代你创建与提醒。', rows: [['今日', '3 个'], ['本周', '11 个']] },
+        { title: 'Gmail', sub: '12 封未读', icon: I.mail, c: '#ea4335', desc: '收件箱,支持 Agent 自动分类与起草回复。', rows: [['未读', '12'], ['已连接', '是']] },
+        { title: 'GitHub 趋势', sub: '实时热门仓库', icon: I.trend, c: '#1c1c1e', desc: '实时热门开源仓库,可让 Agent 定时汇总。' },
+      ],
+      memory: [
+        { title: '我更喜欢简洁直接的回答', sub: '记忆 · 回答偏好', icon: I.brain, c: '#34c759', desc: 'Agent 会在所有对话中遵循这条偏好。', rows: [['类型', '偏好'], ['加入', '2 周前']] },
+        { title: '常用技术栈:TypeScript / Go', sub: '记忆 · 技术背景', icon: I.brain, c: '#34c759', desc: '影响 Agent 给代码建议时的默认语言。', rows: [['类型', '技术背景']] },
+      ],
+      skill: [
+        { title: 'read-pdf', sub: '技能 · 解析 PDF 文档', icon: I.bolt, c: '#ff9500', desc: '让 Agent 读取并结构化 PDF 内容。', rows: [['状态', '已启用']] },
+        { title: 'web-search', sub: '技能 · 联网搜索', icon: I.bolt, c: '#ff9500', desc: '让 Agent 联网检索最新信息。', rows: [['状态', '已启用']] },
+      ],
+    }
+  }
+
+  // scope from prefix
+  getScope(q) {
+    const I = this.ic
+    if (q.startsWith('>')) return { mode: 'command', term: q.slice(1).trim(), pill: '命令', color: '#3478f6', pillBg: 'rgba(52,120,246,.13)', iconPaths: ['M4 17l6-6-6-6', 'M12 19h8'], placeholder: '运行命令…' }
+    if (q.startsWith('@')) return { mode: 'agent', term: q.slice(1).trim(), pill: '指派', color: '#5e5ce6', pillBg: 'rgba(94,92,230,.13)', iconPaths: I.team, placeholder: '选择编队或 Agent…' }
+    if (q.startsWith('#')) return { mode: 'task', term: q.slice(1).trim(), pill: '任务', color: '#ff9500', pillBg: 'rgba(255,149,0,.15)', iconPaths: I.clock, placeholder: '查找运行中 / 定时任务…' }
+    if (q.startsWith('/')) return { mode: 'file', term: q.slice(1).trim(), pill: '文件', color: '#34c759', pillBg: 'rgba(52,199,89,.14)', iconPaths: I.file, placeholder: '查找 Agent 产出的文件…' }
+    return { mode: 'mixed', term: q.trim(), pill: '', color: '#5e5ce6', pillBg: '', iconPaths: I.search, placeholder: '搜索、输入命令,或直接把目标交给 Agent…' }
+  }
+
+  hl(text, term) {
+    const t = String(text || '')
+    if (!term) return { pre: t, match: '', post: '' }
+    const i = t.toLowerCase().indexOf(term.toLowerCase())
+    if (i < 0) return { pre: t, match: '', post: '' }
+    return { pre: t.slice(0, i), match: t.slice(i, i + term.length), post: t.slice(i + term.length) }
+  }
+
+  match(item, term) {
+    if (!term) return true
+    const hay = (item.title + ' ' + (item.sub || '') + ' ' + (item.body || '')).toLowerCase()
+    return hay.includes(term.toLowerCase())
+  }
+
+  renderVals() {
+    const D = this.data()
+    const I = this.ic
+    const q = this.state.query
+    const scope = this.getScope(q)
+    const term = scope.term
+    const groups = []
+    const flat = []
+
+    const push = (raw, kind, opts = {}) => {
+      const th = this.hl(raw.title, term)
+      const useBodyHl = kind === 'chat' && term && (raw.body || '').toLowerCase().includes(term.toLowerCase()) && !raw.title.toLowerCase().includes(term.toLowerCase())
+      const sh = useBodyHl ? this.hl(raw.body, term) : { pre: raw.sub || raw.body || '', match: '', post: '' }
+      const it = { raw, kind, th, sh, ...opts }
+      flat.push(it)
+      return it
+    }
+
+    if (scope.mode === 'command') {
+      const items = D.command.filter((c) => this.match(c, term))
+      if (items.length) groups.push({ key: 'cmd', heading: '命令', items: items.map((c) => push(c, 'command', { badge: '命令', badgeColor: '#3478f6', badgeBg: 'rgba(52,120,246,.1)' })) })
+    } else if (scope.mode === 'agent') {
+      const items = D.agent.filter((c) => this.match(c, term))
+      if (items.length) groups.push({ key: 'ag', heading: '编队 & Agent · 回车即指派', items: items.map((c) => push(c, 'agent', { badge: '指派', badgeColor: '#5e5ce6', badgeBg: 'rgba(94,92,230,.1)' })) })
+    } else if (scope.mode === 'task') {
+      const r = D.taskRun.filter((c) => this.match(c, term))
+      const s = D.taskSched.filter((c) => this.match(c, term))
+      if (r.length) groups.push({ key: 'tr', heading: '运行中', items: r.map((c) => push(c, 'taskRun', { progress: c.progress })) })
+      if (s.length) groups.push({ key: 'ts', heading: '定时任务', items: s.map((c) => push(c, 'taskSched', {})) })
+    } else if (scope.mode === 'file') {
+      const items = D.file.filter((c) => this.match(c, term))
+      if (items.length) groups.push({ key: 'fl', heading: '文件 & 产出', items: items.map((c) => push(c, 'file', {})) })
+    } else {
+      // MIXED
+      if (!term) {
+        // empty state
+        const cont = { title: '继续:分析 B站「研发日常」收藏夹', sub: '上次进行到 42% · 点此继续', progress: '42%', icon: I.spark, c: '#5e5ce6', stepText: '正在解析视频字幕', logs: D.taskRun[0].logs }
+        groups.push({ key: 'resume', heading: '继续未完成', items: [push(cont, 'taskRun', { progress: '42%' })] })
+        groups.push({ key: 'sug', heading: '建议操作', items: [D.command[0], D.command[1], D.agent[0]].map((c, i) => push(c, i === 2 ? 'agent' : 'command', { meta: c.meta || '' })) })
+        groups.push({ key: 'recent', heading: '最近对话', items: D.chat.slice(0, 3).map((c) => push(c, 'chat', {})) })
+        groups.push({ key: 'svc', heading: '快捷入口', items: D.service.map((c) => push(c, 'service', {})) })
+      } else {
+        // dispatch hero
+        const dispatch = { title: '让 Agent 去做:「' + term + '」', sub: '新建任务 · 交给研究编队立即执行', icon: I.spark, c: '#5e5ce6', dispatchQuery: term }
+        groups.push({ key: 'disp', heading: '指派给 Agent', items: [push(dispatch, 'dispatch', { badge: '回车开跑', badgeColor: '#5e5ce6', badgeBg: 'rgba(94,92,230,.12)', hero: true })] })
+        const cmd = D.command.filter((c) => this.match(c, term))
+        if (cmd.length) groups.push({ key: 'cmd', heading: '命令', items: cmd.map((c) => push(c, 'command', { meta: c.meta || '' })) })
+        const ch = D.chat.filter((c) => this.match(c, term))
+        if (ch.length) groups.push({ key: 'chat', heading: '对话', items: ch.map((c) => push(c, 'chat', {})) })
+        const fl = D.file.filter((c) => this.match(c, term))
+        if (fl.length) groups.push({ key: 'file', heading: '文件 & 产出', items: fl.map((c) => push(c, 'file', {})) })
+        const tk = [...D.taskRun, ...D.taskSched].filter((c) => this.match(c, term))
+        if (tk.length) groups.push({ key: 'task', heading: '任务', items: tk.map((c) => push(c, c.progress ? 'taskRun' : 'taskSched', { progress: c.progress })) })
+        const misc = [...D.service, ...D.memory, ...D.skill].filter((c) => this.match(c, term))
+        if (misc.length) groups.push({ key: 'misc', heading: '服务 · 记忆 · 技能', items: misc.map((c) => push(c, D.service.includes(c) ? 'service' : (D.memory.includes(c) ? 'memory' : 'skill'), {})) })
+      }
+    }
+
+    // clamp selection
+    let sel = this.state.sel
+    if (sel >= flat.length) sel = flat.length - 1
+    if (sel < 0) sel = 0
+
+    const kindTint = { command: 'rgba(52,120,246,.1)', dispatch: 'rgba(94,92,230,.12)', agent: 'rgba(94,92,230,.12)', chat: 'rgba(0,0,0,.06)', file: 'rgba(52,120,246,.1)', service: 'rgba(0,0,0,.06)', memory: 'rgba(52,199,89,.12)', skill: 'rgba(255,149,0,.13)', taskRun: 'rgba(94,92,230,.12)', taskSched: 'rgba(255,149,0,.13)' }
+
+    // build render items
+    let idx = 0
+    const outGroups = groups.map((g) => ({
+      heading: g.heading,
+      items: g.items.map((it) => {
+        const myIdx = idx++
+        const selected = myIdx === sel
+        const hero = it.hero
+        const rowBg = selected ? (hero ? 'rgba(94,92,230,.14)' : 'rgba(0,0,0,.06)') : 'transparent'
+        const iconBg = it.raw.c ? this.tintOf(it.raw.c) : 'rgba(0,0,0,.06)'
+        return {
+          onClick: () => this.run(it),
+          onHover: () => { if (this.state.sel !== myIdx) this.setState({ sel: myIdx }) },
+          rowStyle: `width:100%;display:flex;align-items:center;gap:11px;text-align:left;border:none;cursor:pointer;border-radius:10px;padding:${hero ? '11px' : '8px'} 10px;background:${rowBg};margin-bottom:1px`,
+          iconWrap: `flex:none;width:${hero ? 34 : 30}px;height:${hero ? 34 : 30}px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:${iconBg};color:${it.raw.c || '#6b6b70'}`,
+          iconPaths: it.raw.icon || I.chat,
+          titleFont: hero ? '600 14.5px system-ui' : '500 13.5px system-ui',
+          tPre: it.th.pre, tMatch: it.th.match, tPost: it.th.post,
+          hasSub: !!(it.sh.pre || it.sh.match),
+          sPre: it.sh.pre, sMatch: it.sh.match, sPost: it.sh.post,
+          progress: it.progress || '',
+          badge: it.badge || '', badgeColor: it.badgeColor || '#6b6b70', badgeBg: it.badgeBg || 'rgba(0,0,0,.06)',
+          meta: it.meta || '',
+          selected: selected ? true : '',
+        }
+      }),
+    }))
+
+    // preview from selected
+    const selItem = flat[sel]
+    const pv = this.buildPreview(selItem, kindTint)
+    const footer = this.footerFor(selItem)
+
+    return {
+      query: q,
+      scope,
+      clearScope: () => { this.setState({ query: '', sel: 0 }); const el = document.getElementById('cmd-input'); if (el) el.focus() },
+      onInput: (e) => this.setState({ query: e.target.value, sel: 0 }),
+      onKey: (e) => this.onKey(e, flat),
+      groups: outGroups,
+      resultCount: flat.length,
+      isEmpty: flat.length === 0 ? true : '',
+      pv,
+      footerLabel: footer.label,
+      primaryAction: footer.action,
+    }
+  }
+
+  tintOf(c) {
+    const map = { '#3478f6': 'rgba(52,120,246,.12)', '#5e5ce6': 'rgba(94,92,230,.13)', '#ff9500': 'rgba(255,149,0,.14)', '#34c759': 'rgba(52,199,89,.13)', '#ea4335': 'rgba(234,67,53,.12)', '#fb7299': 'rgba(251,114,153,.14)', '#1c1c1e': 'rgba(0,0,0,.08)', '#6b6b70': 'rgba(0,0,0,.06)' }
+    return map[c] || 'rgba(0,0,0,.06)'
+  }
+
+  buildPreview(it, tint) {
+    if (!it) return { title: '', iconPaths: this.ic.search, iconWrap: 'display:none', isDispatch: '', isChat: '', isTaskRun: '', isTaskSched: '', isInfo: '' }
+    const raw = it.raw
+    const color = raw.c || '#6b6b70'
+    const base = {
+      title: raw.title,
+      iconPaths: raw.icon || this.ic.chat,
+      color,
+      tint: tint[it.kind] || 'rgba(0,0,0,.06)',
+      iconWrap: `width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:${this.tintOf(color)};color:${color}`,
+      kindLabel: '', isDispatch: '', isChat: '', isTaskRun: '', isTaskSched: '', isInfo: '',
+      desc: '', hasRows: '', rows: [], steps: [], msgs: [], logs: [], last: '', progress: '', stepText: '', updated: '', count: '',
+    }
+    if (it.kind === 'dispatch') {
+      return { ...base, kindLabel: '新任务', isDispatch: true, title: '「' + raw.dispatchQuery + '」', iconPaths: this.ic.spark, color: '#5e5ce6',
+        steps: [{ n: 1, t: '拆解目标并制定执行计划' }, { n: 2, t: '并行检索与读取相关资料' }, { n: 3, t: '归纳整理并产出结果文件' }] }
+    }
+    if (it.kind === 'chat') {
+      return { ...base, kindLabel: '对话', isChat: true, updated: raw.updated, count: raw.count,
+        msgs: (raw.msgs || []).map((m) => ({ role: m[0], text: m[1], color: m[0] === 'Agent' ? '#5e5ce6' : '#8a8a84' })) }
+    }
+    if (it.kind === 'taskRun') {
+      return { ...base, kindLabel: '运行中', isTaskRun: true, color: '#5e5ce6', progress: raw.progress, stepText: raw.stepText,
+        logs: (raw.logs || []).map((l) => ({ t: l[0], m: l[1] })) }
+    }
+    if (it.kind === 'taskSched') {
+      return { ...base, kindLabel: '定时任务', isTaskSched: true, color: '#ff9500', last: raw.last,
+        rows: (raw.rows || []).map((r) => ({ k: r[0], v: r[1] })) }
+    }
+    const labels = { command: '命令', agent: '编队', file: '文件', service: '服务', memory: '记忆', skill: '技能' }
+    return { ...base, isInfo: true, kindLabel: labels[it.kind] || '', desc: raw.desc || '',
+      hasRows: raw.rows ? true : '', rows: (raw.rows || []).map((r) => ({ k: r[0], v: r[1] })) }
+  }
+
+  footerFor(it) {
+    if (!it) return { label: '无结果', action: '打开' }
+    const m = {
+      dispatch: { label: '交给研究编队执行', action: '开始任务' },
+      chat: { label: it.raw.title, action: '打开对话' },
+      command: { label: it.raw.title, action: '执行' },
+      agent: { label: '指派给「' + it.raw.title + '」', action: '指派' },
+      file: { label: it.raw.title, action: '打开文件' },
+      taskRun: { label: it.raw.title, action: '查看进度' },
+      taskSched: { label: it.raw.title, action: '查看' },
+      service: { label: '进入 ' + it.raw.title, action: '进入' },
+      memory: { label: it.raw.title, action: '编辑' },
+      skill: { label: it.raw.title, action: '管理' },
+    }
+    return m[it.kind] || { label: it.raw.title, action: '打开' }
+  }
+
+  onKey(e, flat) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); this.setState((s) => ({ sel: Math.min(s.sel + 1, flat.length - 1) })) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); this.setState((s) => ({ sel: Math.max(s.sel - 1, 0) })) }
+    else if (e.key === 'Enter') { e.preventDefault(); const it = flat[this.state.sel]; if (it) this.run(it) }
+    else if (e.key === 'Escape') { e.preventDefault(); if (this.state.query) { this.setState({ query: '', sel: 0 }) } }
+    else if (e.key === 'Backspace' && this.state.query.length === 1) { this.setState({ query: '', sel: 0 }) }
+  }
+
+  run(it) {
+    // mock action feedback
+    const label = this.footerFor(it).action + ' · ' + it.raw.title
+    this.setState({ toast: label })
+    const el = document.getElementById('cmd-input'); if (el) el.focus()
+  }
+}
+</script>
+</body>
+</html>

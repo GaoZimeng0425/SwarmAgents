@@ -70,6 +70,7 @@
       "!**/.next",
       "!**/pnpm-lock.yaml",
       "!**/node_modules",
+      "!**/docs/design",
       "!**/packages/design/src/components/ui",
       "!**/packages/ui/src/components/ui",
       "!src/renderer/src/components/ui",

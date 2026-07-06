@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1" name="viewport" >
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta content="canvas" name="design_doc_mode" >
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI Variable','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.dv-oid{font:600 11px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(255,255,255,.1);color:#e4e4e7;border-radius:5px;text-decoration:none}
+.wxframe-scroll::-webkit-scrollbar{width:0}
+</style>
+</helmet>
+
+<div style="padding:44px 48px 96px;display:flex;flex-direction:column;gap:22px;background:#0f0f11;min-height:100vh">
+
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;max-width:1200px">
+    <span style="font:600 15px system-ui;color:#fafafa">天气卡片重构 —— 首页放一张紧凑卡片,点击弹出抽屉看全部数据</span>
+    <span style="font:400 12.5px system-ui;color:rgba(255,255,255,.5)">深色 · 两种布局:<a href="#1a" style="color:#8ea3ff;text-decoration:none">1a</a> 横向条卡 · <a href="#1b" style="color:#8ea3ff;text-decoration:none">1b</a> 分块磁贴。点卡片看展开效果。</span>
+  </div>
+
+  <section style="display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start">
+
+    <!-- ═══════════════ OPTION 1a ═══════════════ -->
+    <div id="1a" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="dv-oid">1a</span>
+        <span style="font:600 13px system-ui;color:#c9c9cc">横向条卡</span>
+        <span style="font:400 12px system-ui;color:#6a6a6d">一行看完 · 最省空间</span>
+      </div>
+
+      <div data-screen-label="首页 · 天气卡片 1a" style="position:relative;width:520px;height:560px;border-radius:14px;overflow:hidden;background:#161618;box-shadow:0 30px 70px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08)">
+        <!-- window chrome -->
+        <div style="height:38px;display:flex;align-items:center;padding:0 15px;background:#1f1f22;border-bottom:1px solid rgba(255,255,255,.06)">
+          <div style="display:flex;gap:8px"><span style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></span><span style="width:12px;height:12px;border-radius:50%;background:#febc2e"></span><span style="width:12px;height:12px;border-radius:50%;background:#28c840"></span></div>
+          <span style="flex:1;text-align:center;font:600 12px system-ui;color:#8a8a8d;margin-left:-56px">swarm · 任务台</span>
+        </div>
+        <!-- dashboard body -->
+        <div style="padding:22px 22px 0;display:flex;flex-direction:column;gap:16px">
+          <div style="font:600 18px system-ui;color:#fafafa;letter-spacing:-.01em">今天想让 swarm 做点什么?</div>
+          <div style="border:1px solid rgba(255,255,255,.09);background:#1c1c1f;border-radius:14px;padding:13px 14px">
+            <div style="font:400 13.5px system-ui;color:#6a6a6d">描述一个目标,或按 ⌘⏎ 从剪贴板开始…</div>
+            <div style="display:flex;gap:7px;margin-top:14px"><span style="font:500 11px system-ui;color:#9a9a9d;background:rgba(255,255,255,.06);padding:4px 9px;border-radius:7px;white-space:nowrap">📁 ~/project</span><span style="font:500 11px system-ui;color:#9a9a9d;background:rgba(255,255,255,.06);padding:4px 9px;border-radius:7px;white-space:nowrap">🤖 研究编队</span></div>
+          </div>
+
+          <!-- WEATHER CARD 1a -->
+          <button onClick="{{ openA }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.08);background:#202023;border-radius:16px;padding:0;cursor:pointer;overflow:hidden;color:#fafafa;font-family:inherit" style-hover="border:1px solid rgba(255,255,255,.18);background:#26262a" type="button" >
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(217,163,0,.12);border-bottom:1px solid rgba(217,163,0,.2)">
+              <span style="width:6px;height:6px;border-radius:50%;background:#d9a300;box-shadow:0 0 0 3px rgba(217,163,0,.2)"></span>
+              <span style="font:600 11.5px system-ui;color:#e8c454">高温黄色预警</span>
+              <span style="flex:1"></span>
+              <span style="font:500 11px system-ui;color:#b89a48">今日最高 37°</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;padding:15px 16px">
+              <span style="font-size:36px;line-height:1">⛅</span>
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <div style="display:flex;align-items:baseline;gap:1px"><span style="font:300 34px system-ui;letter-spacing:-.02em;font-variant-numeric:tabular-nums">28</span><span style="font:400 16px system-ui;color:#9a9a9d">°</span></div>
+                <span style="font:500 12.5px system-ui;color:#a8a8ab">多云</span>
+              </div>
+              <span style="width:1px;height:38px;background:rgba(255,255,255,.1)"></span>
+              <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                <div style="font:600 13.5px system-ui;color:#ededf0">北京市 · 朝阳区</div>
+                <div style="font:500 11.5px system-ui;color:#8a8a8d">体感 31° · 降水 20%</div>
+              </div>
+              <span style="flex:1"></span>
+              <span style="font:600 11.5px system-ui;color:#c99a2e;background:rgba(201,154,46,.14);padding:4px 9px;border-radius:999px;white-space:nowrap">良 78</span>
+              <svg fill="none" height="16" stroke="#7a7a7d" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="16" ><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+          </button>
+        </div>
+
+        <!-- DRAWER 1a -->
+        <sc-if hint-placeholder-val="" value="{{ open1a }}" >
+          <div onClick="{{ close }}" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:5"></div>
+          <div style="position:absolute;top:0;right:0;bottom:0;width:372px;z-index:6;box-shadow:-24px 0 70px rgba(0,0,0,.55)">
+            <dc-import hint-size="372px,100%" name="天气详情" on-close="{{ close }}" ></dc-import>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- ═══════════════ OPTION 1b ═══════════════ -->
+    <div id="1b" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="dv-oid">1b</span>
+        <span style="font:600 13px system-ui;color:#c9c9cc">分块磁贴</span>
+        <span style="font:400 12px system-ui;color:#6a6a6d">带 24h 走势缩略图 · 信息更足</span>
+      </div>
+
+      <div data-screen-label="首页 · 天气卡片 1b" style="position:relative;width:520px;height:560px;border-radius:14px;overflow:hidden;background:#161618;box-shadow:0 30px 70px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08)">
+        <div style="height:38px;display:flex;align-items:center;padding:0 15px;background:#1f1f22;border-bottom:1px solid rgba(255,255,255,.06)">
+          <div style="display:flex;gap:8px"><span style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></span><span style="width:12px;height:12px;border-radius:50%;background:#febc2e"></span><span style="width:12px;height:12px;border-radius:50%;background:#28c840"></span></div>
+          <span style="flex:1;text-align:center;font:600 12px system-ui;color:#8a8a8d;margin-left:-56px">swarm · 任务台</span>
+        </div>
+        <div style="padding:22px 22px 0;display:flex;flex-direction:column;gap:16px">
+          <div style="font:600 18px system-ui;color:#fafafa;letter-spacing:-.01em">今天想让 swarm 做点什么?</div>
+          <div style="border:1px solid rgba(255,255,255,.09);background:#1c1c1f;border-radius:14px;padding:13px 14px">
+            <div style="font:400 13.5px system-ui;color:#6a6a6d">描述一个目标,或按 ⌘⏎ 从剪贴板开始…</div>
+            <div style="display:flex;gap:7px;margin-top:14px"><span style="font:500 11px system-ui;color:#9a9a9d;background:rgba(255,255,255,.06);padding:4px 9px;border-radius:7px;white-space:nowrap">📁 ~/project</span><span style="font:500 11px system-ui;color:#9a9a9d;background:rgba(255,255,255,.06);padding:4px 9px;border-radius:7px;white-space:nowrap">🤖 研究编队</span></div>
+          </div>
+
+          <!-- WEATHER CARD 1b -->
+          <button onClick="{{ openB }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.08);background:#202023;border-radius:16px;padding:0;cursor:pointer;overflow:hidden;color:#fafafa;font-family:inherit" style-hover="border:1px solid rgba(255,255,255,.18);background:#26262a" type="button" >
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 15px;background:linear-gradient(90deg,rgba(217,163,0,.18),rgba(217,163,0,.03));border-bottom:1px solid rgba(217,163,0,.18)">
+              <svg fill="none" height="14" stroke="#e8c454" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" viewBox="0 0 24 24" width="14" ><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+              <span style="font:600 11.5px system-ui;color:#e8c454">高温黄色预警 · 注意防暑降温</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:18px;padding:16px 16px 0">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+                <div style="font:600 12px system-ui;color:#a8a8ab">📍 北京市 · 朝阳区</div>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <span style="font-size:40px;line-height:1">⛅</span>
+                  <div style="display:flex;align-items:baseline;gap:1px"><span style="font:280 44px system-ui;letter-spacing:-.02em;font-variant-numeric:tabular-nums">28</span><span style="font:400 18px system-ui;color:#9a9a9d">°</span></div>
+                </div>
+                <div style="font:500 12.5px system-ui;color:#8a8a8d">多云 · 体感 31°</div>
+              </div>
+              <div style="flex:none;width:216px;display:flex;flex-direction:column;gap:9px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                  <span style="font:600 10px system-ui;letter-spacing:.04em;color:#7a7a7d;text-transform:uppercase">24h 温度</span>
+                  <span style="font:500 10.5px system-ui;color:#8a8a8d">高 31° · 低 23°</span>
+                </div>
+                <svg preserveAspectRatio="none" style="height:60px;display:block" viewBox="0 0 216 60" width="100%" >
+                  <defs><linearGradient id="spk" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity=".34"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
+                  <path d="{{ sparkArea }}" fill="url(#spk)"></path>
+                  <path d="{{ sparkLine }}" fill="none" stroke="#8ea3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+                  <circle cx="{{ sparkDotX }}" cy="{{ sparkDotY }}" fill="#8ea3ff" r="4.5" stroke="#202023" stroke-width="2.5" vector-effect="non-scaling-stroke"></circle>
+                </svg>
+                <div style="display:flex;gap:6px">
+                  <span style="font:600 11px system-ui;color:#c99a2e;background:rgba(201,154,46,.14);padding:3px 9px;border-radius:999px;white-space:nowrap">AQI 良 78</span>
+                  <span style="font:600 11px system-ui;color:#8ea3ff;background:rgba(109,139,255,.14);padding:3px 9px;border-radius:999px;white-space:nowrap">💧 20%</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:15px;padding:10px 16px;border-top:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02)">
+              <span style="font:500 11.5px system-ui;color:#7a7a7d">逐小时 · 空气质量 · 生活指数</span>
+              <span style="flex:1"></span>
+              <span style="font:600 11.5px system-ui;color:#8ea3ff">展开</span>
+              <svg fill="none" height="15" stroke="#8ea3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="15" ><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+          </button>
+        </div>
+
+        <!-- DRAWER 1b -->
+        <sc-if hint-placeholder-val="" value="{{ open1b }}" >
+          <div onClick="{{ close }}" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:5"></div>
+          <div style="position:absolute;top:0;right:0;bottom:0;width:372px;z-index:6;box-shadow:-24px 0 70px rgba(0,0,0,.55)">
+            <dc-import hint-size="372px,100%" name="天气详情" on-close="{{ close }}" ></dc-import>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+  </section>
+</div>
+</x-dc>
+<script data-dc-script type="text/x-dc" >
+class Component extends DCLogic {
+  state = { open: null }
+
+  componentDidMount() {
+    this._esc = (e) => { if (e.key === 'Escape' && this.state.open) this.setState({ open: null }) }
+    document.addEventListener('keydown', this._esc)
+  }
+  componentWillUnmount() {
+    if (this._esc) document.removeEventListener('keydown', this._esc)
+  }
+
+  spark() {
+    const temps = [28,29,30,31,31,30,29,28,26,25,24,24,23,23,23,24,26,28,29,30,30,29,28,28]
+    const W = 216, H = 60, pt = 7, pb = 10
+    const min = Math.min(...temps), max = Math.max(...temps)
+    const rng = (max - min) || 1
+    const n = temps.length
+    const pts = temps.map((v, i) => [(i / (n - 1)) * W, pt + (1 - (v - min) / rng) * (H - pt - pb)])
+    const line = 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L')
+    const area = line + ` L${W} ${H} L0 ${H} Z`
+    return { line, area, dot: pts[0] }
+  }
+
+  renderVals() {
+    const sp = this.spark()
+    return {
+      open1a: this.state.open === '1a' ? true : '',
+      open1b: this.state.open === '1b' ? true : '',
+      openA: () => this.setState({ open: '1a' }),
+      openB: () => this.setState({ open: '1b' }),
+      close: () => this.setState({ open: null }),
+      sparkLine: sp.line,
+      sparkArea: sp.area,
+      sparkDotX: sp.dot[0].toFixed(1),
+      sparkDotY: sp.dot[1].toFixed(1),
+    }
+  }
+}
+</script>
+</body>
+</html>

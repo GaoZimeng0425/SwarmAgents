@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1" name="viewport" >
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta content="canvas" name="design_doc_mode" ><link href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;500;700&display=swap" rel="stylesheet"><style>
+body{margin:0;background:#f0eee9;font-family:'Shantell Sans',system-ui,sans-serif}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 'Shantell Sans',sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:500 12px/1.3 'Shantell Sans',sans-serif;color:rgba(0,0,0,.65)}
+.dv-card{max-width:100%;background:#fff;border:1.5px solid #2a2a2a;border-radius:10px;box-shadow:3px 3px 0 rgba(0,0,0,.12);overflow:hidden}
+.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+.dv-next{margin:22px 0 0;font:12px/1.5 'Shantell Sans',sans-serif;color:rgba(0,0,0,.5)}
+/* wireframe primitives */
+.wf{position:relative;font-family:'Shantell Sans',sans-serif;color:#2a2a2a}
+.wf-note{font:400 10.5px/1.45 'Shantell Sans',sans-serif;color:rgba(0,0,0,.55);max-width:420px}
+.wf-box{border:1.5px solid #2a2a2a;border-radius:6px;background:#fff}
+.wf-dash{border:1.5px dashed #9a9a9a;border-radius:6px;background:#fafafa}
+.wf-line{height:6px;border-radius:3px;background:#d8d5cf}
+.wf-line.dk{background:#a9a59d}
+.wf-chip{display:inline-flex;align-items:center;gap:4px;border:1.2px solid #2a2a2a;border-radius:999px;padding:2px 8px;font-size:9px;font-weight:500;background:#fff}
+.wf-tag{display:inline-block;border-radius:4px;padding:1px 6px;font-size:8.5px;font-weight:600;background:#e8e5df}
+.wf-tag.run{background:#d5e6f7;color:#1d5da8}
+.wf-tag.wait{background:#fbe9c9;color:#9a6a10}
+.wf-tag.done{background:#dcefdc;color:#2c7a35}
+.wf-lbl{font-size:9.5px;font-weight:600;color:#555}
+.wf-tiny{font-size:8.5px;color:#8a867e}
+.wf-ann{position:absolute;font-size:9.5px;color:#c05621;font-weight:500;pointer-events:none;z-index:5;background:rgba(255,255,255,.92);border-radius:4px;padding:1px 5px}
+.wf-dot{width:7px;height:7px;border-radius:50%;background:#2a78d6;display:inline-block}
+</style></helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">桌面 AI Agent「swarm」— 4 个布局/导航方向(现代简约)</span></div>
+<div class="dv-opts">
+
+<!-- ============ 1a 极简对话优先 ============ -->
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>极简对话优先 — 保持现结构,做减法:一切非对话功能收进 ⌘K 与顶栏</div>
+<div class="dv-card wf" style="width:520px;height:360px;display:flex">
+  <div style="width:132px;border-right:1.5px solid #2a2a2a;background:#f7f6f3;display:flex;flex-direction:column;padding:10px 8px;gap:8px">
+    <div style="display:flex;gap:4px;align-items:center"><span style="display:flex;gap:3px"><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i></span></div>
+    <div class="wf-box" style="padding:4px 8px;font-size:9px;font-weight:600;text-align:center">+ 新对话</div>
+    <div class="wf-dash" style="padding:3px 8px;font-size:8.5px;color:#999">搜索 ⌘K</div>
+    <div class="wf-lbl" style="margin-top:4px">今天</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:5px"><span class="wf-dot"></span><div class="wf-line dk" style="flex:1"></div></div>
+      <div class="wf-line" style="width:85%"></div>
+      <div class="wf-line" style="width:70%"></div>
+    </div>
+    <div class="wf-lbl" style="margin-top:4px">昨天</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="wf-line" style="width:90%"></div>
+      <div class="wf-line" style="width:60%"></div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="wf-tiny">设置 · 主题</div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;padding:12px 18px;gap:10px">
+    <div style="display:flex;justify-content:flex-end;gap:6px"><span class="wf-chip">任务面板</span><span class="wf-chip">工具</span></div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;justify-content:flex-end">
+      <div class="wf-dash" style="align-self:flex-end;width:55%;padding:8px"><div class="wf-line" style="width:90%"></div><div class="wf-line" style="width:60%;margin-top:5px"></div></div>
+      <div style="width:75%;padding:2px">
+        <div class="wf-line dk" style="width:95%"></div><div class="wf-line dk" style="width:88%;margin-top:5px"></div><div class="wf-line dk" style="width:50%;margin-top:5px"></div>
+        <div class="wf-box" style="margin-top:8px;padding:6px 8px;display:flex;align-items:center;gap:6px"><span class="wf-tag run">运行中</span><span style="font-size:9px">工具调用 · 折叠为一行,点开看详情</span></div>
+      </div>
+    </div>
+    <div class="wf-box" style="padding:10px;border-radius:10px">
+      <div class="wf-line" style="width:40%"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px"><span style="display:flex;gap:4px"><span class="wf-chip">目录</span><span class="wf-chip">模式</span></span><span class="wf-chip" style="background:#2a2a2a;color:#fff">发送 ↑</span></div>
+    </div>
+  </div>
+  <div class="wf-ann" style="top:8px;right:120px">服务页(日历/用量…)全部移入 ⌘K →</div>
+</div>
+<div class="wf-note">最接近现状、改动最小。视觉全面简化:去掉侧栏底部服务九宫格,信息层级靠留白与字重。适合"对话就是产品"的定位。</div>
+</div>
+
+<!-- ============ 1b 图标 Rail + 上下文面板 ============ -->
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>图标 Rail + 上下文面板 — 功能各归其位,导航永远可见</div>
+<div class="dv-card wf" style="width:520px;height:360px;display:flex">
+  <div style="width:44px;border-right:1.5px solid #2a2a2a;background:#efede8;display:flex;flex-direction:column;align-items:center;padding:34px 0 10px;gap:10px">
+    <div class="wf-box" style="width:24px;height:24px;background:#2a2a2a"></div>
+    <div class="wf-dash" style="width:24px;height:24px"></div>
+    <div class="wf-dash" style="width:24px;height:24px"></div>
+    <div class="wf-dash" style="width:24px;height:24px"></div>
+    <div style="flex:1"></div>
+    <div class="wf-dash" style="width:24px;height:24px;border-radius:50%"></div>
+  </div>
+  <div style="width:128px;border-right:1.5px solid #2a2a2a;background:#f7f6f3;padding:12px 8px;display:flex;flex-direction:column;gap:7px">
+    <div class="wf-lbl">对话</div>
+    <div class="wf-box" style="padding:5px 6px"><div class="wf-line dk" style="width:80%"></div><div style="display:flex;gap:4px;margin-top:4px"><span class="wf-tag run">2 运行</span></div></div>
+    <div style="padding:5px 6px"><div class="wf-line" style="width:88%"></div></div>
+    <div style="padding:5px 6px"><div class="wf-line" style="width:65%"></div></div>
+    <div class="wf-lbl" style="margin-top:6px">📁 ~/repo/desktop</div>
+    <div style="padding:5px 6px 5px 12px"><div class="wf-line" style="width:75%"></div></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;padding:12px 14px;gap:8px">
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+      <div class="wf-dash" style="align-self:flex-end;width:50%;padding:7px"><div class="wf-line" style="width:85%"></div></div>
+      <div style="width:80%"><div class="wf-line dk" style="width:92%"></div><div class="wf-line dk" style="width:70%;margin-top:5px"></div></div>
+    </div>
+    <div class="wf-box" style="padding:8px;border-radius:9px"><div class="wf-line" style="width:35%"></div></div>
+  </div>
+  <div style="width:118px;border-left:1.5px dashed #9a9a9a;background:#fbfaf8;padding:12px 8px;display:flex;flex-direction:column;gap:7px">
+    <div class="wf-lbl">任务时间线</div>
+    <div class="wf-box" style="padding:5px 6px"><span class="wf-tag done">✓</span> <span style="font-size:8.5px">读取文件</span></div>
+    <div class="wf-box" style="padding:5px 6px"><span class="wf-tag run">●</span> <span style="font-size:8.5px">运行测试</span></div>
+    <div class="wf-dash" style="padding:5px 6px"><span class="wf-tiny">计划 / 产出物 / 审批 tab</span></div>
+  </div>
+  <div class="wf-ann" style="bottom:6px;left:52px">← rail:对话 / 日历 / 自动化 / 统计</div>
+  <div class="wf-ann" style="bottom:8px;right:8px">右侧检查器可收起 →</div>
+</div>
+<div class="wf-note">三段式:44px 图标 rail(对话/日历/自动化/统计)+ 上下文列表 + 主区,右侧可收起的"检查器"承载任务时间线、计划、审批。功能多时扩展性最好。</div>
+</div>
+
+<!-- ============ 1c 任务台 Mission Control ============ -->
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>任务台 Mission Control — 首页即仪表盘,并行 Agent 一目了然</div>
+<div class="dv-card wf" style="width:520px;height:360px;display:flex;flex-direction:column">
+  <div style="height:30px;border-bottom:1.5px solid #2a2a2a;display:flex;align-items:center;padding:0 12px;gap:8px;background:#f7f6f3">
+    <span style="display:flex;gap:3px"><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i></span>
+    <span style="flex:1"></span>
+    <span class="wf-chip">3 运行中</span><span class="wf-chip">⌘K</span>
+  </div>
+  <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:12px;background:#fbfaf8">
+    <div class="wf-box" style="padding:12px;border-radius:12px;box-shadow:2px 2px 0 rgba(0,0,0,.08)">
+      <div style="font-size:11px;font-weight:600;color:#888">今天想让 swarm 做点什么?</div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px"><span style="display:flex;gap:4px"><span class="wf-chip">目录</span><span class="wf-chip">Agent</span></span><span class="wf-chip" style="background:#2a2a2a;color:#fff">↑</span></div>
+    </div>
+    <div class="wf-lbl">进行中</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="wf-box" style="padding:8px"><span class="wf-tag run">运行中</span><div class="wf-line dk" style="width:90%;margin-top:6px"></div><div class="wf-line" style="width:60%;margin-top:4px"></div><div class="wf-tiny" style="margin-top:6px">▸ 正在运行测试…</div></div>
+      <div class="wf-box" style="padding:8px;border-color:#c05621"><span class="wf-tag wait">待审批</span><div class="wf-line dk" style="width:80%;margin-top:6px"></div><div style="display:flex;gap:4px;margin-top:8px"><span class="wf-chip" style="font-size:8px">允许</span><span class="wf-chip" style="font-size:8px">拒绝</span></div></div>
+      <div class="wf-box" style="padding:8px"><span class="wf-tag run">运行中</span><div class="wf-line dk" style="width:85%;margin-top:6px"></div><div class="wf-line" style="width:55%;margin-top:4px"></div></div>
+    </div>
+    <div class="wf-lbl">最近 · 定时任务</div>
+    <div style="display:flex;gap:8px">
+      <div class="wf-dash" style="flex:1;padding:7px"><span class="wf-tag done">完成</span> <span class="wf-tiny">整理周报</span></div>
+      <div class="wf-dash" style="flex:1;padding:7px"><span class="wf-tiny">🕘 每天 9:00 · 抓取趋势</span></div>
+      <div class="wf-dash" style="flex:1;padding:7px"><span class="wf-tiny">🕘 周一 · 邮件摘要</span></div>
+    </div>
+  </div>
+  <div class="wf-ann" style="top:112px;right:14px">卡片实时流式显示当前动作</div>
+</div>
+<div class="wf-note">把"多 Agent 并行"当成第一公民:没有常驻侧栏,首页 = composer + 运行卡片墙 + 定时任务。点卡片进入沉浸对话,Esc 返回任务台。待审批的卡片直接在墙上处理。</div>
+</div>
+
+<!-- ============ 1d 双栏工作台 Cockpit ============ -->
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>双栏工作台 Cockpit — 左对话、右工作区,过程与产出并排</div>
+<div class="dv-card wf" style="width:520px;height:360px;display:flex;flex-direction:column">
+  <div style="height:30px;border-bottom:1.5px solid #2a2a2a;display:flex;align-items:center;padding:0 12px;gap:6px;background:#f7f6f3">
+    <span style="display:flex;gap:3px"><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i><i style="width:7px;height:7px;border-radius:50%;border:1.2px solid #999;display:block"></i></span>
+    <span class="wf-chip" style="border-style:dashed">◂ 会话</span>
+    <span class="wf-tag run">修复登录 bug</span><span class="wf-tag">重构 API</span><span class="wf-tag wait">周报</span><span class="wf-tiny">+</span>
+  </div>
+  <div style="flex:1;display:flex">
+    <div style="width:46%;border-right:1.5px solid #2a2a2a;display:flex;flex-direction:column;padding:12px;gap:8px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+        <div class="wf-dash" style="align-self:flex-end;width:60%;padding:7px"><div class="wf-line" style="width:85%"></div></div>
+        <div><div class="wf-line dk" style="width:92%"></div><div class="wf-line dk" style="width:75%;margin-top:5px"></div><div class="wf-line dk" style="width:40%;margin-top:5px"></div></div>
+      </div>
+      <div class="wf-box" style="padding:8px;border-radius:9px"><div class="wf-line" style="width:40%"></div></div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;background:#fbfaf8">
+      <div style="display:flex;gap:2px;padding:8px 10px 0;border-bottom:1.5px solid #2a2a2a">
+        <span class="wf-chip" style="border-bottom-left-radius:0;border-bottom-right-radius:0;background:#fff;border-bottom-color:#fff">计划</span>
+        <span class="wf-chip" style="border-style:dashed;border-bottom:none">时间线</span>
+        <span class="wf-chip" style="border-style:dashed;border-bottom:none">产出物</span>
+        <span class="wf-chip" style="border-style:dashed;border-bottom:none">审批 <b style="color:#c05621">1</b></span>
+      </div>
+      <div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;gap:6px;align-items:center"><span class="wf-tag done">✓</span><div class="wf-line" style="flex:1"></div></div>
+        <div style="display:flex;gap:6px;align-items:center"><span class="wf-tag done">✓</span><div class="wf-line" style="flex:1"></div></div>
+        <div style="display:flex;gap:6px;align-items:center"><span class="wf-tag run">●</span><div class="wf-line dk" style="flex:1"></div></div>
+        <div style="display:flex;gap:6px;align-items:center;opacity:.45"><span class="wf-tag">○</span><div class="wf-line" style="flex:1"></div></div>
+        <div class="wf-dash" style="margin-top:8px;padding:8px"><div class="wf-tiny">当前工具输出 / diff 预览,流式滚动</div><div class="wf-line" style="width:90%;margin-top:6px"></div><div class="wf-line" style="width:70%;margin-top:4px"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="wf-ann" style="top:34px;left:110px">↑ 会话 = 顶部标签页,像浏览器</div>
+</div>
+<div class="wf-note">对话只是"指挥",右侧工作区(计划/时间线/产出物/审批)才是主角,始终并排可见。会话变成顶部标签,切并行任务像切浏览器标签。适合重度、专业用户。</div>
+</div>
+
+</div>
+<p class="dv-next">下一步可以说:"就按 <a class="dv-oid" href="#1b">1b</a> 做高保真" · "把 <a class="dv-oid" href="#1c">1c</a> 的任务卡片墙加进 <a class="dv-oid" href="#1a">1a</a>" · "再来几个新方向"</p>
+</section>
+</x-dc>
+</body>
+</html>
