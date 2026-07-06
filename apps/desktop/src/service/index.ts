@@ -11,6 +11,7 @@ import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
 import { createAnalyzeEmail } from './gmail/analyze'
 import { createMainRpc } from './gmail/main-rpc'
+import { createHookDispatcher, createHooksStore } from './hooks'
 import { createBroadcaster } from './ipc/broadcaster'
 import { createDispatcher } from './ipc/dispatcher'
 import { createMcpManager } from './mcp/manager'
@@ -67,6 +68,10 @@ const offAgentWatch = agentStore.watch(() => broadcaster.broadcast('agents.chang
 // App-wide enable/disable for built-in tool groups + skills, alongside the MCP
 // config. MCP servers keep their own enable flag (see mcpManager).
 const toolToggles = createToolTogglesStore({ filePath: join(dirname(skillsPath), 'tool-toggles.json') })
+// Claude-Code-style hooks: read-only config of event name → command, fired
+// alongside the wire broadcast of each run.* event.
+const hooksPath = process.env.SWARM_SERVICE_HOOKS_PATH ?? join(dirname(skillsPath), 'hooks.json')
+const hookDispatcher = createHookDispatcher({ store: createHooksStore({ filePath: hooksPath }) })
 
 const toolRegistry = createToolRegistry()
 toolRegistry.setDisabledGroups(toolToggles.get().disabledToolGroups)
@@ -92,6 +97,7 @@ const service = createSessionService({
   getBudgetConfig: () => budgetConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
   exportsDir,
+  dispatchHook: hookDispatcher,
 })
 
 const scheduler = createCronScheduler({

@@ -7,7 +7,7 @@ import { app } from 'electron'
 //
 //   - swarmHome() — ~/.swarm-agents, a user-visible dotfolder (like ~/.claude)
 //     for hand-editable assets: skills, agents, mcp-servers.json,
-//     tool-toggles.json, and the dev log.
+//     tool-toggles.json, hooks.json, and the dev log.
 //   - userData — Electron's OS-managed app dir, for encrypted credentials and
 //     the DB/memory that users shouldn't hand-edit.
 //
@@ -29,6 +29,8 @@ export const paths = {
   skills: () => join(swarmHome(), 'skills'),
   agents: () => join(swarmHome(), 'agents'),
   mcpServers: () => join(swarmHome(), 'mcp-servers.json'),
+  // Claude-Code-style hooks: event name → command mapping, hand-edited.
+  hooks: () => join(swarmHome(), 'hooks.json'),
   // userData — credentials + DB/memory, not for hand-editing.
   db: () => join(app.getPath('userData'), 'agent-service.db'),
   memory: () => join(app.getPath('userData'), 'agent-memory.json'),

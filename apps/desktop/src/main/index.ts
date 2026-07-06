@@ -21,8 +21,8 @@ import { handleDeepLink, registerDeepLinkIpc } from './system/deep-link'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initTrending } from './trending'
-import { initWebSearch } from './web-search'
 import { initWeather } from './weather'
+import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
 import { openSettings } from './windows/open-settings'
 
@@ -107,6 +107,7 @@ app.whenReady().then(async () => {
       SWARM_SERVICE_SKILLS_PATH: paths.skills(),
       SWARM_SERVICE_AGENTS_PATH: paths.agents(),
       SWARM_SERVICE_EXPORTS_DIR: paths.exports(),
+      SWARM_SERVICE_HOOKS_PATH: paths.hooks(),
     },
   })
 
