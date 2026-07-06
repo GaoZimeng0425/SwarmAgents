@@ -102,6 +102,13 @@ describe('BilibiliView', () => {
     expect(await screen.findByText('简介甲内容')).toBeInTheDocument()
   })
 
+  it('shows an empty-state prompt in the detail panel before any video is selected', async () => {
+    vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
+    vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
+    render(wrap(<BilibiliView />))
+    expect(await screen.findByText('选择一个视频查看 AI 解析')).toBeInTheDocument()
+  })
+
   it('runs AI analysis from the detail panel and shows the summary', async () => {
     vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
     vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
