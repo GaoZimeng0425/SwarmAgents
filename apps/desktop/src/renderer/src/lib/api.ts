@@ -2,6 +2,8 @@ import type {
   AgentDefinition,
   AgentListItem,
   AgentMutationResult,
+  AnalyzeThreadInput,
+  AnalyzeThreadResult,
   ArtifactEntry,
   Attachment,
   BiliAnalysis,
@@ -18,6 +20,7 @@ import type {
   CalendarLocalInput,
   CronJobSummary,
   CronRun,
+  GmailThreadAnalysis,
   MemoryView,
   ObsidianConfig,
   PermissionDecision,
@@ -87,6 +90,9 @@ export const swarmApi = {
     window.swarm.bilibili.onTranscribeProgress(cb),
   bilibiliAnalyzedBvids: (): Promise<string[]> => window.swarm.bilibili.analyzedBvids(),
   bilibiliGetAnalysis: (bvid: string): Promise<BiliAnalysis | null> => window.swarm.bilibili.getAnalysis(bvid),
+  analyzeThread: (input: AnalyzeThreadInput): Promise<AnalyzeThreadResult> => window.swarm.analyzeThread(input),
+  gmailGetThreadAnalysis: (threadId: string): Promise<GmailThreadAnalysis | null> =>
+    window.swarm.gmail.getThreadAnalysis(threadId),
   // Calendar (page-surface subset; settings-panel OAuth methods stay on window.swarm.calendar directly).
   calendarListInRange: (fromMs: number, toMs: number): Promise<CalendarEvent[]> =>
     window.swarm.calendar.listInRange(fromMs, toMs),
