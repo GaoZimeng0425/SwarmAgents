@@ -13,11 +13,12 @@ vi.mock('./qweather', () => ({
   fetchIndices: vi.fn(),
   fetchAir: vi.fn(),
   fetchMinutely: vi.fn(),
+  fetchNow: vi.fn(),
 }))
 vi.mock('./geo', () => ({ locateByIp: vi.fn(), reverseGeocode: vi.fn(), geocodeCity: vi.fn() }))
 
 import { geocodeCity, locateByIp, reverseGeocode } from './geo'
-import { fetchAir, fetchHourly, fetchIndices, fetchMinutely, fetchWarnings } from './qweather'
+import { fetchAir, fetchHourly, fetchIndices, fetchMinutely, fetchNow, fetchWarnings } from './qweather'
 import { createService } from './service'
 
 // vi.mocked() narrows the imported (real-typed) functions to their Mock type so
@@ -27,6 +28,7 @@ const fetchWarningsMock = vi.mocked(fetchWarnings)
 const fetchIndicesMock = vi.mocked(fetchIndices)
 const fetchAirMock = vi.mocked(fetchAir)
 const fetchMinutelyMock = vi.mocked(fetchMinutely)
+const fetchNowMock = vi.mocked(fetchNow)
 const locateByIpMock = vi.mocked(locateByIp)
 const reverseGeocodeMock = vi.mocked(reverseGeocode)
 const geocodeCityMock = vi.mocked(geocodeCity)
@@ -38,6 +40,7 @@ function seedSupplementary(): void {
   fetchIndicesMock.mockResolvedValue([])
   fetchAirMock.mockResolvedValue(null)
   fetchMinutelyMock.mockResolvedValue(null)
+  fetchNowMock.mockResolvedValue(null)
 }
 
 // In-memory store; the on-disk store is covered by store.test.ts.
@@ -274,6 +277,61 @@ describe('weather service', () => {
     expect(f.air).toBeNull()
     expect(f.minutely).toBeNull()
     expect(f.location).toBe('x') // core forecast still returned
+  })
+
+  it('includes now on success and null when fetchNow throws', async () => {
+    fetchHourlyMock.mockResolvedValue({
+      location: 'x',
+      lng: 1,
+      lat: 2,
+      source: 'ip',
+      fetchedAt: Date.now(),
+      hours: [
+        {
+          time: '',
+          tempC: 1,
+          icon: '',
+          text: '',
+          precipMm: 0,
+          pop: 0,
+          humidity: 0,
+          windScale: '',
+          windDir: '',
+          pressure: 0,
+        },
+      ],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
+      now: null,
+    })
+    locateByIpMock.mockResolvedValue({ lng: 1, lat: 2, city: 'x' })
+
+    fetchNowMock.mockResolvedValue({
+      temp: 21,
+      feelsLike: 20,
+      icon: '100',
+      text: '晴',
+      humidity: 40,
+      windScale: '3',
+      windDir: '东南风',
+      windSpeed: 12,
+      pressure: 1012,
+      vis: 25,
+      precip: 0,
+      obsTime: '',
+    })
+    const svc = await createService({ store: memStore(validCfg as never) })
+    const f = await svc.getForecast(null, null)
+    expect(f.now).toMatchObject({ temp: 21, vis: 25 })
+
+    fetchNowMock.mockRejectedValue(new Error('QWeather HTTP 402'))
+    reverseGeocodeMock.mockResolvedValue('x')
+    const svc2 = await createService({ store: memStore(validCfg as never) })
+    const f2 = await svc2.getForecast(3, 4)
+    expect(f2.now).toBeNull()
+    expect(f2.hours).toHaveLength(1) // core forecast still populated
   })
 
   it('treats a different rounded coordinate as a cache miss', async () => {

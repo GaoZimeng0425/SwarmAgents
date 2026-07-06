@@ -8,7 +8,7 @@ import { createLogger } from '@shared/logger'
 import type { WeatherConfig, WeatherConfigOnDisk, WeatherConfigView, WeatherForecast } from '@swarm/protocol'
 
 import { geocodeCity, locateByIp, reverseGeocode } from './geo'
-import { fetchAir, fetchHourly, fetchIndices, fetchMinutely, fetchWarnings } from './qweather'
+import { fetchAir, fetchHourly, fetchIndices, fetchMinutely, fetchNow, fetchWarnings } from './qweather'
 import type { Store } from './store'
 
 const log = createLogger({ process: 'main' }).child({ component: 'weather-service' })
@@ -163,7 +163,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         // minutely are non-fatal, so each degrades to []/null on failure and the
         // card still renders. Minutely is China-only and 404s elsewhere.
         const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e))
-        const [core, warnings, indices, air, minutely] = await Promise.all([
+        const [core, warnings, indices, air, minutely, now] = await Promise.all([
           fetchHourly({ config: state, lng: coordLng, lat: coordLat, source, locationLabel: label }),
           fetchWarnings(state, coordLng, coordLat).catch((e) => {
             log.warn({ msg: 'weather warnings fetch failed', err: errMsg(e) })
@@ -181,8 +181,12 @@ export async function createService(opts: { store: Store }): Promise<Service> {
             log.warn({ msg: 'weather minutely fetch failed', err: errMsg(e) })
             return null
           }),
+          fetchNow(state, coordLng, coordLat).catch((e) => {
+            log.warn({ msg: 'weather now fetch failed', err: errMsg(e) })
+            return null
+          }),
         ])
-        const forecast = { ...core, warnings, indices, air, minutely }
+        const forecast = { ...core, warnings, indices, air, minutely, now }
         cache = { key, forecast }
         log.info({
           msg: 'weather fetched',
@@ -192,6 +196,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
           indices: indices.length,
           air: air !== null,
           minutely: minutely !== null,
+          now: now !== null,
           cached: false,
         })
         return forecast
