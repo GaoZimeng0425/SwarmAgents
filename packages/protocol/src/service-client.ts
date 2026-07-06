@@ -38,6 +38,7 @@ export type ServiceClient = {
     options?: import('./types/task').RunOptions
   ): Promise<{ runId: string }>
   analyzeEmail(req: import('./types/ui').AnalyzeEmailRequest): Promise<import('./types/ui').AnalyzeEmailResult>
+  analyzeThread(req: import('./types/ui').AnalyzeThreadRequest): Promise<import('./types/ui').AnalyzeThreadResult>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
   getRunEvents(sessionId: string): Promise<import('./types/task').RunEvent[]>
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
@@ -145,6 +146,9 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     analyzeEmail(req) {
       return call('analyzeEmail', [req])
+    },
+    analyzeThread(req) {
+      return call('analyzeThread', [req])
     },
     listSessions() {
       return call('listSessions', [])

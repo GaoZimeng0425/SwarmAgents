@@ -38,6 +38,7 @@ export type ServiceMethod =
   | 'listAllCronRuns'
   | 'cancelCronJob'
   | 'analyzeEmail'
+  | 'analyzeThread'
   | 'exportSessionMarkdown'
 
 export type ServiceRequest = {

@@ -52,6 +52,31 @@ export type AnalyzeEmailResult = { ok: true } | { ok: false; code: 'no_provider'
 /** A cached analysis row, keyed by message id. */
 export type GmailAnalysis = { analysis: string; updatedAt: number }
 
+/** Renderer→Main: the thread to analyze (no provider — main injects it). */
+export type AnalyzeThreadInput = {
+  threadId: string
+  subject: string
+  messages: { from: string; dateMs: number; bodyText: string }[]
+}
+
+/** Main→Service: the input plus the resolved active provider. */
+export type AnalyzeThreadRequest = AnalyzeThreadInput & { provider: ProviderInjection }
+
+export type AnalyzeThreadResult = { ok: true } | { ok: false; code: 'no_provider' | 'no_agent'; message: string }
+
+/** A structured todo extracted by the thread analyst. */
+export type Todo = { t: string; due?: boolean; dueLabel?: string }
+
+/** The structured payload delivered on threadAnalysisComplete. */
+export type ThreadAnalysisPayload = {
+  summary: string
+  todos: Todo[]
+  suggest: string
+}
+
+/** A cached thread-level analysis row, keyed by thread id. */
+export type GmailThreadAnalysis = ThreadAnalysisPayload & { updatedAt: number }
+
 export type UIEvent =
   | RunWireEvent
   | { kind: 'session.created'; sessionId: string; title: string | null; ts: number; seq?: number }
@@ -62,6 +87,17 @@ export type UIEvent =
   | { kind: 'gmail.analysisDelta'; messageId: string; text: string; ts: number; seq?: number }
   | { kind: 'gmail.analysisComplete'; messageId: string; markdown: string; ts: number; seq?: number }
   | { kind: 'gmail.analysisError'; messageId: string; error: string; ts: number; seq?: number }
+  | { kind: 'gmail.threadAnalysisDelta'; threadId: string; text: string; ts: number; seq?: number }
+  | {
+      kind: 'gmail.threadAnalysisComplete'
+      threadId: string
+      summary: string
+      todos: Todo[]
+      suggest: string
+      ts: number
+      seq?: number
+    }
+  | { kind: 'gmail.threadAnalysisError'; threadId: string; error: string; ts: number; seq?: number }
 
 export type SessionSummary = {
   id: string
