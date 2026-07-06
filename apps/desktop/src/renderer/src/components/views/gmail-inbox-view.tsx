@@ -4,7 +4,7 @@
 // it). Master/detail: left = thread list (listRecent) or search results, right
 // = the selected thread's messages (getThread). The daemon broadcasts
 // gmail:stateChanged after every poll, so the list refetches live.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { GmailAnalysis, GmailMessage, UIEvent } from '@swarm/protocol'
 import { Button, Input, Skeleton } from '@swarm/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,7 +13,9 @@ import { Streamdown } from 'streamdown'
 
 import { EmailHtml } from '@/components/email-html'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { classifyAll, classifyThread, type GmailGroupKey } from '@/lib/gmail/classify-thread'
 import { cn } from '@/lib/utils'
+import { GmailGroupBar } from './gmail-group-bar'
 
 const PAGE_LIMIT = 50
 
@@ -38,6 +40,7 @@ export function GmailInboxView(): React.JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('') // committed search; '' = listRecent
+  const [activeGroup, setActiveGroup] = useState<GmailGroupKey>('all')
 
   const status = useQuery({ queryKey: ['gmail', 'status'], queryFn: () => window.swarm.gmail.getStatus() })
   const linked = status.data?.loggedIn === true
@@ -78,6 +81,12 @@ export function GmailInboxView(): React.JSX.Element {
     void qc.invalidateQueries({ queryKey: ['gmail'] })
   }
 
+  const threads = list.data ?? []
+  // classifyAll is a pure derivation; memoize on the thread list. Computed
+  // before the early returns below so the hook order stays unconditional
+  // (Rules of Hooks).
+  const groupCounts = useMemo(() => classifyAll(threads), [threads])
+
   // Not linked: the cache is empty and unreadable. Point users at Settings.
   if (status.isPending) {
     return <CenteredMessage text="加载中…" />
@@ -92,7 +101,7 @@ export function GmailInboxView(): React.JSX.Element {
     )
   }
 
-  const threads = list.data ?? []
+  const visibleThreads = activeGroup === 'all' ? threads : threads.filter((t) => classifyThread(t) === activeGroup)
 
   return (
     <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 p-5">
@@ -125,6 +134,7 @@ export function GmailInboxView(): React.JSX.Element {
             </Button>
           </div>
         </div>
+        <GmailGroupBar active={activeGroup} groups={groupCounts} onPick={setActiveGroup} />
       </header>
 
       <div className="flex min-h-0 flex-1 gap-4">
@@ -132,12 +142,12 @@ export function GmailInboxView(): React.JSX.Element {
         <div className="flex w-80 shrink-0 flex-col">
           {list.isPending ? (
             <ListSkeleton />
-          ) : threads.length === 0 ? (
+          ) : visibleThreads.length === 0 ? (
             <CenteredMessage text={query.trim() ? '没有匹配的邮件' : '收件箱为空'} />
           ) : (
             <ScrollArea className="-mr-2 min-h-0 flex-1 pr-2" edgeFade>
               <ol className="flex flex-col gap-1">
-                {threads.map((t) => (
+                {visibleThreads.map((t) => (
                   <li key={t.id}>
                     <button
                       className={cn(
