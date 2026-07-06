@@ -7,6 +7,7 @@ import {
   WeatherConfigOnDisk,
   WeatherForecast,
   WeatherHour,
+  WeatherNow,
 } from './weather'
 
 describe('WeatherConfig', () => {
@@ -83,6 +84,7 @@ describe('WeatherForecast', () => {
       indices: [],
       air: null,
       minutely: null,
+      now: null,
     })
     expect(f.source).toBe('gps')
   })
@@ -100,6 +102,7 @@ describe('WeatherForecast', () => {
         indices: [],
         air: null,
         minutely: null,
+        now: null,
       })
     ).toThrow()
   })
@@ -129,7 +132,51 @@ describe('WeatherForecast', () => {
         indices: [],
         air: null,
         minutely: null,
+        now: null,
       })
     ).toThrow()
+  })
+})
+
+describe('WeatherNow', () => {
+  const sampleNow = {
+    temp: 28,
+    feelsLike: 31,
+    icon: '101',
+    text: '多云',
+    humidity: 58,
+    windScale: '3',
+    windDir: '东南风',
+    windSpeed: 12,
+    pressure: 1006,
+    vis: 16,
+    precip: 0,
+    obsTime: '2026-07-07T10:00:00+08:00',
+  }
+
+  it('parses a full now snapshot', () => {
+    expect(WeatherNow.parse(sampleNow)).toEqual(sampleNow)
+  })
+
+  it('rejects a malformed now (missing vis)', () => {
+    const { vis: _drop, ...bad } = sampleNow
+    expect(WeatherNow.safeParse(bad).success).toBe(false)
+  })
+
+  it('WeatherForecast accepts now: null and a full now', () => {
+    const base = {
+      location: '北京市',
+      lng: 116.4,
+      lat: 39.9,
+      source: 'gps' as const,
+      fetchedAt: 1,
+      hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
+    }
+    expect(WeatherForecast.parse({ ...base, now: null }).now).toBeNull()
+    expect(WeatherForecast.parse({ ...base, now: sampleNow }).now).toEqual(sampleNow)
   })
 })

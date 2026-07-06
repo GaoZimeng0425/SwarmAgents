@@ -118,6 +118,24 @@ export const Minutely = z.object({
 })
 export type Minutely = z.infer<typeof Minutely>
 
+// Observed current conditions (/v7/weather/now). Distinct from hours[0], which
+// is a *forecast* hour: `vis` (km) and `feelsLike` (°C) exist only here.
+export const WeatherNow = z.object({
+  temp: z.number(),
+  feelsLike: z.number(),
+  icon: z.string(),
+  text: z.string(),
+  humidity: z.number(),
+  windScale: z.string(),
+  windDir: z.string(),
+  windSpeed: z.number(),
+  pressure: z.number(),
+  vis: z.number(),
+  precip: z.number(),
+  obsTime: z.string(),
+})
+export type WeatherNow = z.infer<typeof WeatherNow>
+
 // Forecast view-model crossing the IPC boundary. This is NEVER the raw QWeather
 // payload — the main process normalizes first, insulating the renderer from
 // upstream field renames. `source` tells the UI which locator won (gps/ip).
@@ -134,5 +152,6 @@ export const WeatherForecast = z.object({
   indices: z.array(WeatherIndex),
   air: AirQuality.nullable(),
   minutely: Minutely.nullable(),
+  now: WeatherNow.nullable(),
 })
 export type WeatherForecast = z.infer<typeof WeatherForecast>
