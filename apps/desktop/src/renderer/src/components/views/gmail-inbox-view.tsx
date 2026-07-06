@@ -14,7 +14,6 @@ import { Streamdown } from 'streamdown'
 import { EmailHtml } from '@/components/email-html'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useThreadAnalysis } from '@/hooks/use-thread-analysis'
-import { swarmApi } from '@/lib/api'
 import { classifyAll, classifyThread, type GmailGroupKey } from '@/lib/gmail/classify-thread'
 import { cn } from '@/lib/utils'
 import { GmailAssistantCard } from './gmail-assistant-card'
@@ -219,15 +218,26 @@ function GmailThreadDetail({
     [threadId, data]
   )
   const analysis = useThreadAnalysis(threadInput)
+  const qc = useQueryClient()
 
   const regenerate = (): void => {
-    // The hook's event subscription stays active after `done`, so re-firing
-    // analyzeThread streams a fresh result into the same state machine.
-    void swarmApi.analyzeThread({
-      threadId: threadInput.id,
-      subject: threadInput.subject,
-      messages: threadInput.messages,
-    })
+    // Null the cached analysis so the hook's effect re-runs into its cache-miss
+    // branch: it re-subscribes to gmail.threadAnalysis* events, resets its
+    // closure-local summaryText accumulator, and re-calls analyzeThread. Without
+    // this, a revisit (cache hit) leaves the effect in its early-return-on-cache
+    // branch — no subscription — so any analyzeThread call has no event listener
+    // and the UI stays stuck on the stale summary.
+    //
+    // We use setQueryData(key, null) rather than invalidateQueries: invalidate
+    // retains stale data during refetch (stale-while-revalidate) and the
+    // refetch re-resolves to the same cached analysis, so cache.data never
+    // becomes falsy and the effect's cache-hit early-return would keep
+    // suppressing the subscription. Nulling the entry makes cache.data falsy
+    // (and leaves isPending false), which is the only state that drives the
+    // effect into the cache-miss branch. The effect then owns the
+    // analyzeThread call, so regenerate does not need to fire one itself
+    // (doing so would launch a second, redundant stream).
+    qc.setQueryData(['gmail', 'threadAnalysis', threadInput.id], null)
   }
 
   return (
