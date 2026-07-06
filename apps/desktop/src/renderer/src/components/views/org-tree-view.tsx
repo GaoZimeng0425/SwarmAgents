@@ -20,6 +20,7 @@ import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useAgentMutations } from '@/hooks/use-agent-mutations'
+import type { AgentActivity } from '@/lib/formations/build-agent-activity'
 import { cn } from '@/lib/utils'
 import { AgentDetail } from './agent-detail'
 import { AgentFormSheet } from './agent-form-sheet'
@@ -32,6 +33,7 @@ function AgentNodeCard({
   agent,
   isActive,
   highlighted,
+  activity,
   onClick,
   onEdit,
   onDuplicate,
@@ -40,6 +42,7 @@ function AgentNodeCard({
   agent: AgentListItem
   isActive: boolean
   highlighted: boolean
+  activity?: AgentActivity
   onClick: () => void
   onEdit: (a: AgentListItem) => void
   onDuplicate: (a: AgentListItem) => void
@@ -76,6 +79,14 @@ function AgentNodeCard({
           ))}
           {extra > 0 && <span className="text-[10px] text-muted-foreground">+{extra} more</span>}
         </div>
+        {activity && activity.status === 'running' ? (
+          <div className="mt-1 flex items-center gap-1.5 text-[#3478f6] text-[11.5px]">
+            <span className="size-[5px] rounded-full bg-[#3478f6]" />
+            <span>{`运行中 · ${activity.currentTask}${activity.stepProgress ? ` · ${activity.stepProgress}` : ''}`}</span>
+          </div>
+        ) : (
+          <div className="mt-1 text-[11.5px] text-muted-foreground">空闲</div>
+        )}
       </button>
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <Button aria-label={`Edit ${agent.name}`} onClick={() => onEdit(agent)} size="icon" variant="ghost">
@@ -105,6 +116,7 @@ function OrgTreeNode({
   node,
   expanded,
   highlightedIds,
+  activity,
   onToggle,
   onEdit = noop,
   onDuplicate = noop,
@@ -113,14 +125,17 @@ function OrgTreeNode({
   node: OrgNode
   expanded: string | null
   highlightedIds: Set<string>
+  activity?: Map<string, AgentActivity>
   onToggle: (id: string) => void
   onEdit?: (a: AgentListItem) => void
   onDuplicate?: (a: AgentListItem) => void
   onDelete?: (a: AgentListItem) => void
 }): React.JSX.Element {
+  const nodeActivity = activity?.get(node.agent.id)
   return (
     <li>
       <AgentNodeCard
+        activity={nodeActivity}
         agent={node.agent as AgentListItem}
         highlighted={highlightedIds.has(node.agent.id)}
         isActive={expanded === node.agent.id}
@@ -133,6 +148,7 @@ function OrgTreeNode({
         <ul className="mt-1 ml-4 flex flex-col gap-1 border-l pl-3">
           {node.children.map((child) => (
             <OrgTreeNode
+              activity={activity}
               expanded={expanded}
               highlightedIds={highlightedIds}
               key={child.agent.id}
@@ -155,6 +171,7 @@ export function OrgTree({
   agents,
   expanded,
   highlightedIds = new Set<string>(),
+  activity,
   onToggle,
   onEdit = noop,
   onDuplicate = noop,
@@ -163,6 +180,7 @@ export function OrgTree({
   agents: AgentDefinition[]
   expanded: string | null
   highlightedIds?: Set<string>
+  activity?: Map<string, AgentActivity>
   onToggle: (id: string) => void
   onEdit?: (a: AgentListItem) => void
   onDuplicate?: (a: AgentListItem) => void
@@ -177,6 +195,7 @@ export function OrgTree({
       <ul className="flex flex-col gap-1">
         {hierarchy.map((node) => (
           <OrgTreeNode
+            activity={activity}
             expanded={expanded}
             highlightedIds={highlightedIds}
             key={node.agent.id}
@@ -194,6 +213,7 @@ export function OrgTree({
           <ul className="flex flex-col gap-1">
             {independents.map((node) => (
               <OrgTreeNode
+                activity={activity}
                 expanded={expanded}
                 highlightedIds={highlightedIds}
                 key={node.agent.id}
