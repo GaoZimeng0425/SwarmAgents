@@ -16,10 +16,6 @@ import type {
 } from 'react'
 import { Children, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { BaseUIEvent } from '@base-ui/react/types'
-import { compact } from 'es-toolkit'
-import { CornerDownLeftIcon, ImageIcon, Monitor, PlusIcon, SquareIcon, XIcon } from 'lucide-react'
-import { nanoid } from 'nanoid'
-
 import {
   Command,
   CommandEmpty,
@@ -28,7 +24,27 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@swarm/ui'
+import { compact } from 'es-toolkit'
+import { CornerDownLeftIcon, ImageIcon, Monitor, PlusIcon, SquareIcon, XIcon } from 'lucide-react'
+import { nanoid } from 'nanoid'
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,11 +52,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@swarm/ui'
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@swarm/ui'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
-import { Spinner } from '@swarm/ui'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { cn } from '@/lib/utils'
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from './types'
 

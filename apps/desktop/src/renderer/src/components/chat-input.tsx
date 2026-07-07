@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Attachment, ExecutionMode, PermissionMode } from '@swarm/protocol'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@swarm/protocol'
+import { SelectGroup, SelectLabel, SelectSeparator } from '@swarm/ui'
 import { useRanger } from '@tanstack/react-ranger'
 import { Check, Cpu, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, Users, X } from 'lucide-react'
 
@@ -26,7 +27,6 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
 import { ContextRing } from '@/components/context-ring'
-import { SelectGroup, SelectLabel, SelectSeparator } from '@swarm/ui'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
 import { ATTACHMENT_ACCEPT, DOCUMENT_ACCEPT, fileKind } from '@/lib/file-kind'
@@ -478,7 +478,9 @@ export function ChatInput({
                   value={permissionMode}
                 >
                   <PromptInputSelectTrigger>
-                    <Shield className={cn('size-4', permissionMode === 'full' ? 'text-amber-500' : 'text-muted-foreground')} />
+                    <Shield
+                      className={cn('size-4', permissionMode === 'full' ? 'text-amber-500' : 'text-muted-foreground')}
+                    />
                     {!compact && (
                       <PromptInputSelectValue>
                         {(v) => PERMISSION_LABELS[(v as PermissionMode) ?? 'ask']}
