@@ -45,7 +45,7 @@ export function WorkspacePanel({ runs, planGroups, session, onDecide }: Props): 
         onValueChange={(v) => setTab(v as 'plan' | 'timeline' | 'artifacts' | 'approval')}
         value={tab}
       >
-        <div className="flex h-11 items-center justify-between border-border/60 border-b px-2">
+        <div className="flex h-[52px] items-center justify-between border-border/60 border-b px-2">
           <TabsList className="bg-transparent p-0">
             <TabsTrigger
               className="data-[state=active]:rounded-t-lg data-[state=active]:bg-background data-[state=active]:font-semibold"
