@@ -9,14 +9,7 @@
  */
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
-import type {
-  AnalyzeArticleResult,
-  ArticleAnalysisCompleteEvent,
-  ArticleAnalysisDeltaEvent,
-  ArticleAnalysisErrorEvent,
-  ArticleSummary,
-  CollectedArticleWithAnalysis,
-} from './article'
+import type { AnalyzeArticleResult, ArticleSummary, CollectedArticleWithAnalysis } from './article'
 import type {
   BiliAnalysis,
   BiliDeleteResult,
@@ -107,9 +100,9 @@ export type UIEvent =
       seq?: number
     }
   | { kind: 'gmail.threadAnalysisError'; threadId: string; error: string; ts: number; seq?: number }
-  | ArticleAnalysisDeltaEvent
-  | ArticleAnalysisCompleteEvent
-  | ArticleAnalysisErrorEvent
+  | { kind: 'article.analysisDelta'; articleId: string; text: string; ts: number; seq?: number }
+  | { kind: 'article.analysisComplete'; articleId: string; summary: ArticleSummary; ts: number; seq?: number }
+  | { kind: 'article.analysisError'; articleId: string; error: string; ts: number; seq?: number }
 
 export type SessionSummary = {
   id: string
