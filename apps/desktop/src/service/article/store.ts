@@ -17,6 +17,10 @@ const ArticleRecordSchema = z.object({
   id: z.string(),
   collectedAt: z.string(),
   excerpt: z.string(),
+  // Internal persistence field: a per-store in-memory monotonic sequence counter
+  // used as a strict insertion-order tiebreaker for list() when two adds share
+  // the same collectedAt millisecond. NOT part of the public CollectedArticle shape.
+  seq: z.number().int().nonnegative(),
   summary: z
     .object({
       gist: z.string(),
@@ -42,6 +46,11 @@ export type ArticleStore = {
 export function createArticleStore(deps: { userDataDir: string }): ArticleStore {
   const file = join(deps.userDataDir, 'collected-articles.json')
   let cache = new Map<string, ArticleRecord>()
+  // Per-store monotonic sequence counter: strict insertion-order tiebreaker for
+  // list() when two adds share the same collectedAt millisecond. Unlike ulid
+  // (non-monotonic across ms ticks), this counter is assigned synchronously and
+  // deterministically within a single store instance.
+  let seq = 0
 
   load()
 
@@ -50,7 +59,17 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
       const raw = readFileSync(file, 'utf8')
       const parsed = FileSchema.safeParse(JSON.parse(raw))
       if (parsed.success) {
-        cache = new Map(Object.entries(parsed.data))
+        // Object.entries preserves insertion order for non-integer-like string
+        // keys, so assigning seq in iteration order best-effort reconstructs
+        // original insertion order for the tiebreaker. Original insertion order
+        // cannot be known exactly, but this is stable and monotonic. After this
+        // loop, seq is past every loaded record, so subsequent add()s continue
+        // monotonically.
+        const map = new Map<string, ArticleRecord>()
+        for (const [id, record] of Object.entries(parsed.data)) {
+          map.set(id, { ...record, seq: seq++ })
+        }
+        cache = map
       } else {
         log.warn({ msg: 'article store parse failed, starting empty' })
       }
@@ -61,9 +80,8 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
 
   function persist(): void {
     // The fs write itself is synchronous (writeFileSync + renameSync), so the
-    // single-flight guarantee is structural: writes cannot overlap. saveQueue is
-    // a resolved promise kept for ordering/error aggregation if this ever moves
-    // to async fs. Executing the write inline (not deferred to a microtask) lets
+    // single-flight guarantee is structural: blocking sync fs calls cannot
+    // overlap. Executing the write inline (not deferred to a microtask) lets
     // callers observe the persisted file synchronously after a mutation.
     try {
       mkdirSync(dirname(file), { recursive: true })
@@ -76,7 +94,7 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
   }
 
   function toPublic(r: ArticleRecord): CollectedArticleWithAnalysis {
-    const { summary, analyzedAt, ...rest } = r
+    const { summary, analyzedAt, seq, ...rest } = r
     return { ...rest, summary: summary ?? null, analyzedAt: analyzedAt ?? null }
   }
 
@@ -89,21 +107,23 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
         id,
         collectedAt: now,
         excerpt: input.contentMarkdown.slice(0, 300),
+        seq: seq++,
         summary: null,
         analyzedAt: null,
       }
       cache.set(id, record)
       persist()
-      const { summary, analyzedAt, ...publicFields } = record
+      const { summary, analyzedAt, seq: _seq, ...publicFields } = record
       return publicFields
     },
     list() {
       return [...cache.values()]
         .sort((a, b) => {
-          // Newest-first by collectedAt; ulid (monotonic, time-prefixed) breaks
-          // ties when two adds land in the same millisecond.
-          const byTime = b.collectedAt.localeCompare(a.collectedAt)
-          return byTime !== 0 ? byTime : b.id.localeCompare(a.id)
+          // Newest-first by collectedAt; the per-store seq counter breaks ties
+          // when two adds land in the same millisecond, giving strict reverse
+          // insertion order deterministically (unlike ulid, which is
+          // non-monotonic across ms ticks).
+          return b.collectedAt.localeCompare(a.collectedAt) || b.seq - a.seq
         })
         .map(toPublic)
     },

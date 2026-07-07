@@ -48,6 +48,20 @@ describe('createArticleStore', () => {
     expect(list[0].summary).toBeNull()
   })
 
+  it('list is deterministic for same-ms adds (newest-first by insertion)', () => {
+    const store = createArticleStore({ userDataDir: dir })
+    // Force same collectedAt by stubbing Date is overkill; instead add several
+    // and assert strict reverse-insertion order regardless of ulid randomness.
+    const ids: string[] = []
+    for (let i = 0; i < 5; i++) {
+      const a = store.add({ ...sample, title: `T${i}` })
+      ids.push(a.id)
+    }
+    const list = store.list()
+    // newest-first = reverse insertion order
+    expect(list.map((a) => a.id)).toEqual([...ids].reverse())
+  })
+
   it('saveAnalysis attaches summary and analyzedAt', () => {
     const store = createArticleStore({ userDataDir: dir })
     const a = store.add(sample)
