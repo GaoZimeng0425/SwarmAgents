@@ -12,6 +12,7 @@ import { initCmdPaletteArtifacts, toBilibiliArtifacts } from './cmd-palette'
 import { ensureSwarmDirs, paths } from './constants'
 import { initGmail } from './gmail'
 import { startWsHost } from './host'
+import { wireArticleIpc } from './ipc/article-ipc'
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initMcpServers } from './mcp-servers'
@@ -169,6 +170,7 @@ app.whenReady().then(async () => {
       budgets: budgets.service,
       cmdPalette,
     })
+    wireArticleIpc({ serviceClient, providers: providers.service })
     log.info({ msg: 'core services up' })
   } catch (err) {
     log.error({ msg: 'Agent Service failed to start', err: String(err) })
