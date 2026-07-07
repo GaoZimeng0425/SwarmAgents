@@ -27,6 +27,13 @@ type DispatcherConfig = {
   service: SessionService
   analyzeEmail(req: import('@swarm/protocol').AnalyzeEmailRequest): import('@swarm/protocol').AnalyzeEmailResult
   analyzeThread(req: import('@swarm/protocol').AnalyzeThreadRequest): import('@swarm/protocol').AnalyzeThreadResult
+  collectArticle(input: import('@swarm/protocol').ArticleSource): import('@swarm/protocol').CollectArticleResult
+  analyzeArticle(req: import('@swarm/protocol').AnalyzeArticleRequest): import('@swarm/protocol').AnalyzeArticleResult
+  listArticles(): Promise<import('@swarm/protocol').CollectedArticleWithAnalysis[]>
+  getArticleAnalysis(
+    articleId: string
+  ): Promise<{ summary: import('@swarm/protocol').ArticleSummary | null; analyzedAt: string | null }>
+  deleteArticle(articleId: string): Promise<void>
   registerProvider(provider: ProviderInjection): void
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): McpServerStatus[]
@@ -80,6 +87,25 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'analyzeThread': {
         const [req] = args as [import('@swarm/protocol').AnalyzeThreadRequest]
         return cfg.analyzeThread(req)
+      }
+      case 'collectArticle': {
+        const [input] = args as [import('@swarm/protocol').ArticleSource]
+        return cfg.collectArticle(input)
+      }
+      case 'analyzeArticle': {
+        const [req] = args as [import('@swarm/protocol').AnalyzeArticleRequest]
+        return cfg.analyzeArticle(req)
+      }
+      case 'listArticles': {
+        return cfg.listArticles()
+      }
+      case 'getArticleAnalysis': {
+        const [articleId] = args as [string]
+        return cfg.getArticleAnalysis(articleId)
+      }
+      case 'deleteArticle': {
+        const [articleId] = args as [string]
+        return cfg.deleteArticle(articleId)
       }
       case 'listSessions':
         return service.listSessions()
