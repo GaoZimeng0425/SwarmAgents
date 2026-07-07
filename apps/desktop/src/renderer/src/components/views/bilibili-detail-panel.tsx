@@ -8,9 +8,11 @@ import type { BiliSummary, BiliVideo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { compact } from 'es-toolkit'
-import { Sparkles, X } from 'lucide-react'
+import { Lightbulb, ListOrdered, PanelRightClose, Sparkles, SquareCheckBig, TriangleAlert, Upload } from 'lucide-react'
 
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { BilibiliVideoMenu } from './bilibili-video-menu'
 import { formatDuration, type VideoListContext } from './bilibili-view'
 import { TranscribeProgress } from './transcribe-progress'
@@ -21,32 +23,96 @@ function splitTextBlocks(text: string): string[] {
   return compact(text.split(/\n{2,}/).map((block) => block.trim()))
 }
 
-// Renders a structured BiliSummary: gist + non-empty labelled sections.
-function SummaryView({ summary }: { summary: BiliSummary }): React.JSX.Element {
-  const sections: { label: string; items: string[] }[] = [
-    { label: '核心要点', items: summary.points },
-    { label: '可复用经验', items: summary.experience },
-    { label: '踩坑注意', items: summary.pitfalls },
-    { label: '可执行步骤', items: summary.steps },
-  ]
+function sourceLabel(source?: string): string {
+  return source === 'subtitle' ? '字幕' : source === 'transcript' ? '本地转写' : ''
+}
+
+// The three bullet-list sections, each with a color-coded icon badge + dots
+// (Hi-fi: 核心要点 blue / 可复用经验 green / 踩坑注意 amber). Steps render
+// separately as numbered circles below.
+const BULLET_SECTIONS = [
+  {
+    key: 'points' as const,
+    label: '核心要点',
+    Icon: SquareCheckBig,
+    iconWrap: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
+    dot: 'bg-blue-500',
+  },
+  {
+    key: 'experience' as const,
+    label: '可复用经验',
+    Icon: Lightbulb,
+    iconWrap: 'bg-emerald-500/14 text-emerald-600 dark:text-emerald-400',
+    dot: 'bg-emerald-500',
+  },
+  {
+    key: 'pitfalls' as const,
+    label: '踩坑注意',
+    Icon: TriangleAlert,
+    iconWrap: 'bg-amber-500/16 text-amber-600 dark:text-amber-400',
+    dot: 'bg-amber-500',
+  },
+]
+
+// Renders a structured BiliSummary: an "AI 结构化摘要" divider, the gist as a
+// tinted hero card, the color-coded bullet sections, and numbered steps.
+function SummaryView({ summary, source }: { summary: BiliSummary; source?: string }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-5">
-      <div className="rounded-md border border-border bg-muted/30 p-4">
-        <p className="mb-2 font-medium text-muted-foreground text-xs tracking-wide">一句话结论</p>
-        <p className="text-[15px] text-foreground leading-7">{summary.gist}</p>
+    <div className="flex flex-col gap-3.5">
+      <div className="flex items-center gap-2 text-[11.5px] text-muted-foreground">
+        <span className="flex items-center gap-1.5 font-semibold text-violet-600 dark:text-violet-300">
+          <Sparkles className="size-3" /> AI 结构化摘要
+        </span>
+        <span className="h-px flex-1 bg-border" />
+        {source ? <span>来源:{sourceLabel(source)}</span> : null}
       </div>
-      {sections
-        .filter(({ items }) => items.length > 0)
-        .map(({ label, items }) => (
-          <section className="rounded-md border border-border p-4" key={label}>
-            <p className="mb-3 font-medium text-foreground text-sm">{label}</p>
-            <ul className="flex list-disc flex-col gap-2 pl-4 text-[13px] text-foreground/85 leading-6">
-              {items.map((item, i) => (
-                <li key={`${label}-${i}`}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        ))}
+
+      <div className="rounded-xl border border-violet-500/15 bg-linear-to-br from-violet-500/10 to-primary/5 p-3.5">
+        <p className="mb-1.5 font-semibold text-[10.5px] text-violet-600/90 uppercase tracking-wide dark:text-violet-300/80">
+          一句话结论
+        </p>
+        <p className="text-[13.5px] text-foreground/90 leading-relaxed">{summary.gist}</p>
+      </div>
+
+      {BULLET_SECTIONS.filter((s) => summary[s.key].length > 0).map((s) => (
+        <div className="rounded-xl border border-border bg-secondary p-3.5" key={s.key}>
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className={cn('flex size-5 items-center justify-center rounded-md', s.iconWrap)}>
+              <s.Icon className="size-3" />
+            </span>
+            <span className="font-semibold text-[13px] text-foreground">{s.label}</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {summary[s.key].map((item, i) => (
+              <div className="flex gap-2 text-[12.5px] text-foreground/85 leading-relaxed" key={`${s.key}-${i}`}>
+                <span className={cn('mt-[7px] size-[5px] shrink-0 rounded-full', s.dot)} />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {summary.steps.length > 0 ? (
+        <div className="rounded-xl border border-border bg-secondary p-3.5">
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="flex size-5 items-center justify-center rounded-md bg-fuchsia-500/14 text-fuchsia-600 dark:text-fuchsia-400">
+              <ListOrdered className="size-3" />
+            </span>
+            <span className="font-semibold text-[13px] text-foreground">可执行步骤</span>
+          </div>
+          <div className="flex flex-col gap-2.5">
+            {summary.steps.map((step, i) => (
+              <div className="flex gap-2.5 text-[12.5px] text-foreground/85 leading-relaxed" key={`step-${i}`}>
+                <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-fuchsia-500/12 font-bold text-[10.5px] text-fuchsia-600 dark:text-fuchsia-300">
+                  {i + 1}
+                </span>
+                <span className="pt-px">{step}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -157,18 +223,54 @@ export function BilibiliDetailPanel({
   const textLabel = fullText?.source === 'subtitle' ? '字幕原文' : '转写全文'
 
   return (
-    <aside className="flex w-[472px] shrink-0 flex-col border-border/60 border-l bg-background">
+    <aside className="flex w-[472px] shrink-0 flex-col border-border/60 border-l bg-background/40">
       {video ? (
-        <div className="flex h-full flex-col">
-          <div className="flex items-start justify-between gap-2 border-border/60 border-b p-4">
-            <div className="min-w-0">
-              <h2 className="truncate font-semibold text-foreground">{video.title}</h2>
-              <p className="text-muted-foreground text-xs">
-                {video.author} · {formatDuration(video.durationSec)}
-              </p>
-              {menuError ? <p className="mt-1 text-destructive text-xs">{menuError}</p> : null}
+        <ScrollArea className="h-full">
+          <div className="flex flex-col gap-4 p-5">
+            {/* Header: cover thumb + title/author + menu/close. */}
+            <div className="flex gap-3">
+              {video.cover ? (
+                <img
+                  alt=""
+                  className="h-[63px] w-28 shrink-0 rounded-lg border border-border object-cover"
+                  referrerPolicy="no-referrer"
+                  src={video.cover}
+                />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <h2 className="line-clamp-2 font-semibold text-[14.5px] text-foreground leading-snug">{video.title}</h2>
+                <p className="mt-1 text-muted-foreground text-xs">
+                  {video.author} · {formatDuration(video.durationSec)}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-start">
+                <Button aria-label="收起详情" onClick={onClose} size="icon-sm" title="收起" variant="ghost">
+                  <PanelRightClose className="size-4" />
+                </Button>
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            {menuError ? <p className="text-destructive text-xs">{menuError}</p> : null}
+
+            {/* Action row: analyze / watch / save / more-menu (rightmost). */}
+            <div className="flex gap-2">
+              <Button className="flex-1" disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
+                {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
+              </Button>
+              <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
+                观看
+              </Button>
+              {summary ? (
+                <Button
+                  aria-label="保存到 Obsidian"
+                  disabled={saveMutation.isPending}
+                  onClick={() => video && saveMutation.mutate({ video, summary })}
+                  size="icon"
+                  title="保存到 Obsidian"
+                  variant="outline"
+                >
+                  <Upload className="size-4" />
+                </Button>
+              ) : null}
               <BilibiliVideoMenu
                 context={context}
                 onChanged={onClose}
@@ -177,118 +279,74 @@ export function BilibiliDetailPanel({
                 trigger="icon"
                 video={video}
               />
-              <Button aria-label="关闭详情" onClick={onClose} size="icon-sm" variant="ghost">
-                <X className="size-4" />
-              </Button>
             </div>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            {/* Left column: video metadata + actions. */}
-            <aside className="flex shrink-0 flex-col gap-3 overflow-y-auto border-border p-4 pb-6 md:w-80 md:border-r">
-              {video.cover ? (
-                <img
-                  alt=""
-                  className="aspect-video w-full rounded-md border border-border object-cover"
-                  referrerPolicy="no-referrer"
-                  src={video.cover}
-                />
-              ) : null}
-              {video.intro ? (
-                <p className="whitespace-pre-wrap text-[13px] text-foreground/80 leading-6">{video.intro}</p>
-              ) : (
-                <p className="text-muted-foreground text-sm">无简介</p>
-              )}
-              <div className="text-muted-foreground text-xs">来源：{video.source}</div>
-              <div className="flex flex-col gap-2 pt-1">
-                <Button disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
-                  {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
+            {saveMutation.data?.ok ? (
+              <span className="text-muted-foreground text-xs">已保存到 {saveMutation.data.path}</span>
+            ) : null}
+            {saveMutation.data && !saveMutation.data.ok ? (
+              <span className="text-destructive text-xs">{saveMutation.data.message}</span>
+            ) : null}
+
+            {/* No subtitle: offer local transcription instead of a dead-end error. */}
+            {!summary && mutation.data && !mutation.data.ok && mutation.data.code === 'no_subtitle' ? (
+              <div className="flex flex-col gap-2 rounded-lg border border-border bg-secondary p-3">
+                <Button
+                  className="w-fit"
+                  disabled={transcribeMutation.isPending}
+                  onClick={() => video && transcribeMutation.mutate(video.bvid)}
+                  variant="outline"
+                >
+                  {transcribeMutation.isPending ? '转写中…' : '本地转写'}
                 </Button>
-                {/* Opens the video in the default browser. */}
-                <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
-                  观看
-                </Button>
+                {transcribeMutation.isPending ? <TranscribeProgress stage={stage} /> : null}
+                <span className="text-muted-foreground text-xs">
+                  该视频没有字幕，可下载音轨本地转写（需在设置中配置 ffmpeg 与模型）。
+                </span>
+                {transcribeMutation.data && !transcribeMutation.data.ok ? (
+                  <span className="text-destructive text-xs">{transcribeMutation.data.message}</span>
+                ) : null}
               </div>
-              {/* No subtitle: offer local transcription instead of a dead-end error. */}
-              {!summary && mutation.data && !mutation.data.ok && mutation.data.code === 'no_subtitle' ? (
-                <div className="flex flex-col gap-2 border-border border-t pt-3">
-                  <Button
-                    className="w-fit"
-                    disabled={transcribeMutation.isPending}
-                    onClick={() => video && transcribeMutation.mutate(video.bvid)}
-                    variant="outline"
-                  >
-                    {transcribeMutation.isPending ? '转写中…' : '本地转写'}
-                  </Button>
-                  {transcribeMutation.isPending ? <TranscribeProgress stage={stage} /> : null}
-                  <span className="text-muted-foreground text-xs">
-                    该视频没有字幕，可下载音轨本地转写（需在设置中配置 ffmpeg 与模型）。
-                  </span>
-                  {transcribeMutation.data && !transcribeMutation.data.ok ? (
-                    <span className="text-destructive text-xs">{transcribeMutation.data.message}</span>
-                  ) : null}
-                </div>
-              ) : null}
-              {!summary && mutation.data && !mutation.data.ok && mutation.data.code !== 'no_subtitle' ? (
-                <p className="text-destructive text-sm">{mutation.data.message}</p>
-              ) : null}
-              {summary ? (
-                <div className="mt-auto flex flex-col gap-1 border-border border-t pt-3">
-                  <Button
-                    className="w-fit"
-                    disabled={saveMutation.isPending}
-                    onClick={() => video && saveMutation.mutate({ video, summary })}
-                    variant="outline"
-                  >
-                    {saveMutation.isPending ? '保存中…' : '保存到 Obsidian'}
-                  </Button>
-                  {saveMutation.data?.ok ? (
-                    <span className="text-muted-foreground text-xs">已保存到 {saveMutation.data.path}</span>
-                  ) : null}
-                  {saveMutation.data && !saveMutation.data.ok ? (
-                    <span className="text-destructive text-xs">{saveMutation.data.message}</span>
-                  ) : null}
-                </div>
-              ) : null}
-            </aside>
-            {/* Right column: switchable reading area for the analysis and the raw text. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {summary || fullText ? (
-                <div className="flex items-center gap-1 border-border border-b p-2">
-                  {summary ? (
-                    <Button
-                      data-active={detailTab === 'analysis' || undefined}
-                      onClick={() => setDetailTab('analysis')}
-                      size="sm"
-                      variant={detailTab === 'analysis' ? 'secondary' : 'ghost'}
-                    >
-                      AI 解析
-                    </Button>
-                  ) : null}
-                  {fullText ? (
-                    <Button
-                      data-active={detailTab === 'text' || undefined}
-                      onClick={() => setDetailTab('text')}
-                      size="sm"
-                      variant={detailTab === 'text' ? 'secondary' : 'ghost'}
-                    >
-                      {textLabel}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                {/* Only one view is mounted at a time so each gets the full reading height. */}
-                {detailTab === 'analysis' && summary ? (
-                  <SummaryView summary={summary} />
-                ) : detailTab === 'text' && fullText ? (
-                  <FullTextView label={textLabel} text={fullText.text} />
-                ) : (
-                  <p className="text-center text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要。</p>
-                )}
+            ) : null}
+            {!summary && mutation.data && !mutation.data.ok && mutation.data.code !== 'no_subtitle' ? (
+              <p className="text-destructive text-sm">{mutation.data.message}</p>
+            ) : null}
+
+            {/* Reading-area toggle, shown only when both an analysis and raw text exist. */}
+            {summary && fullText ? (
+              <div className="flex items-center gap-1 rounded-lg bg-muted/40 p-0.5">
+                <button
+                  className={cn(
+                    'flex-1 rounded-md px-2 py-1 font-medium text-xs transition-colors',
+                    detailTab === 'analysis' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  )}
+                  onClick={() => setDetailTab('analysis')}
+                  type="button"
+                >
+                  AI 解析
+                </button>
+                <button
+                  className={cn(
+                    'flex-1 rounded-md px-2 py-1 font-medium text-xs transition-colors',
+                    detailTab === 'text' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  )}
+                  onClick={() => setDetailTab('text')}
+                  type="button"
+                >
+                  {textLabel}
+                </button>
               </div>
-            </div>
+            ) : null}
+
+            {/* Content: structured analysis or raw text. */}
+            {detailTab === 'analysis' && summary ? (
+              <SummaryView source={fullText?.source} summary={summary} />
+            ) : detailTab === 'text' && fullText ? (
+              <FullTextView label={textLabel} text={fullText.text} />
+            ) : (
+              <p className="py-8 text-center text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要。</p>
+            )}
           </div>
-        </div>
+        </ScrollArea>
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
           <Sparkles className="size-7 text-muted-foreground/40" />

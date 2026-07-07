@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe('buildRows', () => {
   it('favorites/all shows every folder with headers and excludes watch-later', () => {
-    const rows = buildRows(SAMPLE, 'favorites', 'all', 3)
+    const rows = buildRows(SAMPLE, 'favorites', 'all')
     const headers = rows.filter((r) => r.kind === 'header').map((r) => (r.kind === 'header' ? r.title : ''))
     expect(headers).toEqual(['CS', '音乐'])
     const bvids = rows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
@@ -60,13 +60,13 @@ describe('buildRows', () => {
   })
 
   it('favorites with a specific folder shows only that folder', () => {
-    const rows = buildRows(SAMPLE, 'favorites', 2, 3)
+    const rows = buildRows(SAMPLE, 'favorites', 2)
     const bvids = rows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
     expect(bvids).toEqual(['BV3'])
   })
 
   it('watch-later tab shows only watch-later videos and no folder headers', () => {
-    const rows = buildRows(SAMPLE, 'watch-later', 'all', 3)
+    const rows = buildRows(SAMPLE, 'watch-later', 'all')
     expect(rows.some((r) => r.kind === 'header')).toBe(false)
     const bvids = rows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
     expect(bvids).toEqual(['BV2'])
@@ -74,17 +74,17 @@ describe('buildRows', () => {
 
   it('filters pinned videos out of the favorites and watch-later lists', () => {
     const pinned = new Set(['BV1'])
-    const favRows = buildRows(SAMPLE, 'favorites', 'all', 3, [], pinned)
+    const favRows = buildRows(SAMPLE, 'favorites', 'all', [], pinned)
     const favBvids = favRows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
     expect(favBvids).toEqual(['BV3'])
-    const wlRows = buildRows(SAMPLE, 'watch-later', 'all', 3, [], pinned)
+    const wlRows = buildRows(SAMPLE, 'watch-later', 'all', [], pinned)
     const wlBvids = wlRows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
     expect(wlBvids).toEqual(['BV2'])
   })
 
   it('archive tab renders the local archive regardless of pinned state', () => {
     const archive = [{ bvid: 'BVA', title: '存档甲', cover: '', author: 'up', durationSec: 1, intro: '', source: 'CS' }]
-    const rows = buildRows({ folders: [], watchLater: [] }, 'archive', 'all', 3, archive, new Set(['BVA']))
+    const rows = buildRows({ folders: [], watchLater: [] }, 'archive', 'all', archive, new Set(['BVA']))
     const bvids = rows.flatMap((r) => (r.kind === 'grid' ? r.videos.map((v) => v.bvid) : []))
     expect(bvids).toEqual(['BVA'])
   })
@@ -114,19 +114,22 @@ describe('BilibiliView', () => {
     expect(screen.queryByText('视频甲')).not.toBeInTheDocument()
   })
 
-  it('opens a detail panel showing the video intro when a card is clicked', async () => {
+  it('opens the detail panel when a card is clicked', async () => {
     vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
     vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
-    expect(await screen.findByText('简介甲内容')).toBeInTheDocument()
+    // The panel mounts with the AI-analysis prompt (no cached summary yet).
+    expect(await screen.findByText('点击「AI 分析」生成结构化摘要。')).toBeInTheDocument()
   })
 
-  it('shows an empty-state prompt in the detail panel before any video is selected', async () => {
+  it('does not mount the detail panel until a video is selected', async () => {
     vi.spyOn(swarmApi, 'getBilibiliStatus').mockResolvedValue({ loggedIn: true, uname: 'me', mid: 42 })
     vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
     render(wrap(<BilibiliView />))
-    expect(await screen.findByText('选择一个视频查看 AI 解析')).toBeInTheDocument()
+    await screen.findByText('视频甲') // list rendered
+    // Panel is collapsed (unmounted) with nothing selected — grid gets full width.
+    expect(screen.queryByText('点击「AI 分析」生成结构化摘要。')).not.toBeInTheDocument()
   })
 
   it('runs AI analysis from the detail panel and shows the summary', async () => {

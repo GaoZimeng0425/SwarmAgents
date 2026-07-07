@@ -2,7 +2,7 @@
 // switches between the two; in favorites mode a dropdown filters to a single
 // folder. Clicking a video opens a read-only detail panel (no external nav).
 // Prompts for login when logged out.
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { BiliListResult, BiliVideo } from '@swarm/protocol'
 import {
   Button,
@@ -16,19 +16,26 @@ import {
   TabsTrigger,
 } from '@swarm/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { chunk } from 'es-toolkit'
 import { Sparkles } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { BilibiliDetailPanel } from './bilibili-detail-panel'
 import { BilibiliVideoMenu } from './bilibili-video-menu'
 
-// Grid metrics — kept in sync with the inline grid template below. MIN_CARD is
-// the 11rem min column width the layout used before virtualization; GAP is the
-// gap-3 (0.75rem) gutter.
-const MIN_CARD_PX = 176
-const GAP_PX = 12
+// Min card width for the responsive CSS grid (repeat(auto-fill, minmax(...))).
+// The browser derives the column count from the container width — no JS measure.
+const MIN_CARD_PX = 180
+
+// Deterministic author-avatar color (no face in BiliVideo — the design uses a
+// solid color dot too). Decorative brand-ish hex, so inline not tokens.
+const AUTHOR_COLORS = ['#3478f6', '#1f9d43', '#ff9f0a', '#d0842b', '#c96442', '#5e5ce6', '#a259ff', '#5b5bd6']
+function authorColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AUTHOR_COLORS[h % AUTHOR_COLORS.length]
+}
 
 // Which list the currently focused video came from — drives the action menu's
 // labels (un-fav vs clear watch-later) and whether a B站 delete is needed.
@@ -40,16 +47,10 @@ type Tab = 'favorites' | 'watch-later' | 'archive'
 // Favorites filter: a specific folder id, or every folder.
 type FolderFilter = number | 'all'
 
-// A flattened row in the virtualized list: either a section heading or one row
-// of video cards. Chunking videos into fixed-width rows lets a single vertical
-// virtualizer drive the whole grid, so off-screen cards (and their <img>s) stay
-// unmounted regardless of how large a favorites folder is.
+// A section of the list: an optional folder heading plus its video cards. Each
+// section renders as one native CSS grid, so the browser handles column count
+// and wrapping — no chunking, no width measurement.
 type GridRow = { kind: 'header'; key: string; title: string } | { kind: 'grid'; key: string; videos: BiliVideo[] }
-
-function columnsForWidth(width: number): number {
-  if (width <= 0) return 1
-  return Math.max(1, Math.floor((width + GAP_PX) / (MIN_CARD_PX + GAP_PX)))
-}
 
 export function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -67,22 +68,19 @@ export function buildRows(
   data: BiliListResult,
   tab: Tab,
   folderId: FolderFilter,
-  columns: number,
   archive: BiliVideo[] = [],
   pinnedSet: Set<string> = new Set()
 ): GridRow[] {
   const rows: GridRow[] = []
   const notPinned = (v: BiliVideo): boolean => !pinnedSet.has(v.bvid)
   if (tab === 'watch-later') {
-    chunk(data.watchLater.filter(notPinned), columns).forEach((group, i) => {
-      rows.push({ kind: 'grid', key: `grid:watch-later:${i}`, videos: group })
-    })
+    const videos = data.watchLater.filter(notPinned)
+    // Leave rows empty when the list is — the caller shows an empty-state message.
+    if (videos.length > 0) rows.push({ kind: 'grid', key: 'grid:watch-later', videos })
     return rows
   }
   if (tab === 'archive') {
-    chunk(archive, columns).forEach((group, i) => {
-      rows.push({ kind: 'grid', key: `grid:archive:${i}`, videos: group })
-    })
+    if (archive.length > 0) rows.push({ kind: 'grid', key: 'grid:archive', videos: archive })
     return rows
   }
   const folders = folderId === 'all' ? data.folders : data.folders.filter((f) => f.folder.id === folderId)
@@ -90,9 +88,7 @@ export function buildRows(
     const visible = videos.filter(notPinned)
     if (visible.length === 0) continue
     rows.push({ kind: 'header', key: `header:${folder.id}`, title: folder.title })
-    chunk(visible, columns).forEach((group, i) => {
-      rows.push({ kind: 'grid', key: `grid:${folder.id}:${i}`, videos: group })
-    })
+    rows.push({ kind: 'grid', key: `grid:${folder.id}`, videos: visible })
   }
   return rows
 }
@@ -120,34 +116,39 @@ function VideoCard({
     // The card is a div (not a button) so the "..." menu trigger can sit inside
     // it without nesting interactive elements. Click anywhere selects the video.
     <div
-      className={`group relative flex cursor-pointer flex-col gap-1 rounded-md border p-2 text-left transition-colors hover:bg-sidebar-accent ${
-        selected ? 'border-ring ring-2 ring-ring/50' : 'border-sidebar-border'
-      }`}
+      className={cn(
+        'group relative flex cursor-pointer flex-col gap-2 rounded-xl border p-2 text-left transition-all',
+        selected
+          ? 'border-blue-500 bg-secondary ring-2 ring-blue-500/25'
+          : 'border-border bg-secondary hover:border-foreground/20'
+      )}
       data-bvid={video.bvid}
       onClick={() => onClick(video)}
     >
-      <div className="relative w-full">
+      <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted">
         {video.cover ? (
-          <img
-            alt=""
-            className="aspect-video w-full rounded object-cover"
-            referrerPolicy="no-referrer"
-            src={video.cover}
-          />
+          <img alt="" className="size-full object-cover" referrerPolicy="no-referrer" src={video.cover} />
         ) : null}
         {analyzed ? (
-          <span className="absolute top-1 right-1 rounded bg-primary px-1.5 py-0.5 font-medium text-[10px] text-primary-foreground">
-            AI
+          <span className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded-md bg-violet-600/90 px-1.5 py-0.5 font-bold text-[9.5px] text-white">
+            <Sparkles className="size-2.5" /> AI
           </span>
         ) : null}
         {pinned ? (
-          <span className="absolute top-1 left-1 rounded bg-amber-500 px-1.5 py-0.5 font-medium text-[10px] text-white">
+          <span className="absolute bottom-1.5 left-1.5 rounded-md bg-amber-500 px-1.5 py-0.5 font-semibold text-[9.5px] text-white">
             置顶
           </span>
         ) : null}
+        <span className="absolute right-1.5 bottom-1.5 rounded bg-black/60 px-1.5 py-0.5 font-mono font-semibold text-[10px] text-white tabular-nums">
+          {formatDuration(video.durationSec)}
+        </span>
       </div>
-      {/* Hover "..." overlay: anchored bottom-right so it doesn't cover the AI badge. */}
-      <div className="absolute right-1 bottom-1 opacity-0 transition-opacity group-hover:opacity-100">
+      {/* Hover "..." overlay: top-right over the cover (AI badge is top-left).
+          stopPropagation so opening the menu doesn't also select the card. */}
+      <div
+        className="absolute top-2.5 right-2.5 opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
         <BilibiliVideoMenu
           context={context}
           onChanged={onChanged}
@@ -157,8 +158,13 @@ function VideoCard({
           video={video}
         />
       </div>
-      <div className="truncate font-medium text-foreground text-sm">{video.title}</div>
-      <div className="truncate text-muted-foreground text-xs">{video.author}</div>
+      <div className="line-clamp-2 min-h-[35px] font-semibold text-[13px] text-foreground leading-snug">
+        {video.title}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="size-4 shrink-0 rounded-full" style={{ backgroundColor: authorColor(video.author) }} />
+        <span className="truncate text-[11.5px] text-muted-foreground">{video.author}</span>
+      </div>
     </div>
   )
 }
@@ -246,30 +252,14 @@ export function BilibiliView(): React.JSX.Element {
   const [selected, setSelected] = useState<BiliVideo | null>(null)
   const [cardError, setCardError] = useState<string | null>(null)
 
-  // Track the content width so the grid can be chunked into fixed-column rows
-  // that match a responsive `auto-fill` layout. A callback ref (not an effect)
-  // wires the observer: the measured node only mounts once data loads, after a
-  // mount-time effect would already have run against a null ref and left the
-  // column count stuck at 1 (rendering the grid as a single column).
-  const observerRef = useRef<ResizeObserver | null>(null)
-  const [columns, setColumns] = useState(1)
-  const measureRef = useCallback((node: HTMLDivElement | null) => {
-    observerRef.current?.disconnect()
-    if (!node) return
-    const update = (): void => setColumns(columnsForWidth(node.clientWidth))
-    update()
-    observerRef.current = new ResizeObserver(update)
-    observerRef.current.observe(node)
-  }, [])
-
   const rows = useMemo(() => {
     // Archive tab has no B站 list dependency; render from the local archive alone.
     if (tab === 'archive') {
-      return buildRows({ folders: [], watchLater: [] }, 'archive', 'all', columns, archiveQuery.data ?? [], pinsSet)
+      return buildRows({ folders: [], watchLater: [] }, 'archive', 'all', archiveQuery.data ?? [], pinsSet)
     }
     if (!listQuery.data) return []
-    return buildRows(listQuery.data, tab, folderId, columns, archiveQuery.data ?? [], pinsSet)
-  }, [listQuery.data, archiveQuery.data, tab, folderId, columns, pinsSet])
+    return buildRows(listQuery.data, tab, folderId, archiveQuery.data ?? [], pinsSet)
+  }, [listQuery.data, archiveQuery.data, tab, folderId, pinsSet])
 
   async function handleLogin(): Promise<void> {
     await swarmApi.bilibiliLogin()
@@ -292,8 +282,9 @@ export function BilibiliView(): React.JSX.Element {
   const folders = listQuery.data?.folders ?? []
 
   return (
-    <div className="mx-auto flex h-full w-full flex-col gap-4 p-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex h-full w-full flex-col">
+      {/* Toolbar — full-bleed with a bottom divider (Hi-fi). */}
+      <div className="flex flex-none flex-wrap items-center gap-3 border-border/70 border-b px-5 py-3">
         <Tabs onValueChange={(v) => setTab(v as Tab)} value={tab}>
           <TabsList>
             <TabsTrigger value="favorites">收藏夹</TabsTrigger>
@@ -308,7 +299,7 @@ export function BilibiliView(): React.JSX.Element {
             value={folderId === 'all' ? 'all' : String(folderId)}
           >
             <SelectTrigger className="w-48">
-              <SelectValue />
+              <SelectValue placeholder="全部收藏夹" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部收藏夹</SelectItem>
@@ -330,82 +321,98 @@ export function BilibiliView(): React.JSX.Element {
             </span>
           </span>
         ) : null}
-        <span className="text-muted-foreground text-sm">{statusQuery.data?.uname ?? ''}</span>
+        {statusQuery.data?.uname ? (
+          <div className="flex items-center gap-2">
+            <span
+              className="flex size-6 items-center justify-center rounded-full font-semibold text-[11px] text-white"
+              style={{ backgroundColor: authorColor(statusQuery.data.uname) }}
+            >
+              {statusQuery.data.uname[0]}
+            </span>
+            <span className="text-[12.5px] text-muted-foreground">{statusQuery.data.uname}</span>
+          </div>
+        ) : null}
       </div>
 
-      {/* Pinned videos: a horizontal strip above the grid, shown only when non-empty. */}
-      {(pinsQuery.data?.length ?? 0) > 0 ? (
-        <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
-          {(pinsQuery.data ?? []).map((v) => (
-            <PinnedCard
-              key={v.bvid}
-              onChanged={() => setSelected(null)}
-              onError={setCardError}
-              onSelect={setSelected}
-              video={v}
-            />
-          ))}
-        </div>
-      ) : null}
-      {cardError ? <p className="text-destructive text-xs">{cardError}</p> : null}
-
-      <div className="flex min-h-0 flex-1 gap-0">
-        {tab !== 'archive' && listQuery.isError ? (
-          <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
-            <p>加载失败</p>
-            <Button onClick={() => void listQuery.refetch()} variant="outline">
-              重试
-            </Button>
-          </div>
-        ) : tab !== 'archive' && listQuery.isPending ? (
-          <div className="py-12 text-center text-muted-foreground">加载中…</div>
-        ) : (
-          // measureRef tracks the available content width to derive the column count.
-          <div className="min-h-0 flex-1" ref={measureRef}>
+      {/* Body: grid + (only when a video is picked) the detail panel. Mounting
+          the panel on-demand lets it collapse — and gives the grid the full
+          width while browsing, so small windows still show multiple columns. */}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {tab !== 'archive' && listQuery.isError ? (
+            <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
+              <p>加载失败</p>
+              <Button onClick={() => void listQuery.refetch()} variant="outline">
+                重试
+              </Button>
+            </div>
+          ) : tab !== 'archive' && listQuery.isPending ? (
+            <div className="py-12 text-center text-muted-foreground">加载中…</div>
+          ) : (
             <ScrollArea className="h-full">
-              <div className="flex flex-col gap-3">
-                {rows.length === 0 ? (
-                  <p className="py-12 text-center text-muted-foreground">
-                    {tab === 'archive' ? '本地存档为空' : '暂无视频'}
-                  </p>
+              <div className="p-5">
+                {/* Pinned videos: a horizontal strip above the grid. */}
+                {(pinsQuery.data?.length ?? 0) > 0 ? (
+                  <div className="mb-4 flex items-stretch gap-2 overflow-x-auto pb-1">
+                    {(pinsQuery.data ?? []).map((v) => (
+                      <PinnedCard
+                        key={v.bvid}
+                        onChanged={() => setSelected(null)}
+                        onError={setCardError}
+                        onSelect={setSelected}
+                        video={v}
+                      />
+                    ))}
+                  </div>
                 ) : null}
-                {rows.map((row) =>
-                  row.kind === 'header' ? (
-                    <h2 className="pt-2 font-medium text-foreground/80 text-sm" key={row.key}>
-                      {row.title}
-                    </h2>
-                  ) : (
-                    <div
-                      className="grid gap-3"
-                      key={row.key}
-                      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-                    >
-                      {row.videos.map((v) => (
-                        <VideoCard
-                          analyzed={analyzedSet.has(v.bvid)}
-                          context={tab}
-                          key={v.bvid}
-                          onChanged={() => setSelected(null)}
-                          onClick={setSelected}
-                          onError={setCardError}
-                          pinned={pinsSet.has(v.bvid)}
-                          selected={selected?.bvid === v.bvid}
-                          video={v}
-                        />
-                      ))}
-                    </div>
-                  )
-                )}
+                {cardError ? <p className="mb-3 text-destructive text-xs">{cardError}</p> : null}
+
+                <div className="flex flex-col gap-3.5">
+                  {rows.length === 0 ? (
+                    <p className="py-12 text-center text-muted-foreground">
+                      {tab === 'archive' ? '本地存档为空' : '暂无视频'}
+                    </p>
+                  ) : null}
+                  {rows.map((row) =>
+                    row.kind === 'header' ? (
+                      <h2 className="pt-3 font-semibold text-[13.5px] text-foreground first:pt-0" key={row.key}>
+                        {row.title}
+                      </h2>
+                    ) : (
+                      <div
+                        className="grid gap-3.5"
+                        key={row.key}
+                        style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${MIN_CARD_PX}px, 1fr))` }}
+                      >
+                        {row.videos.map((v) => (
+                          <VideoCard
+                            analyzed={analyzedSet.has(v.bvid)}
+                            context={tab}
+                            key={v.bvid}
+                            onChanged={() => setSelected(null)}
+                            onClick={setSelected}
+                            onError={setCardError}
+                            pinned={pinsSet.has(v.bvid)}
+                            selected={selected?.bvid === v.bvid}
+                            video={v}
+                          />
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
               </div>
             </ScrollArea>
-          </div>
-        )}
-        <BilibiliDetailPanel
-          context={tab}
-          onClose={() => setSelected(null)}
-          pinned={selected ? pinsSet.has(selected.bvid) : false}
-          video={selected}
-        />
+          )}
+        </div>
+        {selected ? (
+          <BilibiliDetailPanel
+            context={tab}
+            onClose={() => setSelected(null)}
+            pinned={pinsSet.has(selected.bvid)}
+            video={selected}
+          />
+        ) : null}
       </div>
     </div>
   )
