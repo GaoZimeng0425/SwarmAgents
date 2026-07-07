@@ -1012,7 +1012,9 @@ export const PromptInputActionMenu = (props: PromptInputActionMenuProps) => <Dro
 export type PromptInputActionMenuTriggerProps = PromptInputButtonProps
 
 export const PromptInputActionMenuTrigger = ({ className, children, ...props }: PromptInputActionMenuTriggerProps) => (
-  <DropdownMenuTrigger render={<PromptInputButton className={className} {...props} />}>
+  <DropdownMenuTrigger
+    render={<PromptInputButton className={cn('rounded-[10px] bg-muted/60 hover:bg-muted', className)} {...props} />}
+  >
     {children ?? <PlusIcon className="size-4" />}
   </DropdownMenuTrigger>
 )
@@ -1100,7 +1102,7 @@ export const PromptInputSelectTrigger = ({ className, ...props }: PromptInputSel
     className={cn(
       // Composer control chip: borderless, compact, harmonized with the ghost
       // buttons next to it (muted hover/open fill, not accent).
-      'h-8 gap-1 rounded-md border-none bg-transparent px-2.5 font-medium text-muted-foreground shadow-none transition-colors',
+      'h-8 gap-1 rounded-[10px] border-none bg-muted/60 px-2.5 font-medium text-muted-foreground shadow-none transition-colors',
       'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
       'dark:aria-expanded:bg-muted/50 dark:hover:bg-muted/50',
       // Dim the trailing chevron so the label reads first.

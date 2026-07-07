@@ -455,7 +455,7 @@ export function ChatInput({
                 {teamOptions && teamOptions.length > 0 && (
                   <PromptInputSelect onValueChange={(v) => onAgentTypeChange?.(String(v))} value={agentType ?? 'ceo'}>
                     <PromptInputSelectTrigger>
-                      <Users className="size-4" />
+                      <Users className="size-4 text-indigo-500 dark:text-indigo-400" />
                       {!compact && (
                         <PromptInputSelectValue>
                           {(v) =>
@@ -478,7 +478,7 @@ export function ChatInput({
                   value={permissionMode}
                 >
                   <PromptInputSelectTrigger>
-                    <Shield className="size-4" />
+                    <Shield className={cn('size-4', permissionMode === 'full' ? 'text-amber-500' : 'text-muted-foreground')} />
                     {!compact && (
                       <PromptInputSelectValue>
                         {(v) => PERMISSION_LABELS[(v as PermissionMode) ?? 'ask']}
@@ -509,7 +509,7 @@ export function ChatInput({
                   <PromptInputSelect onValueChange={(v) => void onPickModel(String(v))} value={currentKey}>
                     <PromptInputSelectTrigger>
                       {compact ? (
-                        <Cpu className="size-4" />
+                        <Cpu className="size-4 text-emerald-600 dark:text-emerald-400" />
                       ) : (
                         <PromptInputSelectValue>
                           {() => {
