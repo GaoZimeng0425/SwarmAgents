@@ -77,6 +77,28 @@ export default defineBackground(() => {
       })()
       return true // async response
     }
+    if ((msg as { type?: string })?.type === 'collectCurrentPage' && client) {
+      ;(async () => {
+        try {
+          const [tab] = await browser.tabs.query({ active: true, currentWindow: true })
+          if (!tab.id) {
+            sendResponse({ ok: false, error: 'no active tab' })
+            return
+          }
+          const input = await browser.tabs.sendMessage(tab.id, { type: 'extract' })
+          if (!input) {
+            sendResponse({ ok: false, error: '抽取失败(非文章页?)' })
+            return
+          }
+          const res = await client.collectArticle(input)
+          if (res.ok) sendResponse({ ok: true, articleId: res.articleId })
+          else sendResponse({ ok: false, error: res.message })
+        } catch (err) {
+          sendResponse({ ok: false, error: String(err) })
+        }
+      })()
+      return true // async response
+    }
     return false
   })
 })
