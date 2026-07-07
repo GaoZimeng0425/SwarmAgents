@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { cookieHeader, getFavFolders, getNav, getWatchLater, toHttpsUrl } from './api'
+import { cookieHeader, deleteWatchLater, getFavFolders, getNav, getWatchLater, toHttpsUrl } from './api'
 
 const creds = { sessdata: 's', biliJct: 'j', dedeUserId: '42' }
 
@@ -101,6 +101,28 @@ describe('getWatchLater', () => {
         source: '稍后再看',
       },
     ])
+  })
+})
+
+describe('deleteWatchLater', () => {
+  it('resolves the aid from bvid and posts aid (not bvid) to toview/del', async () => {
+    const calls: { url: string; body?: string }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, body: init?.body as string | undefined })
+        // First call resolves the aid; second is the delete.
+        if (url.includes('/web-interface/view')) {
+          return new Response(JSON.stringify({ code: 0, data: { aid: 12345 } }), { status: 200 })
+        }
+        return new Response(JSON.stringify({ code: 0, data: {} }), { status: 200 })
+      })
+    )
+    await deleteWatchLater(creds, 'BV1zRKD6FEBq')
+    const del = calls.find((c) => c.url.includes('/toview/del'))
+    expect(del?.body).toContain('aid=12345')
+    expect(del?.body).not.toContain('bvid')
+    expect(del?.body).toContain('csrf=j')
   })
 })
 

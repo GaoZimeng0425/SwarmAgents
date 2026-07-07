@@ -173,9 +173,15 @@ export async function getCid(c: BiliCredentials, bvid: string): Promise<number> 
   return data.cid
 }
 
-// Remove a single video from the user's watch-later list.
+// Remove a single video from the user's watch-later list. The toview/del
+// endpoint keys on the numeric aid (passing bvid returns -400 请求错误), so
+// resolve the aid from the view endpoint first.
 export async function deleteWatchLater(c: BiliCredentials, bvid: string): Promise<void> {
-  await post<unknown>('https://api.bilibili.com/x/v2/history/toview/del', { bvid }, c)
+  const { aid } = await get<{ aid: number }>(
+    `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
+    c
+  )
+  await post<unknown>('https://api.bilibili.com/x/v2/history/toview/del', { aid: String(aid) }, c)
 }
 
 // Remove a single resource from a favorites folder. Bilibili's batch-del takes
