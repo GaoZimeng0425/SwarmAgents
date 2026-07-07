@@ -62,31 +62,30 @@ export function HomeDashboard(): React.JSX.Element {
         {/* Composer */}
         <section className="flex flex-col gap-4">
           <h2 className="font-semibold text-[26px] text-foreground tracking-tight">今天想让 swarm 做点什么?</h2>
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <ChatInput
-              agentType={agentType}
-              cwd={cwd}
-              disabled={!ready}
-              executionMode={executionMode}
-              onAgentTypeChange={setAgentType}
-              onCwdChange={setCwd}
-              onExecutionModeChange={setExecutionMode}
-              onPermissionModeChange={setPermissionMode}
-              onSubmit={async (goal, attachments) => {
-                if (!ready) return
-                const { sessionId } = await submitGoal.mutateAsync({
-                  goal,
-                  attachments,
-                  options: { cwd, permissionMode, executionMode, agentType },
-                })
-                void navigate({ to: '/session/$sessionId', params: { sessionId } })
-              }}
-              permissionMode={permissionMode}
-              placeholder="描述一个目标,或按 ⌘⏎ 从剪贴板开始…"
-              supportsImages={!!providerViewById(state, state.active)?.supportsImages}
-              teamOptions={teamOptions}
-            />
-          </div>
+          <ChatInput
+            agentType={agentType}
+            cwd={cwd}
+            disabled={!ready}
+            executionMode={executionMode}
+            onAgentTypeChange={setAgentType}
+            onCwdChange={setCwd}
+            onExecutionModeChange={setExecutionMode}
+            onPermissionModeChange={setPermissionMode}
+            onSubmit={async (goal, attachments) => {
+              if (!ready) return
+              const { sessionId } = await submitGoal.mutateAsync({
+                goal,
+                attachments,
+                options: { cwd, permissionMode, executionMode, agentType },
+              })
+              void navigate({ to: '/session/$sessionId', params: { sessionId } })
+            }}
+            permissionMode={permissionMode}
+            placeholder="描述一个目标,或按 ⌘⏎ 从剪贴板开始…"
+            supportsImages={!!providerViewById(state, state.active)?.supportsImages}
+            teamOptions={teamOptions}
+            variant="hero"
+          />
         </section>
 
         {/* 天气 */}

@@ -63,6 +63,11 @@ type Props = {
   // surface (bg-popover) so they layer above the translucent input field.
   // Undefined on the home screen, where there is nothing to pin.
   overlay?: React.ReactNode
+  // Visual variant. 'default' is the session-view bottom bar (max-w-3xl, its own
+  // outer padding, subtle input surface). 'hero' is the dashboard: a full-width,
+  // elevated single panel (raised surface + real shadow) so the box reads as a
+  // distinct, floating composer rather than a flat card the same color as the page.
+  variant?: 'default' | 'hero'
 }
 
 type ModelOption = { providerId: string; providerName: string; modelId: string; key: string }
@@ -294,6 +299,7 @@ export function ChatInput({
   agentType,
   onAgentTypeChange,
   overlay,
+  variant = 'default',
 }: Props): React.JSX.Element {
   const { state } = useProviders()
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
@@ -427,9 +433,21 @@ export function ChatInput({
     contextTokens === undefined,
   ])
 
+  const hero = variant === 'hero'
   return (
-    <div className="shrink-0 px-4 pt-2 pb-4" ref={containerRef}>
-      <div className="mx-auto max-w-3xl [&_[data-slot=input-group]]:rounded-xl" ref={composerRef}>
+    <div className={hero ? undefined : 'shrink-0 px-4 pt-2 pb-4'} ref={containerRef}>
+      <div
+        className={
+          hero
+            ? // The InputGroup IS the composer panel: a raised surface (bg-secondary,
+              // distinct from the page-colored bg-card in dark mode), one hairline
+              // border, and a real drop shadow so it floats — full-width, no session
+              // padding or max-w-3xl. Matches the Hi-fi design's elevated input box.
+              '[&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-secondary [&_[data-slot=input-group]]:shadow-black/20 [&_[data-slot=input-group]]:shadow-lg'
+            : 'mx-auto max-w-3xl [&_[data-slot=input-group]]:rounded-xl'
+        }
+        ref={composerRef}
+      >
         {overlay}
         <PromptInput
           accept={supportsImages ? ATTACHMENT_ACCEPT : DOCUMENT_ACCEPT}
