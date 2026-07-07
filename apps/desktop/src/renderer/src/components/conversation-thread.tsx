@@ -114,11 +114,12 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
       items={items}
       renderItem={(it: TimelineItem) => (
         // user-content re-enables text selection (globals.css disables it on chrome).
-        // px-4 + pb-8 restore the old ConversationContent (p-4 + gap-8) spacing, but as
-        // padding so it lives INSIDE measureElement's box — react-virtual's `gap` option
-        // interacted badly with dynamic re-measurement (overlapping rows, expand not
-        // reflowing). Padding is measured, so the virtualizer accounts for it correctly.
-        <div className="user-content mx-auto max-w-3xl px-4 pb-8">{it.node}</div>
+        // px-4 + pb-5 sets the inter-turn spacing as bottom padding (not a flex
+        // `gap`), so it lives INSIDE measureElement's box — react-virtual's `gap`
+        // option interacted badly with dynamic re-measurement (overlapping rows,
+        // expand not reflowing). Padding is measured, so the virtualizer accounts
+        // for it correctly.
+        <div className="user-content mx-auto max-w-3xl px-4 pb-5">{it.node}</div>
       )}
     >
       <FocusProbe focusTaskId={focusTaskId} />

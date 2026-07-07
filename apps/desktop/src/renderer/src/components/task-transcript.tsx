@@ -48,6 +48,12 @@ function toolState(ok: boolean | null): 'input-available' | 'output-available' |
   return ok ? 'output-available' : 'output-error'
 }
 
+// Shared chrome for the collapsible transcript cards (Thinking / Tools / Subagent
+// / event). A solid raised surface (bg-secondary) — not a near-transparent tint —
+// so the card reads as distinct from the chat canvas it sits on.
+const TRANSCRIPT_CARD =
+  'rounded-xl border border-border/60 bg-secondary px-4 py-3 text-xs transition-colors hover:border-border'
+
 // Collapsible "Thinking" block: open while reasoning streams, auto-collapses
 // once the answer begins (live → false). The user can still toggle it.
 function ReasoningBlock({ text, live }: { text: string; live: boolean }): React.JSX.Element {
@@ -59,7 +65,7 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }): React.
   }, [live])
 
   return (
-    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+    <div className={TRANSCRIPT_CARD}>
       <button
         className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
         onClick={() => setOpen((v) => !v)}
@@ -138,7 +144,7 @@ function SubagentBlock({
   }, [running])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+    <div className={cn('overflow-hidden', TRANSCRIPT_CARD)}>
       <button
         className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
         onClick={() => setOpen((v) => !v)}
@@ -160,7 +166,7 @@ function SubagentBlock({
       </button>
       {open && (
         <ScrollArea className="mt-3" viewportClassName="max-h-96">
-          <div className="space-y-4">
+          <div className="space-y-3">
             {groupSegments(segs).map((item) =>
               item.kind === 'single' ? (
                 renderSegment(item.seg, item.seg.key === lastKey)
@@ -195,7 +201,7 @@ function ToolGroupBlock({
   const names = uniq(segs.map((s) => (s.kind === 'tool' ? s.tool : '')))
 
   return (
-    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+    <div className={TRANSCRIPT_CARD}>
       <button
         className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
         onClick={() => setOpen((v) => !v)}
@@ -214,7 +220,7 @@ function ToolGroupBlock({
         )}
         <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
       </button>
-      {open && <div className="mt-3 space-y-4">{segs.map((seg) => renderSegment(seg, false, true))}</div>}
+      {open && <div className="mt-3 space-y-3">{segs.map((seg) => renderSegment(seg, false, true))}</div>}
     </div>
   )
 }
@@ -235,7 +241,7 @@ function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): 
   const preview = seg.output ? seg.output.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined
 
   return (
-    <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs">
+    <div className={TRANSCRIPT_CARD}>
       <button
         className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
         onClick={() => setOpen((v) => !v)}
@@ -256,7 +262,7 @@ function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): 
         </span>
       </button>
       {open && (
-        <div className="mt-3 space-y-4">
+        <div className="mt-3 space-y-3">
           <ToolInput input={seg.input} />
           {seg.imagePath && <ToolImage path={seg.imagePath} />}
           <ToolOutput
@@ -390,10 +396,7 @@ function createSegmentRenderer(opts: {
     // 'event' and 'error' both render as a compact muted details row.
     const label = seg.label
     return (
-      <details
-        className="group rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-xs transition-all hover:border-border hover:bg-muted/40"
-        key={seg.key}
-      >
+      <details className={cn('group', TRANSCRIPT_CARD)} key={seg.key}>
         <summary className="flex cursor-pointer select-none items-center gap-2 font-mono text-[11px] text-muted-foreground/80 hover:text-muted-foreground">
           <ChevronRight className="size-3.5 transition-transform duration-200 group-open:rotate-90" />
           <span className="font-semibold uppercase tracking-wider">{label}</span>
