@@ -12,7 +12,6 @@ import { buildTimeline } from '@/lib/workspace/build-timeline'
 import { usePermissionStore } from '@/stores/permission'
 import { ApprovalTab } from './approval-tab'
 import { ArtifactsTab } from './artifacts-tab'
-import { PlanUsageFooter } from './plan-usage-footer'
 import { TimelineTab } from './timeline-tab'
 
 type Props = {
@@ -89,11 +88,8 @@ export function WorkspacePanel({ runs, planGroups, session, onDecide }: Props): 
           </Button>
         </div>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="plan">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="cmdscroll flex-1 overflow-y-auto">
-              <PlanPanel groups={planGroups} />
-            </div>
-            <PlanUsageFooter runs={runs} tokensUsed={session?.tokensUsed} />
+          <div className="cmdscroll min-h-0 flex-1 overflow-y-auto">
+            <PlanPanel groups={planGroups} />
           </div>
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="timeline">

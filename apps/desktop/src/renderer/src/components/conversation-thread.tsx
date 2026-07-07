@@ -11,8 +11,6 @@ import { buildThreadItems, useTimelineRenderer } from '@/components/task-transcr
 import { StickToBottomList, useStickToBottomList } from '@/components/viewers/stick-to-bottom-list'
 import { RUNS_KEY } from '@/hooks/use-runs'
 import type { TimelineItem } from '@/lib/build-timeline-items'
-import { formatUsage, usageTooltip } from '@/lib/format-usage'
-import { sessionDisplayUsage } from '@/lib/session-usage'
 
 type Props = {
   tasks: RunRecord[]
@@ -77,38 +75,23 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
   // Optional-chain: hooks (useTimelineRenderer/useMemo) run before the empty-state
   // early return, so `busy` must tolerate tasks=[] (last undefined → busy false).
   const busy = last?.status === 'running' || last?.status === 'pending'
-  // Usage footer: cost + calls are the cumulative session total; the token
-  // figure is the latest turn's context size. See sessionDisplayUsage.
-  const usage = sessionDisplayUsage(tasks)
   const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onDelete, onSend })
 
   const items = useMemo(() => {
     const thread = buildThreadItems(tasks, renderSegment, { busy, showDayDividers: true })
-    // Busy spinner / usage footer rides as the timeline's tail so stick-to-bottom
-    // keeps it pinned while streaming. seq = MAX sorts it after every segment.
+    // While a turn is in flight, a thinking/queued spinner rides the tail so
+    // stick-to-bottom keeps it pinned (seq = MAX sorts it last). Token/cost
+    // detail lives in the composer's context ring, not a footer here.
     const footer = busy ? (
       <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">
         <Spinner className="size-4 text-primary" />
         <span className="font-medium">{last.status === 'pending' ? '排队中…' : '正在思考…'}</span>
-        {usage && (
-          <span className="text-xs opacity-60" title={usageTooltip(usage)}>
-            · {formatUsage(usage)}
-          </span>
-        )}
-      </div>
-    ) : usage ? (
-      <div
-        className="flex items-center gap-2 border-border/30 border-t px-1 pt-4 text-muted-foreground text-xs opacity-60"
-        title={usageTooltip(usage)}
-      >
-        <div className="size-1 rounded-full bg-border" />
-        {formatUsage(usage)}
       </div>
     ) : null
     return footer
       ? [...thread, { key: '__footer', node: footer, seq: Number.MAX_SAFE_INTEGER, ts: Date.now() }]
       : thread
-  }, [tasks, renderSegment, busy, last, usage])
+  }, [tasks, renderSegment, busy, last])
 
   if (tasks.length === 0) {
     return (

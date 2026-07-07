@@ -26,7 +26,6 @@ vi.mock('@/components/plan-panel', () => ({ PlanPanel: () => <div data-testid="p
 vi.mock('./timeline-tab', () => ({ TimelineTab: () => <div data-testid="timeline-tab" /> }))
 vi.mock('./artifacts-tab', () => ({ ArtifactsTab: () => <div data-testid="artifacts-tab" /> }))
 vi.mock('./approval-tab', () => ({ ApprovalTab: () => <div data-testid="approval-tab" /> }))
-vi.mock('./plan-usage-footer', () => ({ PlanUsageFooter: () => <div data-testid="plan-footer" /> }))
 vi.mock('@/lib/workspace/build-timeline', () => ({ buildTimeline: () => [] }))
 
 import { WorkspacePanel } from './workspace-panel'
