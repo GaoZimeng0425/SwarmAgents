@@ -38,36 +38,35 @@ function SessionIndexView(): React.JSX.Element {
   }, [select])
 
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-1 flex-col items-center justify-center gap-6 px-6 py-8">
-      <div className="w-full space-y-3 text-center">
-        <h2 className="font-semibold text-foreground text-xl tracking-tight">开始一段新对话</h2>
-        <p className="text-muted-foreground text-sm">从左侧选择一个会话,或在下方直接发起。</p>
-      </div>
-      <div className="w-full rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <ChatInput
-          agentType={agentType}
-          cwd={cwd}
-          disabled={!ready}
-          executionMode={executionMode}
-          onAgentTypeChange={setAgentType}
-          onCwdChange={setCwd}
-          onExecutionModeChange={setExecutionMode}
-          onPermissionModeChange={setPermissionMode}
-          onSubmit={async (goal, attachments) => {
-            if (!ready) return
-            const { sessionId } = await submitGoal.mutateAsync({
-              goal,
-              attachments,
-              options: { cwd, permissionMode, executionMode, agentType },
-            })
-            void navigate({ to: '/session/$sessionId', params: { sessionId } })
-          }}
-          permissionMode={permissionMode}
-          placeholder="描述一个目标,或按 ⌘⏎ 从剪贴板开始…"
-          supportsImages={!!providerViewById(state, state.active)?.supportsImages}
-          teamOptions={teamOptions}
-        />
-      </div>
+    // Empty conversation state: the same hero composer as the 任务台 home so
+    // starting a chat here looks identical to starting one on the dashboard,
+    // just centered in the conversation scene (session list stays on the left).
+    <div className="mx-auto flex h-full w-full max-w-[820px] flex-col justify-center gap-4 px-6 py-8">
+      <h2 className="font-semibold text-[26px] text-foreground tracking-tight">今天想让 swarm 做点什么?</h2>
+      <ChatInput
+        agentType={agentType}
+        cwd={cwd}
+        disabled={!ready}
+        executionMode={executionMode}
+        onAgentTypeChange={setAgentType}
+        onCwdChange={setCwd}
+        onExecutionModeChange={setExecutionMode}
+        onPermissionModeChange={setPermissionMode}
+        onSubmit={async (goal, attachments) => {
+          if (!ready) return
+          const { sessionId } = await submitGoal.mutateAsync({
+            goal,
+            attachments,
+            options: { cwd, permissionMode, executionMode, agentType },
+          })
+          void navigate({ to: '/session/$sessionId', params: { sessionId } })
+        }}
+        permissionMode={permissionMode}
+        placeholder="描述一个目标,或按 ⌘⏎ 从剪贴板开始…"
+        supportsImages={!!providerViewById(state, state.active)?.supportsImages}
+        teamOptions={teamOptions}
+        variant="hero"
+      />
     </div>
   )
 }

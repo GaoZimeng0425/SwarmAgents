@@ -58,46 +58,51 @@ export function HomeDashboard(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <DashboardTopbar runningCount={running.length} />
 
-      <div className="mx-auto flex w-full max-w-[1088px] flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
-        {/* Composer */}
-        <section className="flex flex-col gap-4">
-          <h2 className="font-semibold text-[26px] text-foreground tracking-tight">今天想让 swarm 做点什么?</h2>
-          <ChatInput
-            agentType={agentType}
-            cwd={cwd}
-            disabled={!ready}
-            executionMode={executionMode}
-            onAgentTypeChange={setAgentType}
-            onCwdChange={setCwd}
-            onExecutionModeChange={setExecutionMode}
-            onPermissionModeChange={setPermissionMode}
-            onSubmit={async (goal, attachments) => {
-              if (!ready) return
-              const { sessionId } = await submitGoal.mutateAsync({
-                goal,
-                attachments,
-                options: { cwd, permissionMode, executionMode, agentType },
-              })
-              void navigate({ to: '/session/$sessionId', params: { sessionId } })
-            }}
-            permissionMode={permissionMode}
-            placeholder="描述一个目标,或按 ⌘⏎ 从剪贴板开始…"
-            supportsImages={!!providerViewById(state, state.active)?.supportsImages}
-            teamOptions={teamOptions}
-            variant="hero"
-          />
-        </section>
+      {/* Scroll container; the inner wrapper is min-h-full + justify-center so
+          the content vertically centers when it fits and scrolls from the top
+          (no clipping) when it's taller than the viewport. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-[1088px] flex-col justify-center gap-6 px-6 py-5">
+          {/* Composer */}
+          <section className="flex flex-col gap-4">
+            <h2 className="font-semibold text-[26px] text-foreground tracking-tight">今天想让 swarm 做点什么?</h2>
+            <ChatInput
+              agentType={agentType}
+              cwd={cwd}
+              disabled={!ready}
+              executionMode={executionMode}
+              onAgentTypeChange={setAgentType}
+              onCwdChange={setCwd}
+              onExecutionModeChange={setExecutionMode}
+              onPermissionModeChange={setPermissionMode}
+              onSubmit={async (goal, attachments) => {
+                if (!ready) return
+                const { sessionId } = await submitGoal.mutateAsync({
+                  goal,
+                  attachments,
+                  options: { cwd, permissionMode, executionMode, agentType },
+                })
+                void navigate({ to: '/session/$sessionId', params: { sessionId } })
+              }}
+              permissionMode={permissionMode}
+              placeholder="描述一个目标,或按 ⌘⏎ 从剪贴板开始…"
+              supportsImages={!!providerViewById(state, state.active)?.supportsImages}
+              teamOptions={teamOptions}
+              variant="hero"
+            />
+          </section>
 
-        {/* 天气 */}
-        <WeatherCard />
+          {/* 天气 */}
+          <WeatherCard />
 
-        {/* 进行中 */}
-        <RunningCards awaiting={awaiting} running={running} />
+          {/* 进行中 */}
+          <RunningCards awaiting={awaiting} running={running} />
 
-        {/* 定时任务 + 最近完成 */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ScheduledList rows={cronRows} />
-          <RecentList now={now} rows={recentRows} />
+          {/* 定时任务 + 最近完成 */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ScheduledList rows={cronRows} />
+            <RecentList now={now} rows={recentRows} />
+          </div>
         </div>
       </div>
     </div>

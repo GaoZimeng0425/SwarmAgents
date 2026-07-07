@@ -22,18 +22,7 @@ import {
   Input,
 } from '@swarm/ui'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  CalendarClock,
-  ChevronRight,
-  Folder,
-  Loader2,
-  Pencil,
-  Pin,
-  PinOff,
-  Search,
-  SquarePen,
-  Trash2,
-} from 'lucide-react'
+import { CalendarClock, ChevronRight, Folder, Loader2, Pencil, Pin, PinOff, Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -107,7 +96,7 @@ function SortableDirectoryGroup({
         <span className="flex-1 truncate">{label}</span>
         <span className="shrink-0 text-muted-foreground/50 tabular-nums">{count}</span>
       </button>
-      {!collapsed && <div className="mt-1 ml-2 flex flex-col gap-1 border-border/30 border-l pl-2">{children}</div>}
+      {!collapsed && <div className="mt-0.5 ml-2 flex flex-col gap-0.5 border-border/30 border-l pl-2">{children}</div>}
     </div>
   )
 }
@@ -231,9 +220,11 @@ export function SessionList(): React.JSX.Element {
   }
 
   // Don't create a session here — that left empty sessions behind. Route to the
-  // landing composer at `/`; the session is created lazily on the first message.
+  // conversation-scene composer at `/session` (keeps the session list visible);
+  // the session is created lazily on the first message. Staying in-scene avoids
+  // bouncing the user back to the dashboard just to start a new chat.
   const onNew = (): void => {
-    void navigate({ to: '/' })
+    void navigate({ to: '/session' })
   }
 
   const onSelect = (id: string): void => {
@@ -284,6 +275,17 @@ export function SessionList(): React.JSX.Element {
     const tokens = s.tokensUsed ?? 0
     const usageLabel = cents > 0 ? `$${(cents / 100).toFixed(2)}` : tokens > 0 ? formatTokens(tokens) : null
     const usageTitle = `${formatTokens(tokens)} tokens · $${(cents / 100).toFixed(2)}`
+    const isSelected = selected === s.id
+    // Active sessions (running / awaiting) get a second line with their status
+    // and cost (Hi-fi 3b); idle sessions stay single-line with cost inline.
+    const statusText =
+      status === 'running'
+        ? progress && progress.total > 0
+          ? `运行中 · ${progress.done}/${progress.total} 步`
+          : '运行中'
+        : status === 'awaiting'
+          ? '等待审批'
+          : null
 
     if (renamingId === s.id) {
       return (
@@ -307,46 +309,54 @@ export function SessionList(): React.JSX.Element {
         <ContextMenuTrigger
           render={
             <button
-              aria-current={selected === s.id ? 'true' : undefined}
+              aria-current={isSelected ? 'true' : undefined}
               className={cn(
-                'group relative flex w-full min-w-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sidebar-foreground/70 text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground',
-                selected === s.id && 'bg-sidebar-accent font-medium text-sidebar-foreground shadow-sm'
+                'group flex w-full min-w-0 flex-col gap-1 rounded-[10px] border border-transparent px-2.5 py-2 text-left transition-colors',
+                isSelected ? 'border-sidebar-border bg-sidebar-accent' : 'hover:bg-sidebar-accent/50'
               )}
               onClick={() => onSelect(s.id)}
               title={title}
               type="button"
             >
-              {selected === s.id && <div className="absolute top-2 bottom-2 left-0 w-1 rounded-full bg-primary" />}
-              {selected !== s.id && unread[s.id] && (
+              {/* Line 1: status/pin/unread marker + title (+ cost when idle). */}
+              <div className="flex min-w-0 items-center gap-2">
+                {status === 'running' && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+                {status === 'awaiting' && (
+                  <span
+                    aria-label="Awaiting input"
+                    className="size-1.5 shrink-0 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                    role="img"
+                  />
+                )}
+                {status === 'idle' && s.pinned && <Pin className="size-3 shrink-0 rotate-45 text-primary/70" />}
+                {status === 'idle' && !s.pinned && !isSelected && unread[s.id] && (
+                  <span aria-label="Unread activity" className="size-1.5 shrink-0 rounded-full bg-primary" role="img" />
+                )}
                 <span
-                  aria-label="Unread activity"
-                  className="absolute top-1 left-1 size-1.5 rounded-full bg-primary"
-                  role="img"
-                />
-              )}
-              {s.pinned && <Pin className="size-3 shrink-0 rotate-45 text-primary/70" />}
-              <span className="flex-1 truncate leading-tight">{title}</span>
-              {usageLabel && status === 'idle' && (
-                <span className="shrink-0 text-[11px] text-muted-foreground/50 tabular-nums" title={usageTitle}>
-                  {usageLabel}
+                  className={cn(
+                    'min-w-0 flex-1 truncate text-[13px] leading-tight',
+                    isSelected ? 'font-medium text-sidebar-foreground' : 'text-sidebar-foreground/70'
+                  )}
+                >
+                  {title}
                 </span>
-              )}
-              {status === 'running' && (
-                <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 tabular-nums">
-                  {progress && progress.total > 0 && (
-                    <span title={`步骤 ${progress.done}/${progress.total}`}>
-                      {progress.done}/{progress.total}
+                {!statusText && usageLabel && (
+                  <span className="shrink-0 text-[11px] text-muted-foreground/50 tabular-nums" title={usageTitle}>
+                    {usageLabel}
+                  </span>
+                )}
+              </div>
+              {/* Line 2 (active only): status text + cost. */}
+              {statusText && (
+                <div className="flex items-center gap-1 pl-3.5 text-[11px] text-muted-foreground">
+                  <span className="truncate">{statusText}</span>
+                  <span className="flex-1" />
+                  {usageLabel && (
+                    <span className="shrink-0 text-muted-foreground/60 tabular-nums" title={usageTitle}>
+                      {usageLabel}
                     </span>
                   )}
-                  <Loader2 aria-label="Running" className="size-3 animate-spin text-primary" />
-                </span>
-              )}
-              {status === 'awaiting' && (
-                <span
-                  aria-label="Awaiting input"
-                  className="size-1.5 shrink-0 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                  role="img"
-                />
+                </div>
               )}
             </button>
           }
@@ -385,14 +395,13 @@ export function SessionList(): React.JSX.Element {
             <button
               aria-current={selected === s.id ? 'true' : undefined}
               className={cn(
-                'group relative flex w-full min-w-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sidebar-foreground/80 text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground',
-                selected === s.id && 'bg-sidebar-accent font-medium text-sidebar-foreground shadow-sm'
+                'group flex w-full min-w-0 items-center gap-2 rounded-[10px] border border-transparent px-2.5 py-2 text-left text-[13px] text-sidebar-foreground/80 transition-colors',
+                selected === s.id ? 'border-sidebar-border bg-sidebar-accent' : 'hover:bg-sidebar-accent/50'
               )}
               onClick={() => onSelect(s.id)}
               title="定时任务"
               type="button"
             >
-              {selected === s.id && <div className="absolute top-2 bottom-2 left-0 w-1 rounded-full bg-primary" />}
               <CalendarClock className="size-4 shrink-0 text-primary/80" />
               <span className="flex-1 truncate font-medium leading-tight">定时任务</span>
               {status === 'running' && (
@@ -430,45 +439,50 @@ export function SessionList(): React.JSX.Element {
   return (
     // The sidebar header (toggle + nav arrows) already clears the traffic
     // lights, so the action rows start with only a small top gap.
-    <div className="flex h-full flex-col gap-1 px-3 pt-2 pb-2">
-      <button
-        className="flex h-10 shrink-0 items-center gap-2.5 rounded-xl bg-primary/10 px-4 text-left font-semibold text-primary text-sm transition-all hover:bg-primary/15 active:scale-[0.98]"
-        onClick={() => void onNew()}
-        type="button"
-      >
-        <SquarePen className="size-4 shrink-0 stroke-[2.5px]" />
-        New chat
-      </button>
-      <button
-        className="flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-3.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-tight transition-colors hover:bg-muted/30 hover:text-foreground"
-        onClick={() => openSearch()}
-        type="button"
-      >
-        <Search className="size-3.5 shrink-0" />
-        Search
-        <kbd className="ml-auto font-sans text-[10px] text-muted-foreground/60 normal-case tracking-normal">⌘K</kbd>
-      </button>
-
-      {/* Segmented control: flat list vs. directory grouping. Persisted. */}
-      <div className="mt-2 flex shrink-0 rounded-lg bg-muted/40 p-0.5 text-xs">
-        {segments.map((seg) => (
+    <div className="flex h-full flex-col px-2 pt-4 pb-2">
+      {/* Compact header (Hi-fi 3b): title + search + new-chat, then the mode toggle. */}
+      <div className="flex shrink-0 flex-col gap-2.5 px-1.5 pb-2.5">
+        <div className="flex items-center gap-2">
+          <span className="flex-1 font-semibold text-[13px] text-sidebar-foreground">对话</span>
           <button
-            className={cn(
-              'flex-1 rounded-md px-2 py-1 font-medium transition-colors',
-              mode === seg.value
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            key={seg.value}
-            onClick={() => setMode(seg.value)}
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            onClick={() => openSearch()}
+            title="搜索 ⌘K"
             type="button"
           >
-            {seg.label}
+            <Search className="size-4" />
           </button>
-        ))}
+          <button
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:opacity-90 active:scale-95"
+            onClick={() => void onNew()}
+            title="New chat"
+            type="button"
+          >
+            <Plus className="size-4 stroke-[2.5px]" />
+          </button>
+        </div>
+
+        {/* Segmented control: flat list vs. directory grouping. Persisted. */}
+        <div className="flex rounded-[9px] bg-muted/40 p-0.5 text-[11.5px]">
+          {segments.map((seg) => (
+            <button
+              className={cn(
+                'flex-1 rounded-[7px] px-2 py-1 font-medium transition-colors',
+                mode === seg.value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              key={seg.value}
+              onClick={() => setMode(seg.value)}
+              type="button"
+            >
+              {seg.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <ScrollArea className="mt-2 min-h-0 flex-1">
+      <ScrollArea className="mt-1 min-h-0 flex-1">
         {systemSession && (
           <div className="mb-1 flex flex-col gap-1 border-border/30 border-b pb-1">
             {renderSystemRow(systemSession)}
@@ -483,7 +497,7 @@ export function SessionList(): React.JSX.Element {
             sensors={sensors}
           >
             <SortableContext items={userVisibleSessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-0.5">
                 {userVisibleSessions.map((s) => renderSortableRow(s))}
                 {userVisibleSessions.length === 0 && (
                   <p className="px-3 py-2 text-muted-foreground text-xs">
@@ -501,7 +515,7 @@ export function SessionList(): React.JSX.Element {
             sensors={sensors}
           >
             <SortableContext items={groups.map((g) => g.dir)} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-0.5">
                 {groups.map((group) => (
                   <SortableDirectoryGroup
                     collapsed={Boolean(collapsed[group.dir])}
