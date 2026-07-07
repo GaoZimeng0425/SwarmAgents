@@ -15,6 +15,7 @@ import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as GmailRouteImport } from './routes/gmail'
 import { Route as FormationsRouteImport } from './routes/formations'
 import { Route as BilibiliRouteImport } from './routes/bilibili'
+import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionIndexRouteImport } from './routes/session.index'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
@@ -49,6 +50,11 @@ const BilibiliRoute = BilibiliRouteImport.update({
   path: '/bilibili',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ArticlesRoute = ArticlesRouteImport.update({
+  id: '/articles',
+  path: '/articles',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -67,6 +73,7 @@ const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
   '/gmail': typeof GmailRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
   '/gmail': typeof GmailRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
   '/gmail': typeof GmailRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/articles'
     | '/bilibili'
     | '/formations'
     | '/gmail'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/articles'
     | '/bilibili'
     | '/formations'
     | '/gmail'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/articles'
     | '/bilibili'
     | '/formations'
     | '/gmail'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ArticlesRoute: typeof ArticlesRoute
   BilibiliRoute: typeof BilibiliRoute
   FormationsRoute: typeof FormationsRoute
   GmailRoute: typeof GmailRoute
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BilibiliRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/articles': {
+      id: '/articles'
+      path: '/articles'
+      fullPath: '/articles'
+      preLoaderRoute: typeof ArticlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -217,6 +237,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ArticlesRoute: ArticlesRoute,
   BilibiliRoute: BilibiliRoute,
   FormationsRoute: FormationsRoute,
   GmailRoute: GmailRoute,
