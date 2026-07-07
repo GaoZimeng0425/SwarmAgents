@@ -427,6 +427,9 @@ importers:
 
   apps/extension:
     dependencies:
+      '@mozilla/readability':
+        specifier: ^0.6.0
+        version: 0.6.0
       '@swarm/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -439,6 +442,9 @@ importers:
       react-dom:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
+      turndown:
+        specifier: ^7.2.4
+        version: 7.2.4
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.2
@@ -449,9 +455,15 @@ importers:
       '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.17)
+      '@types/turndown':
+        specifier: ^5.0.5
+        version: 5.0.6
       '@wxt-dev/module-react':
         specifier: latest
         version: 1.2.2(@rolldown/plugin-babel@0.2.3(@babel/core@8.0.1)(@babel/plugin-transform-runtime@7.29.7(@babel/core@8.0.1))(@babel/runtime@7.29.7)(rolldown@1.1.4)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.0)(yaml@2.9.0)))(babel-plugin-react-compiler@1.0.0)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.0)(yaml@2.9.0))(wxt@0.20.27(@types/node@26.1.0)(jiti@2.7.0)(rolldown@1.1.4)(terser@5.48.0)(tsx@4.23.0)(yaml@2.9.0))
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1(@noble/hashes@2.2.0)
       tailwindcss:
         specifier: ^4.3.2
         version: 4.3.2
