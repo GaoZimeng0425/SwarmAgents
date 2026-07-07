@@ -4,6 +4,9 @@
 // Count rule (locked): the header count = running.length ONLY (pending+running),
 // not awaiting — matching the top-bar pill. Awaiting cards still render here.
 
+import { Inbox } from 'lucide-react'
+
+import { DashboardEmpty } from '@/components/views/dashboard/dashboard-empty'
 import { RunningCard } from '@/components/views/dashboard/running-card'
 import type { DashboardRun } from '@/lib/dashboard-runs'
 
@@ -15,9 +18,7 @@ export function RunningCards({ running, awaiting }: Props): React.JSX.Element | 
     return (
       <section>
         <h2 className="mb-3 font-semibold text-[13px] text-foreground">进行中</h2>
-        <p className="rounded-xl border border-border border-dashed bg-muted/20 px-4 py-6 text-center text-[13px] text-muted-foreground">
-          暂无运行中的任务。从上方描述一个目标开始。
-        </p>
+        <DashboardEmpty icon={Inbox}>暂无运行中的任务。从上方描述一个目标开始。</DashboardEmpty>
       </section>
     )
   }

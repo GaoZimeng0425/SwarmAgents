@@ -2,8 +2,9 @@
 // status). "查看日历 →" links to /scheduled. Empty state when no jobs exist.
 
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, CalendarClock } from 'lucide-react'
 
+import { DashboardEmpty } from '@/components/views/dashboard/dashboard-empty'
 import type { DashboardCronRow } from '@/lib/dashboard-cron'
 import { cn } from '@/lib/utils'
 
@@ -22,9 +23,7 @@ export function ScheduledList({ rows }: Props): React.JSX.Element | null {
     return (
       <section>
         <h2 className="mb-3 font-semibold text-[13px] text-foreground">定时任务</h2>
-        <p className="rounded-xl border border-border bg-card px-4 py-6 text-center text-[13px] text-muted-foreground">
-          暂无定时任务。在「对话」中创建一个定时任务后会显示在这里。
-        </p>
+        <DashboardEmpty icon={CalendarClock}>暂无定时任务。在「对话」中创建一个定时任务后会显示在这里。</DashboardEmpty>
       </section>
     )
   }
@@ -42,7 +41,7 @@ export function ScheduledList({ rows }: Props): React.JSX.Element | null {
           <ArrowRight aria-hidden="true" className="size-3" />
         </button>
       </h2>
-      <ul className="overflow-hidden rounded-xl border border-border bg-card">
+      <ul className="overflow-hidden rounded-2xl border border-border bg-card">
         {rows.map((r, i) => (
           <li
             className={cn('flex items-center gap-2.5 px-4 py-3', i < rows.length - 1 && 'border-border/60 border-b')}

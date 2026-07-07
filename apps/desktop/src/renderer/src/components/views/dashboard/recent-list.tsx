@@ -2,8 +2,9 @@
 // relative time). Clicking a row reopens the session. Empty state when none.
 
 import { useNavigate } from '@tanstack/react-router'
-import { Check } from 'lucide-react'
+import { Check, CheckCircle2 } from 'lucide-react'
 
+import { DashboardEmpty } from '@/components/views/dashboard/dashboard-empty'
 import type { DashboardRecentRow } from '@/lib/dashboard-recent'
 import { formatRelativeTime } from '@/lib/format-time'
 import { cn } from '@/lib/utils'
@@ -17,9 +18,7 @@ export function RecentList({ rows, now }: Props): React.JSX.Element | null {
     return (
       <section>
         <h2 className="mb-3 font-semibold text-[13px] text-foreground">最近完成</h2>
-        <p className="rounded-xl border border-border bg-card px-4 py-6 text-center text-[13px] text-muted-foreground">
-          还没有完成的任务。完成的会话会显示在这里。
-        </p>
+        <DashboardEmpty icon={CheckCircle2}>还没有完成的任务。完成的会话会显示在这里。</DashboardEmpty>
       </section>
     )
   }
@@ -27,7 +26,7 @@ export function RecentList({ rows, now }: Props): React.JSX.Element | null {
   return (
     <section>
       <h2 className="mb-3 font-semibold text-[13px] text-foreground">最近完成</h2>
-      <ul className="overflow-hidden rounded-xl border border-border bg-card">
+      <ul className="overflow-hidden rounded-2xl border border-border bg-card">
         {rows.map((r, i) => (
           <li
             className={cn('flex items-center gap-2.5 px-4 py-3', i < rows.length - 1 && 'border-border/60 border-b')}
