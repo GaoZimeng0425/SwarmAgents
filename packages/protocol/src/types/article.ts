@@ -70,15 +70,18 @@ export const ArticleAnalysisDeltaEvent = z.object({
   text: z.string(),
   ts: z.number(),
 })
+export type ArticleAnalysisDeltaEvent = z.infer<typeof ArticleAnalysisDeltaEvent>
 export const ArticleAnalysisCompleteEvent = z.object({
   kind: z.literal('article.analysisComplete'),
   articleId: z.string(),
   summary: ArticleSummary,
   ts: z.number(),
 })
+export type ArticleAnalysisCompleteEvent = z.infer<typeof ArticleAnalysisCompleteEvent>
 export const ArticleAnalysisErrorEvent = z.object({
   kind: z.literal('article.analysisError'),
   articleId: z.string(),
   error: z.string(),
   ts: z.number(),
 })
+export type ArticleAnalysisErrorEvent = z.infer<typeof ArticleAnalysisErrorEvent>

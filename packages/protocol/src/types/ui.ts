@@ -10,6 +10,14 @@
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
 import type {
+  AnalyzeArticleResult,
+  ArticleAnalysisCompleteEvent,
+  ArticleAnalysisDeltaEvent,
+  ArticleAnalysisErrorEvent,
+  ArticleSummary,
+  CollectedArticleWithAnalysis,
+} from './article'
+import type {
   BiliAnalysis,
   BiliDeleteResult,
   BiliListResult,
@@ -99,6 +107,9 @@ export type UIEvent =
       seq?: number
     }
   | { kind: 'gmail.threadAnalysisError'; threadId: string; error: string; ts: number; seq?: number }
+  | ArticleAnalysisDeltaEvent
+  | ArticleAnalysisCompleteEvent
+  | ArticleAnalysisErrorEvent
 
 export type SessionSummary = {
   id: string
@@ -447,6 +458,12 @@ export type SwarmBridge = {
     listAll(): Promise<ScheduledTask[]>
     listAllRuns(): Promise<CronRun[]>
     cancel(id: string): Promise<void>
+  }
+  article: {
+    list(): Promise<CollectedArticleWithAnalysis[]>
+    analyze(articleId: string): Promise<AnalyzeArticleResult>
+    getAnalysis(articleId: string): Promise<{ summary: ArticleSummary | null; analyzedAt: string | null }>
+    delete(articleId: string): Promise<void>
   }
   /** Build a markdown transcript of a session and write it to the exports dir. */
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>

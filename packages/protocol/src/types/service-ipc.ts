@@ -39,6 +39,11 @@ export type ServiceMethod =
   | 'cancelCronJob'
   | 'analyzeEmail'
   | 'analyzeThread'
+  | 'collectArticle'
+  | 'analyzeArticle'
+  | 'listArticles'
+  | 'getArticleAnalysis'
+  | 'deleteArticle'
   | 'exportSessionMarkdown'
 
 export type ServiceRequest = {
