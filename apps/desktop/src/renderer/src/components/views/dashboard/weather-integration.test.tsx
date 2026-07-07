@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-// Integration test: does NOT mock @/hooks/use-weather. Proves the shared-store
-// fix — the strip fetches once, and the drawer/detail (mounted later) read the
-// SAME forecast rather than an independent, still-null state instance.
+// Integration test: does NOT mock @/hooks/use-weather. Proves the shared-cache
+// behaviour — the strip fetches once, and the drawer/detail (mounted later) read
+// the SAME forecast from React Query's cache, not an independent null instance.
 import '@testing-library/jest-dom/vitest'
 import type { WeatherConfigView, WeatherForecast } from '@swarm/protocol'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -90,7 +91,12 @@ afterEach(cleanup)
 describe('weather card + drawer integration (real shared store)', () => {
   it('drawer/detail read the same forecast the strip fetched', async () => {
     const { WeatherCard } = await import('./weather-card')
-    render(<WeatherCard />)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <WeatherCard />
+      </QueryClientProvider>
+    )
 
     // Strip loads from the real store (temp is a big number + a separate ° glyph).
     expect(await screen.findByText('28')).toBeInTheDocument()

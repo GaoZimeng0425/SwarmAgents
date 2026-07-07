@@ -1,9 +1,9 @@
 // Dashboard weather widget — compact status strip (matches the 首页 Dashboard
-// design). Sole fetch owner (geolocation on mount + visibility auto-refresh).
-// Overview only; clicking opens WeatherDrawer for the full detail. Unconfigured
-// → a one-row link into Settings → weather. The panel uses a raised surface
-// (bg-secondary) so it doesn't sink into the page-colored background.
-import { useEffect, useState } from 'react'
+// design). A pure reader of useWeather's React Query forecast (caching + refresh
+// live there). Overview only; clicking opens WeatherDrawer for the full detail.
+// Unconfigured → a one-row link into Settings → weather. The panel uses a raised
+// surface (bg-secondary) so it doesn't sink into the page-colored background.
+import { useState } from 'react'
 import { Button } from '@swarm/ui'
 import { ChevronRight, TriangleAlert } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer } from 'recharts'
@@ -14,24 +14,11 @@ import { WeatherDrawer } from './weather-drawer'
 import { aqiHex, weatherEmoji } from './weather-shared'
 
 export function WeatherCard(): React.JSX.Element {
+  // Fetching, caching (staleTime), and window-focus refresh are all owned by the
+  // React Query query inside useWeather — the strip is a pure reader now.
   const { config, forecast, status, error, refresh } = useWeather()
   const { openSettings } = useSettingsNav()
   const [drawerOpen, setDrawerOpen] = useState(false)
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  useEffect(() => {
-    const onVis = (): void => {
-      if (document.visibilityState === 'visible') {
-        const age = forecast ? Date.now() - forecast.fetchedAt : Number.POSITIVE_INFINITY
-        if (age > 30 * 60_000) void refresh()
-      }
-    }
-    document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
-  }, [forecast, refresh])
 
   const configured = !!config.projectId && !!config.credentialId && config.hasPrivateKey
   if (!configured) {
@@ -80,20 +67,23 @@ function StripContent({
   refresh: () => Promise<void>
   onOpenDrawer: () => void
 }): React.JSX.Element {
-  if (status === 'locating' || status === 'fetching') return <StripSkeleton />
-
-  if (status === 'error') {
-    return (
-      <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary px-4 py-3">
-        <span className="text-destructive text-sm">{error ?? '天气获取失败'}</span>
-        <Button onClick={() => void refresh()} size="sm" variant="ghost">
-          重试
-        </Button>
-      </div>
-    )
+  // Cold state — nothing cached yet: show the error card (with retry) or the
+  // loading skeleton. Once a forecast exists we never fall back here, so a
+  // background refresh (or a failed one) keeps the last-known reading on screen
+  // instead of flashing a skeleton — stale-while-revalidate.
+  if (!forecast) {
+    if (status === 'error') {
+      return (
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary px-4 py-3">
+          <span className="text-destructive text-sm">{error ?? '天气获取失败'}</span>
+          <Button onClick={() => void refresh()} size="sm" variant="ghost">
+            重试
+          </Button>
+        </div>
+      )
+    }
+    return <StripSkeleton />
   }
-
-  if (!forecast) return <StripSkeleton />
 
   const now = forecast.now
   const h0 = forecast.hours[0]

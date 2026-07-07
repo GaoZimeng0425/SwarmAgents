@@ -1,6 +1,7 @@
 // Right-side Sheet that shows the full weather detail. Presentation-only: reads
-// the same useWeather() store as the strip (opening it never triggers a fetch);
-// the ↻ button reuses the store's refresh(). Scroll uses ScrollArea per project rule.
+// the same useWeather() forecast as the strip (a fresh cache hit, so opening it
+// never triggers a fetch); the ↻ button reuses refresh(). Scroll uses ScrollArea
+// per project rule.
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@swarm/ui'
 import { RefreshCw } from 'lucide-react'
@@ -18,7 +19,7 @@ export function WeatherDrawer({
   onOpenChange: (o: boolean) => void
 }): React.JSX.Element {
   const { forecast, refresh, status } = useWeather()
-  const busy = status === 'locating' || status === 'fetching'
+  const busy = status === 'fetching'
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       <SheetContent className="flex w-[440px] flex-col p-0 sm:max-w-[440px]" side="right">
