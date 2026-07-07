@@ -5,7 +5,9 @@ import type {
   AgentDefinition,
   AgentListItem,
   AgentMutationResult,
+  AnalyzeArticleResult,
   ApiStyle,
+  ArticleSummary,
   BiliAnalysis,
   BilibiliBridge,
   BiliDeleteResult,
@@ -26,6 +28,7 @@ import type {
   CalendarEvent,
   CalendarLocalInput,
   CalendarSetResult,
+  CollectedArticleWithAnalysis,
   GmailBridge,
   GmailClientCreds,
   GmailConfigView,
@@ -366,6 +369,17 @@ const swarm: SwarmBridge = {
     listAll: () => ipcRenderer.invoke('swarm:listAllCronJobs') as Promise<import('@swarm/protocol').ScheduledTask[]>,
     listAllRuns: () => ipcRenderer.invoke('swarm:listAllCronRuns') as Promise<import('@swarm/protocol').CronRun[]>,
     cancel: (id: string) => ipcRenderer.invoke('swarm:cancelCronJob', id) as Promise<void>,
+  },
+  article: {
+    list: () => ipcRenderer.invoke('swarm:article:list') as Promise<CollectedArticleWithAnalysis[]>,
+    analyze: (articleId: string) =>
+      ipcRenderer.invoke('swarm:article:analyze', articleId) as Promise<AnalyzeArticleResult>,
+    getAnalysis: (articleId: string) =>
+      ipcRenderer.invoke('swarm:article:getAnalysis', articleId) as Promise<{
+        summary: ArticleSummary | null
+        analyzedAt: string | null
+      }>,
+    delete: (articleId: string) => ipcRenderer.invoke('swarm:article:delete', articleId) as Promise<void>,
   },
   exportSessionMarkdown: (sessionId: string) =>
     ipcRenderer.invoke('swarm:exportSessionMarkdown', sessionId) as Promise<{ path: string }>,
