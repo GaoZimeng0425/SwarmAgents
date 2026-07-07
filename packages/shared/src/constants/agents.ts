@@ -1,6 +1,6 @@
 import type { AgentDefinition } from '@swarm/protocol'
 
-import { DEFAULT_SYSTEM_PROMPT } from '../agents/default-prompt'
+import { ARTICLE_ANALYST_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT } from '../agents/default-prompt'
 
 // Agent types shipped with the app: always available, versioned in code, and
 // merged into the on-disk agent store (a user definition of the same id wins).
@@ -408,6 +408,16 @@ const baseAgents: AgentDefinition[] = [
     maxIterations: 1,
     role: 'gmail-thread-analyst',
     capabilities: ['gmail-thread-analyze'],
+    skills: [],
+  },
+  {
+    id: 'article-analyst',
+    name: '文章分析',
+    description: '分析用户收集的文章,输出结构化中文摘要(一句话结论/核心要点/可带走洞察)。',
+    systemPrompt: ARTICLE_ANALYST_SYSTEM_PROMPT,
+    maxIterations: 2,
+    role: 'article-analyst',
+    capabilities: ['article-analyze'],
     skills: [],
   },
   {
