@@ -11,16 +11,20 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@swarm/protocol": "workspace:*",
     "@swarm/ui": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "turndown": "^7.2.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
+    "@types/turndown": "^5.0.5",
     "@wxt-dev/module-react": "latest",
+    "jsdom": "^29.1.1",
     "tailwindcss": "catalog:",
     "tw-animate-css": "catalog:",
     "typescript": "catalog:",

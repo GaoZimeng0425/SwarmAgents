@@ -1,4 +1,12 @@
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './types/agent'
+import type {
+  AnalyzeArticleRequest,
+  AnalyzeArticleResult,
+  ArticleSource,
+  ArticleSummary,
+  CollectArticleResult,
+  CollectedArticleWithAnalysis,
+} from './types/article'
 import type { BudgetConfig } from './types/budgets'
 import type { McpServerConfig, McpServerStatus } from './types/mcp'
 import type { MemoryView } from './types/memory'
@@ -39,6 +47,11 @@ export type ServiceClient = {
   ): Promise<{ runId: string }>
   analyzeEmail(req: import('./types/ui').AnalyzeEmailRequest): Promise<import('./types/ui').AnalyzeEmailResult>
   analyzeThread(req: import('./types/ui').AnalyzeThreadRequest): Promise<import('./types/ui').AnalyzeThreadResult>
+  collectArticle(input: ArticleSource): Promise<CollectArticleResult>
+  analyzeArticle(req: AnalyzeArticleRequest): Promise<AnalyzeArticleResult>
+  listArticles(): Promise<CollectedArticleWithAnalysis[]>
+  getArticleAnalysis(articleId: string): Promise<{ summary: ArticleSummary | null; analyzedAt: string | null }>
+  deleteArticle(articleId: string): Promise<void>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
   getRunEvents(sessionId: string): Promise<import('./types/task').RunEvent[]>
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
@@ -149,6 +162,21 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     analyzeThread(req) {
       return call('analyzeThread', [req])
+    },
+    collectArticle(input) {
+      return call('collectArticle', [input])
+    },
+    analyzeArticle(req) {
+      return call('analyzeArticle', [req])
+    },
+    listArticles() {
+      return call('listArticles', [])
+    },
+    getArticleAnalysis(articleId) {
+      return call('getArticleAnalysis', [articleId])
+    },
+    async deleteArticle(articleId) {
+      await call('deleteArticle', [articleId])
     },
     listSessions() {
       return call('listSessions', [])

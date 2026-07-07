@@ -1,4 +1,13 @@
-import { CalendarClock, LayoutDashboard, Mail, MessageSquare, Network, TrendingUp, Video } from 'lucide-react'
+import {
+  CalendarClock,
+  LayoutDashboard,
+  Mail,
+  MessageSquare,
+  Network,
+  Newspaper,
+  TrendingUp,
+  Video,
+} from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import { isActive, isConversationScene, RAIL_SECTIONS, type RailItem } from '@/components/rail-config'
@@ -16,8 +25,8 @@ describe('RAIL_SECTIONS', () => {
 
   it('services list matches the design in order with the right icons', () => {
     const services = RAIL_SECTIONS[1].items
-    expect(services.map((i) => i.label)).toEqual(['Gmail', 'GitHub 趋势', 'Bilibili'])
-    expect(services.map((i) => i.icon)).toEqual([Mail, TrendingUp, Video])
+    expect(services.map((i) => i.label)).toEqual(['Gmail', 'GitHub 趋势', 'Bilibili', '文章'])
+    expect(services.map((i) => i.icon)).toEqual([Mail, TrendingUp, Video, Newspaper])
   })
 
   it('routes every route item to its expected path with the expected match mode (formations included, no automation/usage)', () => {
@@ -32,6 +41,7 @@ describe('RAIL_SECTIONS', () => {
       { key: 'gmail', to: '/gmail', match: 'exact' },
       { key: 'trending', to: '/trending', match: 'exact' },
       { key: 'bilibili', to: '/bilibili', match: 'exact' },
+      { key: 'article', to: '/articles', match: 'exact' },
     ])
   })
 

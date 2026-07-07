@@ -6,6 +6,9 @@ import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 import { defaultAgents, retiredBuiltinIds } from '@swarm/shared'
 
 import { createAgentStore, syncBuiltinAgents } from './agents/store'
+import { createAnalyzeArticle } from './article/analyze'
+import { createCollectArticle } from './article/collect'
+import { createArticleStore } from './article/store'
 import { createClaudeCodeManager } from './claude-code/manager'
 import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
@@ -45,6 +48,11 @@ const skillsPath = process.env.SWARM_SERVICE_SKILLS_PATH ?? join(tmpdir(), 'swar
 const agentsPath = process.env.SWARM_SERVICE_AGENTS_PATH ?? join(tmpdir(), 'swarm-agent-agents')
 // Session-markdown exports land here (the command palette's "export" action).
 const exportsDir = process.env.SWARM_SERVICE_EXPORTS_DIR ?? join(tmpdir(), 'swarm-agent-exports')
+// Collected-articles store. The store owns its filename (collected-articles.json,
+// see article/store.ts), so this is a directory, not a file path — mirroring the
+// agents/skills dir pattern. Defaults to tmpdir() in dev (Main pins the real
+// userData dir before spawning this process in production).
+const articlesDir = process.env.SWARM_SERVICE_ARTICLES_DIR ?? tmpdir()
 
 const store = createConversationStore(dbPath)
 const broadcaster = createBroadcaster((event, data) => parentPort.postMessage({ kind: 'event', event, data }))
@@ -62,6 +70,7 @@ const offSkillWatch = skillStore.watch(() => broadcaster.broadcast('skills.chang
 // without a manual reset. User-authored agents are untouched.
 syncBuiltinAgents(agentsPath, defaultAgents, retiredBuiltinIds)
 const agentStore = createAgentStore({ dir: agentsPath })
+const articleStore = createArticleStore({ userDataDir: articlesDir })
 // Reload + notify the renderer when the agents dir is edited outside the app
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // Agents view updates live instead of only after a restart.
@@ -160,6 +169,25 @@ const dispatch = createDispatcher({
   service,
   analyzeEmail: createAnalyzeEmail({ broadcaster, agentStore, toolRegistry, getBudgetConfig: () => budgetConfig }),
   analyzeThread: createAnalyzeThread({ broadcaster, agentStore, toolRegistry, getBudgetConfig: () => budgetConfig }),
+  collectArticle: createCollectArticle({ store: articleStore }),
+  analyzeArticle: createAnalyzeArticle({
+    broadcaster,
+    agentStore,
+    store: articleStore,
+    toolRegistry,
+    getBudgetConfig: () => budgetConfig,
+  }),
+  // The store's list/get/delete are sync; the dispatcher contract returns
+  // Promises for these (renderer awaits), so wrap them.
+  listArticles: () => Promise.resolve(articleStore.list()),
+  getArticleAnalysis: (id) => {
+    const r = articleStore.get(id)
+    return Promise.resolve({ summary: r?.summary ?? null, analyzedAt: r?.analyzedAt ?? null })
+  },
+  deleteArticle: (id) => {
+    articleStore.delete(id)
+    return Promise.resolve()
+  },
   registerProvider: (provider) => {
     providerRegistry.set(provider.id, provider)
   },

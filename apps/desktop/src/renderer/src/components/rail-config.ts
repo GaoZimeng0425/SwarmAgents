@@ -3,7 +3,16 @@
 // context (a pure-logic test pattern used elsewhere in this codebase).
 
 import type { ComponentType } from 'react'
-import { CalendarClock, LayoutDashboard, Mail, MessageSquare, Network, TrendingUp, Video } from 'lucide-react'
+import {
+  CalendarClock,
+  LayoutDashboard,
+  Mail,
+  MessageSquare,
+  Network,
+  Newspaper,
+  TrendingUp,
+  Video,
+} from 'lucide-react'
 
 export type RailTarget =
   // Navigates to a router path. `match` controls active-state matching:
@@ -55,6 +64,7 @@ export const RAIL_SECTIONS: RailSection[] = [
         target: { kind: 'route', to: '/trending', match: 'exact' },
       },
       { key: 'bilibili', label: 'Bilibili', icon: Video, target: { kind: 'route', to: '/bilibili', match: 'exact' } },
+      { key: 'article', label: '文章', icon: Newspaper, target: { kind: 'route', to: '/articles', match: 'exact' } },
     ],
   },
 ]

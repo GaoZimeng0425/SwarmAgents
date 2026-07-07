@@ -2,8 +2,9 @@
 
 // RPC client + transport (consumed unchanged by desktop, extension, RN)
 export * from './service-client'
-// Type modules
 export * from './types/agent'
+// Type modules
+export * from './types/article'
 export * from './types/bilibili'
 export * from './types/budgets'
 export * from './types/calendar'
