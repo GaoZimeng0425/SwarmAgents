@@ -2,7 +2,7 @@ import type { RunRecord } from '@shared/lib/apply-event'
 import type { SessionSummary } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
-import { selectDashboardRuns } from '@/lib/dashboard-runs'
+import { latestActivity, selectDashboardRuns } from '@/lib/dashboard-runs'
 
 const NOW = 1_000_000
 const run = (over: Partial<RunRecord> & Pick<RunRecord, 'id' | 'sessionId' | 'status'>): RunRecord => ({
@@ -95,5 +95,36 @@ describe('selectDashboardRuns', () => {
     const out = selectDashboardRuns([withPlan, noPlan], [], [], NOW)
     expect(out.running[0].steps).toBe('1/3')
     expect(out.running[1].steps).toBeNull()
+  })
+})
+
+const toolCall = (tool: string, args: unknown, seq: number): RunRecord['events'][number] =>
+  ({ kind: 'run.tool_call', sessionId: 's1', runId: '1', seq, ts: seq, tool, args }) as RunRecord['events'][number]
+
+describe('latestActivity', () => {
+  it('returns null when there are no tool calls', () => {
+    expect(latestActivity([])).toBeNull()
+  })
+
+  it('formats the most recent tool call as `${tool} ${argHint}`, newest wins', () => {
+    const events = [
+      toolCall('Read', { file_path: '/a.ts' }, 1),
+      toolCall('Bash', { command: 'pnpm vitest auth.test.ts' }, 2),
+    ]
+    expect(latestActivity(events)).toBe('Bash pnpm vitest auth.test.ts')
+  })
+
+  it('falls back to the bare tool name when args carries no display string', () => {
+    expect(latestActivity([toolCall('WebSearch', { limit: 5 }, 1)])).toBe('WebSearch')
+  })
+
+  it('picks file_path / pattern / url for non-command tools', () => {
+    expect(latestActivity([toolCall('Grep', { pattern: 'TODO' }, 1)])).toBe('Grep TODO')
+    expect(latestActivity([toolCall('WebFetch', { url: 'https://x.dev' }, 1)])).toBe('WebFetch https://x.dev')
+  })
+
+  it('is surfaced on DashboardRun.activity', () => {
+    const r = run({ id: '1', sessionId: 's1', status: 'running', events: [toolCall('Bash', { command: 'ls' }, 1)] })
+    expect(selectDashboardRuns([r], [], [], NOW).running[0].activity).toBe('Bash ls')
   })
 })

@@ -19,10 +19,12 @@ export function RunningCard({ run }: Props): React.JSX.Element {
   const navigate = useNavigate()
   const decidePermission = useDecidePermission()
   const awaiting = run.status === 'awaiting_user'
-  // The pending permission action id for this run's session, if any. The
-  // permission store keeps prompts in `queue` (an array of PermissionPrompt),
-  // keyed by actionId; we find the one matching this run's session.
-  const actionId = usePermissionStore((s) => s.queue.find((p) => p.sessionId === run.sessionId)?.actionId ?? null)
+  // The pending permission prompt for this run's session, if any. The permission
+  // store keeps prompts in `queue` (an array of PermissionPrompt); we find the
+  // one matching this run's session for both its actionId (to decide) and its
+  // human-readable `summary` (rendered as the "请求执行" preview on the card).
+  const prompt = usePermissionStore((s) => s.queue.find((p) => p.sessionId === run.sessionId) ?? null)
+  const actionId = prompt?.actionId ?? null
 
   const open = (): void => {
     void navigate({ to: '/session/$sessionId', params: { sessionId: run.sessionId } })
@@ -73,6 +75,22 @@ export function RunningCard({ run }: Props): React.JSX.Element {
       </div>
 
       <h3 className="line-clamp-1 font-semibold text-[14px] text-foreground">{run.goal}</h3>
+
+      {!awaiting && run.activity && (
+        // Latest tool activity — a mono one-liner (▸ tool + arg) in a subtle inset,
+        // matching the Hi-fi running card. Truncates; updates as the run advances.
+        <div className="truncate rounded-lg bg-foreground/5 px-2.5 py-1.5 font-mono text-[11.5px] text-muted-foreground">
+          ▸ {run.activity}
+        </div>
+      )}
+
+      {awaiting && prompt?.summary && (
+        // The pending request's human-readable summary (e.g. what command it wants
+        // to run), in an amber inset above the 允许/拒绝 buttons.
+        <div className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[11.5px] text-foreground/80 leading-relaxed">
+          {prompt.summary}
+        </div>
+      )}
 
       {run.steps && (
         <div className="mt-auto flex items-center justify-between text-[11.5px] text-muted-foreground">

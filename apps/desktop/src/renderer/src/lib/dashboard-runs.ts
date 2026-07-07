@@ -7,7 +7,7 @@
 // awaiting_user renders in the section but does NOT count toward the headline.
 
 import type { RunRecord, RunStatus } from '@shared/lib/apply-event'
-import type { PlanTodo, SessionSummary } from '@swarm/protocol'
+import type { PlanTodo, SessionSummary, UIEvent } from '@swarm/protocol'
 
 import type { TeamOption } from '@/hooks/use-agents'
 
@@ -26,6 +26,8 @@ export type DashboardRun = {
   agentLabel: string | undefined
   /** `"${completed}/${total}"` plan progress, or null when the run has no plan. */
   steps: string | null
+  /** Latest tool activity (e.g. `Bash pnpm vitest …`), or null when none yet. */
+  activity: string | null
 }
 
 const ACTIVE_RUNNING: ReadonlySet<RunStatus> = new Set(['pending', 'running'])
@@ -51,6 +53,7 @@ export function selectDashboardRuns(
       cwd: cwdBySession.get(r.sessionId),
       agentLabel: agentType ? (labelByAgent.get(agentType) ?? agentType) : undefined,
       steps: planSteps(r.plan),
+      activity: latestActivity(r.events),
     }
   }
 
@@ -75,4 +78,30 @@ function planSteps(plan: PlanTodo[] | undefined): string | null {
   if (!plan || plan.length === 0) return null
   const completed = plan.filter((t) => t.status === 'completed').length
   return `${completed}/${plan.length}`
+}
+
+// The run's most recent tool call, formatted as a one-line activity hint
+// (`"${tool} ${arg}"`, e.g. `Bash pnpm vitest auth.test.ts`). Scans events
+// newest-first for the last `run.tool_call`; returns null when the run hasn't
+// invoked a tool yet. Pure — the card renders it verbatim (with a ▸ prefix).
+export function latestActivity(events: UIEvent[]): string | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]
+    if (e.kind === 'run.tool_call') {
+      const hint = toolArgHint(e.args)
+      return hint ? `${e.tool} ${hint}` : e.tool
+    }
+  }
+  return null
+}
+
+// Best-effort single-line argument hint from a tool call's args. Reads the
+// common "primary input" fields across tools (Bash→command, Read/Edit→file_path,
+// Grep→pattern, WebFetch→url, …). Returns '' when args carries no display string,
+// so latestActivity falls back to the bare tool name.
+function toolArgHint(args: unknown): string {
+  if (!args || typeof args !== 'object') return ''
+  const a = args as Record<string, unknown>
+  const candidate = a.command ?? a.file_path ?? a.path ?? a.pattern ?? a.query ?? a.url ?? a.description
+  return typeof candidate === 'string' ? candidate.replace(/\s+/g, ' ').trim() : ''
 }
