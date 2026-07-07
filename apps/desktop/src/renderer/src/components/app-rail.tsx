@@ -1,5 +1,5 @@
 // 64px icon rail — the app's primary navigation. Two grouped sections
-// (场景 / 服务) rendered from rail-config.ts, plus a footer (用量 + 设置).
+// (场景 / 服务) rendered from rail-config.ts, plus a footer (工具 + 用量 + 设置).
 // Theme lives in Settings → 通用. All items are routes; 编队 goes to
 // /formations. Active state is derived from useLocation so prefix matches
 // (对话) light up correctly.
@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from '@tanstack/react-router'
 import { BarChart3, Settings } from 'lucide-react'
 
 import { isActive, RAIL_SECTIONS, type RailItem } from '@/components/rail-config'
+import { ToolsPopover } from '@/components/tools-popover'
 import { useSettingsNav } from '@/hooks/use-settings-nav'
 
 const iconBtn =
@@ -26,9 +27,19 @@ export function AppRail(): React.JSX.Element {
 
   return (
     // Full-height 64px column pinned left, translucent over window vibrancy.
-    // pt-9 keeps icons below the traffic-light band (the fixed TopBar owns
-    // that strip and overlays the rail's top).
-    <nav aria-label="主导航" className="flex w-16 shrink-0 flex-col items-center gap-1 bg-(--surface-rail) pt-9 pb-3">
+    // pt-9 keeps icons below the macOS traffic lights (positioned over the rail's
+    // top-left). The absolute strip below turns that top band into the window's
+    // drag region — there is no separate title bar.
+    <nav
+      aria-label="主导航"
+      className="relative flex w-16 shrink-0 flex-col items-center gap-1 bg-(--surface-rail) pt-9 pb-3"
+    >
+      {/* Window drag region over the traffic-light band (no native title bar). */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-9"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      />
       {RAIL_SECTIONS.map((section, sectionIdx) => (
         <div className="flex flex-col items-center gap-1" key={section.id}>
           {sectionIdx > 0 && <div aria-hidden="true" className="my-1 h-px w-6 bg-sidebar-border" />}
@@ -60,7 +71,11 @@ export function AppRail(): React.JSX.Element {
 
       <div className="flex-1" />
 
-      {/* Footer: 用量 (route) + 设置 (modal). Theme lives in Settings → 通用. */}
+      {/* Footer: 工具 (global MCP/skills toggles) + 用量 (route) + 设置 (modal).
+          Theme lives in Settings → 通用. */}
+      <div className="[&_button]:size-11 [&_button]:rounded-xl [&_svg]:size-5">
+        <ToolsPopover />
+      </div>
       <Tooltip>
         <TooltipTrigger
           render={

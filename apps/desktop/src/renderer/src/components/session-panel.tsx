@@ -6,12 +6,12 @@ import { SessionList } from '@/components/session-list'
 
 export function SessionPanel(): React.JSX.Element {
   return (
-    // 236px column (design-spec conversation-list width) flush to the rail.
-    // pt-9 clears the traffic-light band shared with the rail + fixed TopBar.
+    // 236px column (design-spec conversation-list width) flush to the rail. The
+    // header hugs the top edge (traffic lights sit over the rail, not here).
     // SessionList already manages its own scrolling internally (its own
     // ScrollArea wrapping the list region), so we must NOT wrap it again — a
     // double ScrollArea would fight over the viewport height.
-    <aside className="flex w-[236px] shrink-0 flex-col border-sidebar-border border-r bg-(--surface-panel) pt-9">
+    <aside className="flex w-[236px] shrink-0 flex-col border-sidebar-border border-r bg-(--surface-panel)">
       {/* min-h-0 so SessionList's inner ScrollArea can shrink and scroll
           within this flex column instead of overflowing it. */}
       <div className="min-h-0 flex-1">

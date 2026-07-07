@@ -9,9 +9,14 @@ export function DashboardTopbar({ runningCount }: Props): React.JSX.Element {
   const openSearch = useSearchDialog((s) => s.openSearch)
 
   return (
-    <div className="flex h-13 shrink-0 items-center gap-2.5 px-7">
+    // Doubles as the window drag region (no native title bar); interactive
+    // controls opt back out below.
+    <div
+      className="flex h-13 shrink-0 items-center gap-2.5 px-7"
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+    >
       <h1 className="font-semibold text-[13px] text-muted-foreground">任务台</h1>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {runningCount > 0 && (
           <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 font-medium text-[12px] text-primary">
             <span className="size-1.5 rounded-full bg-primary" />
