@@ -3,6 +3,7 @@ import { closestCenter, DndContext, type DragEndEvent, PointerSensor, useSensor,
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import type { RunRecord } from '@shared/lib/apply-event'
 import type { SessionSummary } from '@swarm/protocol'
 import {
   AlertDialog,
@@ -147,6 +148,26 @@ export function SessionList(): React.JSX.Element {
     return m
   }, [tasks])
 
+  // Step progress for running sessions (Hi-fi 3b: "运行中 · N/M 步"). Take the
+  // latest running top-level turn that has a plan and count completed steps.
+  const progressBySession = useMemo(() => {
+    const best = new Map<string, RunRecord>()
+    for (const t of tasks) {
+      if (t.parentRunId) continue
+      if (t.status !== 'running' && t.status !== 'pending') continue
+      if (!t.plan || t.plan.length === 0) continue
+      const cur = best.get(t.sessionId)
+      if (!cur || (t.startedAt ?? 0) > (cur.startedAt ?? 0)) best.set(t.sessionId, t)
+    }
+    const m = new Map<string, { done: number; total: number }>()
+    for (const [sid, t] of best) {
+      const total = t.plan?.length ?? 0
+      const done = t.plan?.filter((p) => p.status === 'completed').length ?? 0
+      m.set(sid, { done, total })
+    }
+    return m
+  }, [tasks])
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const systemSession = sessions.find((s) => s.isSystem)
@@ -255,6 +276,7 @@ export function SessionList(): React.JSX.Element {
   // Row renderer for the sortable session list.
   const renderRow = (s: SessionSummary): React.JSX.Element => {
     const status = statusBySession.get(s.id) ?? 'idle'
+    const progress = progressBySession.get(s.id)
     const title = s.title ?? 'Untitled chat'
     // Cumulative session usage (persisted, so it shows without opening the
     // session). Prefer cost; fall back to tokens for free-model sessions.
@@ -310,7 +332,14 @@ export function SessionList(): React.JSX.Element {
                 </span>
               )}
               {status === 'running' && (
-                <Loader2 aria-label="Running" className="size-3 shrink-0 animate-spin text-primary" />
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 tabular-nums">
+                  {progress && progress.total > 0 && (
+                    <span title={`步骤 ${progress.done}/${progress.total}`}>
+                      {progress.done}/{progress.total}
+                    </span>
+                  )}
+                  <Loader2 aria-label="Running" className="size-3 animate-spin text-primary" />
+                </span>
               )}
               {status === 'awaiting' && (
                 <span

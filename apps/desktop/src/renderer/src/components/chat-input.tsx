@@ -457,7 +457,7 @@ export function ChatInput({
         >
           <AttachmentThumbnails onOpenFile={setViewerFile} />
           <PromptInputBody>
-            <PromptInputTextarea autoFocus disabled={disabled} placeholder={placeholder ?? 'Message the swarm…'} />
+            <PromptInputTextarea autoFocus disabled={disabled} placeholder={placeholder ?? '追加说明或提出修改…'} />
           </PromptInputBody>
           <PromptInputFooter>
             <div className="flex w-full items-center overflow-hidden" ref={toolsRef}>

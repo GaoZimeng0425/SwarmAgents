@@ -1,15 +1,12 @@
 // src/renderer/src/components/chat-id-badge.tsx
 //
-// Floating chip at the chat area's top-left corner showing the current session
-// id. Click copies the full id. Pinned absolutely against the chat column (the
-// column itself never scrolls, so this behaves like a fixed overlay while the
-// inner conversation thread scrolls) — kept inside the column rather than
-// viewport-fixed so it tracks the sidebar and clears the macOS title bar.
+// Compact chip showing the current session id, rendered inline at the left of
+// the chat header (SessionHeader). Click copies the full id.
 import { useState } from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { Check, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@swarm/ui'
 import { useSessionsStore } from '@/stores/sessions'
 
 export function ChatIdBadge(): React.JSX.Element | null {
@@ -32,7 +29,7 @@ export function ChatIdBadge(): React.JSX.Element | null {
     <Tooltip>
       <TooltipTrigger
         aria-label="Copy chat ID"
-        className="absolute top-2 left-2 z-20 inline-flex h-7 items-center gap-1.5 rounded-full bg-muted/60 px-2.5 font-mono text-muted-foreground text-xs backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full bg-muted/50 px-2 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onCopy}
         type="button"
       >

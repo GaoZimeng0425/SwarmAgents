@@ -103,7 +103,7 @@ export function PlanPanel({ groups }: Props): React.JSX.Element {
       {groups.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 px-4 py-16 text-center text-muted-foreground/60">
           <ListChecks className="size-6 opacity-40" />
-          <span className="text-[13px]">No tasks yet</span>
+          <span className="text-[13px]">暂无任务</span>
         </div>
       ) : (
         <div className="flex flex-col gap-2 px-3 py-4">

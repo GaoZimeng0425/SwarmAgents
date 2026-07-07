@@ -11,7 +11,7 @@ export function SessionPanel(): React.JSX.Element {
     // SessionList already manages its own scrolling internally (its own
     // ScrollArea wrapping the list region), so we must NOT wrap it again — a
     // double ScrollArea would fight over the viewport height.
-    <aside className="flex w-[236px] shrink-0 flex-col border-sidebar-border border-r bg-sidebar pt-9">
+    <aside className="flex w-[236px] shrink-0 flex-col border-sidebar-border border-r bg-(--surface-panel) pt-9">
       {/* min-h-0 so SessionList's inner ScrollArea can shrink and scroll
           within this flex column instead of overflowing it. */}
       <div className="min-h-0 flex-1">

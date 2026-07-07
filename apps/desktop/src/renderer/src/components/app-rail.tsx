@@ -28,7 +28,7 @@ export function AppRail(): React.JSX.Element {
     // Full-height 64px column pinned left, translucent over window vibrancy.
     // pt-9 keeps icons below the traffic-light band (the fixed TopBar owns
     // that strip and overlays the rail's top).
-    <nav aria-label="主导航" className="flex w-16 shrink-0 flex-col items-center gap-1 bg-sidebar pt-9 pb-3">
+    <nav aria-label="主导航" className="flex w-16 shrink-0 flex-col items-center gap-1 bg-(--surface-rail) pt-9 pb-3">
       {RAIL_SECTIONS.map((section, sectionIdx) => (
         <div className="flex flex-col items-center gap-1" key={section.id}>
           {sectionIdx > 0 && <div aria-hidden="true" className="my-1 h-px w-6 bg-sidebar-border" />}

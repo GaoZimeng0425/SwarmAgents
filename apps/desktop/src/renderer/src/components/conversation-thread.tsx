@@ -89,7 +89,7 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
     const footer = busy ? (
       <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">
         <Spinner className="size-4 text-primary" />
-        <span className="font-medium">{last.status === 'pending' ? 'Queued…' : 'Swarm is thinking…'}</span>
+        <span className="font-medium">{last.status === 'pending' ? '排队中…' : '正在思考…'}</span>
         {usage && (
           <span className="text-xs opacity-60" title={usageTooltip(usage)}>
             · {formatUsage(usage)}
@@ -117,8 +117,8 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
           <MessagesSquare aria-hidden="true" className="size-6 opacity-60" />
         </div>
         <div className="space-y-1">
-          <h3 className="font-medium text-sm">No messages yet</h3>
-          <p className="text-muted-foreground text-sm">Send a message to start the conversation.</p>
+          <h3 className="font-medium text-sm">还没有消息</h3>
+          <p className="text-muted-foreground text-sm">发送一条消息,开始这段对话。</p>
         </div>
       </div>
     )

@@ -104,6 +104,13 @@
   /* Translucent material layered over vibrancy — content reads as more opaque
      than the sidebar, the way native split views do. */
   --window-content: oklch(1 0 0 / 75%);
+  /* Session-workstation elevation surfaces (Hi-fi 3b). Light mode preserves the
+     current look: rail/panels ride the sidebar tone, the chat rides the content
+     material. Dark mode (below) inverts the order so the chat is the lightest
+     central canvas. */
+  --surface-rail: oklch(0.985 0 0);
+  --surface-panel: oklch(0.985 0 0);
+  --surface-chat: oklch(1 0 0 / 75%);
   /* D.33: accent follows the system tint. --system-accent is written by the
      preload accent bridge; accent-color lets native form controls follow it
      too. Fallback is the macOS default blue. */
@@ -143,6 +150,13 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
   --window-content: oklch(0.18 0 0 / 65%);
+  /* 3b dark elevation: rail #19191b (darkest) < side panels #202022 (mid) < chat
+     #262628 (lightest central canvas). Panels keep a hint of translucency so the
+     window vibrancy still reads at the flanks; the chat is the most opaque so the
+     transcript stays legible. */
+  --surface-rail: oklch(0.19 0 0 / 72%);
+  --surface-panel: oklch(0.218 0 0 / 82%);
+  --surface-chat: oklch(0.255 0 0 / 92%);
   --primary: var(--system-accent, oklch(0.922 0 0));
   --primary-foreground: oklch(0.205 0 0);
   --sidebar-primary: var(--system-accent, oklch(0.488 0.243 264.376));

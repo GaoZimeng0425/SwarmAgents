@@ -31,7 +31,7 @@ export function WorkspacePanel({ runs, planGroups, session, onDecide }: Props): 
 
   if (collapsed) {
     return (
-      <div className="flex h-full shrink-0 flex-col items-center gap-2 border-border/60 border-l bg-[var(--window-content)] py-3">
+      <div className="flex h-full shrink-0 flex-col items-center gap-2 border-border/60 border-l bg-(--surface-panel) py-3">
         <Button aria-label="展开工作区" onClick={() => setCollapsed(false)} size="icon" variant="ghost">
           <PanelRightOpen className="size-5" />
         </Button>
@@ -40,7 +40,7 @@ export function WorkspacePanel({ runs, planGroups, session, onDecide }: Props): 
   }
 
   return (
-    <div className="flex h-full w-[300px] shrink-0 flex-col border-border/60 border-l bg-[var(--window-content)]">
+    <div className="flex h-full w-[300px] shrink-0 flex-col border-border/60 border-l bg-(--surface-panel)">
       <Tabs
         className="flex min-h-0 flex-1 flex-col gap-0"
         onValueChange={(v) => setTab(v as 'plan' | 'timeline' | 'artifacts' | 'approval')}

@@ -2,10 +2,10 @@ import type { ExecutionMode, PermissionMode, SessionSettings } from '@swarm/prot
 import { providerViewById } from '@swarm/protocol'
 import { sortBy } from 'es-toolkit'
 
-import { ChatIdBadge } from '@/components/chat-id-badge'
 import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
+import { SessionHeader } from '@/components/session-header'
 import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
 import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
@@ -85,6 +85,15 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const setAgentType = (id: string): void => persistSettings({ agentType: id })
   const taskOptions = { cwd, permissionMode, executionMode, agentType }
 
+  // Header status pill: awaiting approval outranks running (a paused turn is
+  // still "your move"); otherwise idle. Context readout follows the same latest
+  // top-level turn as the composer ring.
+  const headerStatus = sessionPrompts.length > 0 ? 'awaiting' : runningTask ? 'running' : 'idle'
+  const contextPct =
+    latestTask?.contextTokens && latestTask?.contextWindow
+      ? Math.round((latestTask.contextTokens / latestTask.contextWindow) * 100)
+      : undefined
+
   // The system session ("定时任务") only surfaces scheduled-run RESULTS — it is
   // read-only: no composer, no send/queue overlay, no right panel. Everything
   // else (a normal chat) renders the full composer below.
@@ -100,8 +109,8 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
 
   return (
     <div className="relative flex h-full min-w-0 overflow-hidden">
-      <ChatIdBadge />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col bg-(--surface-chat)">
+        <SessionHeader contextPct={contextPct} status={headerStatus} title={session?.title ?? '对话'} />
         <ConversationThread
           focusTaskId={focusTaskId}
           // Remount on session switch so StickToBottom's initial="instant" fires:
