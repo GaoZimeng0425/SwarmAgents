@@ -2,9 +2,9 @@ import { builtinModules, createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 
 // Build the externals list ourselves rather than relying solely on
 // externalizeDepsPlugin, because:
@@ -50,8 +50,8 @@ const mainExternal: Array<string | RegExp> = [
 
 export default defineConfig(({ command }) => ({
   main: {
-    plugins: [externalizeDepsPlugin()],
     build: {
+      externalizeDeps: true,
       rollupOptions: {
         external: mainExternal,
         input: {
@@ -79,7 +79,9 @@ export default defineConfig(({ command }) => ({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    build: {
+      externalizeDeps: true,
+    },
   },
   renderer: {
     resolve: {
@@ -107,7 +109,7 @@ export default defineConfig(({ command }) => ({
       },
     },
     plugins: [
-      TanStackRouterVite({
+      tanstackRouter({
         target: 'react',
         // Build-only: in dev, splitting each route's component into a lazy
         // chunk makes its deps (date-fns, lucide, ...) unreachable from the
