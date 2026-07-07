@@ -37,6 +37,25 @@ function formatListDate(ms: number): string {
   return sameDay ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString()
 }
 
+// Deterministic avatar (initial + color) from the sender name — matches the
+// design's colored initial bubbles. Colors are decorative brand-ish hex (white
+// text reads on all of them in light + dark), so they're inline, not tokens.
+const AVATAR_COLORS = ['#3478f6', '#1f9d43', '#ff9f0a', '#d0842b', '#c96442', '#5e5ce6', '#a259ff', '#5b5bd6']
+function avatarProps(name: string): { initial: string; bg: string } {
+  const trimmed = name.trim()
+  let h = 0
+  for (let i = 0; i < trimmed.length; i++) h = (h * 31 + trimmed.charCodeAt(i)) >>> 0
+  return { initial: (trimmed[0] ?? '?').toUpperCase(), bg: AVATAR_COLORS[h % AVATAR_COLORS.length] }
+}
+
+// One tag per thread, derived from the smart-group classification (design shows
+// 待回复 / 需处理 / 可归档 chips on rows). 'news'/'all' carry no tag.
+const GROUP_TAG: Partial<Record<GmailGroupKey, { label: string; cls: string }>> = {
+  reply: { label: '待回复', cls: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+  important: { label: '需处理', cls: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+  archive: { label: '可归档', cls: 'bg-muted text-muted-foreground' },
+}
+
 export function GmailInboxView(): React.JSX.Element {
   const qc = useQueryClient()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -100,12 +119,12 @@ export function GmailInboxView(): React.JSX.Element {
   const visibleThreads = activeGroup === 'all' ? threads : threads.filter((t) => classifyThread(t) === activeGroup)
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 p-5">
-      <header className="flex flex-col gap-3">
+    <div className="flex h-full w-full flex-col">
+      <header className="flex flex-col gap-3 px-5 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="font-semibold text-foreground text-xl">Gmail 收件箱</h1>
-            <p className="mt-0.5 text-muted-foreground text-sm">
+            <h1 className="font-semibold text-foreground text-xl tracking-tight">收件箱</h1>
+            <p className="mt-0.5 text-muted-foreground text-xs">
               {status.data?.accountEmail ?? '已连接'}
               {status.data?.lastSyncAt ? ` · 上次同步 ${new Date(status.data.lastSyncAt).toLocaleString()}` : ''}
             </p>
@@ -133,55 +152,97 @@ export function GmailInboxView(): React.JSX.Element {
         <GmailGroupBar active={activeGroup} groups={groupCounts} onPick={setActiveGroup} />
       </header>
 
-      <div className="flex min-h-0 flex-1 gap-4">
+      <div className="mt-3 flex min-h-0 flex-1 border-border/70 border-t">
         {/* Thread list */}
-        <div className="flex w-80 shrink-0 flex-col">
+        <div className="flex w-[352px] shrink-0 flex-col border-border/70 border-r">
           {list.isPending ? (
-            <ListSkeleton />
+            <div className="p-2">
+              <ListSkeleton />
+            </div>
           ) : visibleThreads.length === 0 ? (
             <CenteredMessage text={query.trim() ? '没有匹配的邮件' : '收件箱为空'} />
           ) : (
-            <ScrollArea className="-mr-2 min-h-0 flex-1 pr-2" edgeFade>
-              <ol className="flex flex-col gap-1">
-                {visibleThreads.map((t) => (
-                  <li key={t.id}>
-                    <button
-                      className={cn(
-                        'flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-card/80',
-                        selectedId === t.id ? 'bg-card' : 'bg-card/40'
-                      )}
-                      onClick={() => setSelectedId(t.id)}
-                      type="button"
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
+            <ScrollArea className="min-h-0 flex-1" edgeFade>
+              <ol className="flex flex-col gap-0.5 p-2">
+                {visibleThreads.map((t) => {
+                  const { initial, bg } = avatarProps(fromDisplay(t.fromAddr) || '?')
+                  const tag = GROUP_TAG[classifyThread(t)]
+                  return (
+                    <li key={t.id}>
+                      <button
+                        className={cn(
+                          'flex w-full gap-2.5 rounded-[10px] px-3 py-2.5 text-left transition-colors',
+                          selectedId === t.id
+                            ? 'border border-border bg-secondary shadow-sm'
+                            : 'border border-transparent hover:bg-secondary/60'
+                        )}
+                        onClick={() => setSelectedId(t.id)}
+                        type="button"
+                      >
                         <span
-                          className={cn(
-                            'truncate text-sm',
-                            t.unread ? 'font-semibold text-foreground' : 'text-foreground/80'
-                          )}
+                          aria-hidden
+                          className="flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-[12.5px] text-white"
+                          style={{ backgroundColor: bg }}
                         >
-                          {fromDisplay(t.fromAddr) || '(未知发件人)'}
+                          {initial}
                         </span>
-                        <span className="shrink-0 text-muted-foreground text-xs">{formatListDate(t.lastDateMs)}</span>
-                      </div>
-                      <span className={cn('truncate text-xs', t.unread ? 'text-foreground' : 'text-foreground/70')}>
-                        {t.subject || '(无主题)'}
-                      </span>
-                      <span className="line-clamp-1 text-muted-foreground text-xs">{t.snippet}</span>
-                    </button>
-                  </li>
-                ))}
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span
+                              className={cn(
+                                'truncate text-[13px]',
+                                t.unread ? 'font-bold text-foreground' : 'font-medium text-foreground/90'
+                              )}
+                            >
+                              {fromDisplay(t.fromAddr) || '(未知发件人)'}
+                            </span>
+                            <span className="shrink-0 text-[11px] text-muted-foreground">
+                              {formatListDate(t.lastDateMs)}
+                            </span>
+                          </span>
+                          <span
+                            className={cn(
+                              'truncate text-[12.5px]',
+                              t.unread ? 'font-semibold text-foreground/90' : 'text-foreground/70'
+                            )}
+                          >
+                            {t.subject || '(无主题)'}
+                          </span>
+                          <span className="line-clamp-1 text-[11.5px] text-muted-foreground">{t.snippet}</span>
+                          {tag && (
+                            <span className="mt-1 flex">
+                              <span
+                                className={cn('rounded px-1.5 py-0.5 font-semibold text-[10px] leading-none', tag.cls)}
+                              >
+                                {tag.label}
+                              </span>
+                            </span>
+                          )}
+                        </span>
+                        {t.unread && (
+                          <span
+                            aria-label="未读"
+                            className="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
+                            role="img"
+                          />
+                        )}
+                      </button>
+                    </li>
+                  )
+                })}
               </ol>
             </ScrollArea>
           )}
         </div>
 
         {/* Thread detail */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 bg-background/30">
           {selectedId === null ? (
             <CenteredMessage icon={<MailOpen className="size-8 text-muted-foreground" />} text="选择一封邮件查看" />
           ) : detail.isPending ? (
-            <DetailSkeleton />
+            <div className="p-6">
+              <DetailSkeleton />
+            </div>
           ) : !detail.data ? (
             <CenteredMessage text="未找到该邮件" />
           ) : (
@@ -241,11 +302,11 @@ function GmailThreadDetail({
   }
 
   return (
-    <ScrollArea className="h-full pr-2" edgeFade>
-      <div className="flex flex-col gap-4 pb-6">
+    <ScrollArea className="h-full" edgeFade>
+      <div className="flex flex-col gap-4 px-6 pt-5 pb-8">
         <div>
-          <h2 className="font-semibold text-foreground text-lg">{data.thread.subject || '(无主题)'}</h2>
-          <p className="mt-1 text-muted-foreground text-xs">{data.messages.length} 条消息</p>
+          <h2 className="font-semibold text-foreground text-lg leading-snug">{data.thread.subject || '(无主题)'}</h2>
+          <p className="mt-1.5 text-muted-foreground text-xs">{data.messages.length} 条消息</p>
         </div>
         <GmailAssistantCard analysis={analysis} messageCount={data.messages.length} onRegenerate={regenerate} />
         {data.messages.map((m) => (
@@ -257,21 +318,33 @@ function GmailThreadDetail({
 }
 
 function MessageCard({ m }: { m: GmailMessage }): React.JSX.Element {
+  const { initial, bg } = avatarProps(fromDisplay(m.fromAddr) || '?')
   return (
-    <article className="rounded-lg border border-border bg-card/60 p-4">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-medium text-foreground text-sm">{fromDisplay(m.fromAddr) || '(未知发件人)'}</div>
-          {m.toAddrs.length > 0 ? <div className="text-muted-foreground text-xs">致 {m.toAddrs.join(', ')}</div> : null}
+    <article className="rounded-xl border border-border bg-secondary p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+      <header className="mb-2.5 flex items-center gap-2.5">
+        <span
+          aria-hidden
+          className="flex size-[30px] shrink-0 items-center justify-center rounded-full font-semibold text-[12px] text-white"
+          style={{ backgroundColor: bg }}
+        >
+          {initial}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-[13px] text-foreground">{fromDisplay(m.fromAddr) || '(未知发件人)'}</div>
+          {m.toAddrs.length > 0 ? (
+            <div className="truncate text-[11px] text-muted-foreground">致 {m.toAddrs.join(', ')}</div>
+          ) : null}
         </div>
-        <time className="shrink-0 text-muted-foreground text-xs">
+        <time className="shrink-0 text-[11px] text-muted-foreground">
           {m.dateMs ? new Date(m.dateMs).toLocaleString() : ''}
         </time>
       </header>
       {m.htmlBody ? (
         <EmailHtml html={m.htmlBody} />
       ) : (
-        <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-foreground/90 text-sm">{m.bodyText}</pre>
+        <pre className="whitespace-pre-wrap break-words font-sans text-[13px] text-foreground/90 leading-relaxed">
+          {m.bodyText}
+        </pre>
       )}
     </article>
   )

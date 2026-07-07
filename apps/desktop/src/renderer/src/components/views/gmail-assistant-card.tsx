@@ -39,7 +39,7 @@ export function GmailAssistantCard({
         <span className="ml-auto text-[10.5px] text-violet-500/80">已读取全部 {messageCount} 条消息</span>
       </div>
 
-      <div className="flex flex-col gap-3 bg-card p-4">
+      <div className="flex flex-col gap-3 bg-secondary p-4">
         {analysis.phase === 'streaming' && (
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
             <Loader2 className="size-3.5 animate-spin" /> 分析中…
@@ -70,7 +70,7 @@ export function GmailAssistantCard({
         )}
 
         {analysis.phase === 'done' && analysis.suggest && (
-          <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+          <div className="rounded-lg border border-border/60 bg-background/50 p-3">
             <p className="mb-1.5 text-[10.5px] text-muted-foreground uppercase tracking-wide">建议回复</p>
             <p className="text-[12.5px] text-foreground/80">{analysis.suggest}</p>
             <div className="mt-2 flex gap-2">
