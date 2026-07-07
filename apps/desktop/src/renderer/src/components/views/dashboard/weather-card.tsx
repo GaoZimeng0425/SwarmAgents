@@ -1,10 +1,12 @@
-// Dashboard weather widget — compact strip. Sole fetch owner (geolocation on
-// mount + visibility auto-refresh). Overview only; clicking opens WeatherDrawer
-// for the full detail. Unconfigured → a one-row link into Settings → weather.
+// Dashboard weather widget — compact status strip (matches the 首页 Dashboard
+// design). Sole fetch owner (geolocation on mount + visibility auto-refresh).
+// Overview only; clicking opens WeatherDrawer for the full detail. Unconfigured
+// → a one-row link into Settings → weather. The panel uses a raised surface
+// (bg-secondary) so it doesn't sink into the page-colored background.
 import { useEffect, useState } from 'react'
 import { Button } from '@swarm/ui'
-import { ChevronRight } from 'lucide-react'
-import { Line, LineChart, ResponsiveContainer } from 'recharts'
+import { ChevronRight, TriangleAlert } from 'lucide-react'
+import { Area, AreaChart, ResponsiveContainer } from 'recharts'
 
 import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { useWeather } from '@/hooks/use-weather'
@@ -35,7 +37,7 @@ export function WeatherCard(): React.JSX.Element {
   if (!configured) {
     return (
       <button
-        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-3 text-left shadow-sm hover:border-foreground/20"
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-secondary px-4 py-3 text-left transition-colors hover:bg-secondary/80"
         onClick={() => openSettings('weather')}
         type="button"
       >
@@ -82,7 +84,7 @@ function StripContent({
 
   if (status === 'error') {
     return (
-      <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-5 py-3 shadow-sm">
+      <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary px-4 py-3">
         <span className="text-destructive text-sm">{error ?? '天气获取失败'}</span>
         <Button onClick={() => void refresh()} size="sm" variant="ghost">
           重试
@@ -98,63 +100,84 @@ function StripContent({
   const temp = Math.round(now?.temp ?? h0?.tempC ?? 0)
   const text = now?.text ?? h0?.text ?? ''
   const icon = now?.icon ?? h0?.icon ?? ''
+  const feelsLike = now ? Math.round(now.feelsLike) : null
   const pop = h0?.pop ?? 0
-  const spark = forecast.hours.map((h) => ({ t: h.tempC }))
+  const temps = forecast.hours.map((h) => h.tempC)
   const warning = forecast.warnings[0]
   const extraWarnings = forecast.warnings.length - 1
 
   return (
     <button
-      className="flex w-full items-center gap-4 rounded-2xl border border-border bg-card px-5 py-3 text-left shadow-sm hover:border-foreground/20"
+      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-secondary px-4 py-2.5 text-left transition-colors hover:border-foreground/20 hover:bg-secondary/80"
       onClick={onOpenDrawer}
       type="button"
     >
-      <span className="text-3xl">{weatherEmoji(icon)}</span>
-      <span className="font-semibold text-2xl tabular-nums">{temp}°</span>
-      <div className="min-w-0">
-        <div className="truncate font-medium text-sm">{forecast.location}</div>
-        <div className="truncate text-muted-foreground text-xs">
-          {text} · 降水 {pop}%
+      <span className="flex-none text-2xl leading-none">{weatherEmoji(icon)}</span>
+      <span className="flex-none items-baseline tabular-nums">
+        <span className="font-normal text-2xl">{temp}</span>
+        <span className="text-muted-foreground text-sm">°</span>
+      </span>
+      <div className="min-w-0 flex-none">
+        <div className="truncate font-semibold text-[12.5px] text-foreground">{forecast.location}</div>
+        <div className="truncate text-[11px] text-muted-foreground">
+          {text}
+          {feelsLike !== null && ` · 体感 ${feelsLike}°`} · 降水 {pop}%
         </div>
       </div>
-      <div className="ml-auto flex items-center gap-2">
-        {warning && (
-          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-600 text-xs dark:text-amber-400">
-            ⚠ {warning.typeName}预警
-            {extraWarnings > 0 && ` +${extraWarnings}`}
-          </span>
-        )}
-        {forecast.air && (
-          <span
-            className="rounded-full border px-2 py-0.5 font-semibold text-xs"
-            style={{ color: aqiHex(forecast.air.category), borderColor: aqiHex(forecast.air.category) }}
-          >
-            AQI {forecast.air.category} {forecast.air.aqi}
-          </span>
-        )}
-        {spark.length > 1 && (
-          <div className="h-8 w-[72px]">
-            <ResponsiveContainer height="100%" width="100%">
-              <LineChart data={spark} margin={{ top: 4, right: 2, bottom: 4, left: 2 }}>
-                <Line dataKey="t" dot={false} stroke="var(--muted-foreground)" strokeWidth={1.5} type="monotone" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-        <ChevronRight className="size-4 text-muted-foreground" />
-      </div>
+
+      <span className="flex-1" />
+
+      {warning && (
+        <span className="flex flex-none items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 font-semibold text-[10.5px] text-amber-600 dark:text-amber-400">
+          <TriangleAlert className="size-3" />
+          {warning.typeName}预警
+          {extraWarnings > 0 && ` +${extraWarnings}`}
+        </span>
+      )}
+      {forecast.air && (
+        <span
+          className="flex-none rounded-full px-2 py-1 font-semibold text-[10.5px]"
+          style={{ color: aqiHex(forecast.air.category), backgroundColor: `${aqiHex(forecast.air.category)}22` }}
+        >
+          AQI {forecast.air.category} {forecast.air.aqi}
+        </span>
+      )}
+      {temps.length > 1 && <Sparkline temps={temps} />}
+      <ChevronRight className="size-4 flex-none text-muted-foreground" />
     </button>
+  )
+}
+
+// Decorative 24h temperature trend: a gradient area sparkline (design accent
+// blue), no axes/tooltip. Fixed hue — a semantic weather-trend color that reads
+// on both the light and dark raised panel.
+function Sparkline({ temps }: { temps: number[] }): React.JSX.Element {
+  const data = temps.map((t) => ({ t }))
+  return (
+    <div className="h-[26px] w-20 flex-none">
+      <ResponsiveContainer height="100%" width="100%">
+        <AreaChart data={data} margin={{ top: 3, right: 0, bottom: 3, left: 0 }}>
+          <defs>
+            <linearGradient id="wx-spark" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#8ea3ff" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="#8ea3ff" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area dataKey="t" dot={false} fill="url(#wx-spark)" stroke="#8ea3ff" strokeWidth={1.8} type="monotone" />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
 function StripSkeleton(): React.JSX.Element {
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-3 shadow-sm">
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-secondary px-4 py-2.5">
       <div className="size-8 animate-pulse rounded bg-muted" />
       <div className="h-7 w-12 animate-pulse rounded bg-muted" />
       <div className="space-y-1.5">
         <div className="h-3.5 w-28 animate-pulse rounded bg-muted" />
-        <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-24 animate-pulse rounded bg-muted" />
       </div>
     </div>
   )

@@ -93,9 +93,11 @@ describe('WeatherCard', () => {
     }
     const { WeatherCard } = await import('./weather-card')
     render(<WeatherCard />)
-    expect(screen.getByText('28°')).toBeInTheDocument()
+    // Temp renders as a big number + a small muted degree glyph (two spans).
+    expect(screen.getByText('28')).toBeInTheDocument()
+    // Feels-like now also shows in the strip subline, so assert a drawer-unique
+    // string (能见度 / visibility tile) to confirm the drawer actually opened.
     fireEvent.click(screen.getByRole('button', { name: /北京市/ }))
-    // drawer renders the detail's feels-like line
-    expect(await screen.findByText(/体感 31°/)).toBeInTheDocument()
+    expect(await screen.findByText(/能见度/)).toBeInTheDocument()
   })
 })

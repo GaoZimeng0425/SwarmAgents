@@ -92,13 +92,15 @@ describe('weather card + drawer integration (real shared store)', () => {
     const { WeatherCard } = await import('./weather-card')
     render(<WeatherCard />)
 
-    // Strip loads from the real store.
-    expect(await screen.findByText('28°')).toBeInTheDocument()
+    // Strip loads from the real store (temp is a big number + a separate ° glyph).
+    expect(await screen.findByText('28')).toBeInTheDocument()
 
     // Opening the drawer must show the SAME forecast — not an independent,
-    // still-empty state instance.
+    // still-empty state instance. Assert drawer-unique content (the detail's
+    // 28°C block + 能见度 tile); 体感 also appears in the strip subline now, so
+    // it is not a drawer-unique signal.
     fireEvent.click(screen.getByRole('button', { name: /北京市/ }))
-    expect(await screen.findByText(/体感 31°/)).toBeInTheDocument()
+    expect(await screen.findByText('28°C')).toBeInTheDocument()
     expect(screen.getByText(/能见度/)).toBeInTheDocument()
     expect(screen.getByText(/16km/)).toBeInTheDocument()
   })
