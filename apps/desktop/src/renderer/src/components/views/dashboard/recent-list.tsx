@@ -26,7 +26,7 @@ export function RecentList({ rows, now }: Props): React.JSX.Element | null {
   return (
     <section>
       <h2 className="mb-3 font-semibold text-[13px] text-foreground">最近完成</h2>
-      <ul className="overflow-hidden rounded-2xl border border-border bg-card">
+      <ul className="overflow-hidden rounded-2xl border border-border bg-secondary">
         {rows.map((r, i) => (
           <li
             className={cn('flex items-center gap-2.5 px-4 py-3', i < rows.length - 1 && 'border-border/60 border-b')}

@@ -41,7 +41,7 @@ export function ScheduledList({ rows }: Props): React.JSX.Element | null {
           <ArrowRight aria-hidden="true" className="size-3" />
         </button>
       </h2>
-      <ul className="overflow-hidden rounded-2xl border border-border bg-card">
+      <ul className="overflow-hidden rounded-2xl border border-border bg-secondary">
         {rows.map((r, i) => (
           <li
             className={cn('flex items-center gap-2.5 px-4 py-3', i < rows.length - 1 && 'border-border/60 border-b')}

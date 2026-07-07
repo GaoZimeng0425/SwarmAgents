@@ -39,10 +39,14 @@ export function RunningCard({ run }: Props): React.JSX.Element {
     // biome-ignore lint/a11y/useSemanticElements: a real <button> here would force the inner 允许/拒绝 into nested buttons (invalid HTML); the div+role compromise keeps both accessible and valid.
     <div
       className={cn(
-        'flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border bg-card p-4 text-left transition-colors hover:bg-accent/30',
+        // Raised surface (bg-secondary) so the card floats above the page-colored
+        // background, matching the composer/weather elevation. Hover brightens the
+        // border (accent/secondary/muted are the same value in dark, so a bg hover
+        // would be a no-op).
+        'flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border bg-secondary p-4 text-left transition-colors',
         awaiting
           ? 'border-amber-400 shadow-[0_0_0_3px_rgba(226,176,107,0.14)] dark:border-amber-500/60'
-          : 'border-border'
+          : 'border-border hover:border-foreground/20'
       )}
       onClick={open}
       onKeyDown={(e) => {
