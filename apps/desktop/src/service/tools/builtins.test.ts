@@ -64,6 +64,18 @@ describe('registerBuiltinTools', () => {
     ])
   })
 
+  it('resolves render_ui by group.name, not bare name (gmail/article analysis allowlist)', () => {
+    // The analysis runs inject ['ui.render_ui']; a bare 'render_ui' matches
+    // nothing (specMatches wants group.name / group.*), leaving the agent with
+    // no tool so it prints the call as text.
+    expect(
+      make()
+        .resolve(['ui.render_ui'], ctx)
+        .tools.map((t) => t.name)
+    ).toEqual(['render_ui'])
+    expect(make().resolve(['render_ui'], ctx).tools).toEqual([])
+  })
+
   it('peekaboo.* resolves observation + interaction tools with proportional risk', () => {
     const { tools, riskOf } = make().resolve(['peekaboo.*'], ctx)
     expect(tools.map((t) => t.name).sort()).toEqual(['click', 'hotkey', 'list_apps', 'scroll', 'see_screen', 'type'])

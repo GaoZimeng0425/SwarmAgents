@@ -124,7 +124,7 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
       provider: applyAgentModel(req.provider, def),
       prompt,
       budget: deps.getBudgetConfig().sub,
-      tools: ['render_ui'],
+      tools: ['ui.render_ui'],
       maxIterationsOverride: def.maxIterations,
     }
 

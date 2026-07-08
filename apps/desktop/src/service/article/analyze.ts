@@ -131,7 +131,7 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
       provider: applyAgentModel(req.provider, def),
       prompt: analyzePrompt,
       budget: deps.getBudgetConfig().sub,
-      tools: ['render_ui'],
+      tools: ['ui.render_ui'],
       maxIterationsOverride: def.maxIterations,
     }
 
