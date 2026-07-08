@@ -19,6 +19,7 @@ function fakeStore(): ArticleStore {
     get: () => null,
     saveAnalysis: () => undefined,
     delete: () => undefined,
+    watch: () => () => undefined,
   }
 }
 

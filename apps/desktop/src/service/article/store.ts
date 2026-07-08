@@ -41,6 +41,11 @@ export type ArticleStore = {
   get(id: string): ArticleRecord | null
   saveAnalysis(id: string, summary: ArticleSummary): void
   delete(id: string): void
+  // Fire `onChange` whenever the store mutates (add/saveAnalysis/delete), so a
+  // caller can broadcast a `*.changed` UIEvent and let the renderer refetch.
+  // Unlike the agent store (chokidar file watch), this is an in-memory callback
+  // fired synchronously from the mutating methods. Returns a disposer.
+  watch(onChange: () => void): () => void
 }
 
 export function createArticleStore(deps: { userDataDir: string }): ArticleStore {
@@ -51,6 +56,11 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
   // (non-monotonic across ms ticks), this counter is assigned synchronously and
   // deterministically within a single store instance.
   let seq = 0
+  const listeners = new Set<() => void>()
+
+  function notify(): void {
+    for (const fn of listeners) fn()
+  }
 
   load()
 
@@ -113,6 +123,7 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
       }
       cache.set(id, record)
       persist()
+      notify()
       const { summary, analyzedAt, seq: _seq, ...publicFields } = record
       return publicFields
     },
@@ -135,9 +146,17 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
       if (!r) return
       cache.set(id, { ...r, summary, analyzedAt: new Date().toISOString() })
       persist()
+      notify()
     },
     delete(id) {
-      if (cache.delete(id)) persist()
+      if (cache.delete(id)) {
+        persist()
+        notify()
+      }
+    },
+    watch(onChange) {
+      listeners.add(onChange)
+      return () => listeners.delete(onChange)
     },
   }
 }

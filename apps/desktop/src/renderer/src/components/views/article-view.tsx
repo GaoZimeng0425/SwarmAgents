@@ -1,9 +1,9 @@
 // Shows the collected articles as a responsive card grid. Clicking a card opens
 // the always-mounted detail panel (AI analysis + raw markdown). A top stat pill
 // reports how many articles already have an AI summary.
-import { useCallback, useMemo, useRef, useState } from 'react'
-import type { CollectedArticleWithAnalysis } from '@swarm/protocol'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CollectedArticleWithAnalysis, UIEvent } from '@swarm/protocol'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Sparkles } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -94,11 +94,23 @@ function hostnameOf(url: string): string {
 }
 
 export function ArticleView(): React.JSX.Element {
+  const queryClient = useQueryClient()
   const listQuery = useQuery({
     queryKey: ['articles', 'list'],
     queryFn: () => swarmApi.articleList(),
   })
   const articles = listQuery.data ?? []
+
+  // Articles arrive from an EXTERNAL source (the browser extension pushes over
+  // WS), so the list query has no way to know it went stale. The service
+  // broadcasts `articles.changed` on every store mutation (add/saveAnalysis/
+  // delete); subscribe here and refetch. Mirrors formations-view's
+  // agents.changed → invalidate pattern.
+  useEffect(() => {
+    return window.swarm.subscribeEvents((e: UIEvent) => {
+      if (e.kind === 'articles.changed') void queryClient.invalidateQueries({ queryKey: ['articles', 'list'] })
+    })
+  }, [queryClient])
   const analyzedCount = useMemo(() => articles.filter((a) => a.summary != null).length, [articles])
   const totalCount = articles.length
 

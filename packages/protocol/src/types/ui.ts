@@ -86,6 +86,7 @@ export type UIEvent =
   | { kind: 'memory.changed'; ts: number; seq?: number }
   | { kind: 'skills.changed'; ts: number; seq?: number }
   | { kind: 'agents.changed'; ts: number; seq?: number }
+  | { kind: 'articles.changed'; ts: number; seq?: number }
   | { kind: 'gmail.analysisDelta'; messageId: string; text: string; ts: number; seq?: number }
   | { kind: 'gmail.analysisComplete'; messageId: string; markdown: string; ts: number; seq?: number }
   | { kind: 'gmail.analysisError'; messageId: string; error: string; ts: number; seq?: number }

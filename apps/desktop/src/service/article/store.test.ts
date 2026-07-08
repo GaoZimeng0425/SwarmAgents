@@ -90,4 +90,17 @@ describe('createArticleStore', () => {
     const a = store.add({ ...sample, contentMarkdown: 'x'.repeat(500) })
     expect(a.excerpt.length).toBe(300)
   })
+
+  it('watch fires on add, saveAnalysis, and delete', () => {
+    const store = createArticleStore({ userDataDir: dir })
+    const calls: number[] = []
+    const off = store.watch(() => calls.push(Date.now()))
+    const a = store.add(sample)
+    store.saveAnalysis(a.id, { gist: 'g', points: [], takeaways: [] })
+    store.delete(a.id)
+    off()
+    // No further fires after dispose:
+    store.add(sample)
+    expect(calls).toHaveLength(3)
+  })
 })

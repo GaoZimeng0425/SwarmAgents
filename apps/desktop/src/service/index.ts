@@ -75,6 +75,10 @@ const articleStore = createArticleStore({ userDataDir: articlesDir })
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // Agents view updates live instead of only after a restart.
 const offAgentWatch = agentStore.watch(() => broadcaster.broadcast('agents.changed', { ts: Date.now() }))
+// The article store mutates from an EXTERNAL source (the browser extension
+// pushes over WS), so the renderer's useQuery would never see new articles
+// without this broadcast. Mirrors the agents/skills watch pattern above.
+const offArticleWatch = articleStore.watch(() => broadcaster.broadcast('articles.changed', { ts: Date.now() }))
 // App-wide enable/disable for built-in tool groups + skills, alongside the MCP
 // config. MCP servers keep their own enable flag (see mcpManager).
 const toolToggles = createToolTogglesStore({ filePath: join(dirname(skillsPath), 'tool-toggles.json') })
@@ -272,6 +276,7 @@ log.info({ msg: 'service started', dbPath })
 process.on('exit', () => {
   offSkillWatch()
   offAgentWatch()
+  offArticleWatch()
   scheduler.dispose()
   void mcpManager.dispose()
   claudeCode.dispose()

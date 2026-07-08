@@ -24,6 +24,7 @@ function fakeStore(): ArticleStore {
     }),
     saveAnalysis: vi.fn(),
     delete: () => undefined,
+    watch: () => () => undefined,
   }
 }
 
