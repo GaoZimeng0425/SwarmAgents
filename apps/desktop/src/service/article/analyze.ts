@@ -1,8 +1,11 @@
-// One-shot, tool-less analysis of a collected article. Mirrors service/gmail/analyze.ts:
+// One-shot analysis of a collected article. Mirrors service/gmail/analyze-thread.ts:
 // a PRIVATE LaunchPorts binding (silent seq, no store append, no-op slot/abort ports),
 // a broadcast adapter translating run.* into article.analysis* events keyed by articleId.
-// On run.complete the agent's JSON output is parsed into ArticleSummary; success caches
-// the summary back to the article store (re-viewable, like bili's analysis cache).
+// The agent streams a natural-language markdown summary (shown live) and emits its
+// structured fields via a render_ui({type:'analysis', props:{gist, points, takeaways}})
+// tool call, captured with readAnalysisCard. On run.complete a valid card caches the
+// summary back to the article store (re-viewable, like bili's analysis cache); no valid
+// card degrades to analysisError.
 import { createLogger } from '@shared/logger'
 import type { AnalyzeArticleRequest, AnalyzeArticleResult, ArticleSummary, BudgetConfig } from '@swarm/protocol'
 import { applyAgentModel, defaultAgents } from '@swarm/shared'
@@ -14,6 +17,7 @@ import type { RunEmitPorts } from '../run-engine/emit'
 import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
 import { createPermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry } from '../tools/registry'
+import { readAnalysisCard } from '../tools/render-ui'
 import type { ArticleStore } from './store'
 
 const log = createLogger({ process: 'service' }).child({ component: 'article-analyze' })
@@ -30,20 +34,13 @@ export type AnalyzeDeps = {
   launch?: typeof launchRun
 }
 
-// Parse the agent's JSON output into ArticleSummary. Tolerates accidental
-// markdown code fences by stripping them before JSON.parse.
-function parseSummary(raw: string): ArticleSummary | null {
-  const cleaned = raw.replace(/^```(?:json)?\s*|\s*```$/g, '').trim()
-  try {
-    const obj = JSON.parse(cleaned) as unknown
-    const summary = obj as { gist?: unknown; points?: unknown; takeaways?: unknown }
-    if (typeof summary?.gist === 'string' && Array.isArray(summary?.points) && Array.isArray(summary?.takeaways)) {
-      return { gist: summary.gist, points: summary.points as string[], takeaways: summary.takeaways as string[] }
-    }
-    return null
-  } catch {
-    return null
+// Validate the render_ui analysis card props into an ArticleSummary. Returns
+// null when the shape doesn't match (agent emitted no/invalid card).
+export function toArticleSummary(props: Record<string, unknown>): ArticleSummary | null {
+  if (typeof props.gist === 'string' && Array.isArray(props.points) && Array.isArray(props.takeaways)) {
+    return { gist: props.gist, points: props.points as string[], takeaways: props.takeaways as string[] }
   }
+  return null
 }
 
 export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleRequest) => AnalyzeArticleResult {
@@ -64,8 +61,12 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
     // PRIVATE emit ports: a silent seq (no session/store), no persistence, no
     // terminal registry — the analysis lives entirely in the broadcast stream.
     // The broadcast port translates the run.* wire into article.analysis* events:
-    // run.progress llm.message → analysisDelta, run.complete → parse→saveAnalysis→
-    // analysisComplete (or analysisError on parse failure), run.error → analysisError.
+    // run.progress llm.message → analysisDelta (streamed prose),
+    // run.progress tool.call (analysis card) → capture {gist, points, takeaways},
+    // run.complete → saveAnalysis→analysisComplete (or analysisError if no valid
+    // card), run.error → analysisError.
+    let card: ArticleSummary | null = null
+
     let seq = 0
     const emitPorts: RunEmitPorts = {
       nextSeq: () => seq++,
@@ -80,17 +81,20 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
               text: ev.content,
               ts: Date.now(),
             })
+            return
           }
+          const props = readAnalysisCard(evt)
+          if (props) card = toArticleSummary(props)
         } else if (evt.kind === 'run.complete') {
-          const summary = parseSummary(evt.summary)
-          if (summary) {
-            deps.store.saveAnalysis(req.articleId, summary)
+          if (card) {
+            deps.store.saveAnalysis(req.articleId, card)
             deps.broadcaster.broadcast('article.analysisComplete', {
               articleId: req.articleId,
-              summary,
+              summary: card,
               ts: Date.now(),
             })
           } else {
+            log.warn({ msg: 'article analysis produced no valid analysis card', articleId: req.articleId })
             deps.broadcaster.broadcast('article.analysisError', {
               articleId: req.articleId,
               error: '分析结果解析失败',
@@ -107,8 +111,9 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
       },
     }
 
-    // No-op slot/abort ports and a no-op permission gate: a self-contained,
-    // tool-less run that competes for nothing and prompts for nothing.
+    // No-op slot/abort ports and a no-op permission gate: a self-contained run
+    // (only the low-risk render_ui structured-output tool) that competes for
+    // nothing and prompts for nothing.
     const ports: LaunchPorts = {
       emit: emitPorts,
       toolRegistry: deps.toolRegistry,
@@ -126,7 +131,7 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
       provider: applyAgentModel(req.provider, def),
       prompt: analyzePrompt,
       budget: deps.getBudgetConfig().sub,
-      tools: [],
+      tools: ['render_ui'],
       maxIterationsOverride: def.maxIterations,
     }
 

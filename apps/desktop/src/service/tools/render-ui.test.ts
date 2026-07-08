@@ -1,7 +1,8 @@
+import type { RunWireEvent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import type { ToolRunContext } from './registry'
-import { renderUiSpec } from './render-ui'
+import { readAnalysisCard, renderUiSpec } from './render-ui'
 
 const ctx = {
   sessionId: 's1',
@@ -42,5 +43,43 @@ describe('render_ui', () => {
       terminate?: boolean
     }
     expect(res.terminate).toBeUndefined()
+  })
+
+  it('terminates the turn for a non-interactive analysis card', async () => {
+    const tool = renderUiSpec().build(ctx)
+    const res = (await tool.execute('id', { type: 'analysis', props: { todos: [] } })) as { terminate?: boolean }
+    expect(res.terminate).toBe(true)
+  })
+})
+
+const analysisEvent = (props: unknown): RunWireEvent =>
+  ({
+    kind: 'run.progress',
+    event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props } },
+  }) as unknown as RunWireEvent
+
+describe('readAnalysisCard', () => {
+  it('extracts props from a render_ui analysis tool call', () => {
+    expect(readAnalysisCard(analysisEvent({ todos: [], suggest: 'x' }))).toEqual({ todos: [], suggest: 'x' })
+  })
+
+  it('coerces props delivered as a JSON string', () => {
+    expect(readAnalysisCard(analysisEvent(JSON.stringify({ gist: 'g' })))).toEqual({ gist: 'g' })
+  })
+
+  it('returns null for a non-analysis render_ui card', () => {
+    const e = {
+      kind: 'run.progress',
+      event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'choice' } },
+    } as unknown as RunWireEvent
+    expect(readAnalysisCard(e)).toBeNull()
+  })
+
+  it('returns null for a non-tool-call event', () => {
+    const e = {
+      kind: 'run.progress',
+      event: { kind: 'llm.message', role: 'assistant', content: 'hi' },
+    } as unknown as RunWireEvent
+    expect(readAnalysisCard(e)).toBeNull()
   })
 })

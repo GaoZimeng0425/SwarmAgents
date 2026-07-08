@@ -1,6 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
+import type { RunWireEvent } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 
@@ -25,6 +26,39 @@ const RenderUiParams = Type.Object({
 // call. Without this the model spins on "let me wait for the user" reasoning,
 // since there is no other signal that the turn is over.
 const INTERACTIVE_CARD_TYPES = new Set(['choice'])
+
+// Non-interactive cards that are nonetheless the agent's FINAL action of the
+// turn: terminate the turn like interactive cards, but without the "user's
+// choice arrives later" wording. The gmail-thread / article analysis runs use
+// render_ui({type:'analysis'}) purely as a structured-output channel (their
+// broadcast adapters read it via readAnalysisCard) and have nothing to add
+// after emitting it — terminating avoids a wasted trailing LLM turn.
+const TERMINAL_CARD_TYPES = new Set(['analysis'])
+
+/**
+ * If a run.* wire event is a `render_ui` tool call carrying a `type:'analysis'`
+ * card, return its coerced props (object as-is; JSON string parsed); otherwise
+ * null. Lets the gmail/article analysis broadcast adapters pull structured
+ * output from the tool call instead of parsing the streamed markdown.
+ */
+export function readAnalysisCard(evt: RunWireEvent): Record<string, unknown> | null {
+  if (evt.kind !== 'run.progress') return null
+  const inner = evt.event
+  if (inner?.kind !== 'tool.call' || inner.tool !== 'render_ui') return null
+  const args = (inner.args ?? {}) as { type?: unknown; props?: unknown }
+  if (args.type !== 'analysis') return null
+  const { props } = args
+  if (props && typeof props === 'object') return props as Record<string, unknown>
+  if (typeof props === 'string') {
+    try {
+      const parsed = JSON.parse(props) as unknown
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+    } catch {
+      return null
+    }
+  }
+  return null
+}
 
 // Renders a typed UI card into the conversation. Non-blocking: the tool returns
 // immediately and the card rides the persisted tool-call event. Interactive
@@ -58,20 +92,23 @@ export function renderUiSpec(): ToolSpec {
           return { content: [{ type: 'text', text: `error: ${msg}` }], details: { error: msg } }
         }
         const interactive = INTERACTIVE_CARD_TYPES.has(type)
-        toolLog.info({ msg: 'render_ui card emitted', type, interactive })
+        const terminal = interactive || TERMINAL_CARD_TYPES.has(type)
+        toolLog.info({ msg: 'render_ui card emitted', type, interactive, terminal })
         return {
           content: [
             {
               type: 'text',
               text: interactive
                 ? `Rendered ${type} card. End your turn now — do not call more tools or keep reasoning. The user's choice arrives later as a new message.`
-                : `rendered ui card: ${type}`,
+                : terminal
+                  ? `Rendered ${type} card. This is your final action — end your turn now; do not call more tools or add more text.`
+                  : `rendered ui card: ${type}`,
             },
           ],
           details: { type, props: p.props },
-          // Interactive cards end the turn structurally: pi reads this hint and
-          // stops after the batch instead of prompting the model again.
-          ...(interactive ? { terminate: true } : {}),
+          // Interactive and terminal cards end the turn structurally: pi reads
+          // this hint and stops after the batch instead of prompting again.
+          ...(terminal ? { terminate: true } : {}),
         }
       },
     }),

@@ -80,14 +80,10 @@ export function useThreadAnalysis(thread: ThreadAnalysisInput | null): ThreadAna
 
       off = window.swarm.subscribeEvents((e: UIEvent) => {
         if (e.kind === 'gmail.threadAnalysisDelta' && e.threadId === threadId) {
-          // The agent appends a trailing `<!--ANALYSIS:{...}-->` JSON block
-          // carrying the structured payload. Hide it from the streamed text the
-          // moment the sentinel begins — once it starts, nothing after it is a
-          // human-readable summary, and showing it would flash raw JSON before
-          // the card snaps to the one-sentence `summary` on done.
-          const combined = summaryText + e.text
-          const cut = combined.indexOf('<!--ANALYSIS')
-          summaryText = cut === -1 ? combined : combined.slice(0, cut)
+          // The streamed markdown IS the summary; structured fields (todos/
+          // suggest) ride a separate render_ui tool call, so nothing needs to be
+          // stripped here and the done summary equals this streamed text.
+          summaryText += e.text
           setState({ phase: 'streaming', summaryText })
         } else if (e.kind === 'gmail.threadAnalysisComplete' && e.threadId === threadId) {
           setState({ phase: 'done', summary: e.summary, todos: e.todos, suggest: e.suggest })

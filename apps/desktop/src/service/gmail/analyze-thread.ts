@@ -1,17 +1,12 @@
 // Thread-level analysis: clones analyze.ts's run-engine pattern but keys
-// broadcasts by threadId and parses a tail-JSON block (<!--ANALYSIS:{...}-->)
-// on completion to deliver structured {summary, todos, suggest}. The streamed
-// markdown IS the summary shown to the user; the tail block adds the
-// structured fields. Parse failure degrades to empty todos/suggest (summary
-// intact) — never blocks the user-facing summary.
+// broadcasts by threadId. The agent streams a natural-language markdown summary
+// (shown to the user) and emits its structured fields via a
+// render_ui({type:'analysis', props:{todos, suggest}}) tool call, which the
+// broadcast adapter captures with readAnalysisCard. The streamed markdown IS
+// the summary; the card adds todos/suggest. No card → empty todos/suggest
+// (summary intact) — never blocks the user-facing summary.
 import { createLogger } from '@shared/logger'
-import type {
-  AnalyzeThreadRequest,
-  AnalyzeThreadResult,
-  BudgetConfig,
-  ThreadAnalysisPayload,
-  Todo,
-} from '@swarm/protocol'
+import type { AnalyzeThreadRequest, AnalyzeThreadResult, BudgetConfig, Todo } from '@swarm/protocol'
 import { applyAgentModel, defaultAgents } from '@swarm/shared'
 import { ulid } from 'ulid'
 
@@ -21,32 +16,11 @@ import type { RunEmitPorts } from '../run-engine/emit'
 import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
 import { createPermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry } from '../tools/registry'
+import { readAnalysisCard } from '../tools/render-ui'
 
 const log = createLogger({ process: 'service' }).child({ component: 'gmail-analyze-thread' })
 
 const GMAIL_THREAD_ANALYST_ID = 'gmail-thread-analyst'
-
-// Extract the structured payload from the agent's markdown+tail-JSON output.
-// Exported for unit testing. On any failure, returns {summary: fullMarkdown,
-// todos: [], suggest: ''} so the streamed summary is still usable.
-export function parseThreadPayload(fullMarkdown: string): ThreadAnalysisPayload {
-  const matches = [...fullMarkdown.matchAll(/<!--ANALYSIS:(.*?)-->/gs)]
-  if (matches.length === 0) {
-    return { summary: fullMarkdown, todos: [], suggest: '' }
-  }
-  const last = matches[matches.length - 1][1]
-  try {
-    const parsed = JSON.parse(last) as { summary?: string; todos?: Todo[]; suggest?: string }
-    return {
-      summary: typeof parsed.summary === 'string' ? parsed.summary : fullMarkdown,
-      todos: Array.isArray(parsed.todos) ? parsed.todos : [],
-      suggest: typeof parsed.suggest === 'string' ? parsed.suggest : '',
-    }
-  } catch {
-    log.warn({ msg: 'thread analysis tail-JSON parse failed; degrading' })
-    return { summary: fullMarkdown, todos: [], suggest: '' }
-  }
-}
 
 export type AnalyzeThreadDeps = {
   broadcaster: Broadcaster
@@ -76,12 +50,14 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
       messageCount: req.messages.length,
     })
 
-    // Accumulate the streamed markdown so the run.complete handler can parse
-    // the tail block. The broadcast port translates the run.* wire into
-    // gmail.threadAnalysis* events keyed by threadId: run.progress llm.message
-    // → threadAnalysisDelta, run.complete → threadAnalysisComplete (parsed),
-    // run.error → threadAnalysisError. Tool/reasoning events are dropped.
+    // Accumulate the streamed markdown as the summary and capture the structured
+    // fields from the render_ui analysis card. The broadcast port translates the
+    // run.* wire into gmail.threadAnalysis* events keyed by threadId:
+    // run.progress llm.message → threadAnalysisDelta (+ accumulate),
+    // run.progress tool.call (analysis card) → capture todos/suggest,
+    // run.complete → threadAnalysisComplete, run.error → threadAnalysisError.
     let accumulated = ''
+    let card: { todos: Todo[]; suggest: string } | null = null
 
     let seq = 0
     const emitPorts: RunEmitPorts = {
@@ -94,19 +70,23 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
           if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
             accumulated += ev.content
             deps.broadcaster.broadcast('gmail.threadAnalysisDelta', { threadId, text: ev.content, ts: Date.now() })
+            return
+          }
+          const props = readAnalysisCard(evt)
+          if (props) {
+            card = {
+              todos: Array.isArray(props.todos) ? (props.todos as Todo[]) : [],
+              suggest: typeof props.suggest === 'string' ? props.suggest : '',
+            }
           }
         } else if (evt.kind === 'run.complete') {
-          // NOTE: do NOT append evt.summary here. Per translator.ts, the
-          // run.complete summary is exactly the trimmed concatenation of the
-          // same llm.message deltas already accumulated above via run.progress;
-          // appending it again doubles the markdown (and any malformed
-          // <!--ANALYSIS:{...}--> block) in the degradation path.
-          const payload = parseThreadPayload(accumulated)
+          // summary = the streamed markdown; todos/suggest = the captured card
+          // (empty when the agent emitted no card).
           deps.broadcaster.broadcast('gmail.threadAnalysisComplete', {
             threadId,
-            summary: payload.summary,
-            todos: payload.todos,
-            suggest: payload.suggest,
+            summary: accumulated,
+            todos: card?.todos ?? [],
+            suggest: card?.suggest ?? '',
             ts: Date.now(),
           })
         } else if (evt.kind === 'run.error') {
@@ -119,8 +99,9 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
       },
     }
 
-    // No-op slot/abort ports and a no-op permission gate: a self-contained,
-    // tool-less run that competes for nothing and prompts for nothing.
+    // No-op slot/abort ports and a no-op permission gate: a self-contained run
+    // (only the low-risk render_ui structured-output tool) that competes for
+    // nothing and prompts for nothing.
     const ports: LaunchPorts = {
       emit: emitPorts,
       toolRegistry: deps.toolRegistry,
@@ -143,7 +124,7 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
       provider: applyAgentModel(req.provider, def),
       prompt,
       budget: deps.getBudgetConfig().sub,
-      tools: [],
+      tools: ['render_ui'],
       maxIterationsOverride: def.maxIterations,
     }
 

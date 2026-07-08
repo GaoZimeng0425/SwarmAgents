@@ -116,18 +116,19 @@ describe('useThreadAnalysis', () => {
     expect(subscribeSpy).not.toHaveBeenCalled()
   })
 
-  it('hides the trailing <!--ANALYSIS JSON block while streaming', async () => {
+  it('accumulates streamed deltas verbatim as the summary text', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => useThreadAnalysis(thread), { wrapper: makeWrapper(qc) })
     await waitFor(() => expect(swarmApi.analyzeThread).toHaveBeenCalled())
 
-    // A delta whose tail begins the sentinel (closing `-->` not yet streamed).
+    // Structured fields now ride a separate render_ui tool call, so the streamed
+    // markdown is shown as-is (no sentinel stripping).
     await act(async () => {
-      emit?.({ kind: 'gmail.threadAnalysisDelta', threadId: 't1', text: '一些摘要<!--ANALYSIS:{', ts: 1 })
+      emit?.({ kind: 'gmail.threadAnalysisDelta', threadId: 't1', text: '## 摘要\n', ts: 1 })
+      emit?.({ kind: 'gmail.threadAnalysisDelta', threadId: 't1', text: '要点一', ts: 2 })
     })
     expect(result.current.phase).toBe('streaming')
-    expect((result.current as { summaryText?: string }).summaryText).not.toContain('<!--ANALYSIS')
-    expect((result.current as { summaryText?: string }).summaryText).toContain('一些摘要')
+    expect((result.current as { summaryText?: string }).summaryText).toBe('## 摘要\n要点一')
   })
 
   it('reaches error on threadAnalysisError', async () => {
