@@ -12,7 +12,7 @@ export default defineConfig({
     name: 'SwarmAgents',
     version: '0.1.0',
     description: 'Quick launcher for the SwarmAgents desktop runtime.',
-    permissions: ['storage', 'alarms'],
+    permissions: ['storage', 'alarms', 'scripting'],
     host_permissions: ['ws://127.0.0.1:47777/*', 'http://127.0.0.1:47777/*'],
     // With the popup entrypoint removed (side panel replaces it), WXT no longer
     // generates an `action` block — but MV3 needs one for the toolbar icon to
@@ -25,6 +25,7 @@ export default defineConfig({
   // machines that only have Dia installed. Dia is Chromium-based, so web-ext's
   // chromium runner drives it directly.
   webExt: {
+    disabled: true,
     binaries: {
       chrome: '/Applications/Dia.app/Contents/MacOS/Dia',
     },

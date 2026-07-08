@@ -56,15 +56,51 @@ const GROUP_TAG: Partial<Record<GmailGroupKey, { label: string; cls: string }>> 
   archive: { label: '可归档', cls: 'bg-muted text-muted-foreground' },
 }
 
+// Locally-read tracking. The app is Gmail read-only, so opening a thread can't
+// clear its server-side unread flag — without this the user can't tell which
+// threads they've already looked at. We persist opened thread ids in
+// localStorage (renderer-only, survives restart; ids are tiny so no cap needed).
+const OPENED_KEY = 'gmail:openedThreads'
+function loadOpened(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(OPENED_KEY) ?? '[]') as string[])
+  } catch {
+    return new Set()
+  }
+}
+
 export function GmailInboxView(): React.JSX.Element {
   const qc = useQueryClient()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The thread id whose analysis is streaming, so its list row can show a
+  // loading badge. Reported up by GmailThreadDetail.
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('') // committed search; '' = listRecent
   const [activeGroup, setActiveGroup] = useState<GmailGroupKey>('all')
+  // Threads the user has opened in-app (locally-read); persisted to localStorage.
+  const [openedIds, setOpenedIds] = useState<Set<string>>(loadOpened)
 
   const status = useQuery({ queryKey: ['gmail', 'status'], queryFn: () => window.swarm.gmail.getStatus() })
   const linked = status.data?.loggedIn === true
+
+  // Which threads already have a cached AI analysis — drives the row "AI" badge.
+  const analyzed = useQuery({
+    queryKey: ['gmail', 'analyzedThreadIds'],
+    queryFn: () => window.swarm.gmail.analyzedThreadIds(),
+    enabled: linked,
+  })
+  const analyzedSet = useMemo(() => new Set(analyzed.data ?? []), [analyzed.data])
+
+  const openThread = (id: string): void => {
+    setSelectedId(id)
+    setOpenedIds((prev) => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev).add(id)
+      localStorage.setItem(OPENED_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
 
   // Live refresh: every background poll / manual sync broadcasts stateChanged.
   useEffect(
@@ -120,7 +156,7 @@ export function GmailInboxView(): React.JSX.Element {
 
   return (
     <div className="flex h-full w-full flex-col">
-      <header className="flex flex-col gap-3 px-5 pt-4">
+      <header className="flex flex-col gap-3 border-border/70 border-b px-5 pt-4 pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-semibold text-foreground text-xl tracking-tight">收件箱</h1>
@@ -152,7 +188,7 @@ export function GmailInboxView(): React.JSX.Element {
         <GmailGroupBar active={activeGroup} groups={groupCounts} onPick={setActiveGroup} />
       </header>
 
-      <div className="mt-3 flex min-h-0 flex-1 border-border/70 border-t">
+      <div className="flex min-h-0 flex-1">
         {/* Thread list */}
         <div className="flex w-[352px] shrink-0 flex-col border-border/70 border-r">
           {list.isPending ? (
@@ -167,6 +203,9 @@ export function GmailInboxView(): React.JSX.Element {
                 {visibleThreads.map((t) => {
                   const { initial, bg } = avatarProps(fromDisplay(t.fromAddr) || '?')
                   const tag = GROUP_TAG[classifyThread(t)]
+                  // Locally-read once opened in-app (server unread can't be cleared).
+                  const unread = t.unread && !openedIds.has(t.id)
+                  const analyzed = analyzedSet.has(t.id)
                   return (
                     <li key={t.id}>
                       <button
@@ -176,7 +215,7 @@ export function GmailInboxView(): React.JSX.Element {
                             ? 'border border-border bg-secondary shadow-sm'
                             : 'border border-transparent hover:bg-secondary/60'
                         )}
-                        onClick={() => setSelectedId(t.id)}
+                        onClick={() => openThread(t.id)}
                         type="button"
                       >
                         <span
@@ -191,7 +230,7 @@ export function GmailInboxView(): React.JSX.Element {
                             <span
                               className={cn(
                                 'truncate text-[13px]',
-                                t.unread ? 'font-bold text-foreground' : 'font-medium text-foreground/90'
+                                unread ? 'font-bold text-foreground' : 'font-medium text-foreground/90'
                               )}
                             >
                               {fromDisplay(t.fromAddr) || '(未知发件人)'}
@@ -203,23 +242,37 @@ export function GmailInboxView(): React.JSX.Element {
                           <span
                             className={cn(
                               'truncate text-[12.5px]',
-                              t.unread ? 'font-semibold text-foreground/90' : 'text-foreground/70'
+                              unread ? 'font-semibold text-foreground/90' : 'text-foreground/70'
                             )}
                           >
                             {t.subject || '(无主题)'}
                           </span>
                           <span className="line-clamp-1 text-[11.5px] text-muted-foreground">{t.snippet}</span>
-                          {tag && (
-                            <span className="mt-1 flex">
-                              <span
-                                className={cn('rounded px-1.5 py-0.5 font-semibold text-[10px] leading-none', tag.cls)}
-                              >
-                                {tag.label}
-                              </span>
+                          {(analyzingId === t.id || analyzed || tag) && (
+                            <span className="mt-1 flex items-center gap-1">
+                              {analyzingId === t.id ? (
+                                <span className="flex items-center gap-1 rounded bg-violet-600/90 px-1.5 py-0.5 font-semibold text-[10px] text-white leading-none">
+                                  <Loader2 aria-label="分析中" className="size-2.5 animate-spin" /> AI
+                                </span>
+                              ) : analyzed ? (
+                                <span className="flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 font-semibold text-[10px] text-violet-600 leading-none dark:text-violet-300">
+                                  <Sparkles className="size-2.5" /> AI
+                                </span>
+                              ) : null}
+                              {tag && (
+                                <span
+                                  className={cn(
+                                    'rounded px-1.5 py-0.5 font-semibold text-[10px] leading-none',
+                                    tag.cls
+                                  )}
+                                >
+                                  {tag.label}
+                                </span>
+                              )}
                             </span>
                           )}
                         </span>
-                        {t.unread && (
+                        {unread && (
                           <span
                             aria-label="未读"
                             className="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
@@ -246,7 +299,7 @@ export function GmailInboxView(): React.JSX.Element {
           ) : !detail.data ? (
             <CenteredMessage text="未找到该邮件" />
           ) : (
-            <GmailThreadDetail data={detail.data} threadId={selectedId} />
+            <GmailThreadDetail data={detail.data} onAnalyzingChange={setAnalyzingId} threadId={selectedId} />
           )}
         </div>
       </div>
@@ -263,9 +316,13 @@ export function GmailInboxView(): React.JSX.Element {
 function GmailThreadDetail({
   data,
   threadId,
+  onAnalyzingChange,
 }: {
   data: { thread: { subject: string }; messages: GmailMessage[] }
   threadId: string
+  /** Report the thread id currently streaming analysis (null when idle) so the
+   *  list row can show a loading badge. */
+  onAnalyzingChange: (id: string | null) => void
 }): React.JSX.Element {
   // Build the hook input from the loaded detail. Memoized so the object
   // identity only changes when the underlying data actually changes — passing
@@ -278,28 +335,14 @@ function GmailThreadDetail({
     }),
     [threadId, data]
   )
-  const analysis = useThreadAnalysis(threadInput)
-  const qc = useQueryClient()
+  const { state: analysis, analyze } = useThreadAnalysis(threadInput)
 
-  const regenerate = (): void => {
-    // Null the cached analysis so the hook's effect re-runs into its cache-miss
-    // branch: it re-subscribes to gmail.threadAnalysis* events, resets its
-    // closure-local summaryText accumulator, and re-calls analyzeThread. Without
-    // this, a revisit (cache hit) leaves the effect in its early-return-on-cache
-    // branch — no subscription — so any analyzeThread call has no event listener
-    // and the UI stays stuck on the stale summary.
-    //
-    // We use setQueryData(key, null) rather than invalidateQueries: invalidate
-    // retains stale data during refetch (stale-while-revalidate) and the
-    // refetch re-resolves to the same cached analysis, so cache.data never
-    // becomes falsy and the effect's cache-hit early-return would keep
-    // suppressing the subscription. Nulling the entry makes cache.data falsy
-    // (and leaves isPending false), which is the only state that drives the
-    // effect into the cache-miss branch. The effect then owns the
-    // analyzeThread call, so regenerate does not need to fire one itself
-    // (doing so would launch a second, redundant stream).
-    qc.setQueryData(['gmail', 'threadAnalysis', threadInput.id], null)
-  }
+  // Surface the streaming thread id to the list so it can badge the matching
+  // row; clear it when idle or when the detail unmounts.
+  useEffect(() => {
+    onAnalyzingChange(analysis.phase === 'streaming' ? threadId : null)
+    return () => onAnalyzingChange(null)
+  }, [analysis.phase, threadId, onAnalyzingChange])
 
   return (
     <ScrollArea className="h-full" edgeFade>
@@ -308,7 +351,7 @@ function GmailThreadDetail({
           <h2 className="font-semibold text-foreground text-lg leading-snug">{data.thread.subject || '(无主题)'}</h2>
           <p className="mt-1.5 text-muted-foreground text-xs">{data.messages.length} 条消息</p>
         </div>
-        <GmailAssistantCard analysis={analysis} messageCount={data.messages.length} onRegenerate={regenerate} />
+        <GmailAssistantCard analysis={analysis} messageCount={data.messages.length} onAnalyze={analyze} />
         {data.messages.map((m) => (
           <MessageCard key={m.id} m={m} />
         ))}

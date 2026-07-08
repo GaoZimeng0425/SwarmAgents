@@ -27,6 +27,9 @@ export type Cache = {
   getAnalyses(threadId: string): Record<string, import('@swarm/protocol').GmailAnalysis>
   getThreadAnalysis(threadId: string): import('@swarm/protocol').GmailThreadAnalysis | null
   saveThreadAnalysis(threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload): void
+  // Thread ids that already have a cached thread-level analysis — drives the
+  // inbox list's "AI" badge.
+  analyzedThreadIds(): string[]
   listRecent(input: { limit: number; label?: string }): GmailThread[]
   stats(): ThreadStats
   setStats(stats: ThreadStats): void
@@ -256,6 +259,9 @@ export function createCache(opts: { filePath: string }): Cache {
     })
   }
 
+  const analyzedThreadIds: Cache['analyzedThreadIds'] = () =>
+    (db.prepare('SELECT threadId FROM thread_analyses').all() as { threadId: string }[]).map((r) => r.threadId)
+
   return {
     upsertThreads,
     upsertMessages,
@@ -268,6 +274,7 @@ export function createCache(opts: { filePath: string }): Cache {
     getAnalyses,
     getThreadAnalysis,
     saveThreadAnalysis,
+    analyzedThreadIds,
     listRecent,
     stats,
     setStats,

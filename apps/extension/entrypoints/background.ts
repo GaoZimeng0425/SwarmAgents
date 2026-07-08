@@ -72,9 +72,25 @@ export default defineBackground(() => {
     void chrome.sidePanel.open({ windowId: tab.windowId })
   })
 
-  // The side panel probes connectivity by listing agents (no provider/secret
+  // The side panel probes connectivity via `health` (no provider/secret
   // needed — submitGoal needs a ProviderInjection the extension doesn't own).
+  // listAgents is kept for backward compatibility; health wraps the same probe.
   browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if ((msg as { type?: string })?.type === 'health') {
+      ;(async () => {
+        if (!client) {
+          sendResponse({ ok: false, error: 'not connected' })
+          return
+        }
+        try {
+          const agents = await client.listAgents()
+          sendResponse({ ok: true, count: agents.length })
+        } catch (err) {
+          sendResponse({ ok: false, error: String(err) })
+        }
+      })()
+      return true // async response
+    }
     if ((msg as { type?: string })?.type === 'listAgents' && client) {
       ;(async () => {
         try {
@@ -92,6 +108,20 @@ export default defineBackground(() => {
           const [tab] = await browser.tabs.query({ active: true, currentWindow: true })
           if (!tab.id) {
             sendResponse({ ok: false, error: 'no active tab' })
+            return
+          }
+          // Actively inject the extract content script. This is idempotent
+          // (re-injecting is fine) and ensures the `extract` listener exists
+          // even on tabs opened before the extension loaded — which the
+          // static content_scripts registration would miss, causing
+          // "Receiving end does not exist" on sendMessage.
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['content-scripts/extract.js'],
+            })
+          } catch (injErr) {
+            sendResponse({ ok: false, error: `注入脚本失败:${String(injErr)}` })
             return
           }
           const input = await browser.tabs.sendMessage(tab.id, { type: 'extract' })

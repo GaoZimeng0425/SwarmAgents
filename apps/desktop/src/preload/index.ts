@@ -295,6 +295,7 @@ const gmail: GmailBridge = {
     ipcRenderer.invoke('gmail:getThreadAnalysis', threadId) as Promise<GmailThreadAnalysis | null>,
   saveThreadAnalysis: (threadId: string, analysis: ThreadAnalysisPayload) =>
     ipcRenderer.invoke('gmail:saveThreadAnalysis', threadId, analysis) as Promise<void>,
+  analyzedThreadIds: () => ipcRenderer.invoke('gmail:analyzedThreadIds') as Promise<string[]>,
   onStateChanged: (cb: (view: GmailConfigView) => void) => {
     const listener = (_e: unknown, view: GmailConfigView): void => cb(view)
     ipcRenderer.on('gmail:stateChanged', listener)

@@ -11,17 +11,16 @@ import type { ThreadAnalysisState } from '@/hooks/use-thread-analysis'
 export function GmailAssistantCard({
   analysis,
   messageCount,
-  onRegenerate,
+  onAnalyze,
 }: {
   analysis: ThreadAnalysisState
   messageCount: number
-  onRegenerate: () => void
-}): React.JSX.Element | null {
+  /** Start or re-run analysis (idle 分析 / done 重新生成 / error 重试). */
+  onAnalyze: () => void
+}): React.JSX.Element {
   const [draftOpen, setDraftOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [copied, setCopied] = useState(false)
-
-  if (analysis.phase === 'idle') return null
 
   const copy = async (): Promise<void> => {
     await navigator.clipboard.writeText(draft)
@@ -36,10 +35,20 @@ export function GmailAssistantCard({
           <Sparkles className="size-3 text-white" />
         </span>
         <span className="font-semibold text-[13px] text-violet-700 dark:text-violet-300">Agent 助手</span>
-        <span className="ml-auto text-[10.5px] text-violet-500/80">已读取全部 {messageCount} 条消息</span>
+        <span className="ml-auto text-[10.5px] text-violet-500/80">
+          {analysis.phase === 'idle' ? `${messageCount} 条消息` : `已读取全部 ${messageCount} 条消息`}
+        </span>
       </div>
 
       <div className="flex flex-col gap-3 bg-secondary p-4">
+        {analysis.phase === 'idle' && (
+          <div className="flex items-center gap-3">
+            <Button onClick={onAnalyze} size="sm">
+              <Sparkles className="size-3.5" /> AI 分析
+            </Button>
+            <span className="text-[11.5px] text-muted-foreground">让 Agent 读取全部消息，生成摘要、待办与建议回复</span>
+          </div>
+        )}
         {analysis.phase === 'streaming' && (
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
             <Loader2 className="size-3.5 animate-spin" /> 分析中…
@@ -83,7 +92,7 @@ export function GmailAssistantCard({
               >
                 采用并回复
               </Button>
-              <Button onClick={onRegenerate} size="sm" variant="outline">
+              <Button onClick={onAnalyze} size="sm" variant="outline">
                 <RefreshCw className="size-3.5" /> 重新生成
               </Button>
             </div>
@@ -110,7 +119,7 @@ export function GmailAssistantCard({
         {analysis.phase === 'error' && (
           <div className="flex items-center gap-2">
             <span className="text-[12px] text-destructive">{analysis.error}</span>
-            <Button onClick={onRegenerate} size="sm" variant="outline">
+            <Button onClick={onAnalyze} size="sm" variant="outline">
               重试
             </Button>
           </div>

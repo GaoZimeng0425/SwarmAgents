@@ -31,6 +31,7 @@ export type Service = {
   getAnalyses(threadId: string): ReturnType<Cache['getAnalyses']>
   getThreadAnalysis(threadId: string): ReturnType<Cache['getThreadAnalysis']>
   saveThreadAnalysis(threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload): void
+  analyzedThreadIds(): string[]
   onStateChanged(cb: (view: GmailConfigView) => void): () => void
 }
 
@@ -154,6 +155,7 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
     getAnalyses: (threadId) => deps.cache.getAnalyses(threadId),
     getThreadAnalysis: (threadId) => deps.cache.getThreadAnalysis(threadId),
     saveThreadAnalysis: (threadId, analysis) => deps.cache.saveThreadAnalysis(threadId, analysis),
+    analyzedThreadIds: () => deps.cache.analyzedThreadIds(),
     onStateChanged(cb) {
       listeners.add(cb)
       return () => {

@@ -44,14 +44,33 @@ function SummaryView({ summary }: { summary: ArticleSummary }): React.JSX.Elemen
   )
 }
 
+// Reading-area placeholder while an analysis is in flight but no text has
+// streamed yet: pulsing skeletons so the panel reads as "working".
+function AnalyzingPlaceholder(): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-1.5 font-semibold text-[13px] text-violet-600 dark:text-violet-300">
+        <Loader2 className="size-3.5 animate-spin" /> AI 分析中…
+      </div>
+      <div className="h-16 animate-pulse rounded-md bg-muted" />
+      <div className="h-24 animate-pulse rounded-md bg-muted" />
+      <div className="h-24 animate-pulse rounded-md bg-muted" />
+    </div>
+  )
+}
+
 export function ArticleDetailPanel({
   article,
   onClose,
   onChanged,
+  onAnalyzingChange,
 }: {
   article: CollectedArticleWithAnalysis | null
   onClose: () => void
   onChanged: () => void
+  /** Report the id currently being analyzed (null when idle) so the grid can
+   *  badge that card. */
+  onAnalyzingChange?: (id: string | null) => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
   const [phase, setPhase] = useState<Phase>('idle')
@@ -89,6 +108,13 @@ export function ArticleDetailPanel({
       }
     })
   }, [article?.id, queryClient])
+
+  // Surface the in-flight id to the grid so it can badge the matching card;
+  // clear it when idle or when the panel unmounts.
+  useEffect(() => {
+    onAnalyzingChange?.(phase === 'streaming' && article ? article.id : null)
+    return () => onAnalyzingChange?.(null)
+  }, [phase, article?.id, onAnalyzingChange])
 
   const cachedSummary = article?.summary ?? null
   const summary = liveSummary ?? cachedSummary
@@ -178,10 +204,14 @@ export function ArticleDetailPanel({
               <ScrollArea className="min-h-0 flex-1">
                 <div className="p-4">
                   {detailTab === 'analysis' ? (
-                    phase === 'streaming' && streamText ? (
-                      <div className="mx-auto max-w-3xl text-[15px] text-foreground/85 leading-7">
-                        <Streamdown>{streamText}</Streamdown>
-                      </div>
+                    phase === 'streaming' ? (
+                      streamText ? (
+                        <div className="mx-auto max-w-3xl text-[15px] text-foreground/85 leading-7">
+                          <Streamdown>{streamText}</Streamdown>
+                        </div>
+                      ) : (
+                        <AnalyzingPlaceholder />
+                      )
                     ) : summary ? (
                       <SummaryView summary={summary} />
                     ) : phase === 'error' ? (
