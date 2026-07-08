@@ -163,12 +163,14 @@ function Sparkline({ temps }: { temps: number[] }): React.JSX.Element {
 function StripSkeleton(): React.JSX.Element {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-border bg-secondary px-4 py-2.5">
-      <div className="size-8 animate-pulse rounded bg-muted" />
-      <div className="h-7 w-12 animate-pulse rounded bg-muted" />
-      <div className="space-y-1.5">
-        <div className="h-3.5 w-28 animate-pulse rounded bg-muted" />
-        <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+      <div className="skeleton-shimmer size-9 rounded-lg" />
+      <div className="skeleton-shimmer h-8 w-10 rounded-lg" />
+      <div className="flex flex-col gap-1.5">
+        <div className="skeleton-shimmer h-3.5 w-28 rounded" />
+        <div className="skeleton-shimmer h-3 w-40 rounded" />
       </div>
+      <span className="flex-1" />
+      <div className="skeleton-shimmer h-[26px] w-20 rounded" />
     </div>
   )
 }

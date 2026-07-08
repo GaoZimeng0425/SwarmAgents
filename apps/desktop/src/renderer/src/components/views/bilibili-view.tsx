@@ -16,7 +16,7 @@ import {
   TabsTrigger,
 } from '@swarm/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Sparkles } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
@@ -97,6 +97,7 @@ function VideoCard({
   video,
   selected,
   analyzed,
+  analyzing,
   pinned,
   context,
   onClick,
@@ -106,6 +107,7 @@ function VideoCard({
   video: BiliVideo
   selected: boolean
   analyzed: boolean
+  analyzing: boolean
   pinned: boolean
   context: VideoListContext
   onClick: (v: BiliVideo) => void
@@ -129,7 +131,11 @@ function VideoCard({
         {video.cover ? (
           <img alt="" className="size-full object-cover" referrerPolicy="no-referrer" src={video.cover} />
         ) : null}
-        {analyzed ? (
+        {analyzing ? (
+          <span className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded-md bg-violet-600/90 px-1.5 py-0.5 font-bold text-[9.5px] text-white">
+            <Loader2 className="size-2.5 animate-spin" /> 分析中
+          </span>
+        ) : analyzed ? (
           <span className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded-md bg-violet-600/90 px-1.5 py-0.5 font-bold text-[9.5px] text-white">
             <Sparkles className="size-2.5" /> AI
           </span>
@@ -251,6 +257,9 @@ export function BilibiliView(): React.JSX.Element {
   const [folderId, setFolderId] = useState<FolderFilter>('all')
   const [selected, setSelected] = useState<BiliVideo | null>(null)
   const [cardError, setCardError] = useState<string | null>(null)
+  // The bvid the detail panel is currently analyzing/transcribing, so its grid
+  // card can show a loading badge. Reported up by BilibiliDetailPanel.
+  const [analyzingBvid, setAnalyzingBvid] = useState<string | null>(null)
 
   const rows = useMemo(() => {
     // Archive tab has no B站 list dependency; render from the local archive alone.
@@ -387,6 +396,7 @@ export function BilibiliView(): React.JSX.Element {
                         {row.videos.map((v) => (
                           <VideoCard
                             analyzed={analyzedSet.has(v.bvid)}
+                            analyzing={analyzingBvid === v.bvid}
                             context={tab}
                             key={v.bvid}
                             onChanged={() => setSelected(null)}
@@ -408,6 +418,7 @@ export function BilibiliView(): React.JSX.Element {
         {selected ? (
           <BilibiliDetailPanel
             context={tab}
+            onAnalyzingChange={setAnalyzingBvid}
             onClose={() => setSelected(null)}
             pinned={pinsSet.has(selected.bvid)}
             video={selected}

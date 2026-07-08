@@ -8,7 +8,16 @@ import type { BiliSummary, BiliVideo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { compact } from 'es-toolkit'
-import { Lightbulb, ListOrdered, PanelRightClose, Sparkles, SquareCheckBig, TriangleAlert, Upload } from 'lucide-react'
+import {
+  Lightbulb,
+  ListOrdered,
+  Loader2,
+  PanelRightClose,
+  Sparkles,
+  SquareCheckBig,
+  TriangleAlert,
+  Upload,
+} from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
@@ -117,6 +126,22 @@ function SummaryView({ summary, source }: { summary: BiliSummary; source?: strin
   )
 }
 
+// Content-area placeholder while an AI analysis is in flight: mirrors the
+// SummaryView layout (hero card + bullet blocks) with pulsing skeletons so the
+// panel reads as "working" instead of showing the empty-state prompt.
+function AnalyzingPlaceholder(): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-3.5">
+      <div className="flex items-center gap-1.5 font-semibold text-[11.5px] text-violet-600 dark:text-violet-300">
+        <Loader2 className="size-3 animate-spin" /> AI 分析中…
+      </div>
+      <div className="h-16 animate-pulse rounded-xl bg-muted" />
+      <div className="h-24 animate-pulse rounded-xl bg-muted" />
+      <div className="h-24 animate-pulse rounded-xl bg-muted" />
+    </div>
+  )
+}
+
 function FullTextView({ label, text }: { label: string; text: string }): React.JSX.Element {
   const blocks = splitTextBlocks(text)
   return (
@@ -145,11 +170,15 @@ export function BilibiliDetailPanel({
   context,
   pinned,
   onClose,
+  onAnalyzingChange,
 }: {
   video: BiliVideo | null
   context: VideoListContext
   pinned: boolean
   onClose: () => void
+  /** Report the bvid currently being analyzed/transcribed (null when idle) so
+   *  the grid can badge that card. */
+  onAnalyzingChange?: (bvid: string | null) => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
   const invalidateAnalysis = (): void => {
@@ -221,6 +250,14 @@ export function BilibiliDetailPanel({
   }, [fullText, summary])
 
   const textLabel = fullText?.source === 'subtitle' ? '字幕原文' : '转写全文'
+
+  // Surface the in-flight bvid to the grid so it can show a loading badge on the
+  // matching card; clear it when idle or when the panel unmounts.
+  const analyzing = mutation.isPending || transcribeMutation.isPending
+  useEffect(() => {
+    onAnalyzingChange?.(analyzing && video ? video.bvid : null)
+    return () => onAnalyzingChange?.(null)
+  }, [analyzing, video?.bvid, onAnalyzingChange])
 
   return (
     <aside className="flex w-[472px] shrink-0 flex-col border-border/60 border-l bg-background/40">
@@ -342,6 +379,8 @@ export function BilibiliDetailPanel({
               <SummaryView source={fullText?.source} summary={summary} />
             ) : detailTab === 'text' && fullText ? (
               <FullTextView label={textLabel} text={fullText.text} />
+            ) : mutation.isPending ? (
+              <AnalyzingPlaceholder />
             ) : (
               <p className="py-8 text-center text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要。</p>
             )}

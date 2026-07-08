@@ -9,7 +9,7 @@
 import type { BiliVideo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { MoreVertical, Pin, PinOff, Trash2 } from 'lucide-react'
+import { MoreVertical, Pin, PinOff, Play, Trash2 } from 'lucide-react'
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { swarmApi } from '@/lib/api'
@@ -112,6 +112,10 @@ export function BilibiliVideoMenu({
         }
       />
       <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem onClick={() => void swarmApi.bilibiliOpen(video.bvid)}>
+          <Play className="size-4" />
+          观看
+        </DropdownMenuItem>
         <DropdownMenuItem disabled={busy} onClick={() => pinMutation.mutate()}>
           {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
           {pinned ? '取消置顶' : '置顶'}
