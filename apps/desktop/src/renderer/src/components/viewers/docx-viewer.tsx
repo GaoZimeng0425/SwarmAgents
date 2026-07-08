@@ -99,7 +99,9 @@ function createDocxActivePageStore(): DocxActivePageStore {
       if (normalizedValue === activePage) return
 
       activePage = normalizedValue
-      listeners.forEach((listener) => listener())
+      listeners.forEach((listener) => {
+        listener()
+      })
     },
     subscribe: (listener) => {
       listeners.add(listener)
@@ -809,6 +811,7 @@ function DocxThumbnailSidebarList({
                   id={`${thumbnailListboxId}-page-${thumbnail.pageNumber}`}
                   onClick={() => onSelectPage(thumbnail.pageNumber)}
                   role="option"
+                  tabIndex={-1}
                 >
                   <DocxSidebarThumbnail
                     canvasRef={thumbnail.canvasRef}

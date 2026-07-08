@@ -956,6 +956,7 @@ function PDFViewerThumbnails({
                 onSelectPage(pageNumber, mode)
               }}
               role="option"
+              tabIndex={-1}
             >
               <span
                 className="mt-0 flex items-center justify-center overflow-hidden rounded-md bg-transparent"
@@ -1221,6 +1222,7 @@ function PDFViewerTextSelectionLayer({
   return (
     <>
       {rects.map((rect, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: index tiebreaks rects sharing an origin
         <div
           className="pointer-events-none absolute"
           key={`${index}-${rect.origin.x}-${rect.origin.y}`}

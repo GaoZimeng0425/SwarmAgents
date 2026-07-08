@@ -58,7 +58,9 @@ export function SidePanel(): JSX.Element {
   const [listError, setListError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [analysis, setAnalysis] = useState<ArticleSummary | null>(null)
-  const [analyzedAt, setAnalyzedAt] = useState<string | null>(null)
+  // Only the setter is used today (fetched alongside the summary); the value is
+  // not yet rendered. Keep the setter so the fetch flow stays intact.
+  const [, setAnalyzedAt] = useState<string | null>(null)
 
   // Prefill the form from storage so it's ready when shown.
   useEffect(() => {
@@ -238,6 +240,7 @@ export function SidePanel(): JSX.Element {
                       <p className="mb-1 text-[10px] text-muted-foreground tracking-wide">核心要点</p>
                       <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-5">
                         {analysis.points.map((p, i) => (
+                          // biome-ignore lint/suspicious/noArrayIndexKey: plain string list, no stable id
                           <li key={i}>{p}</li>
                         ))}
                       </ul>
@@ -248,6 +251,7 @@ export function SidePanel(): JSX.Element {
                       <p className="mb-1 text-[10px] text-muted-foreground tracking-wide">可带走洞察</p>
                       <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-5">
                         {analysis.takeaways.map((p, i) => (
+                          // biome-ignore lint/suspicious/noArrayIndexKey: plain string list, no stable id
                           <li key={i}>{p}</li>
                         ))}
                       </ul>

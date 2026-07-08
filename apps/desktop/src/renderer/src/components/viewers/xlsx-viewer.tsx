@@ -155,11 +155,13 @@ function cellValueToSearchText(value: unknown) {
     asError?: () => string | null
     asNumber?: () => number | null
     asText?: () => string | null
+    // biome-ignore-start lint/style/useNamingConvention: mirrors the snake_case flags returned by getCalculatedValueAt
     is_boolean?: boolean
     is_empty?: boolean
     is_error?: boolean
     is_number?: boolean
     is_text?: boolean
+    // biome-ignore-end lint/style/useNamingConvention: end external-shape flags
   }
 
   if (record.is_empty) return ''
@@ -1128,7 +1130,7 @@ const WorkbookSheetTabsInner = React.memo(function WorkbookSheetTabsInner({
               }}
             >
               <div className="relative aspect-[11/7] w-full overflow-hidden bg-muted/60">
-                {/* eslint-disable-next-line @next/next/no-img-element -- Workbook sheet previews are generated runtime image URLs. */}
+                {/* biome-ignore lint/performance/noImgElement: workbook sheet previews are generated runtime image URLs, not static assets */}
                 <img
                   alt={`${previewSheet.name} preview`}
                   className="absolute inset-0 h-full w-full object-cover object-left-top"
