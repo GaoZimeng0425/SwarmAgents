@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as TrendingRouteImport } from './routes/trending'
+import { Route as SessionRouteImport } from './routes/session'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as GmailRouteImport } from './routes/gmail'
 import { Route as FormationsRouteImport } from './routes/formations'
@@ -28,6 +29,11 @@ const UsageRoute = UsageRouteImport.update({
 const TrendingRoute = TrendingRouteImport.update({
   id: '/trending',
   path: '/trending',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionRoute = SessionRouteImport.update({
+  id: '/session',
+  path: '/session',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScheduledRoute = ScheduledRouteImport.update({
@@ -61,14 +67,14 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const SessionIndexRoute = SessionIndexRouteImport.update({
-  id: '/session/',
-  path: '/session/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => SessionRoute,
 } as any)
 const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
-  id: '/session/$sessionId',
-  path: '/session/$sessionId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$sessionId',
+  path: '/$sessionId',
+  getParentRoute: () => SessionRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/formations': typeof FormationsRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
+  '/session': typeof SessionRouteWithChildren
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
@@ -103,6 +110,7 @@ export interface FileRoutesById {
   '/formations': typeof FormationsRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
+  '/session': typeof SessionRouteWithChildren
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
@@ -117,6 +125,7 @@ export interface FileRouteTypes {
     | '/formations'
     | '/gmail'
     | '/scheduled'
+    | '/session'
     | '/trending'
     | '/usage'
     | '/session/$sessionId'
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/formations'
     | '/gmail'
     | '/scheduled'
+    | '/session'
     | '/trending'
     | '/usage'
     | '/session/$sessionId'
@@ -154,10 +164,9 @@ export interface RootRouteChildren {
   FormationsRoute: typeof FormationsRoute
   GmailRoute: typeof GmailRoute
   ScheduledRoute: typeof ScheduledRoute
+  SessionRoute: typeof SessionRouteWithChildren
   TrendingRoute: typeof TrendingRoute
   UsageRoute: typeof UsageRoute
-  SessionSessionIdRoute: typeof SessionSessionIdRoute
-  SessionIndexRoute: typeof SessionIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -174,6 +183,13 @@ declare module '@tanstack/react-router' {
       path: '/trending'
       fullPath: '/trending'
       preLoaderRoute: typeof TrendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session': {
+      id: '/session'
+      path: '/session'
+      fullPath: '/session'
+      preLoaderRoute: typeof SessionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/scheduled': {
@@ -220,20 +236,33 @@ declare module '@tanstack/react-router' {
     }
     '/session/': {
       id: '/session/'
-      path: '/session'
+      path: '/'
       fullPath: '/session/'
       preLoaderRoute: typeof SessionIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof SessionRoute
     }
     '/session/$sessionId': {
       id: '/session/$sessionId'
-      path: '/session/$sessionId'
+      path: '/$sessionId'
       fullPath: '/session/$sessionId'
       preLoaderRoute: typeof SessionSessionIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof SessionRoute
     }
   }
 }
+
+interface SessionRouteChildren {
+  SessionSessionIdRoute: typeof SessionSessionIdRoute
+  SessionIndexRoute: typeof SessionIndexRoute
+}
+
+const SessionRouteChildren: SessionRouteChildren = {
+  SessionSessionIdRoute: SessionSessionIdRoute,
+  SessionIndexRoute: SessionIndexRoute,
+}
+
+const SessionRouteWithChildren =
+  SessionRoute._addFileChildren(SessionRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -242,10 +271,9 @@ const rootRouteChildren: RootRouteChildren = {
   FormationsRoute: FormationsRoute,
   GmailRoute: GmailRoute,
   ScheduledRoute: ScheduledRoute,
+  SessionRoute: SessionRouteWithChildren,
   TrendingRoute: TrendingRoute,
   UsageRoute: UsageRoute,
-  SessionSessionIdRoute: SessionSessionIdRoute,
-  SessionIndexRoute: SessionIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

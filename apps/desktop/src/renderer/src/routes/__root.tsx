@@ -1,14 +1,13 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { SidebarInset, SidebarProvider, Toaster } from '@swarm/ui'
-import { createRootRoute, Outlet, useLocation } from '@tanstack/react-router'
+import { createRootRoute, Outlet } from '@tanstack/react-router'
 
 import { AppRail } from '@/components/app-rail'
 import { EventsBridge } from '@/components/events-bridge'
 import { NoProviderBanner } from '@/components/no-provider-banner'
-import { isConversationScene } from '@/components/rail-config'
-import { SessionPanel } from '@/components/session-panel'
 import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
+import { TitleBar } from '@/components/title-bar'
 import { useLoadSessions } from '@/hooks/use-runs'
 import { isValidSection, type SettingsSection } from '@/stores/settings-dialog'
 
@@ -32,9 +31,8 @@ export const Route = createRootRoute({
 
 function RootLayout(): React.JSX.Element {
   const loadSessions = useLoadSessions()
-  const location = useLocation()
-  // Load the session list once at the root; the SessionPanel is conditionally
-  // mounted per scene, but the query cache persists across its mount/unmount.
+  // Load the session list once at the root; the /session layout mounts the
+  // SessionPanel, but the query cache persists across its mount/unmount.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
   useEffect(() => {
     loadSessions.mutate()
@@ -45,13 +43,16 @@ function RootLayout(): React.JSX.Element {
       {/* Mounted always: owns event subscription + main→renderer
           navigation (incl. swarm:navigate-settings). Must never unmount. */}
       <EventsBridge />
+      {/* Full-width transparent drag strip pinned to the very top edge; carries
+          window drag everywhere the per-view topbars don't. Interactive controls
+          in the top band opt out with `WebkitAppRegion: 'no-drag'`. */}
+      <TitleBar />
       <SettingsDialog />
       <SessionSearchDialog />
       {/* The whole window backdrop is the conversation surface (--window-content);
           the rail + (conditionally) the session panel + the main inset sit on it. */}
       <SidebarProvider className="bg-(--window-content)">
         <AppRail />
-        {isConversationScene(location.pathname) && <SessionPanel />}
         <SidebarInset className="min-w-0 flex-1 overflow-hidden">
           <main className="flex h-svh flex-col overflow-hidden">
             <NoProviderBanner />

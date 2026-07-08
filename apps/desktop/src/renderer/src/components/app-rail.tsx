@@ -28,18 +28,9 @@ export function AppRail(): React.JSX.Element {
   return (
     // Full-height 64px column pinned left, translucent over window vibrancy.
     // pt-9 keeps icons below the macOS traffic lights (positioned over the rail's
-    // top-left). The absolute strip below turns that top band into the window's
-    // drag region — there is no separate title bar.
-    <nav
-      aria-label="主导航"
-      className="relative flex w-16 shrink-0 flex-col items-center gap-1 bg-(--surface-rail) pt-9 pb-3"
-    >
-      {/* Window drag region over the traffic-light band (no native title bar). */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-9"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      />
+    // top-left). Window dragging is owned globally by <TitleBar> (mounted in
+    // __root) — there is no per-view drag region.
+    <nav aria-label="主导航" className="flex w-16 shrink-0 flex-col items-center gap-1 bg-(--surface-rail) pt-9 pb-3">
       {RAIL_SECTIONS.map((section, sectionIdx) => (
         <div className="flex flex-col items-center gap-1" key={section.id}>
           {sectionIdx > 0 && <div aria-hidden="true" className="my-1 h-px w-6 bg-sidebar-border" />}

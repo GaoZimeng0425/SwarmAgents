@@ -209,6 +209,24 @@ body {
   background: transparent;
 }
 
+/* Window dragging is owned globally by <TitleBar>'s transparent top strip
+   (fixed, mounted in __root). Interactive elements auto opt out of that strip
+   so it never swallows their clicks — this replaces per-view `no-drag` markers.
+   Works because <TitleBar> precedes view content in DOM order, so these
+   no-drag rects are subtracted after the strip's drag rect. */
+button,
+a,
+input,
+select,
+textarea,
+label,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+[contenteditable] {
+  -webkit-app-region: no-drag;
+}
+
 /* Tooltip: override @swarm/ui's default inverted look (bg-foreground
    text-background), which renders as a bright white box in dark mode. By
    redefining --foreground to --popover inside the tooltip, the bubble AND the

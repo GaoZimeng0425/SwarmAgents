@@ -16,15 +16,11 @@ type Props = {
 
 export function SessionHeader({ title, status, contextPct }: Props): React.JSX.Element {
   return (
-    // The bar doubles as the window drag region (no native title bar); the id
-    // chip opts back out so it stays clickable.
-    <div
-      className="flex h-[52px] shrink-0 items-center gap-2.5 border-border/60 border-b px-4"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-    >
-      <span style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        <ChatIdBadge />
-      </span>
+    // Window dragging is owned globally by <TitleBar> (top strip, mounted in
+    // __root); interactive controls opt out of it via the global no-drag rule
+    // in globals.css.
+    <div className="flex h-[52px] shrink-0 items-center gap-2.5 border-border/60 border-b px-4">
+      <ChatIdBadge />
       <span className="truncate font-semibold text-[13.5px]">{title}</span>
       {status === 'running' && (
         <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 font-medium text-[11.5px] text-primary">

@@ -11,9 +11,9 @@ import { useSessionsStore } from '@/stores/sessions'
 
 export const Route = createFileRoute('/session/')({ component: SessionIndexView })
 
-// Landing for the 对话 rail item: shows the SessionPanel list (gated by
-// isConversationScene in __root) beside a centered composer. Submitting the
-// first message creates a session (useSubmitGoal) and navigates to its detail,
+// Landing for the 对话 rail item: a centered hero composer beside the session
+// list (the list lives in the /session layout route). Submitting the first
+// message creates a session (useSubmitGoal) and navigates to its detail,
 // mirroring HomeDashboard's hero composer on `/`.
 function SessionIndexView(): React.JSX.Element {
   const navigate = useNavigate()
