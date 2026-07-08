@@ -7,7 +7,13 @@
    component classes from the workspace symlink (apps/extension/node_modules/@swarm/ui). */
 @source "../../node_modules/@swarm/ui/src";
 
+/* The side panel's width is owned by the browser (user-resizable); fill it.
+   Height is the full panel. Unlike the popup (fixed 320px), the side panel is
+   a tall, narrow column. */
 html,
-body {
-  width: 320px;
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
 }

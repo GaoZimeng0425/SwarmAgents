@@ -1,3 +1,4 @@
+/// <reference types="chrome" />
 import { createServiceClient, type ServiceClient } from '@swarm/protocol'
 
 import { createWsTransport } from '../lib/transport-ws'
@@ -63,8 +64,16 @@ export default defineBackground(() => {
     if (area === 'local' && (changes.wsHost || changes.token)) void connect()
   })
 
-  // popup probes connectivity by listing agents (no provider/secret needed —
-  // submitGoal needs a ProviderInjection the extension doesn't own; deferred).
+  // Clicking the toolbar icon opens the side panel. With no popup entrypoint,
+  // action.onClicked fires; chrome.sidePanel.open must be called from a user
+  // gesture, and onClicked is one. (Path is the sidepanel entrypoint's, set in
+  // manifest.side_panel.default_path by WXT.)
+  browser.action.onClicked.addListener((tab) => {
+    void chrome.sidePanel.open({ windowId: tab.windowId })
+  })
+
+  // The side panel probes connectivity by listing agents (no provider/secret
+  // needed — submitGoal needs a ProviderInjection the extension doesn't own).
   browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if ((msg as { type?: string })?.type === 'listAgents' && client) {
       ;(async () => {
