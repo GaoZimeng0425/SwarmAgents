@@ -34,6 +34,7 @@ import type { RunWireEvent } from './run'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, DelegateResult, ExecutionMode, PermissionMode, RunOptions, TaskEvent } from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
+import type { RepoResearch } from './trending'
 import type { WeatherConfig, WeatherConfigView, WeatherForecast } from './weather'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
 
@@ -104,6 +105,9 @@ export type UIEvent =
   | { kind: 'article.analysisDelta'; articleId: string; text: string; ts: number; seq?: number }
   | { kind: 'article.analysisComplete'; articleId: string; summary: ArticleSummary; ts: number; seq?: number }
   | { kind: 'article.analysisError'; articleId: string; error: string; ts: number; seq?: number }
+  | { kind: 'trending.researchDelta'; repoName: string; text: string; ts: number; seq?: number }
+  | { kind: 'trending.researchComplete'; repoName: string; research: RepoResearch; ts: number; seq?: number }
+  | { kind: 'trending.researchError'; repoName: string; error: string; ts: number; seq?: number }
 
 export type SessionSummary = {
   id: string
@@ -447,6 +451,12 @@ export type SwarmBridge = {
   }
   trending: {
     get(period: import('./trending').TrendingPeriod, language: string): Promise<import('./trending').TrendingRepo[]>
+    research(
+      repo: import('./trending').TrendingRepo,
+      period: import('./trending').TrendingPeriod
+    ): Promise<import('./trending').ResearchRepoResult>
+    getResearch(repoName: string): Promise<{ research: RepoResearch | null; researchedAt: string | null }>
+    researchedNames(): Promise<string[]>
   }
   cron: {
     listForSession(sessionId: string): Promise<CronJobSummary[]>

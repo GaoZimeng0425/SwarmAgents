@@ -1,6 +1,10 @@
 import type { AgentDefinition } from '@swarm/protocol'
 
-import { ARTICLE_ANALYST_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT } from '../agents/default-prompt'
+import {
+  ARTICLE_ANALYST_SYSTEM_PROMPT,
+  DEFAULT_SYSTEM_PROMPT,
+  REPO_RESEARCHER_SYSTEM_PROMPT,
+} from '../agents/default-prompt'
 
 // Agent types shipped with the app: always available, versioned in code, and
 // merged into the on-disk agent store (a user definition of the same id wins).
@@ -418,6 +422,16 @@ const baseAgents: AgentDefinition[] = [
     maxIterations: 1000,
     role: 'article-analyst',
     capabilities: ['article-analyze'],
+    skills: [],
+  },
+  {
+    id: 'repo-researcher',
+    name: '仓库调研',
+    description: '调研 GitHub 趋势仓库,输出结构化中文简报(简介/为什么上榜/核心亮点/适合谁用/结论)。',
+    systemPrompt: REPO_RESEARCHER_SYSTEM_PROMPT,
+    maxIterations: 1000,
+    role: 'repo-researcher',
+    capabilities: ['repo-research'],
     skills: [],
   },
   {

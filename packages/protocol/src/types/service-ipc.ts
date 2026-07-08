@@ -44,6 +44,9 @@ export type ServiceMethod =
   | 'listArticles'
   | 'getArticleAnalysis'
   | 'deleteArticle'
+  | 'researchRepo'
+  | 'getRepoResearch'
+  | 'researchedRepoNames'
   | 'exportSessionMarkdown'
 
 export type ServiceRequest = {

@@ -14,6 +14,7 @@ import type { ProviderInjection } from './types/provider'
 import type { MainMethod, MainRequest, ServiceMethod, ServiceToMain } from './types/service-ipc'
 import type { Skill, SkillMutationResult } from './types/skill'
 import type { ToolGroupInfo, ToolToggles } from './types/tool-toggles'
+import type { RepoResearch, ResearchRepoRequest, ResearchRepoResult } from './types/trending'
 import type { PermissionDecision } from './types/ui'
 import type { WebSearchInjection } from './types/web-search'
 
@@ -52,6 +53,9 @@ export type ServiceClient = {
   listArticles(): Promise<CollectedArticleWithAnalysis[]>
   getArticleAnalysis(articleId: string): Promise<{ summary: ArticleSummary | null; analyzedAt: string | null }>
   deleteArticle(articleId: string): Promise<void>
+  researchRepo(req: ResearchRepoRequest): Promise<ResearchRepoResult>
+  getRepoResearch(repoName: string): Promise<{ research: RepoResearch | null; researchedAt: string | null }>
+  researchedRepoNames(): Promise<string[]>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
   getRunEvents(sessionId: string): Promise<import('./types/task').RunEvent[]>
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
@@ -177,6 +181,15 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
     },
     async deleteArticle(articleId) {
       await call('deleteArticle', [articleId])
+    },
+    researchRepo(req) {
+      return call('researchRepo', [req])
+    },
+    getRepoResearch(repoName) {
+      return call('getRepoResearch', [repoName])
+    },
+    researchedRepoNames() {
+      return call('researchedRepoNames', [])
     },
     listSessions() {
       return call('listSessions', [])

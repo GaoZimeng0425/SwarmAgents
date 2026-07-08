@@ -28,6 +28,8 @@ import type {
   MemoryView,
   ObsidianConfig,
   PermissionDecision,
+  RepoResearch,
+  ResearchRepoResult,
   RunOptions,
   ScheduledTask,
   SessionSettings,
@@ -74,6 +76,11 @@ export const swarmApi = {
   getUsageStats: (rangeDays: number): Promise<UsageStats> => window.swarm.usage.get(rangeDays),
   getTrendingRepos: (period: TrendingPeriod, language: string): Promise<TrendingRepo[]> =>
     window.swarm.trending.get(period, language),
+  researchRepo: (repo: TrendingRepo, period: TrendingPeriod): Promise<ResearchRepoResult> =>
+    window.swarm.trending.research(repo, period),
+  getRepoResearch: (repoName: string): Promise<{ research: RepoResearch | null; researchedAt: string | null }> =>
+    window.swarm.trending.getResearch(repoName),
+  researchedRepoNames: (): Promise<string[]> => window.swarm.trending.researchedNames(),
   getBilibiliStatus: (): Promise<BiliLoginStatus> => window.swarm.bilibili.status(),
   bilibiliLogin: (): Promise<BiliLoginStatus> => window.swarm.bilibili.login(),
   bilibiliLogout: (): Promise<void> => window.swarm.bilibili.logout(),

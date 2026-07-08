@@ -6,17 +6,15 @@ import {
   type TrendingPeriod,
   type TrendingRepo,
 } from '@swarm/protocol'
+import { Button, NativeSelect, NativeSelectOption, Skeleton } from '@swarm/ui'
 import { useQuery } from '@tanstack/react-query'
 import { range } from 'es-toolkit'
-import { ExternalLink, GitFork, GitPullRequest, Loader2, Sparkles, Star } from 'lucide-react'
+import { GitFork, GitPullRequest, Loader2, Sparkles, Star } from 'lucide-react'
 
-import { Button, buttonVariants } from '@swarm/ui'
-import { NativeSelect, NativeSelectOption } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@swarm/ui'
-import { useResearchRepo } from '@/hooks/use-research-repo'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { TrendingResearchPanel } from './trending-research-panel'
 
 // Short labels for the segmented control; full labels are used as tooltips.
 // Stored as [period, label] pairs so the snake_case ids never appear as literal
@@ -87,55 +85,30 @@ function formatCount(n: number): string {
 export function TrendingView(): React.JSX.Element {
   const [period, setPeriod] = useState<TrendingPeriod>('past_24_hours')
   const [language, setLanguage] = useState<string>('All')
-  const [researching, setResearching] = useState<string | null>(null)
-  const [researchError, setResearchError] = useState<string | null>(null)
-  const research = useResearchRepo()
+  const [selected, setSelected] = useState<TrendingRepo | null>(null)
+  // The repoName whose research is streaming, so its list row can show a
+  // loading badge. Reported up by TrendingResearchPanel.
+  const [researchingName, setResearchingName] = useState<string | null>(null)
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['trending', period, language],
     queryFn: () => swarmApi.getTrendingRepos(period, language),
   })
 
-  const handleResearch = async (repo: TrendingRepo): Promise<void> => {
-    if (researching) return
-    setResearchError(null)
-    setResearching(repo.repoName)
-    try {
-      await research(repo, period)
-    } catch {
-      setResearchError(repo.repoName)
-    } finally {
-      setResearching(null)
-    }
-  }
+  // Which repos already have a cached research result — drives the row "AI" badge.
+  const researched = useQuery({
+    queryKey: ['trending', 'researchedNames'],
+    queryFn: () => swarmApi.researchedRepoNames(),
+  })
+  const researchedSet = new Set(researched.data ?? [])
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-4 p-5">
-      <header className="flex flex-col gap-3">
-        <div>
-          <h1 className="font-semibold text-foreground text-xl">GitHub 趋势</h1>
-          <p className="mt-0.5 text-muted-foreground text-sm">基于 OSSInsight 数据，点击「调研」让 Agent 调研仓库</p>
-        </div>
+    <div className="flex h-full w-full flex-col">
+      <header className="flex flex-none flex-col gap-3 border-border/70 border-b px-5 pt-4 pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-0.5 rounded-lg border border-input bg-muted/50 p-0.5">
-            {TRENDING_PERIODS.map((p) => (
-              <button
-                aria-label={`趋势周期：${TRENDING_PERIOD_LABELS[p]}`}
-                aria-pressed={period === p}
-                className={cn(
-                  'rounded-md px-3 py-1 font-medium text-sm transition-colors',
-                  period === p
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
-                )}
-                key={p}
-                onClick={() => setPeriod(p)}
-                title={TRENDING_PERIOD_LABELS[p]}
-                type="button"
-              >
-                {PERIOD_SHORT_LABELS.get(p)}
-              </button>
-            ))}
+          <div>
+            <h1 className="font-semibold text-foreground text-xl tracking-tight">GitHub 趋势</h1>
+            <p className="mt-0.5 text-muted-foreground text-xs">基于 OSSInsight · 点击仓库让 Agent 深入调研</p>
           </div>
           <div className="flex items-center gap-3">
             {data && data.length > 0 ? (
@@ -150,45 +123,76 @@ export function TrendingView(): React.JSX.Element {
             </NativeSelect>
           </div>
         </div>
+        <div className="inline-flex items-center gap-0.5 self-start rounded-lg border border-input bg-muted/50 p-0.5">
+          {TRENDING_PERIODS.map((p) => (
+            <button
+              aria-label={`趋势周期：${TRENDING_PERIOD_LABELS[p]}`}
+              aria-pressed={period === p}
+              className={cn(
+                'rounded-md px-3 py-1 font-medium text-sm transition-colors',
+                period === p
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
+              )}
+              key={p}
+              onClick={() => setPeriod(p)}
+              title={TRENDING_PERIOD_LABELS[p]}
+              type="button"
+            >
+              {PERIOD_SHORT_LABELS.get(p)}
+            </button>
+          ))}
+        </div>
       </header>
 
-      {isError ? (
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <p className="font-medium text-foreground">加载趋势失败</p>
-          <p className="max-w-sm text-muted-foreground text-sm">可能是网络问题，或 OSSInsight 暂时不可用。</p>
-          <Button onClick={() => void refetch()} size="sm" variant="outline">
-            重试
-          </Button>
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {isError ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <p className="font-medium text-foreground">加载趋势失败</p>
+              <p className="max-w-sm text-muted-foreground text-sm">可能是网络问题，或 OSSInsight 暂时不可用。</p>
+              <Button onClick={() => void refetch()} size="sm" variant="outline">
+                重试
+              </Button>
+            </div>
+          ) : isPending ? (
+            <ol className="flex flex-col gap-2 p-4">
+              {range(8).map((i) => (
+                <SkeletonRow key={i} />
+              ))}
+            </ol>
+          ) : data.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <p className="font-medium text-foreground">当前筛选下暂无趋势数据</p>
+              <p className="text-muted-foreground text-sm">试试切换周期或语言。</p>
+            </div>
+          ) : (
+            <ScrollArea className="min-h-0 flex-1" edgeFade>
+              <ol className="flex flex-col gap-2 p-4">
+                {data.map((repo, i) => (
+                  <RepoRow
+                    index={i}
+                    key={repo.repoName}
+                    onSelect={() => setSelected(repo)}
+                    repo={repo}
+                    researched={researchedSet.has(repo.repoName)}
+                    researching={researchingName === repo.repoName}
+                    selected={selected?.repoName === repo.repoName}
+                  />
+                ))}
+              </ol>
+            </ScrollArea>
+          )}
         </div>
-      ) : isPending ? (
-        <ol className="flex flex-col gap-2">
-          {range(8).map((i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows
-            <SkeletonRow key={i} />
-          ))}
-        </ol>
-      ) : data.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <p className="font-medium text-foreground">当前筛选下暂无趋势数据</p>
-          <p className="text-muted-foreground text-sm">试试切换周期或语言。</p>
-        </div>
-      ) : (
-        <ScrollArea className="-mr-2 min-h-0 flex-1 pr-2" edgeFade>
-          <ol className="flex flex-col gap-2">
-            {data.map((repo, i) => (
-              <RepoRow
-                index={i}
-                isError={researchError === repo.repoName}
-                isResearching={researching === repo.repoName}
-                key={repo.repoName}
-                onResearch={() => void handleResearch(repo)}
-                repo={repo}
-                researchDisabled={researching !== null}
-              />
-            ))}
-          </ol>
-        </ScrollArea>
-      )}
+        {selected ? (
+          <TrendingResearchPanel
+            onClose={() => setSelected(null)}
+            onResearchingChange={setResearchingName}
+            period={period}
+            repo={selected}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -196,82 +200,77 @@ export function TrendingView(): React.JSX.Element {
 function RepoRow(props: {
   repo: TrendingRepo
   index: number
-  onResearch: () => void
-  isResearching: boolean
-  isError: boolean
-  researchDisabled: boolean
+  selected: boolean
+  researching: boolean
+  researched: boolean
+  onSelect: () => void
 }): React.JSX.Element {
-  const { repo, index, onResearch, isResearching, isError, researchDisabled } = props
+  const { repo, index, selected, researching, researched, onSelect } = props
   const slashIndex = repo.repoName.indexOf('/')
   const owner = slashIndex >= 0 ? repo.repoName.slice(0, slashIndex) : repo.repoName
   const repoPart = slashIndex >= 0 ? repo.repoName.slice(slashIndex + 1) : ''
   const topThree = index < 3
 
   return (
-    <li className="flex items-start gap-3 rounded-lg border border-border bg-card/60 p-3.5 transition-colors hover:bg-card/80">
-      <span
+    <li>
+      <button
         className={cn(
-          'w-6 shrink-0 pt-0.5 text-center font-mono text-sm tabular-nums',
-          topThree ? 'font-semibold text-primary' : 'text-muted-foreground'
+          'flex w-full items-start gap-3 rounded-lg border p-3.5 text-left transition-colors',
+          selected ? 'border-ring bg-card ring-2 ring-ring/40' : 'border-border bg-card/60 hover:bg-card/80'
         )}
+        onClick={onSelect}
+        type="button"
       >
-        {index + 1}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-0.5 truncate text-sm">
-          <span className="text-muted-foreground">{owner}</span>
-          {repoPart ? (
-            <>
-              <span className="text-muted-foreground">/</span>
-              <span className="font-semibold text-foreground">{repoPart}</span>
-            </>
+        <span
+          className={cn(
+            'w-6 shrink-0 pt-0.5 text-center font-mono text-sm tabular-nums',
+            topThree ? 'font-semibold text-primary' : 'text-muted-foreground'
+          )}
+        >
+          {index + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-0.5 truncate text-sm">
+            <span className="text-muted-foreground">{owner}</span>
+            {repoPart ? (
+              <>
+                <span className="text-muted-foreground">/</span>
+                <span className="font-semibold text-foreground">{repoPart}</span>
+              </>
+            ) : null}
+          </div>
+          {repo.description ? (
+            <p className="mt-0.5 line-clamp-2 text-muted-foreground text-xs">{repo.description}</p>
           ) : null}
-        </div>
-        {repo.description ? (
-          <p className="mt-0.5 line-clamp-2 text-muted-foreground text-xs">{repo.description}</p>
-        ) : null}
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
-          {repo.language ? (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
+            {repo.language ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="size-2.5 rounded-full" style={{ backgroundColor: languageColor(repo.language) }} />
+                {repo.language}
+              </span>
+            ) : null}
             <span className="inline-flex items-center gap-1">
-              <span className="size-2.5 rounded-full" style={{ backgroundColor: languageColor(repo.language) }} />
-              {repo.language}
+              <Star className="size-3" /> {formatCount(repo.stars)}
             </span>
-          ) : null}
-          <span className="inline-flex items-center gap-1">
-            <Star className="size-3" /> {formatCount(repo.stars)}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <GitFork className="size-3" /> {formatCount(repo.forks)}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <GitPullRequest className="size-3" /> {formatCount(repo.pullRequests)}
-          </span>
-          <span className="inline-flex items-center gap-1 text-foreground/70">热度 {repo.totalScore.toFixed(1)}</span>
+            <span className="inline-flex items-center gap-1">
+              <GitFork className="size-3" /> {formatCount(repo.forks)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <GitPullRequest className="size-3" /> {formatCount(repo.pullRequests)}
+            </span>
+            <span className="inline-flex items-center gap-1 text-foreground/70">热度 {repo.totalScore.toFixed(1)}</span>
+          </div>
         </div>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1.5">
-        <div className="flex items-center gap-1">
-          <Button
-            disabled={researchDisabled}
-            onClick={onResearch}
-            size="sm"
-            variant={isResearching ? 'secondary' : 'default'}
-          >
-            {isResearching ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-            {isResearching ? '调研中' : '调研'}
-          </Button>
-          <a
-            aria-label="在 GitHub 打开"
-            className={buttonVariants({ size: 'icon-sm', variant: 'ghost' })}
-            href={`https://github.com/${repo.repoName}`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <ExternalLink />
-          </a>
-        </div>
-        {isError ? <p className="text-destructive text-xs">创建会话失败，请检查模型配置</p> : null}
-      </div>
+        {researching ? (
+          <span className="flex shrink-0 items-center gap-1 rounded bg-violet-600/90 px-1.5 py-0.5 font-semibold text-[10px] text-white leading-none">
+            <Loader2 className="size-2.5 animate-spin" /> 调研中
+          </span>
+        ) : researched ? (
+          <span className="flex shrink-0 items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 font-semibold text-[10px] text-violet-600 leading-none dark:text-violet-300">
+            <Sparkles className="size-2.5" /> 已调研
+          </span>
+        ) : null}
+      </button>
     </li>
   )
 }
@@ -289,7 +288,6 @@ function SkeletonRow(): React.JSX.Element {
           <Skeleton className="h-3 w-12 rounded" />
         </div>
       </div>
-      <Skeleton className="h-7 w-16 shrink-0 rounded-md" />
     </li>
   )
 }

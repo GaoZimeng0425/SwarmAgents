@@ -26,6 +26,8 @@ import { createSkillStore } from './skills/store'
 import { createToolTogglesStore } from './tool-toggles/store'
 import { registerBuiltinTools } from './tools/builtins'
 import { createToolRegistry } from './tools/registry'
+import { createResearchRepo } from './trending/research'
+import { createRepoResearchStore } from './trending/research-store'
 
 const log = createLogger({ process: 'service' }).child({ component: 'index' })
 
@@ -71,6 +73,10 @@ const offSkillWatch = skillStore.watch(() => broadcaster.broadcast('skills.chang
 syncBuiltinAgents(agentsPath, defaultAgents, retiredBuiltinIds)
 const agentStore = createAgentStore({ dir: agentsPath })
 const articleStore = createArticleStore({ userDataDir: articlesDir })
+// Agent research results for trending repos share the articles userData dir
+// (distinct filename repo-research.json). The trending list is fetched live in
+// Main, so this is the only server-side trending state.
+const repoResearchStore = createRepoResearchStore({ userDataDir: articlesDir })
 // Reload + notify the renderer when the agents dir is edited outside the app
 // (a folder dropped in by hand or written by the agent's fs tools), so the
 // Agents view updates live instead of only after a restart.
@@ -192,6 +198,15 @@ const dispatch = createDispatcher({
     articleStore.delete(id)
     return Promise.resolve()
   },
+  researchRepo: createResearchRepo({
+    broadcaster,
+    agentStore,
+    store: repoResearchStore,
+    toolRegistry,
+    getBudgetConfig: () => budgetConfig,
+  }),
+  getRepoResearch: (repoName) => Promise.resolve(repoResearchStore.get(repoName)),
+  researchedRepoNames: () => Promise.resolve(repoResearchStore.names()),
   registerProvider: (provider) => {
     providerRegistry.set(provider.id, provider)
   },

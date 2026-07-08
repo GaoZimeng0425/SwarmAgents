@@ -22,6 +22,7 @@ import { handleDeepLink, registerDeepLinkIpc } from './system/deep-link'
 import { setupMenu } from './system/menu'
 import { parseDeepLinkFromArgv, registerUrlScheme } from './system/url-scheme'
 import { initTrending } from './trending'
+import { wireTrendingResearchIpc } from './trending/ipc'
 import { initWeather } from './weather'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
@@ -171,10 +172,11 @@ app.whenReady().then(async () => {
       cmdPalette,
     })
     wireArticleIpc({ serviceClient, providers: providers.service })
+    wireTrendingResearchIpc({ serviceClient, providers: providers.service })
     // Surface the WS host config (port + token) to the renderer so Settings →
     // 远程连接 can display the token for the user to copy into the extension.
     // wsHost is assigned at line 150 once the server is up; null before that.
-    ipcMain.handle('system:getWsHostConfig', () => wsHost ? { port: wsHost.port, token: wsHost.token } : null)
+    ipcMain.handle('system:getWsHostConfig', () => (wsHost ? { port: wsHost.port, token: wsHost.token } : null))
     log.info({ msg: 'core services up' })
   } catch (err) {
     log.error({ msg: 'Agent Service failed to start', err: String(err) })

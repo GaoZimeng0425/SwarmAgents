@@ -361,6 +361,14 @@ const swarm: SwarmBridge = {
   trending: {
     get: (period: import('@swarm/protocol').TrendingPeriod, language: string) =>
       ipcRenderer.invoke('trending:get', period, language) as Promise<import('@swarm/protocol').TrendingRepo[]>,
+    research: (repo: import('@swarm/protocol').TrendingRepo, period: import('@swarm/protocol').TrendingPeriod) =>
+      ipcRenderer.invoke('trending:research', repo, period) as Promise<import('@swarm/protocol').ResearchRepoResult>,
+    getResearch: (repoName: string) =>
+      ipcRenderer.invoke('trending:getResearch', repoName) as Promise<{
+        research: import('@swarm/protocol').RepoResearch | null
+        researchedAt: string | null
+      }>,
+    researchedNames: () => ipcRenderer.invoke('trending:researchedNames') as Promise<string[]>,
   },
   cron: {
     listForSession: (sessionId: string) =>

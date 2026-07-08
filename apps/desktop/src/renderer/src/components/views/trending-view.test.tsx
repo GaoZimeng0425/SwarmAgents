@@ -9,10 +9,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { swarmApi } from '@/lib/api'
 import { TrendingView } from './trending-view'
 
-vi.mock('@/hooks/use-research-repo', () => ({
-  useResearchRepo: () => vi.fn(),
-}))
-
 const repo: TrendingRepo = {
   repoName: 'oven-sh/bun',
   description: 'Incredibly fast JavaScript runtime',

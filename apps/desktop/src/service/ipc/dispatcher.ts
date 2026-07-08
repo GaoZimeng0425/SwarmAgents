@@ -34,6 +34,11 @@ type DispatcherConfig = {
     articleId: string
   ): Promise<{ summary: import('@swarm/protocol').ArticleSummary | null; analyzedAt: string | null }>
   deleteArticle(articleId: string): Promise<void>
+  researchRepo(req: import('@swarm/protocol').ResearchRepoRequest): import('@swarm/protocol').ResearchRepoResult
+  getRepoResearch(
+    repoName: string
+  ): Promise<{ research: import('@swarm/protocol').RepoResearch | null; researchedAt: string | null }>
+  researchedRepoNames(): Promise<string[]>
   registerProvider(provider: ProviderInjection): void
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): McpServerStatus[]
@@ -107,6 +112,16 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         const [articleId] = args as [string]
         return cfg.deleteArticle(articleId)
       }
+      case 'researchRepo': {
+        const [req] = args as [import('@swarm/protocol').ResearchRepoRequest]
+        return cfg.researchRepo(req)
+      }
+      case 'getRepoResearch': {
+        const [repoName] = args as [string]
+        return cfg.getRepoResearch(repoName)
+      }
+      case 'researchedRepoNames':
+        return cfg.researchedRepoNames()
       case 'listSessions':
         return service.listSessions()
       case 'getRunEvents': {

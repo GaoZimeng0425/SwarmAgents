@@ -1,11 +1,15 @@
 // src/main/trending/ipc.ts
 //
-// Wires the trending subsystem to Electron IPC. Single read endpoint that
-// validates params (falling back to safe defaults) and returns trending repos.
+// Wires the trending subsystem to Electron IPC. `trending:get` is a dep-free
+// read endpoint (fetches live from OSSInsight). The research endpoints need the
+// serviceClient + providers, so they live in a separate wiring called once those
+// are up (mirrors article-ipc.ts).
 import { createLogger } from '@shared/logger'
-import { TRENDING_PERIODS, type TrendingPeriod } from '@swarm/protocol'
+import type { ResearchRepoResult, ServiceClient } from '@swarm/protocol'
+import { TRENDING_PERIODS, type TrendingPeriod, type TrendingRepo } from '@swarm/protocol'
 import { ipcMain } from 'electron'
 
+import type { Service as ProvidersService } from '../providers'
 import { fetchTrending } from './service'
 
 const log = createLogger({ process: 'main' }).child({ component: 'trending-ipc' })
@@ -35,6 +39,38 @@ export function wireTrendingIpc(): { dispose: () => void } {
   return {
     dispose(): void {
       ipcMain.removeHandler('trending:get')
+    },
+  }
+}
+
+// Research endpoints: renderer→main→service. `research` host-injects the active
+// provider before forwarding (mirrors article-ipc.ts's analyzeArticle). The
+// repo is client-supplied (the list is fetched live, never persisted).
+export function wireTrendingResearchIpc(args: { serviceClient: ServiceClient; providers: ProvidersService }): {
+  dispose: () => void
+} {
+  const { serviceClient, providers } = args
+
+  const research = async (_e: unknown, repo: TrendingRepo, period: unknown): Promise<ResearchRepoResult> => {
+    const injection = providers.getInjection()
+    if (!injection) {
+      log.warn({ msg: 'research repo without provider', repoName: repo.repoName })
+      return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
+    }
+    const p = asPeriod(period)
+    log.info({ msg: 'research repo dispatched', repoName: repo.repoName, period: p, providerId: injection.id })
+    return serviceClient.researchRepo({ repo, period: p, provider: injection })
+  }
+
+  ipcMain.handle('trending:research', research)
+  ipcMain.handle('trending:getResearch', (_e, repoName: string) => serviceClient.getRepoResearch(repoName))
+  ipcMain.handle('trending:researchedNames', () => serviceClient.researchedRepoNames())
+
+  return {
+    dispose(): void {
+      ipcMain.removeHandler('trending:research')
+      ipcMain.removeHandler('trending:getResearch')
+      ipcMain.removeHandler('trending:researchedNames')
     },
   }
 }

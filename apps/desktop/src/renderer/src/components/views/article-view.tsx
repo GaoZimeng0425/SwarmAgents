@@ -4,35 +4,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CollectedArticleWithAnalysis, UIEvent } from '@swarm/protocol'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Sparkles } from 'lucide-react'
+import { ChevronLeft, Loader2, Sparkles } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format-time'
+import { colorForSite } from './article-colors'
 import { ArticleDetailPanel } from './article-detail-panel'
 
 // Grid metrics — kept in sync with the inline grid template below. Same min
 // width / gap as the Bilibili grid so the two views share column cadence.
 const MIN_CARD_PX = 176
 const GAP_PX = 12
-
-const SITE_PALETTE = [
-  'bg-violet-500/15 text-violet-600',
-  'bg-sky-500/15 text-sky-600',
-  'bg-emerald-500/15 text-emerald-600',
-  'bg-amber-500/15 text-amber-600',
-  'bg-rose-500/15 text-rose-600',
-]
-
-// Deterministic site-color: hash the siteName to a stable palette index so a
-// given site always renders the same tint. Empty/unknown sites fall back to the
-// first palette entry (violet).
-export function colorForSite(siteName: string | null): string {
-  if (!siteName) return SITE_PALETTE[0]
-  let h = 0
-  for (let i = 0; i < siteName.length; i++) h = (h * 31 + siteName.charCodeAt(i)) >>> 0
-  return SITE_PALETTE[h % SITE_PALETTE.length]
-}
 
 function columnsForWidth(width: number): number {
   if (width <= 0) return 1
@@ -121,9 +104,17 @@ export function ArticleView(): React.JSX.Element {
   const totalCount = articles.length
 
   const [selected, setSelected] = useState<CollectedArticleWithAnalysis | null>(null)
+  // Collapsed detail: keep `selected` (card stays highlighted) but swap the panel
+  // for a thin re-expand strip. Mirrors the design doc's art-closed state.
+  const [collapsed, setCollapsed] = useState(false)
   // The id of the article the detail panel is currently analyzing, so its grid
   // card can show a loading badge. Reported up by ArticleDetailPanel.
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
+
+  const handleSelect = useCallback((a: CollectedArticleWithAnalysis) => {
+    setSelected(a)
+    setCollapsed(false)
+  }, [])
 
   // Track the content width so the grid can reflow columns responsively. A
   // callback ref (not an effect) wires the observer: the measured node only
@@ -185,7 +176,7 @@ export function ArticleView(): React.JSX.Element {
                       analyzing={analyzingId === a.id}
                       article={a}
                       key={a.id}
-                      onClick={setSelected}
+                      onClick={handleSelect}
                       selected={selected?.id === a.id}
                     />
                   ))}
@@ -194,13 +185,23 @@ export function ArticleView(): React.JSX.Element {
             </ScrollArea>
           )}
         </div>
-        {selected ? (
+        {selected && !collapsed ? (
           <ArticleDetailPanel
             article={selected}
             onAnalyzingChange={setAnalyzingId}
             onChanged={() => setSelected(null)}
-            onClose={() => setSelected(null)}
+            onClose={() => setCollapsed(true)}
           />
+        ) : selected && collapsed ? (
+          <button
+            aria-label="展开 AI 解析"
+            className="flex w-10 shrink-0 cursor-pointer flex-col items-center gap-3 border-border/60 border-l bg-background pt-4 text-muted-foreground hover:text-foreground"
+            onClick={() => setCollapsed(false)}
+            type="button"
+          >
+            <ChevronLeft className="size-4" />
+            <span className="font-semibold text-[11px] tracking-wide [writing-mode:vertical-rl]">AI 解析</span>
+          </button>
         ) : null}
       </div>
     </div>
