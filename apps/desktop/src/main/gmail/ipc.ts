@@ -51,6 +51,8 @@ export function wireGmailIpc(args: { service: Service }): {
       service.saveThreadAnalysis(String(threadId), analysis)
   )
   ipcMain.handle('gmail:analyzedThreadIds', () => service.analyzedThreadIds())
+  ipcMain.handle('gmail:markThreadRead', (_e, threadId: string) => service.markThreadRead(String(threadId)))
+  ipcMain.handle('gmail:listInboxPage', (_e, page: number) => service.listInboxPage(Number(page)))
 
   const mainRpcHandlers: MainRpcHandlers = {
     'gmail.search': (q, limit) => Promise.resolve(service.search(String(q), Number(limit ?? 20))),
@@ -81,6 +83,8 @@ export function wireGmailIpc(args: { service: Service }): {
         'gmail:getThreadAnalysis',
         'gmail:saveThreadAnalysis',
         'gmail:analyzedThreadIds',
+        'gmail:markThreadRead',
+        'gmail:listInboxPage',
       ]) {
         ipcMain.removeHandler(ch)
       }

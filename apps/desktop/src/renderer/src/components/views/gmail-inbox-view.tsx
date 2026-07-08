@@ -6,8 +6,19 @@
 // gmail:stateChanged after every poll, so the list refetches live.
 import { useEffect, useMemo, useState } from 'react'
 import type { GmailAnalysis, GmailMessage, UIEvent } from '@swarm/protocol'
-import { Button, Input, Skeleton } from '@swarm/ui'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Button,
+  Input,
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  Skeleton,
+} from '@swarm/ui'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Inbox, Loader2, MailOpen, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 
@@ -19,7 +30,10 @@ import { cn } from '@/lib/utils'
 import { GmailAssistantCard } from './gmail-assistant-card'
 import { GmailGroupBar } from './gmail-group-bar'
 
-const PAGE_LIMIT = 50
+// Threads per pager page — must match the daemon's server-side page size.
+const PAGE_SIZE = 50
+// Search results aren't paged; cap what we pull for a query.
+const SEARCH_LIMIT = 100
 
 // Gmail From headers are usually "Name <email@x>"; show the name part, fall
 // back to the bare address.
@@ -56,19 +70,6 @@ const GROUP_TAG: Partial<Record<GmailGroupKey, { label: string; cls: string }>> 
   archive: { label: '可归档', cls: 'bg-muted text-muted-foreground' },
 }
 
-// Locally-read tracking. The app is Gmail read-only, so opening a thread can't
-// clear its server-side unread flag — without this the user can't tell which
-// threads they've already looked at. We persist opened thread ids in
-// localStorage (renderer-only, survives restart; ids are tiny so no cap needed).
-const OPENED_KEY = 'gmail:openedThreads'
-function loadOpened(): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(OPENED_KEY) ?? '[]') as string[])
-  } catch {
-    return new Set()
-  }
-}
-
 export function GmailInboxView(): React.JSX.Element {
   const qc = useQueryClient()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -78,8 +79,7 @@ export function GmailInboxView(): React.JSX.Element {
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('') // committed search; '' = listRecent
   const [activeGroup, setActiveGroup] = useState<GmailGroupKey>('all')
-  // Threads the user has opened in-app (locally-read); persisted to localStorage.
-  const [openedIds, setOpenedIds] = useState<Set<string>>(loadOpened)
+  const [page, setPage] = useState(1) // 1-based pager page over the cached window
 
   const status = useQuery({ queryKey: ['gmail', 'status'], queryFn: () => window.swarm.gmail.getStatus() })
   const linked = status.data?.loggedIn === true
@@ -94,12 +94,9 @@ export function GmailInboxView(): React.JSX.Element {
 
   const openThread = (id: string): void => {
     setSelectedId(id)
-    setOpenedIds((prev) => {
-      if (prev.has(id)) return prev
-      const next = new Set(prev).add(id)
-      localStorage.setItem(OPENED_KEY, JSON.stringify([...next]))
-      return next
-    })
+    // Mark read on Gmail (and the local cache) so read-state syncs both ways.
+    // Optimistic on the main side; the stateChanged broadcast refreshes the list.
+    void window.swarm.gmail.markThreadRead(id)
   }
 
   // Live refresh: every background poll / manual sync broadcasts stateChanged.
@@ -112,13 +109,18 @@ export function GmailInboxView(): React.JSX.Element {
     [qc]
   )
 
+  const searching = query.trim().length > 0
+
+  // Server-paged inbox: each page fetches its own 50 threads from Gmail (keyed by
+  // page). A search bypasses paging and returns a flat result set.
   const list = useQuery({
-    queryKey: ['gmail', 'list', query],
+    queryKey: searching ? ['gmail', 'list', 'search', query] : ['gmail', 'list', 'page', page],
     queryFn: () =>
-      query.trim()
-        ? window.swarm.gmail.search(query.trim(), PAGE_LIMIT)
-        : window.swarm.gmail.listRecent({ limit: PAGE_LIMIT }),
+      searching
+        ? window.swarm.gmail.search(query.trim(), SEARCH_LIMIT).then((threads) => ({ threads, total: threads.length }))
+        : window.swarm.gmail.listInboxPage(page),
     enabled: linked,
+    placeholderData: (prev) => prev, // keep the current page visible while the next loads
   })
 
   const detail = useQuery({
@@ -127,12 +129,22 @@ export function GmailInboxView(): React.JSX.Element {
     enabled: linked && selectedId !== null,
   })
 
-  const refresh = async (): Promise<void> => {
-    await window.swarm.gmail.syncNow()
-    void qc.invalidateQueries({ queryKey: ['gmail'] })
-  }
+  // syncNow is a bridge call react-query doesn't track, so drive the button's
+  // spinner off the mutation's own isPending — it stays true for the whole sync,
+  // not just the brief post-sync refetch.
+  const refresh = useMutation({
+    mutationFn: () => window.swarm.gmail.syncNow(),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['gmail'] }),
+  })
 
-  const threads = list.data ?? []
+  // Reset to the first page whenever the search changes.
+  useEffect(() => {
+    setPage(1)
+  }, [query])
+
+  const threads = list.data?.threads ?? []
+  const total = list.data?.total ?? 0
+  const pageCount = searching ? 1 : Math.max(1, Math.ceil(total / PAGE_SIZE))
   // classifyAll is a pure derivation; memoize on the thread list. Computed
   // before the early returns below so the hook order stays unconditional
   // (Rules of Hooks).
@@ -152,7 +164,8 @@ export function GmailInboxView(): React.JSX.Element {
     )
   }
 
-  const visibleThreads = activeGroup === 'all' ? threads : threads.filter((t) => classifyThread(t) === activeGroup)
+  // `threads` is already the current server page; the group tab filters within it.
+  const pageThreads = activeGroup === 'all' ? threads : threads.filter((t) => classifyThread(t) === activeGroup)
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -180,8 +193,8 @@ export function GmailInboxView(): React.JSX.Element {
                 </Button>
               </div>
             </form>
-            <Button disabled={status.isFetching} onClick={() => void refresh()} size="icon-sm" variant="outline">
-              <RefreshCw className={cn('size-4', status.isFetching && 'animate-spin')} />
+            <Button disabled={refresh.isPending} onClick={() => refresh.mutate()} size="icon-sm" variant="outline">
+              <RefreshCw className={cn('size-4', refresh.isPending && 'animate-spin')} />
             </Button>
           </div>
         </div>
@@ -191,20 +204,25 @@ export function GmailInboxView(): React.JSX.Element {
       <div className="flex min-h-0 flex-1">
         {/* Thread list */}
         <div className="flex w-[352px] shrink-0 flex-col border-border/70 border-r">
-          {list.isPending ? (
+          {/* Skeleton on first load AND on page/search navigation (a new query
+              key whose data isn't cached yet → isPlaceholderData). A background
+              poll refetch on the current page keeps isPlaceholderData false, so
+              the list never flashes to skeleton on the 5-min sync. */}
+          {list.isPending || list.isPlaceholderData ? (
             <div className="p-2">
               <ListSkeleton />
             </div>
-          ) : visibleThreads.length === 0 ? (
-            <CenteredMessage text={query.trim() ? '没有匹配的邮件' : '收件箱为空'} />
+          ) : pageThreads.length === 0 ? (
+            <CenteredMessage text={searching ? '没有匹配的邮件' : '收件箱为空'} />
           ) : (
             <ScrollArea className="min-h-0 flex-1" edgeFade>
               <ol className="flex flex-col gap-0.5 p-2">
-                {visibleThreads.map((t) => {
+                {pageThreads.map((t) => {
                   const { initial, bg } = avatarProps(fromDisplay(t.fromAddr) || '?')
                   const tag = GROUP_TAG[classifyThread(t)]
-                  // Locally-read once opened in-app (server unread can't be cleared).
-                  const unread = t.unread && !openedIds.has(t.id)
+                  // Server-driven now: opening a thread marks it read on Gmail
+                  // (gmail.modify), so t.unread reflects real, synced state.
+                  const unread = t.unread
                   const analyzed = analyzedSet.has(t.id)
                   return (
                     <li key={t.id}>
@@ -286,6 +304,9 @@ export function GmailInboxView(): React.JSX.Element {
               </ol>
             </ScrollArea>
           )}
+          {!searching && pageCount > 1 ? (
+            <InboxPager loading={list.isFetching} onPage={setPage} page={page} pageCount={pageCount} />
+          ) : null}
         </div>
 
         {/* Thread detail */}
@@ -460,6 +481,79 @@ export function MessageAnalysis({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// Compact page window for the numbered pager: always shows first + last, the
+// current page and its neighbours, and '…' gaps. e.g. 1 … 4 5 6 … 20.
+function pageWindow(page: number, pageCount: number): (number | 'gap')[] {
+  const around = new Set([1, pageCount, page, page - 1, page + 1])
+  const pages = [...around].filter((p) => p >= 1 && p <= pageCount).sort((a, b) => a - b)
+  const out: (number | 'gap')[] = []
+  let prev = 0
+  for (const p of pages) {
+    if (p - prev > 1) out.push('gap')
+    out.push(p)
+    prev = p
+  }
+  return out
+}
+
+// Bottom-of-list pager for the thread column. Real page count comes from the
+// inbox total; clicking a page fetches only that page's 50 threads from Gmail.
+function InboxPager({
+  page,
+  pageCount,
+  loading,
+  onPage,
+}: {
+  page: number
+  pageCount: number
+  loading: boolean
+  onPage: (p: number) => void
+}): React.JSX.Element {
+  const go = (p: number): void => {
+    if (!loading && p >= 1 && p <= pageCount && p !== page) onPage(p)
+  }
+  return (
+    <div className="flex-none overflow-hidden border-border/70 border-t px-2 py-2">
+      <Pagination>
+        <PaginationContent className="w-full justify-between">
+          <PaginationItem>
+            <PaginationPrevious
+              aria-disabled={page <= 1 || loading}
+              className={cn((page <= 1 || loading) && 'pointer-events-none opacity-40')}
+              onClick={() => go(page - 1)}
+              size="icon-sm"
+              text=""
+            />
+          </PaginationItem>
+          <span className="flex min-w-0 items-center gap-1">
+            {pageWindow(page, pageCount).map((p, i) =>
+              p === 'gap' ? (
+                // biome-ignore lint/suspicious/noArrayIndexKey: gaps are positional
+                <PaginationEllipsis className="size-8" key={`gap-${i}`} />
+              ) : (
+                <PaginationItem key={p}>
+                  <PaginationLink isActive={p === page} onClick={() => go(p)} size="icon-sm">
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              )
+            )}
+          </span>
+          <PaginationItem>
+            <PaginationNext
+              aria-disabled={page >= pageCount || loading}
+              className={cn((page >= pageCount || loading) && 'pointer-events-none opacity-40')}
+              onClick={() => go(page + 1)}
+              size="icon-sm"
+              text=""
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     </div>
   )
 }

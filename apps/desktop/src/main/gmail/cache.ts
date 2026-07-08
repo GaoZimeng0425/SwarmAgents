@@ -30,9 +30,21 @@ export type Cache = {
   // Thread ids that already have a cached thread-level analysis — drives the
   // inbox list's "AI" badge.
   analyzedThreadIds(): string[]
+  // Flip a thread's cached unread flag (optimistic update after marking read on
+  // the server). No-op if the thread isn't cached.
+  setThreadUnread(threadId: string, unread: boolean): void
+  // Remove a thread and everything hanging off it (messages, analyses) — used
+  // when a thread leaves INBOX (archived/trashed/deleted) elsewhere.
+  deleteThread(threadId: string): void
   listRecent(input: { limit: number; label?: string }): GmailThread[]
   stats(): ThreadStats
   setStats(stats: ThreadStats): void
+  // Incremental-sync cursor (Gmail mailbox historyId). null before the first sync.
+  getHistoryId(): string | null
+  setHistoryId(historyId: string): void
+  // Read specific threads by id, preserving the given order and skipping any not
+  // cached — used to materialize a fetched page in list order.
+  getThreadsByIds(ids: string[]): GmailThread[]
   close(): void
 }
 
@@ -208,6 +220,24 @@ export function createCache(opts: { filePath: string }): Cache {
     set.run({ k: 'lastSyncAt', v: String(s.lastSyncAt) })
   }
 
+  const setSyncStateStmt = db.prepare(
+    'INSERT INTO sync_state (key, value) VALUES (@k, @v) ON CONFLICT(key) DO UPDATE SET value=@v'
+  )
+  const getSyncState = (key: string): string | undefined =>
+    (db.prepare('SELECT value FROM sync_state WHERE key = ?').get(key) as { value?: string } | undefined)?.value
+
+  const getHistoryId: Cache['getHistoryId'] = () => getSyncState('historyId') ?? null
+  const setHistoryId: Cache['setHistoryId'] = (historyId) => setSyncStateStmt.run({ k: 'historyId', v: historyId })
+
+  const getThreadsByIds: Cache['getThreadsByIds'] = (ids) => {
+    const byId = new Map<string, GmailThread>()
+    for (const id of ids) {
+      const r = db.prepare('SELECT * FROM threads WHERE id = ?').get(id) as Record<string, unknown> | undefined
+      if (r) byId.set(id, rowToThread(r))
+    }
+    return ids.map((id) => byId.get(id)).filter((t): t is GmailThread => t !== undefined)
+  }
+
   const upsertAnalysis = db.prepare(
     `INSERT INTO analyses (messageId, analysis, updatedAt) VALUES (@messageId, @analysis, @updatedAt)
      ON CONFLICT(messageId) DO UPDATE SET analysis=@analysis, updatedAt=@updatedAt`
@@ -262,6 +292,23 @@ export function createCache(opts: { filePath: string }): Cache {
   const analyzedThreadIds: Cache['analyzedThreadIds'] = () =>
     (db.prepare('SELECT threadId FROM thread_analyses').all() as { threadId: string }[]).map((r) => r.threadId)
 
+  const setThreadUnreadStmt = db.prepare('UPDATE threads SET unread = @unread WHERE id = @id')
+  const setThreadUnread: Cache['setThreadUnread'] = (threadId, unread) => {
+    setThreadUnreadStmt.run({ id: threadId, unread: unread ? 1 : 0 })
+  }
+
+  // Delete analyses (keyed by messageId) before their messages, then the thread's
+  // messages, thread-level analysis, and the thread row — atomically.
+  const deleteThreadTxn = db.transaction((threadId: string) => {
+    db.prepare('DELETE FROM analyses WHERE messageId IN (SELECT id FROM messages WHERE threadId = ?)').run(threadId)
+    db.prepare('DELETE FROM messages WHERE threadId = ?').run(threadId)
+    db.prepare('DELETE FROM thread_analyses WHERE threadId = ?').run(threadId)
+    db.prepare('DELETE FROM threads WHERE id = ?').run(threadId)
+  })
+  const deleteThread: Cache['deleteThread'] = (threadId) => {
+    deleteThreadTxn(threadId)
+  }
+
   return {
     upsertThreads,
     upsertMessages,
@@ -275,6 +322,11 @@ export function createCache(opts: { filePath: string }): Cache {
     getThreadAnalysis,
     saveThreadAnalysis,
     analyzedThreadIds,
+    setThreadUnread,
+    deleteThread,
+    getHistoryId,
+    setHistoryId,
+    getThreadsByIds,
     listRecent,
     stats,
     setStats,

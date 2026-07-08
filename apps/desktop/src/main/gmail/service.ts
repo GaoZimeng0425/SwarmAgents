@@ -8,6 +8,7 @@
 import { createLogger } from '@shared/logger'
 import type { GmailClientCreds, GmailConfigOnDisk, GmailConfigView } from '@swarm/protocol'
 
+import type { GmailApi } from './api'
 import type { Auth } from './auth'
 import type { Cache } from './cache'
 import type { Daemon } from './daemon'
@@ -32,6 +33,11 @@ export type Service = {
   getThreadAnalysis(threadId: string): ReturnType<Cache['getThreadAnalysis']>
   saveThreadAnalysis(threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload): void
   analyzedThreadIds(): string[]
+  // Mark a thread read on Gmail (remove UNREAD) and mirror it into the cache.
+  markThreadRead(threadId: string): Promise<void>
+  // Fetch one 50-thread page of the inbox from Gmail into the cache and return
+  // it (in list order) plus the inbox total for the pager's real page count.
+  listInboxPage(page: number): Promise<{ threads: ReturnType<Cache['getThreadsByIds']>; total: number }>
   onStateChanged(cb: (view: GmailConfigView) => void): () => void
 }
 
@@ -40,6 +46,7 @@ export type ServiceDeps = {
   cache: Cache
   auth: Auth
   daemon: Daemon
+  api: GmailApi
 }
 
 export async function createService(deps: ServiceDeps): Promise<Service> {
@@ -135,10 +142,11 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
     },
     async syncNow() {
       try {
-        // Manual sync forces a full re-fetch (background polls are incremental
-        // and skip cached threads). This is the recovery path for new replies
-        // that landed on an already-cached thread since the last poll.
-        await deps.daemon.pollOnce({ force: true })
+        // Incremental poll (History API): picks up new mail, read/unread flips,
+        // and deletions since the cursor — cheap, a handful of fetches. No longer
+        // forces a full re-fetch; the history cursor already catches replies on
+        // cached threads, and an expired cursor auto-falls-back to full.
+        await deps.daemon.pollOnce()
         syncError = null
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
@@ -156,6 +164,23 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
     getThreadAnalysis: (threadId) => deps.cache.getThreadAnalysis(threadId),
     saveThreadAnalysis: (threadId, analysis) => deps.cache.saveThreadAnalysis(threadId, analysis),
     analyzedThreadIds: () => deps.cache.analyzedThreadIds(),
+    async listInboxPage(page) {
+      const { threadIds, total } = await deps.daemon.getPage(page)
+      return { threads: deps.cache.getThreadsByIds(threadIds), total }
+    },
+    async markThreadRead(threadId) {
+      // Optimistic: flip the cache + notify the UI right away, then write to
+      // Gmail. A failed write is logged (not thrown) — the next forced sync
+      // reconciles from the server.
+      deps.cache.setThreadUnread(threadId, false)
+      emit()
+      try {
+        await deps.api.markThreadRead(threadId)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        log.error({ msg: 'gmail markThreadRead failed', threadId, err: msg })
+      }
+    },
     onStateChanged(cb) {
       listeners.add(cb)
       return () => {

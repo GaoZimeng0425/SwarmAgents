@@ -1,10 +1,9 @@
 // src/renderer/src/components/views/gmail-view.tsx
 
 import { useEffect, useState } from 'react'
+import { Button, Input } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
 import { Section, SettingsHeader } from './settings-primitives'
 
 // Lets the user paste a Google OAuth Desktop client, link/unlink an account
@@ -79,9 +78,9 @@ export function GmailSettingsView(): React.JSX.Element {
       <SettingsHeader
         description={
           <>
-            Link a Google account (read-only). Create a <strong>Desktop-app</strong> OAuth client in Google Cloud
-            Console, keep it in <strong>Testing</strong> mode, and add yourself as a test user. Scope:{' '}
-            <code>gmail.readonly</code>.
+            Link a Google account. Create a <strong>Desktop-app</strong> OAuth client in Google Cloud Console, keep it
+            in <strong>Testing</strong> mode, and add yourself as a test user. Scope: <code>gmail.modify</code> (read +
+            mark-as-read; no delete). Changing scope means you must re-link to re-consent.
           </>
         }
         title="Gmail"

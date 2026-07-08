@@ -15,7 +15,10 @@ import type { Store } from './store'
 
 const log = createLogger({ process: 'main' }).child({ component: 'gmail-auth' })
 
-const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+// gmail.modify: read messages AND change labels (needed to mark threads read on
+// the server). It does NOT grant permanent delete. Changing this scope requires
+// users to re-link (re-consent) — the old readonly token won't cover it.
+const SCOPE = 'https://www.googleapis.com/auth/gmail.modify'
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 const CONSENT_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000

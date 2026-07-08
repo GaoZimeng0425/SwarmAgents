@@ -113,4 +113,61 @@ describe('gmail api client', () => {
     await api.listThreads({ max: 5 })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+
+  it('getHistory parses adds/deletes/inbox-leaves as changed, plus UNREAD flips', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      okJson({
+        historyId: '999',
+        history: [
+          { messagesAdded: [{ message: { threadId: 'tNew' } }] },
+          { messagesDeleted: [{ message: { threadId: 'tDeleted' } }] },
+          { labelsRemoved: [{ message: { threadId: 'tArchived' }, labelIds: ['INBOX'] }] },
+          { labelsAdded: [{ message: { threadId: 'tTrashed' }, labelIds: ['TRASH'] }] },
+          { labelsRemoved: [{ message: { threadId: 'tRead' }, labelIds: ['UNREAD'] }] },
+          { labelsAdded: [{ message: { threadId: 'tUnread' }, labelIds: ['UNREAD'] }] },
+          // A non-actionable label change must be ignored.
+          { labelsRemoved: [{ message: { threadId: 'tOther' }, labelIds: ['IMPORTANT'] }] },
+        ],
+      })
+    )
+    const api = createGmailApi({ getAccessToken: async () => 'AT', refreshAccessToken: async () => {} })
+    const r = await api.getHistory('100')
+    expect(r.expired).toBe(false)
+    if (!r.expired) {
+      expect(r.changedThreadIds.sort()).toEqual(['tArchived', 'tDeleted', 'tNew', 'tTrashed'])
+      expect(r.readThreadIds).toEqual(['tRead'])
+      expect(r.unreadThreadIds).toEqual(['tUnread'])
+      expect(r.changedThreadIds).not.toContain('tOther')
+      expect(r.newHistoryId).toBe('999')
+    }
+  })
+
+  it('getHistory reports expired on a 404 (stale cursor)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    } as Response)
+    const api = createGmailApi({ getAccessToken: async () => 'AT', refreshAccessToken: async () => {} })
+    expect(await api.getHistory('1')).toEqual({ expired: true })
+  })
+
+  it('getInboxTotal reads threadsTotal from the INBOX label', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      okJson({ id: 'INBOX', threadsTotal: 1234, messagesTotal: 5000 })
+    )
+    const api = createGmailApi({ getAccessToken: async () => 'AT', refreshAccessToken: async () => {} })
+    expect(await api.getInboxTotal()).toBe(1234)
+  })
+
+  it('markThreadRead POSTs a removeLabelIds:[UNREAD] modify request', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(okJson({ id: 't1' }))
+    const api = createGmailApi({ getAccessToken: async () => 'AT', refreshAccessToken: async () => {} })
+    await api.markThreadRead('t1')
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/users/me/threads/t1/modify')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({ removeLabelIds: ['UNREAD'] })
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer AT')
+  })
 })

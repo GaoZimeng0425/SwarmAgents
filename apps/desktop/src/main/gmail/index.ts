@@ -43,7 +43,7 @@ export async function initGmail(): Promise<GmailHandle> {
   })
   const api = createGmailApi(auth)
   const daemon = createDaemon({ api, cache })
-  const service = await createService({ store, cache, auth, daemon })
+  const service = await createService({ store, cache, auth, daemon, api })
   const wired = wireGmailIpc({ service })
 
   return {

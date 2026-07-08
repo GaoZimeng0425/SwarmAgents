@@ -170,17 +170,17 @@ describe('GmailInboxView manual analysis', () => {
       messageCount: 1,
       syncError: null,
     })
-    const listRecent = vi.fn().mockResolvedValue([
-      {
-        id: 't1',
-        snippet: '',
-        fromAddr: 'a@b',
-        subject: '下周评审',
-        lastDateMs: 1,
-        labelIds: [],
-        unread: false,
-      },
-    ])
+    const thread = {
+      id: 't1',
+      snippet: '',
+      fromAddr: 'a@b',
+      subject: '下周评审',
+      lastDateMs: 1,
+      labelIds: [],
+      unread: false,
+    }
+    const listRecent = vi.fn().mockResolvedValue([thread])
+    const listInboxPage = vi.fn().mockResolvedValue({ threads: [thread], total: 1 })
     const getThread = vi.fn().mockResolvedValue({
       thread: { id: 't1', subject: '下周评审' },
       messages: [msg({ id: 'm1', subject: '下周评审', fromAddr: 'a@b', bodyText: '正文内容' })],
@@ -199,6 +199,8 @@ describe('GmailInboxView manual analysis', () => {
         saveThreadAnalysis,
         getAnalyses: vi.fn().mockResolvedValue({}),
         analyzedThreadIds: vi.fn().mockResolvedValue([]),
+        markThreadRead: vi.fn().mockResolvedValue(undefined),
+        listInboxPage,
         onStateChanged,
       },
       analyzeThread: vi.fn().mockResolvedValue({ ok: true }),

@@ -276,6 +276,8 @@ export type GmailBridge = {
   getThreadAnalysis(threadId: string): Promise<GmailThreadAnalysis | null>
   saveThreadAnalysis(threadId: string, analysis: ThreadAnalysisPayload): Promise<void>
   analyzedThreadIds(): Promise<string[]>
+  markThreadRead(threadId: string): Promise<void>
+  listInboxPage(page: number): Promise<{ threads: GmailThread[]; total: number }>
 }
 
 export type CalendarSetResult = { ok: true } | { ok: false; code: string; message: string }
