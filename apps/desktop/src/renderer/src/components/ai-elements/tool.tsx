@@ -2,11 +2,10 @@
 
 import type { ComponentProps, ReactNode } from 'react'
 import { isValidElement } from 'react'
+import { Badge, Collapsible, CollapsibleContent, CollapsibleTrigger } from '@swarm/ui'
 import { CheckCircleIcon, ChevronDownIcon, CircleIcon, ClockIcon, XCircleIcon } from 'lucide-react'
 
 import { Markdown } from '@/components/markdown'
-import { Badge } from '@swarm/ui'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { CodeBlock } from './code-block'

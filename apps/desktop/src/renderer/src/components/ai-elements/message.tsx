@@ -5,13 +5,19 @@ import { createContext, memo, useCallback, useContext, useEffect, useMemo, useSt
 import { cjk } from '@streamdown/cjk'
 import { math } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
+import {
+  Button,
+  ButtonGroup,
+  ButtonGroupText,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@swarm/ui'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import type { BundledTheme } from 'shiki'
 import { type Components, defaultRemarkPlugins, defaultUrlTransform, Streamdown, type UrlTransform } from 'streamdown'
 
-import { Button } from '@swarm/ui'
-import { ButtonGroup, ButtonGroupText } from '@swarm/ui'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 import { FILE_LINK_SCHEME, remarkFilePaths } from '@/lib/remark-file-paths'
 import { streamdownCodePlugin } from '@/lib/streamdown-code-plugin'
 import { cn } from '@/lib/utils'

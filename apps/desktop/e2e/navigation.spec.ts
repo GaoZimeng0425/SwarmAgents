@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { expect, test } from './fixtures'
 
 // Case 6 — after a submit, a session is persisted (IPC) and appears in the
 // sidebar. The durable contract is "submit creates a session the sidebar shows".
@@ -16,14 +16,16 @@ import { test, expect } from './fixtures'
 const GOAL = 'nav test goal'
 test('submit creates a session visible in the sidebar', async ({ page }) => {
   await page.evaluate(async () => {
-    const w = (window as unknown as {
-      swarm: {
-        providers: {
-          setKey: (id: string, key: string) => Promise<unknown>
-          setActive: (id: string | null) => Promise<unknown>
+    const w = (
+      window as unknown as {
+        swarm: {
+          providers: {
+            setKey: (id: string, key: string) => Promise<unknown>
+            setActive: (id: string | null) => Promise<unknown>
+          }
         }
       }
-    }).swarm
+    ).swarm
     await w.providers.setKey('anthropic', 'sk-e2e-dummy')
     await w.providers.setActive('anthropic')
   })
@@ -34,10 +36,11 @@ test('submit creates a session visible in the sidebar', async ({ page }) => {
 
   // Session is persisted via IPC.
   const sessions = await page.evaluate(() =>
-    (window as unknown as {
-      swarm: { sessions: { list: () => Promise<Array<{ id: string; taskCount: number }>> }
+    (
+      window as unknown as {
+        swarm: { sessions: { list: () => Promise<Array<{ id: string; taskCount: number }>> } }
       }
-    }).swarm.sessions.list(),
+    ).swarm.sessions.list()
   )
   expect(sessions.length).toBeGreaterThan(0)
 

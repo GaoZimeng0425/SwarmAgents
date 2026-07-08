@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import type React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { RouterProvider, createMemoryHistory, createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +46,7 @@ async function mount(router: ReturnType<typeof createRouter>): Promise<SettingsN
   render(
     <QueryClientProvider client={qc}>
       <RouterProvider router={router} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
   // RouterProvider mounts the route tree on a microtask; wait for the capture.
   await waitFor(() => expect(captured).not.toBeNull())

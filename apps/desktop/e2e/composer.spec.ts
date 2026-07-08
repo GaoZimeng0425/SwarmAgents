@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { expect, test } from './fixtures'
 
 // Case 5 — composer submits a goal and the user message renders. We seed a
 // dummy provider key via IPC to unlock the composer, then drive the real UI.
@@ -6,14 +6,16 @@ import { test, expect } from './fixtures'
 // produces a task and the user message appears in the transcript.
 test('composer submits and renders the user message', async ({ page }) => {
   await page.evaluate(async () => {
-    const w = (window as unknown as {
-      swarm: {
-        providers: {
-          setKey: (id: string, key: string) => Promise<unknown>
-          setActive: (id: string | null) => Promise<unknown>
+    const w = (
+      window as unknown as {
+        swarm: {
+          providers: {
+            setKey: (id: string, key: string) => Promise<unknown>
+            setActive: (id: string | null) => Promise<unknown>
+          }
         }
       }
-    }).swarm
+    ).swarm
     await w.providers.setKey('anthropic', 'sk-e2e-dummy')
     await w.providers.setActive('anthropic')
   })

@@ -2,13 +2,12 @@
 
 import type { ComponentProps, CSSProperties, HTMLAttributes } from 'react'
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import type { BundledLanguage, BundledTheme, HighlighterGeneric, ThemedToken } from 'shiki'
 import { createHighlighter } from 'shiki'
 
-import { Button } from '@swarm/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
 import { cn } from '@/lib/utils'
 
 // Shiki uses bitflags for font styles: 1=italic, 2=bold, 4=underline

@@ -26,11 +26,8 @@ import {
   Upload01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { useDebouncer } from '@tanstack/react-pacer'
-import { createPortal } from 'react-dom'
-
-import { Button } from '@swarm/ui'
 import {
+  Button,
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -39,14 +36,28 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Separator,
+  Spinner,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@swarm/ui'
-import { Input } from '@swarm/ui'
-import { Popover, PopoverContent, PopoverTrigger } from '@swarm/ui'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
-import { Separator } from '@swarm/ui'
-import { Spinner } from '@swarm/ui'
-import { Tabs, TabsList, TabsTrigger } from '@swarm/ui'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
+import { useDebouncer } from '@tanstack/react-pacer'
+import { createPortal } from 'react-dom'
+
 // local-adapt: local scroll-area is a base-ui subset lacking orientation/scrollFade/viewport* props the Extend viewers rely on; import Extend's vendored richer ScrollArea instead (shared primitive left untouched)
 import { ScrollArea } from '@/components/viewers/viewer-scroll-area'
 import { cn } from '@/lib/utils'

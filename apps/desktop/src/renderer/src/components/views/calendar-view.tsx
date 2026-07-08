@@ -1,10 +1,9 @@
 // src/renderer/src/components/views/calendar-view.tsx
 
 import { useEffect, useState } from 'react'
+import { Button, Input } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
 import { Section, SettingsHeader } from './settings-primitives'
 
 // Lets the user paste a Google OAuth Desktop client, link/unlink an account

@@ -24,43 +24,35 @@ export function wireWeatherIpc(args: { service: Service }): { dispose: () => voi
     return service.setConfig(c as WeatherConfig)
   })
 
-  ipcMain.handle(
-    'weather:getForecast',
-    (_e: Electron.IpcMainInvokeEvent, lng: unknown, lat: unknown) => {
-      const l = typeof lng === 'number' ? lng : null
-      const la = typeof lat === 'number' ? lat : null
-      return service
-        .getForecast(l, la)
-        .then((forecast) => {
-          // Push the fresh forecast to every renderer so the dashboard card
-          // updates without a re-fetch.
-          for (const w of BrowserWindow.getAllWindows()) {
-            if (!w.isDestroyed()) w.webContents.send(FORECAST_CHANNEL, forecast)
-          }
-          return { ok: true as const, forecast }
-        })
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err)
-          // Map to the WeatherForecastResult.code union. geo.ts throws messages
-          // like "ip-api HTTP …", "ip-api returned no coordinates", or
-          // "QWeather GeoAPI …" — all locate failures. The service throws the
-          // literal "not configured" sentinel before any locate attempt.
-          const lower = message.toLowerCase()
-          const isLocate =
-            lower.includes('ip-api') ||
-            lower.includes('coordinates') ||
-            lower.includes('geoapi') ||
-            lower.includes('locate')
-          const code =
-            message === 'not configured'
-              ? 'not_configured'
-              : isLocate
-                ? 'locate_failed'
-                : 'fetch_failed'
-          return { ok: false as const, code, message }
-        })
-    },
-  )
+  ipcMain.handle('weather:getForecast', (_e: Electron.IpcMainInvokeEvent, lng: unknown, lat: unknown) => {
+    const l = typeof lng === 'number' ? lng : null
+    const la = typeof lat === 'number' ? lat : null
+    return service
+      .getForecast(l, la)
+      .then((forecast) => {
+        // Push the fresh forecast to every renderer so the dashboard card
+        // updates without a re-fetch.
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed()) w.webContents.send(FORECAST_CHANNEL, forecast)
+        }
+        return { ok: true as const, forecast }
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        // Map to the WeatherForecastResult.code union. geo.ts throws messages
+        // like "ip-api HTTP …", "ip-api returned no coordinates", or
+        // "QWeather GeoAPI …" — all locate failures. The service throws the
+        // literal "not configured" sentinel before any locate attempt.
+        const lower = message.toLowerCase()
+        const isLocate =
+          lower.includes('ip-api') ||
+          lower.includes('coordinates') ||
+          lower.includes('geoapi') ||
+          lower.includes('locate')
+        const code = message === 'not configured' ? 'not_configured' : isLocate ? 'locate_failed' : 'fetch_failed'
+        return { ok: false as const, code, message }
+      })
+  })
 
   log.info({ msg: 'weather IPC wired' })
 

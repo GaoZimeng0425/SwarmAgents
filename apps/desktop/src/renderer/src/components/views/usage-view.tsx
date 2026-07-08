@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import type { UsageRange, UsageStats } from '@swarm/protocol'
 import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@swarm/ui'
+import {
   Activity,
   BarChart3,
   CalendarCheck,
@@ -12,15 +23,7 @@ import {
 } from 'lucide-react'
 import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, XAxis } from 'recharts'
 
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@swarm/ui'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 import { swarmApi } from '@/lib/api'
 import { formatCost, formatCount, heatmapShade } from '@/lib/usage-format'
 import { cn } from '@/lib/utils'

@@ -11,9 +11,6 @@ import {
   type ProviderView,
   providerViewById,
 } from '@swarm/protocol'
-import { ArrowDown, ArrowUp, Bot, Box, Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
-import { toast } from 'sonner'
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,10 +21,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@swarm/ui'
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
+import { ArrowDown, ArrowUp, Bot, Box, Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { toast } from 'sonner'
+
 import { useProviders } from '@/hooks/use-providers'
 import { cn } from '@/lib/utils'
 import { Section, SettingsHeader } from './settings-primitives'

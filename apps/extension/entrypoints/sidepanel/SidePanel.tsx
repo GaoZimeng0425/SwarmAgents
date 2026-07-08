@@ -1,23 +1,48 @@
-// The extension's side panel (replaces the popup). Chrome MV3 `chrome.sidePanel`:
-// click the toolbar icon → `action.onClicked` (background) opens this panel on
-// the right edge. Unlike a popup it stays open while the user browses, so it
-// doubles as a status surface for "收集当前页".
+// The extension's side panel. Chrome MV3 `chrome.sidePanel`: click the toolbar
+// icon → `action.onClicked` (background) opens this panel on the right edge.
 //
-// Config is inline (no separate options page hop): on open the panel probes
-// `health` (a listAgents round-trip); only when that fails does it show the
-// token form. Saving writes browser.storage.local and the background (which
-// watches storage.onChanged) reconnects automatically, after which the next
-// health probe flips the panel back to the connected view.
-import { type JSX, useEffect, useState } from 'react'
+// Two modes:
+// - Disconnected (health failing): shows the token form. Retries health until
+//   the background's WS client comes up, then flips to connected.
+// - Connected: shows the collect button + the list of collected articles.
+//   Clicking an article expands its AI analysis (read-only; triggering an
+//   analysis still happens on desktop, which owns the provider/apiKey).
+//
+// All data flows over the existing WS via background messages: listArticles /
+// getArticleAnalysis are RPCs; analysis progress arrives as article.analysis*
+// broadcast events (transparently bridged service→peer), forwarded here as a
+// runtime message by the background so the panel can refresh live.
+import { type JSX, useCallback, useEffect, useState } from 'react'
+import type { ArticleSummary, CollectedArticleWithAnalysis } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 
 type HealthResult = { ok: true; count: number } | { ok: false; error: string }
-
 type CollectStatus = { kind: 'pending' } | { kind: 'ok'; articleId?: string } | { kind: 'err'; error: string }
+type ListResult = { ok: true; articles: CollectedArticleWithAnalysis[] } | { ok: false; error: string }
+type AnalysisResult =
+  | { ok: true; summary: ArticleSummary | null; analyzedAt: string | null }
+  | { ok: false; error: string }
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
+
+function shortDate(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return `${d.getMonth() + 1}月${d.getDate()}日`
+  } catch {
+    return ''
+  }
+}
 
 export function SidePanel(): JSX.Element {
   // Connection + collect state. `connected` is driven solely by the health
-  // probe — there is no manual "测试连接" button anymore.
+  // probe (retried until success).
   const [connected, setConnected] = useState(false)
   const [collecting, setCollecting] = useState(false)
   const [collectStatus, setCollectStatus] = useState<CollectStatus | null>(null)
@@ -28,6 +53,13 @@ export function SidePanel(): JSX.Element {
   const [token, setToken] = useState('')
   const [savedHint, setSavedHint] = useState(false)
 
+  // Article list + analysis view state (connected mode only).
+  const [articles, setArticles] = useState<CollectedArticleWithAnalysis[]>([])
+  const [listError, setListError] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [analysis, setAnalysis] = useState<ArticleSummary | null>(null)
+  const [analyzedAt, setAnalyzedAt] = useState<string | null>(null)
+
   // Prefill the form from storage so it's ready when shown.
   useEffect(() => {
     browser.storage.local.get(['wsHost', 'token']).then((v) => {
@@ -37,19 +69,15 @@ export function SidePanel(): JSX.Element {
   }, [])
 
   // Probe health on mount AND retry every 3s while still unhealthy. The WS
-  // client in the background reconnects asynchronously (on storage change /
-  // alarm), so a one-shot probe at mount would often race ahead of the
-  // connection and leave the token form stuck open. Retrying until success
-  // means the form disappears the moment the connection actually comes up.
-  // Stops retrying once connected or the panel unmounts.
+  // client in the background reconnects asynchronously, so a one-shot probe
+  // would race ahead of the connection and leave the token form stuck open.
   useEffect(() => {
     let stopped = false
     const probe = (): void => {
       browser.runtime.sendMessage({ type: 'health' }, (r: HealthResult) => {
         if (stopped) return
-        if (r?.ok) {
-          setConnected(true)
-        } else {
+        if (r?.ok) setConnected(true)
+        else {
           setConnected(false)
           setTimeout(probe, 3000)
         }
@@ -61,14 +89,65 @@ export function SidePanel(): JSX.Element {
     }
   }, [])
 
+  // Refresh the article list whenever we become connected (and expose it for
+  // manual refresh after a collect succeeds).
+  const refreshList = useCallback((): void => {
+    browser.runtime.sendMessage({ type: 'listArticles' }, (r: ListResult) => {
+      if (r?.ok) {
+        setArticles(r.articles)
+        setListError(null)
+      } else {
+        setListError(r?.error ?? '加载失败')
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (connected) refreshList()
+  }, [connected, refreshList])
+
+  // Live-update the analysis view when an article.analysis* broadcast arrives
+  // for the currently-selected article (forwarded by the background). This
+  // covers the case where the user triggered an analysis on desktop while
+  // viewing the article here.
+  useEffect(() => {
+    const listener = (msg: { type?: string; articleId?: string; summary?: ArticleSummary }): void => {
+      if (msg?.type === 'article.analysisComplete' && msg.articleId === selectedId && msg.summary) {
+        setAnalysis(msg.summary)
+        setAnalyzedAt(new Date().toISOString())
+      }
+    }
+    browser.runtime.onMessage.addListener(listener)
+    return () => browser.runtime.onMessage.removeListener(listener)
+  }, [selectedId])
+
+  // Fetch analysis when a new article is selected.
+  useEffect(() => {
+    if (!selectedId) {
+      setAnalysis(null)
+      setAnalyzedAt(null)
+      return
+    }
+    browser.runtime.sendMessage({ type: 'getArticleAnalysis', articleId: selectedId }, (r: AnalysisResult) => {
+      if (r?.ok) {
+        setAnalysis(r.summary)
+        setAnalyzedAt(r.analyzedAt)
+      }
+    })
+  }, [selectedId])
+
   const collect = (): void => {
     setCollecting(true)
     setCollectStatus({ kind: 'pending' })
     browser.runtime.sendMessage(
       { type: 'collectCurrentPage' },
       (r: { ok: boolean; articleId?: string; error?: string }) => {
-        if (r?.ok) setCollectStatus({ kind: 'ok', articleId: r.articleId })
-        else setCollectStatus({ kind: 'err', error: r?.error ?? 'unknown error' })
+        if (r?.ok) {
+          setCollectStatus({ kind: 'ok', articleId: r.articleId })
+          refreshList()
+        } else {
+          setCollectStatus({ kind: 'err', error: r?.error ?? 'unknown error' })
+        }
         setCollecting(false)
       }
     )
@@ -76,29 +155,28 @@ export function SidePanel(): JSX.Element {
 
   const saveConfig = (): void => {
     browser.storage.local.set({ wsHost, token }).then(() => {
-      // The background watches storage.onChanged and reconnects on its own; no
-      // need to message it directly. Briefly flash a hint; a subsequent health
-      // probe (e.g. on next panel open) will re-establish the connected view.
       setSavedHint(true)
       setTimeout(() => setSavedHint(false), 2500)
     })
   }
 
+  const selected = articles.find((a) => a.id === selectedId) ?? null
+
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <header className="flex flex-col gap-1">
         <h3 className="font-semibold text-foreground">SwarmAgents</h3>
-        <p className="text-muted-foreground text-xs">连接桌面端,收集当前页文章并发送分析。</p>
+        <p className="text-muted-foreground text-xs">连接桌面端,收集并查看文章分析。</p>
       </header>
 
-      {/* Inline config: shown only when not connected (health failed). */}
+      {/* Disconnected: inline token form. */}
       {!connected ? (
         <section className="flex flex-col gap-2 rounded-md border border-border p-3">
           <label className="text-muted-foreground text-xs" htmlFor="token">
-            Token(从桌面端 ws-host.json 复制)
+            Token(从桌面端 设置 → 远程连接 复制)
           </label>
           <input
-            className="border-border bg-background rounded border px-2 py-1 font-mono text-xs"
+            className="rounded border border-border bg-background px-2 py-1 font-mono text-xs"
             id="token"
             onChange={(e) => setToken(e.target.value)}
             placeholder="粘贴 token"
@@ -108,7 +186,7 @@ export function SidePanel(): JSX.Element {
           <details className="text-muted-foreground text-xs">
             <summary className="cursor-pointer select-none">高级(WS host)</summary>
             <input
-              className="border-border bg-background mt-2 w-full rounded border px-2 py-1 font-mono text-xs"
+              className="mt-2 w-full rounded border border-border bg-background px-2 py-1 font-mono text-xs"
               onChange={(e) => setWsHost(e.target.value)}
               value={wsHost}
             />
@@ -116,19 +194,119 @@ export function SidePanel(): JSX.Element {
           <Button className="mt-1" disabled={token.trim().length === 0} onClick={saveConfig} size="sm">
             保存并重连
           </Button>
-          {savedHint && <p className="text-xs text-emerald-600">已保存,后台正在重连…</p>}
+          {savedHint && <p className="text-emerald-600 text-xs">已保存,后台正在重连…</p>}
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-2">
-        <Button className="w-full" disabled={collecting || !connected} onClick={collect}>
-          📄 收集当前页到文章库
-        </Button>
-        {connected && <p className="text-muted-foreground text-xs">已连接 — 可收集当前页。</p>}
-        {collectStatus?.kind === 'pending' && <p className="text-muted-foreground text-xs">◷ 发送中…</p>}
-        {collectStatus?.kind === 'ok' && <p className="text-xs text-emerald-600">✓ 已收集,去 desktop 查看</p>}
-        {collectStatus?.kind === 'err' && <p className="text-destructive text-xs">✗ {collectStatus.error}</p>}
-      </section>
+      {/* Connected: collect + article list / analysis view. */}
+      {connected ? (
+        <>
+          <section className="flex flex-col gap-2">
+            <Button className="w-full" disabled={collecting} onClick={collect}>
+              📄 收集当前页到文章库
+            </Button>
+            {collectStatus?.kind === 'pending' && <p className="text-muted-foreground text-xs">◷ 发送中…</p>}
+            {collectStatus?.kind === 'ok' && <p className="text-emerald-600 text-xs">✓ 已收集</p>}
+            {collectStatus?.kind === 'err' && <p className="text-destructive text-xs">✗ {collectStatus.error}</p>}
+          </section>
+
+          {selected ? (
+            // Detail view: the selected article's analysis.
+            <section className="flex min-h-0 flex-1 flex-col gap-3">
+              <button
+                className="text-left text-muted-foreground text-xs underline"
+                onClick={() => setSelectedId(null)}
+                type="button"
+              >
+                ← 返回列表
+              </button>
+              <div className="flex flex-col gap-0.5">
+                <h4 className="font-medium text-sm leading-snug">{selected.title}</h4>
+                <p className="text-muted-foreground text-xs">
+                  {selected.siteName ?? hostnameOf(selected.url)} · {shortDate(selected.collectedAt)}
+                </p>
+              </div>
+              <div className="border-border border-t" />
+              {analysis ? (
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+                  <div className="rounded-md border border-border bg-muted/30 p-2.5">
+                    <p className="mb-1 text-[10px] text-muted-foreground tracking-wide">一句话结论</p>
+                    <p className="text-foreground text-xs leading-5">{analysis.gist}</p>
+                  </div>
+                  {analysis.points.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-[10px] text-muted-foreground tracking-wide">核心要点</p>
+                      <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-5">
+                        {analysis.points.map((p, i) => (
+                          <li key={i}>{p}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {analysis.takeaways.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-[10px] text-muted-foreground tracking-wide">可带走洞察</p>
+                      <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-5">
+                        {analysis.takeaways.map((p, i) => (
+                          <li key={i}>{p}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-xs">这篇文章还没有分析。去 desktop 选中它点「AI 分析」。</p>
+              )}
+              <a
+                className="text-muted-foreground text-xs underline"
+                href={selected.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                打开原文 ↗
+              </a>
+            </section>
+          ) : (
+            // List view.
+            <section className="flex min-h-0 flex-1 flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-muted-foreground text-xs">
+                  已收集 <span className="tabular-nums">{articles.length}</span> 篇
+                </p>
+                <button className="text-muted-foreground text-xs underline" onClick={refreshList} type="button">
+                  刷新
+                </button>
+              </div>
+              {listError ? <p className="text-destructive text-xs">{listError}</p> : null}
+              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+                {articles.length === 0 && !listError ? (
+                  <p className="text-muted-foreground text-xs">还没有收集的文章。打开一篇文章,点上方按钮收集。</p>
+                ) : null}
+                {articles.map((a) => (
+                  <button
+                    className="flex flex-col gap-0.5 rounded border border-transparent px-2 py-1.5 text-left transition-colors hover:border-border hover:bg-sidebar-accent"
+                    key={a.id}
+                    onClick={() => setSelectedId(a.id)}
+                    type="button"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      {a.summary ? (
+                        <span className="rounded bg-primary px-1 font-medium text-[9px] text-primary-foreground">
+                          AI
+                        </span>
+                      ) : null}
+                      <span className="line-clamp-1 font-medium text-xs">{a.title}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {a.siteName ?? hostnameOf(a.url)} · {shortDate(a.collectedAt)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      ) : null}
     </div>
   )
 }

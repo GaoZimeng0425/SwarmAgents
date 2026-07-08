@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { expect, test } from './fixtures'
 
 // Case 2 — empty state: no-provider banner is visible and opens settings
 // to the providers tab.
@@ -23,7 +23,9 @@ test('entering an API key persists via IPC', async ({ page }) => {
   await page.getByRole('button', { name: '保存 Key' }).first().click()
 
   const state = await page.evaluate(() =>
-    (window as unknown as { swarm: { providers: { get: () => Promise<{ providers: Array<{ hasKey: boolean }> }> } } }).swarm.providers.get(),
+    (
+      window as unknown as { swarm: { providers: { get: () => Promise<{ providers: Array<{ hasKey: boolean }> }> } } }
+    ).swarm.providers.get()
   )
   expect(state.providers.filter((p) => p.hasKey).length).toBeGreaterThan(0)
 })

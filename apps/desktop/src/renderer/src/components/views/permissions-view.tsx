@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MacPermissionState, MacPermissions } from '@swarm/protocol'
+import { Badge, Button } from '@swarm/ui'
 
-import { Badge } from '@swarm/ui'
-import { Button } from '@swarm/ui'
 import { SettingsHeader } from './settings-primitives'
 
 const STATE_LABEL: Record<MacPermissionState, { text: string; variant: 'secondary' | 'destructive' | 'outline' }> = {

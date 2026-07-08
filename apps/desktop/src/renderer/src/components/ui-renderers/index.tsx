@@ -1,8 +1,8 @@
 import { useState } from 'react'
+import { Button } from '@swarm/ui'
 import { CheckIcon } from 'lucide-react'
 
 import type { ViewerFile } from '@/components/attachment-viewer-sheet'
-import { Button } from '@swarm/ui'
 import { cn } from '@/lib/utils'
 import { DocumentCard } from './document'
 

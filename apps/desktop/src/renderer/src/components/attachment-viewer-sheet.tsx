@@ -1,26 +1,22 @@
 // src/renderer/src/components/attachment-viewer-sheet.tsx
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@swarm/ui'
 import { Loader2 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@swarm/ui'
 import { fileKind } from '@/lib/file-kind'
 
 // Heavy viewers (react-xlsx ~3.4MB, react-docx ~1.3MB, @embedpdf ~hundreds of KB)
 // are lazy-loaded so they land in async chunks and only download when the user
 // actually opens an attachment. Kept static previously, they inflated the shared
 // chunk to 6.6MB and crashed vite's WASM-based import-analysis during build.
-const CsvViewer = lazy(() =>
-  import('@/components/viewers/csv-viewer').then((m) => ({ default: m.CsvViewer })),
-)
+const CsvViewer = lazy(() => import('@/components/viewers/csv-viewer').then((m) => ({ default: m.CsvViewer })))
 const DocxViewerPreview = lazy(() =>
-  import('@/components/viewers/docx-viewer').then((m) => ({ default: m.DocxViewerPreview })),
+  import('@/components/viewers/docx-viewer').then((m) => ({ default: m.DocxViewerPreview }))
 )
-const PDFViewer = lazy(() =>
-  import('@/components/viewers/pdf-viewer').then((m) => ({ default: m.PDFViewer })),
-)
+const PDFViewer = lazy(() => import('@/components/viewers/pdf-viewer').then((m) => ({ default: m.PDFViewer })))
 const XlsxViewerPreview = lazy(() =>
-  import('@/components/viewers/xlsx-viewer').then((m) => ({ default: m.XlsxViewerPreview })),
+  import('@/components/viewers/xlsx-viewer').then((m) => ({ default: m.XlsxViewerPreview }))
 )
 
 export type ViewerFile = { url: string; mediaType?: string; filename?: string }

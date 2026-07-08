@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type ProvidersStateView, providerViewById } from '@swarm/protocol'
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
 
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@swarm/ui'
 import { useProviders } from '@/hooks/use-providers'
 
 type Props = {

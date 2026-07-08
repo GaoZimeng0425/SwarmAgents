@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Button, Input } from '@swarm/ui'
 
-import { Button } from '@swarm/ui'
-import { Input } from '@swarm/ui'
 import { swarmApi } from '@/lib/api'
 import { Section, SettingsHeader } from './settings-primitives'
 

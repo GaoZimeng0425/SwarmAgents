@@ -37,11 +37,11 @@ export function RemoteView(): React.JSX.Element {
             <div className="flex flex-col gap-1.5">
               <span className="text-muted-foreground text-sm">Token</span>
               <div className="flex items-center gap-2">
-                <code className="border-border bg-muted/40 flex-1 overflow-x-auto rounded border px-2 py-1.5 font-mono text-xs">
+                <code className="flex-1 overflow-x-auto rounded border border-border bg-muted/40 px-2 py-1.5 font-mono text-xs">
                   {config.token}
                 </code>
                 <button
-                  className="hover:bg-accent inline-flex size-8 items-center justify-center rounded border"
+                  className="inline-flex size-8 items-center justify-center rounded border hover:bg-accent"
                   onClick={() => void copy()}
                   type="button"
                 >

@@ -4,9 +4,8 @@
 // handles base64url padding + Ed25519 JWK import correctly (hand-rolling JWT
 // signing is error-prone; the spec records jose as an accepted dependency).
 import { createPrivateKey } from 'node:crypto'
-import { exportJWK, SignJWT } from 'jose'
-
 import type { WeatherConfig } from '@swarm/protocol'
+import { exportJWK, SignJWT } from 'jose'
 
 export async function signQWeatherJwt(cfg: WeatherConfig): Promise<string> {
   const keyObj = createPrivateKey({ key: cfg.privateKeyPem, format: 'pem' })

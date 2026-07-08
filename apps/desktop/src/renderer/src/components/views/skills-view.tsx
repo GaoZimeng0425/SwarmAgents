@@ -1,9 +1,8 @@
 import { useState } from 'react'
+import { Button, Switch } from '@swarm/ui'
 import { FolderInput, FolderOpen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@swarm/ui'
-import { Switch } from '@swarm/ui'
 import { useSkills } from '@/hooks/use-skills'
 import { cn } from '@/lib/utils'
 import { SettingsHeader } from './settings-primitives'
