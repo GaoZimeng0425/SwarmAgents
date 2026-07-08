@@ -2,13 +2,13 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta content="width=device-width, initial-scale=1" name="viewport" >
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 </head>
 <body>
 <x-dc>
 <helmet>
-<meta content="canvas" name="design_doc_mode" >
+<meta name="design_doc_mode" content="canvas">
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI Variable','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
@@ -49,7 +49,7 @@ body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'S
           </div>
 
           <!-- WEATHER CARD 1a -->
-          <button onClick="{{ openA }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.08);background:#202023;border-radius:16px;padding:0;cursor:pointer;overflow:hidden;color:#fafafa;font-family:inherit" style-hover="border:1px solid rgba(255,255,255,.18);background:#26262a" type="button" >
+          <button type="button" onClick="{{ openA }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.08);background:#202023;border-radius:16px;padding:0;cursor:pointer;overflow:hidden;color:#fafafa;font-family:inherit" style-hover="border:1px solid rgba(255,255,255,.18);background:#26262a">
             <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(217,163,0,.12);border-bottom:1px solid rgba(217,163,0,.2)">
               <span style="width:6px;height:6px;border-radius:50%;background:#d9a300;box-shadow:0 0 0 3px rgba(217,163,0,.2)"></span>
               <span style="font:600 11.5px system-ui;color:#e8c454">高温黄色预警</span>
@@ -69,16 +69,16 @@ body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'S
               </div>
               <span style="flex:1"></span>
               <span style="font:600 11.5px system-ui;color:#c99a2e;background:rgba(201,154,46,.14);padding:4px 9px;border-radius:999px;white-space:nowrap">良 78</span>
-              <svg fill="none" height="16" stroke="#7a7a7d" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="16" ><path d="M9 6l6 6-6 6"></path></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7a7a7d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
             </div>
           </button>
         </div>
 
         <!-- DRAWER 1a -->
-        <sc-if hint-placeholder-val="" value="{{ open1a }}" >
+        <sc-if value="{{ open1a }}" hint-placeholder-val="">
           <div onClick="{{ close }}" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:5"></div>
           <div style="position:absolute;top:0;right:0;bottom:0;width:372px;z-index:6;box-shadow:-24px 0 70px rgba(0,0,0,.55)">
-            <dc-import hint-size="372px,100%" name="天气详情" on-close="{{ close }}" ></dc-import>
+            <dc-import name="天气详情" on-close="{{ close }}" hint-size="372px,100%"></dc-import>
           </div>
         </sc-if>
       </div>
@@ -105,9 +105,9 @@ body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'S
           </div>
 
           <!-- WEATHER CARD 1b -->
-          <button onClick="{{ openB }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.08);background:#202023;border-radius:16px;padding:0;cursor:pointer;overflow:hidden;color:#fafafa;font-family:inherit" style-hover="border:1px solid rgba(255,255,255,.18);background:#26262a" type="button" >
+          <button type="button" onClick="{{ openB }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.08);background:#202023;border-radius:16px;padding:0;cursor:pointer;overflow:hidden;color:#fafafa;font-family:inherit" style-hover="border:1px solid rgba(255,255,255,.18);background:#26262a">
             <div style="display:flex;align-items:center;gap:8px;padding:9px 15px;background:linear-gradient(90deg,rgba(217,163,0,.18),rgba(217,163,0,.03));border-bottom:1px solid rgba(217,163,0,.18)">
-              <svg fill="none" height="14" stroke="#e8c454" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" viewBox="0 0 24 24" width="14" ><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e8c454" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
               <span style="font:600 11.5px system-ui;color:#e8c454">高温黄色预警 · 注意防暑降温</span>
             </div>
             <div style="display:flex;align-items:center;gap:18px;padding:16px 16px 0">
@@ -124,11 +124,11 @@ body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'S
                   <span style="font:600 10px system-ui;letter-spacing:.04em;color:#7a7a7d;text-transform:uppercase">24h 温度</span>
                   <span style="font:500 10.5px system-ui;color:#8a8a8d">高 31° · 低 23°</span>
                 </div>
-                <svg preserveAspectRatio="none" style="height:60px;display:block" viewBox="0 0 216 60" width="100%" >
-                  <defs><linearGradient id="spk" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity=".34"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
+                <svg width="100%" viewBox="0 0 216 60" preserveAspectRatio="none" style="height:60px;display:block">
+                  <defs><linearGradient id="spk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity=".34"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
                   <path d="{{ sparkArea }}" fill="url(#spk)"></path>
-                  <path d="{{ sparkLine }}" fill="none" stroke="#8ea3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" vector-effect="non-scaling-stroke"></path>
-                  <circle cx="{{ sparkDotX }}" cy="{{ sparkDotY }}" fill="#8ea3ff" r="4.5" stroke="#202023" stroke-width="2.5" vector-effect="non-scaling-stroke"></circle>
+                  <path d="{{ sparkLine }}" fill="none" stroke="#8ea3ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                  <circle cx="{{ sparkDotX }}" cy="{{ sparkDotY }}" r="4.5" fill="#8ea3ff" stroke="#202023" stroke-width="2.5" vector-effect="non-scaling-stroke"></circle>
                 </svg>
                 <div style="display:flex;gap:6px">
                   <span style="font:600 11px system-ui;color:#c99a2e;background:rgba(201,154,46,.14);padding:3px 9px;border-radius:999px;white-space:nowrap">AQI 良 78</span>
@@ -140,16 +140,16 @@ body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'S
               <span style="font:500 11.5px system-ui;color:#7a7a7d">逐小时 · 空气质量 · 生活指数</span>
               <span style="flex:1"></span>
               <span style="font:600 11.5px system-ui;color:#8ea3ff">展开</span>
-              <svg fill="none" height="15" stroke="#8ea3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="15" ><path d="M9 6l6 6-6 6"></path></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8ea3ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
             </div>
           </button>
         </div>
 
         <!-- DRAWER 1b -->
-        <sc-if hint-placeholder-val="" value="{{ open1b }}" >
+        <sc-if value="{{ open1b }}" hint-placeholder-val="">
           <div onClick="{{ close }}" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:5"></div>
           <div style="position:absolute;top:0;right:0;bottom:0;width:372px;z-index:6;box-shadow:-24px 0 70px rgba(0,0,0,.55)">
-            <dc-import hint-size="372px,100%" name="天气详情" on-close="{{ close }}" ></dc-import>
+            <dc-import name="天气详情" on-close="{{ close }}" hint-size="372px,100%"></dc-import>
           </div>
         </sc-if>
       </div>
@@ -158,7 +158,7 @@ body{margin:0;background:#0f0f11;font-family:-apple-system,BlinkMacSystemFont,'S
   </section>
 </div>
 </x-dc>
-<script data-dc-script type="text/x-dc" >
+<script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
   state = { open: null }
 

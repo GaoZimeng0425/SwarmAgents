@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta content="width=device-width, initial-scale=1" name="viewport" >
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 </head>
 <body>
@@ -23,8 +23,8 @@
       <div style="display:flex;align-items:center;gap:7px;font:600 15px system-ui;color:#fafafa"><span style="font-size:15px">📍</span>{{ loc }}</div>
       <div style="margin-top:3px;font:500 11.5px system-ui;color:#7a7a7d">{{ source }} · {{ updated }}</div>
     </div>
-    <button onClick="{{ onClose }}" style="flex:none;width:30px;height:30px;border:none;border-radius:9px;background:rgba(255,255,255,.07);color:#c9c9cc;cursor:pointer;display:flex;align-items:center;justify-content:center" title="关闭 (esc)" type="button" >
-      <svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-width="2.4" viewBox="0 0 24 24" width="15" ><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    <button type="button" onClick="{{ onClose }}" style="flex:none;width:30px;height:30px;border:none;border-radius:9px;background:rgba(255,255,255,.07);color:#c9c9cc;cursor:pointer;display:flex;align-items:center;justify-content:center" title="关闭 (esc)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
     </button>
   </div>
 
@@ -50,7 +50,7 @@
 
     <!-- QUICK STATS -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-      <sc-for as="s" hint-placeholder-count="4" list="{{ stats }}" >
+      <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
         <div style="display:flex;flex-direction:column;gap:4px;padding:11px 10px;border-radius:12px;background:#242426;border:1px solid rgba(255,255,255,.06)">
           <span style="font-size:15px;line-height:1">{{ s.icon }}</span>
           <span style="font:600 14px system-ui;color:#f4f4f5;font-variant-numeric:tabular-nums">{{ s.v }}</span>
@@ -66,9 +66,9 @@
         <span style="font:600 12px system-ui;color:#c99a2e;background:rgba(201,154,46,.15);padding:3px 9px;border-radius:999px">AQI {{ aqi.v }} · {{ aqi.cat }}</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 8px">
-        <sc-for as="p" hint-placeholder-count="6" list="{{ pol }}" >
+        <sc-for list="{{ pol }}" as="p" hint-placeholder-count="6">
           <div style="display:flex;flex-direction:column;gap:3px">
-            <span style="font:500 10.5px system-ui;color:#77777a">{{ p.k }}<sc-if hint-placeholder-val="" value="{{ p.pri }}" ><span style="color:#c99a2e"> · 主</span></sc-if></span>
+            <span style="font:500 10.5px system-ui;color:#77777a">{{ p.k }}<sc-if value="{{ p.pri }}" hint-placeholder-val=""><span style="color:#c99a2e"> · 主</span></sc-if></span>
             <span style="font:600 14px system-ui;color:#e4e4e7;font-variant-numeric:tabular-nums">{{ p.v }}</span>
           </div>
         </sc-for>
@@ -79,7 +79,7 @@
     <div style="padding:14px 15px;border-radius:14px;background:#242426;border:1px solid rgba(255,255,255,.06)">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px"><span style="font-size:14px">🌧️</span><span style="font:600 12.5px system-ui;color:#e4e4e7">{{ minutely.summary }}</span></div>
       <div style="display:flex;align-items:flex-end;gap:2px;height:34px">
-        <sc-for as="b" hint-placeholder-count="18" list="{{ mbars }}" >
+        <sc-for list="{{ mbars }}" as="b" hint-placeholder-count="18">
           <div style="flex:1;border-radius:3px 3px 0 0;height:{{ b.h }}%;background:#6d8bff;opacity:{{ b.op }}"></div>
         </sc-for>
       </div>
@@ -92,14 +92,14 @@
         <span style="font:600 11px system-ui;letter-spacing:.05em;color:#8a8a8d;text-transform:uppercase">24 小时温度</span>
         <span style="font:500 11.5px system-ui;color:#9a9a9d">高 {{ hi }}° · 低 {{ lo }}°</span>
       </div>
-      <svg preserveAspectRatio="none" style="display:block;height:92px" viewBox="0 0 336 92" width="100%" >
-        <defs><linearGradient id="tgrad" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity="0.32"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
+      <svg width="100%" viewBox="0 0 336 92" preserveAspectRatio="none" style="display:block;height:92px">
+        <defs><linearGradient id="tgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity="0.32"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
         <path d="{{ tempArea }}" fill="url(#tgrad)"></path>
-        <path d="{{ tempLine }}" fill="none" stroke="#8ea3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" ></path>
-        <circle cx="{{ dotx }}" cy="{{ doty }}" fill="#8ea3ff" r="4" stroke="#1b1b1d" stroke-width="2.5"></circle>
+        <path d="{{ tempLine }}" fill="none" stroke="#8ea3ff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+        <circle cx="{{ dotx }}" cy="{{ doty }}" r="4" fill="#8ea3ff" stroke="#1b1b1d" stroke-width="2.5"></circle>
       </svg>
       <div style="display:flex;justify-content:space-between;margin-top:5px">
-        <sc-for as="t" hint-placeholder-count="6" list="{{ ticks }}" ><span style="font:500 10px system-ui;color:#6a6a6d;font-variant-numeric:tabular-nums">{{ t.label }}</span></sc-for>
+        <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="6"><span style="font:500 10px system-ui;color:#6a6a6d;font-variant-numeric:tabular-nums">{{ t.label }}</span></sc-for>
       </div>
     </div>
 
@@ -109,11 +109,11 @@
         <span style="font:600 11px system-ui;letter-spacing:.05em;color:#8a8a8d;text-transform:uppercase">24 小时降水概率</span>
         <span style="font:500 11.5px system-ui;color:#9a9a9d">峰值 {{ popMax }}%</span>
       </div>
-      <svg preserveAspectRatio="none" style="display:block;height:76px" viewBox="0 0 336 76" width="100%" >
-        <sc-for as="b" hint-placeholder-count="24" list="{{ bars }}" ><rect fill="#5b7cf0" height="{{ b.h }}" opacity="{{ b.op }}" rx="1.5" width="{{ b.w }}" x="{{ b.x }}" y="{{ b.y }}" ></rect></sc-for>
+      <svg width="100%" viewBox="0 0 336 76" preserveAspectRatio="none" style="display:block;height:76px">
+        <sc-for list="{{ bars }}" as="b" hint-placeholder-count="24"><rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="1.5" fill="#5b7cf0" opacity="{{ b.op }}"></rect></sc-for>
       </svg>
       <div style="display:flex;justify-content:space-between;margin-top:5px">
-        <sc-for as="t" hint-placeholder-count="6" list="{{ ticks }}" ><span style="font:500 10px system-ui;color:#6a6a6d;font-variant-numeric:tabular-nums">{{ t.label }}</span></sc-for>
+        <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="6"><span style="font:500 10px system-ui;color:#6a6a6d;font-variant-numeric:tabular-nums">{{ t.label }}</span></sc-for>
       </div>
     </div>
 
@@ -121,7 +121,7 @@
     <div>
       <div style="font:600 11px system-ui;letter-spacing:.05em;color:#8a8a8d;text-transform:uppercase;margin-bottom:10px">生活指数</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        <sc-for as="i" hint-placeholder-count="6" list="{{ indices }}" >
+        <sc-for list="{{ indices }}" as="i" hint-placeholder-count="6">
           <div style="display:flex;align-items:center;gap:9px;padding:11px 11px;border-radius:12px;background:#242426;border:1px solid rgba(255,255,255,.06)">
             <span style="font-size:17px;line-height:1">{{ i.icon }}</span>
             <div style="min-width:0"><div style="font:500 11px system-ui;color:#77777a">{{ i.name }}</div><div style="font:600 12.5px system-ui;color:#e4e4e7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.cat }}</div></div>
@@ -133,7 +133,7 @@
   </div>
 </div>
 </x-dc>
-<script data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:372,&quot;height&quot;:680},&quot;onClose&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;}}" type="text/x-dc" >
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:372,&quot;height&quot;:680},&quot;onClose&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;}}">
 class Component extends DCLogic {
   d() {
     return {

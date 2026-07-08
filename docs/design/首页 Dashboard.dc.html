@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta content="width=device-width, initial-scale=1" name="viewport" >
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 </head>
 <body>
@@ -31,7 +31,7 @@ body{margin:0;background:#0d0d0f;font-family:-apple-system,BlinkMacSystemFont,'S
       <span style="font:600 13px system-ui;color:#8a8a8d">任务台</span>
       <span style="flex:1"></span>
       <span style="display:flex;align-items:center;gap:6px;background:rgba(91,140,255,.12);color:#7ba0ff;font:500 12px system-ui;padding:4px 11px;border-radius:999px"><span style="width:6px;height:6px;border-radius:50%;background:#5b8cff"></span>2 个运行中</span>
-      <button style="display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#8a8a8d;font:500 12px system-ui;padding:5px 10px;border-radius:9px;cursor:pointer" type="button" >搜索<kbd style="font:600 10.5px ui-monospace,Menlo,monospace;background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px">⌘K</kbd></button>
+      <button type="button" style="display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#8a8a8d;font:500 12px system-ui;padding:5px 10px;border-radius:9px;cursor:pointer">搜索<kbd style="font:600 10.5px ui-monospace,Menlo,monospace;background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px">⌘K</kbd></button>
     </div>
 
     <!-- scrollable body -->
@@ -48,13 +48,13 @@ body{margin:0;background:#0d0d0f;font-family:-apple-system,BlinkMacSystemFont,'S
               <span style="font:500 11.5px system-ui;color:#a8a8ab;background:rgba(255,255,255,.06);padding:5px 10px;border-radius:8px;white-space:nowrap">🤖 研究编队</span>
               <span style="font:500 11.5px system-ui;color:#a8a8ab;background:rgba(255,255,255,.06);padding:5px 10px;border-radius:8px;white-space:nowrap">🛡 默认权限</span>
               <span style="flex:1"></span>
-              <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;background:#5b8cff"><svg fill="none" height="16" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="16" ><path d="M12 19V5"></path><path d="m6 11 6-6 6 6"></path></svg></span>
+              <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;background:#5b8cff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"></path><path d="m6 11 6-6 6 6"></path></svg></span>
             </div>
           </div>
         </section>
 
         <!-- WEATHER (compact status strip, click to expand) -->
-        <button onClick="{{ open }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.09);background:#1d1d1f;border-radius:14px;padding:11px 16px;cursor:pointer;color:#fafafa;font-family:inherit;display:flex;align-items:center;gap:12px" style-hover="border:1px solid rgba(255,255,255,.16);background:#232326" type="button" >
+        <button type="button" onClick="{{ open }}" style="width:100%;text-align:left;border:1px solid rgba(255,255,255,.09);background:#1d1d1f;border-radius:14px;padding:11px 16px;cursor:pointer;color:#fafafa;font-family:inherit;display:flex;align-items:center;gap:12px" style-hover="border:1px solid rgba(255,255,255,.16);background:#232326">
           <span style="font-size:24px;line-height:1;flex:none">⛅</span>
           <div style="display:flex;align-items:baseline;gap:1px;flex:none"><span style="font:400 23px system-ui;letter-spacing:-.01em;font-variant-numeric:tabular-nums">28</span><span style="font:400 13px system-ui;color:#9a9a9d">°</span></div>
           <div style="min-width:0;flex:none">
@@ -64,36 +64,36 @@ body{margin:0;background:#0d0d0f;font-family:-apple-system,BlinkMacSystemFont,'S
 
           <span style="flex:1"></span>
 
-          <span style="flex:none;display:flex;align-items:center;gap:4px;font:600 10.5px system-ui;color:#e8c454;background:rgba(217,163,0,.13);padding:4px 8px;border-radius:999px;white-space:nowrap"><svg fill="none" height="11" stroke="#e8c454" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" viewBox="0 0 24 24" width="11" ><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>高温预警</span>
+          <span style="flex:none;display:flex;align-items:center;gap:4px;font:600 10.5px system-ui;color:#e8c454;background:rgba(217,163,0,.13);padding:4px 8px;border-radius:999px;white-space:nowrap"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e8c454" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>高温预警</span>
           <span style="flex:none;font:600 10.5px system-ui;color:#c99a2e;background:rgba(201,154,46,.13);padding:4px 8px;border-radius:999px;white-space:nowrap">AQI 良 78</span>
 
-          <svg height="26" preserveAspectRatio="none" style="flex:none;display:block;opacity:.9" viewBox="0 0 80 26" width="80" >
-            <defs><linearGradient id="dspk" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity=".3"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
+          <svg width="80" height="26" viewBox="0 0 80 26" preserveAspectRatio="none" style="flex:none;display:block;opacity:.9">
+            <defs><linearGradient id="dspk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d8bff" stop-opacity=".3"></stop><stop offset="1" stop-color="#6d8bff" stop-opacity="0"></stop></linearGradient></defs>
             <path d="{{ sparkArea }}" fill="url(#dspk)"></path>
-            <path d="{{ sparkLine }}" fill="none" stroke="#8ea3ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" vector-effect="non-scaling-stroke"></path>
+            <path d="{{ sparkLine }}" fill="none" stroke="#8ea3ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
           </svg>
 
-          <svg fill="none" height="15" stroke="#6a6a6d" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" style="flex:none" viewBox="0 0 24 24" width="15" ><path d="M9 6l6 6-6 6"></path></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6a6a6d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9 6l6 6-6 6"></path></svg>
         </button>
 
         <!-- 进行中 -->
         <section>
           <h2 style="margin:0 0 12px;display:flex;align-items:baseline;gap:8px;font:600 13px system-ui;color:#fafafa">进行中<span style="font:400 12px system-ui;color:#8a8a8d;font-variant-numeric:tabular-nums">2</span></h2>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-            <sc-for as="r" hint-placeholder-count="3" list="{{ running }}" >
+            <sc-for list="{{ running }}" as="r" hint-placeholder-count="3">
               <div style="{{ r.cardStyle }}">
                 <div style="display:flex;align-items:center;gap:6px">
                   <span style="width:7px;height:7px;border-radius:50%;background:{{ r.dot }};box-shadow:{{ r.dotGlow }}"></span>
                   <span style="font:500 11.5px system-ui;color:{{ r.statusColor }}">{{ r.status }}</span>
                 </div>
                 <h3 style="margin:0;font:600 14px system-ui;color:#fafafa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.goal }}</h3>
-                <sc-if hint-placeholder-val="" value="{{ r.approve }}" >
+                <sc-if value="{{ r.approve }}" hint-placeholder-val="">
                   <div style="display:flex;gap:8px;margin-top:2px">
                     <span style="flex:1;text-align:center;border-radius:9px;background:#fafafa;color:#1a1a1c;font:600 12px system-ui;padding:6px 0">✓ 允许</span>
                     <span style="flex:1;text-align:center;border-radius:9px;border:1px solid rgba(255,255,255,.14);color:#9a9a9d;font:500 12px system-ui;padding:6px 0">✕ 拒绝</span>
                   </div>
                 </sc-if>
-                <sc-if hint-placeholder-val="" value="{{ r.meta }}" >
+                <sc-if value="{{ r.meta }}" hint-placeholder-val="">
                   <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;font:400 11.5px system-ui;color:#8a8a8d"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.cwd }}</span><span style="margin-left:8px;flex:none;font-variant-numeric:tabular-nums">{{ r.step }}</span></div>
                 </sc-if>
               </div>
@@ -104,9 +104,9 @@ body{margin:0;background:#0d0d0f;font-family:-apple-system,BlinkMacSystemFont,'S
         <!-- 定时任务 + 最近完成 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
           <section>
-            <h2 style="margin:0 0 12px;display:flex;align-items:baseline;gap:8px;font:600 13px system-ui;color:#fafafa">定时任务<button style="margin-left:auto;display:flex;align-items:center;gap:4px;border:none;background:transparent;cursor:pointer;font:500 12px system-ui;color:#7ba0ff" type="button" >查看日历<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="12" ><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button></h2>
+            <h2 style="margin:0 0 12px;display:flex;align-items:baseline;gap:8px;font:600 13px system-ui;color:#fafafa">定时任务<button type="button" style="margin-left:auto;display:flex;align-items:center;gap:4px;border:none;background:transparent;cursor:pointer;font:500 12px system-ui;color:#7ba0ff">查看日历<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button></h2>
             <ul style="margin:0;padding:0;list-style:none;border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;background:#202022">
-              <sc-for as="s" hint-placeholder-count="3" list="{{ scheduled }}" >
+              <sc-for list="{{ scheduled }}" as="s" hint-placeholder-count="3">
                 <li style="{{ s.rowStyle }}">
                   <span style="width:60px;flex:none;font:500 12px ui-monospace,Menlo,monospace;color:#8a8a8d">{{ s.time }}</span>
                   <span style="flex:1;min-width:0;font:400 13px system-ui;color:#ededf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.name }}</span>
@@ -118,9 +118,9 @@ body{margin:0;background:#0d0d0f;font-family:-apple-system,BlinkMacSystemFont,'S
           <section>
             <h2 style="margin:0 0 12px;font:600 13px system-ui;color:#fafafa">最近完成</h2>
             <ul style="margin:0;padding:0;list-style:none;border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;background:#202022">
-              <sc-for as="r" hint-placeholder-count="4" list="{{ recent }}" >
+              <sc-for list="{{ recent }}" as="r" hint-placeholder-count="4">
                 <li style="{{ r.rowStyle }}">
-                  <svg fill="none" height="14" stroke="#4ade80" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" style="flex:none" viewBox="0 0 24 24" width="14" ><path d="M20 6 9 17l-5-5"></path></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg>
                   <span style="flex:1;min-width:0;font:400 13px system-ui;color:#ededf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span>
                   <span style="flex:none;font:400 11.5px system-ui;color:#8a8a8d">{{ r.time }}</span>
                 </li>
@@ -133,17 +133,17 @@ body{margin:0;background:#0d0d0f;font-family:-apple-system,BlinkMacSystemFont,'S
     </div>
 
     <!-- WEATHER DRAWER -->
-    <sc-if hint-placeholder-val="" value="{{ isOpen }}" >
+    <sc-if value="{{ isOpen }}" hint-placeholder-val="">
       <div onClick="{{ close }}" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:5"></div>
       <div style="position:absolute;top:0;right:0;bottom:0;width:380px;z-index:6;box-shadow:-24px 0 70px rgba(0,0,0,.6)">
-        <dc-import hint-size="380px,100%" name="天气详情" on-close="{{ close }}" ></dc-import>
+        <dc-import name="天气详情" on-close="{{ close }}" hint-size="380px,100%"></dc-import>
       </div>
     </sc-if>
 
   </div>
 </div>
 </x-dc>
-<script data-dc-script type="text/x-dc" >
+<script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
   state = { open: false }
 

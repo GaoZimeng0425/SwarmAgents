@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#dedcd6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.scv::-webkit-scrollbar{width:9px;height:9px}
+.scv::-webkit-scrollbar-thumb{background:rgba(var(--kd),.16);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+.scv::-webkit-scrollbar-thumb:hover{background:rgba(var(--kd),.28);background-clip:padding-box}
+.scv::-webkit-scrollbar-track{background:transparent}
+.dv-tid{font:600 11px ui-monospace,Menlo,monospace;padding:3px 8px;background:#1a1a1a;color:#fff;border-radius:5px;text-decoration:none}
+.dv-oid{font:600 11px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(var(--kd),.09);color:var(--text);border-radius:5px;text-decoration:none}
+.dv-jump{font:500 12px system-ui;color:#5b5b60;text-decoration:none;padding:4px 10px;border-radius:7px;border:1px solid rgba(var(--kd),.12);background:rgba(255,255,255,.6)}
+section:target .dv-oid{background:#3478f6;color:#fff}
+a{color:#3478f6}
+a:hover{color:#2f6fd6}
+[data-theme]{--canvas:#dedcd6;--win:#f4f4f2;--rail:#eeeeea;--panel:#faf9f6;--surface:#fff;--surface2:#fbfbf9;--text:#1c1c1e;--body:#3a3a40;--text2:#54545a;--text3:#86868b;--text4:#a2a29b;--text5:#b6b4ac;--kd:0,0,0;--inv:#1c1c1e;--invtext:#fff;--invHover:#000}
+[data-theme="dark"]{--canvas:#0e0e11;--win:#161619;--rail:#1c1c20;--panel:#1f1f23;--surface:#26262b;--surface2:#202024;--text:#f1f1f4;--body:#d3d3d9;--text2:#bdbdc4;--text3:#8c8c93;--text4:#6d6d75;--text5:#55555d;--kd:255,255,255;--inv:#f1f1f4;--invtext:#18181b;--invHover:#fff}
+</style>
+</helmet>
+
+<div data-theme="{{ theme }}" style="padding:44px 48px 80px;display:flex;flex-direction:column;gap:14px;background:var(--canvas);min-height:100vh">
+
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <a class="dv-tid" href="#t2">2</a>
+    <span style="font:600 14px system-ui;color:var(--text)">服务页重设计 · 文章收集 / GitHub 趋势 — 延续 mac 原生质感,把「Agent 已解析 / 已调研」做成主线索</span>
+    <span style="flex:1"></span>
+    <a class="dv-jump" href="#art">文章收集</a>
+    <a class="dv-jump" href="#trend">GitHub 趋势</a>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:48px">
+
+  <!-- ═══════════════════ 文章收集 ═══════════════════ -->
+  <section id="art" data-screen-label="文章收集(重设计)" style="scroll-margin-top:24px;display:flex;flex-direction:column;gap:11px">
+    <div style="display:flex;align-items:baseline;gap:9px"><a class="dv-oid" href="#art">art</a><span style="font:400 12.5px system-ui;color:rgba(var(--kd),.55)">插件收集的文章网格 + 右侧「AI 解析 / 原文」详情 · 一句话结论 → 核心要点 → 可带走洞察</span></div>
+
+    <div style="width:1280px;height:812px;display:flex;background:var(--win);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.22),0 0 0 .5px rgba(var(--kd),.13);overflow:hidden;color:var(--text)">
+
+      <!-- RAIL (文章 active) -->
+      <div style="width:64px;flex:none;display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;border-right:1px solid rgba(var(--kd),.06);background:var(--rail)">
+        <div style="display:flex;gap:7px;margin-bottom:16px;align-self:flex-start;padding-left:16px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="任务台"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"></rect><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"></rect><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"></rect><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"></rect></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="对话"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="编队"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20a5.5 5.5 0 0 1 11 0"></path><path d="M16 6.5a3 3 0 0 1 0 5.5M20.5 20a5.2 5.2 0 0 0-4-5"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="日历"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg></div>
+        </div>
+        <div style="width:22px;height:1px;background:rgba(var(--kd),.1);margin:10px 0"></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="Gmail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="m3.5 6.5 8.5 6 8.5-6"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="GitHub 趋势"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"></path><path d="M17 7h4v4"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="Bilibili"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="3"></rect><path d="m7 3 3 4M17 3l-3 4M9 13v2M15 13v2"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;background:var(--inv);color:var(--invtext);display:flex;align-items:center;justify-content:center" title="文章"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"></rect><path d="M7 8.5h7M7 12h10M7 15.5h6"></path></svg></div>
+        </div>
+        <div style="flex:1"></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="用量"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19.5V10M12 19.5V4.5M20 19.5v-7"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="设置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V20a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5.3 6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V2a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H22a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></div>
+        </div>
+      </div>
+
+      <!-- CONTENT -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--win)">
+        <!-- toolbar -->
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid rgba(var(--kd),.07)">
+          <h1 style="margin:0;font:600 19px system-ui;letter-spacing:-.01em">文章收集</h1>
+          <div style="display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid rgba(var(--kd),.13);border-radius:8px;font:500 12.5px system-ui;background:var(--surface)">全部站点<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></div>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:7px;height:32px;width:200px;padding:0 11px;border:1px solid rgba(var(--kd),.13);border-radius:8px;background:var(--surface)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text4)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.2-3.2"></path></svg><span style="font:400 12.5px system-ui;color:var(--text4)">搜索标题、正文…</span></div>
+          <div style="display:flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:20px;background:linear-gradient(135deg,rgba(94,92,230,.12),rgba(52,120,246,.12));border:1px solid rgba(94,92,230,.2)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5e5ce6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"></path></svg><span style="font:600 11.5px system-ui;color:#4b45c4">AI 已解析 <span style="font-variant-numeric:tabular-nums">5</span> / 9</span></div>
+        </div>
+
+        <!-- body: grid + detail -->
+        <div style="flex:1;min-height:0;display:flex">
+          <!-- grid -->
+          <div class="scv" style="flex:1;min-width:0;overflow-y:auto;padding:20px 22px 28px">
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+              <sc-for list="{{ articles }}" as="a" hint-placeholder-count="9">
+                <button type="button" onClick="{{ a.onClick }}" style="display:flex;flex-direction:column;gap:8px;text-align:left;border:1px solid {{ a.border }};background:{{ a.bg }};border-radius:13px;padding:8px;cursor:default;box-shadow:{{ a.ring }}">
+                  <div style="position:relative;width:100%;aspect-ratio:16/9;border-radius:9px;overflow:hidden;background:{{ a.cover }};display:flex;align-items:center;justify-content:center">
+                    <span style="font:800 30px system-ui;color:{{ a.accent }};opacity:.9">{{ a.fav }}</span>
+                    <span style="position:absolute;bottom:6px;left:6px;width:18px;height:18px;border-radius:5px;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font:700 9px system-ui;color:{{ a.accent }}">{{ a.fav }}</span>
+                    <sc-if value="{{ a.analyzed }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;top:6px;right:6px;display:flex;align-items:center;gap:3px;font:700 9.5px system-ui;color:#fff;background:rgba(94,92,230,.92);border-radius:5px;padding:2px 6px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"></path></svg>AI</span></sc-if>
+                  </div>
+                  <div style="font:600 13px/1.35 system-ui;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:35px">{{ a.title }}</div>
+                  <div style="font:400 11.5px system-ui;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.site }} · {{ a.time }}</div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- detail -->
+          <sc-if value="{{ artOpen }}" hint-placeholder-val="{{ true }}">
+          <div class="scv" style="width:472px;flex:none;overflow-y:auto;border-left:1px solid rgba(var(--kd),.07);background:var(--panel)">
+            <div style="padding:18px 20px 8px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <div style="width:44px;height:44px;flex:none;border-radius:10px;background:{{ artDetail.cover }};display:flex;align-items:center;justify-content:center;font:800 18px system-ui;color:{{ artDetail.accent }}">{{ artDetail.initial }}</div>
+                <div style="flex:1;min-width:0"><div style="font:600 15px/1.35 system-ui;color:var(--text)">{{ artDetail.title }}</div><div style="font:400 12px system-ui;color:var(--text3);margin-top:4px">{{ artDetail.site }} · 收集于 {{ artDetail.time }}</div></div>
+                <button type="button" onClick="{{ artClose }}" title="收起" style="width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;border:1px solid rgba(var(--kd),.12);background:var(--surface);border-radius:7px;cursor:default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></button>
+              </div>
+
+              <div style="display:flex;gap:8px">
+                <button type="button" style="flex:1;border:none;background:var(--inv);color:var(--invtext);border-radius:8px;padding:8px 0;font:600 12.5px system-ui;cursor:default" style-hover="background:var(--invHover)">重新分析</button>
+                <button type="button" style="display:flex;align-items:center;gap:6px;border:1px solid rgba(var(--kd),.14);background:var(--surface);color:var(--text);border-radius:8px;padding:8px 14px;font:600 12.5px system-ui;cursor:default"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>打开原文</button>
+                <button type="button" style="width:34px;flex:none;display:flex;align-items:center;justify-content:center;border:1px solid rgba(var(--kd),.14);background:var(--surface);border-radius:8px;cursor:default" title="删除"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg></button>
+              </div>
+
+              <!-- tabs -->
+              <div style="display:flex;background:rgba(var(--kd),.05);border-radius:9px;padding:2px">
+                <button type="button" onClick="{{ tabAnalysis }}" style="flex:1;border:none;cursor:default;font:600 12.5px system-ui;border-radius:7px;padding:6px 0;background:{{ tabAnalysisBg }};color:{{ tabAnalysisFg }};box-shadow:{{ tabAnalysisShadow }}">AI 解析</button>
+                <button type="button" onClick="{{ tabText }}" style="flex:1;border:none;cursor:default;font:600 12.5px system-ui;border-radius:7px;padding:6px 0;background:{{ tabTextBg }};color:{{ tabTextFg }};box-shadow:{{ tabTextShadow }}">原文</button>
+              </div>
+            </div>
+
+            <div style="padding:2px 20px 22px">
+              <!-- ANALYSIS tab -->
+              <sc-if value="{{ showAnalysis }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;gap:14px">
+                  <div style="display:flex;align-items:center;gap:8px;font:400 11.5px system-ui;color:var(--text4)"><span style="display:flex;align-items:center;gap:5px;color:#5e5ce6;font-weight:600"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5e5ce6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"></path></svg>AI 结构化摘要</span><span style="flex:1;height:1px;background:rgba(var(--kd),.08)"></span><span>{{ artDetail.readMin }} 分钟读完</span></div>
+
+                  <div style="background:linear-gradient(135deg,rgba(94,92,230,.08),rgba(52,120,246,.06));border:1px solid rgba(94,92,230,.16);border-radius:11px;padding:14px"><div style="font:600 10.5px system-ui;letter-spacing:.05em;color:#7a76d8;text-transform:uppercase;margin-bottom:7px">一句话结论</div><div style="font:500 14px/1.55 system-ui;color:var(--body)">{{ artDetail.gist }}</div></div>
+
+                  <div style="background:var(--surface);border:1px solid rgba(var(--kd),.08);border-radius:11px;padding:14px;box-shadow:0 1px 2px rgba(var(--kd),.03)">
+                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px"><span style="width:20px;height:20px;border-radius:6px;background:rgba(52,120,246,.12);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3478f6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg></span><span style="font:600 13px system-ui;color:var(--text)">核心要点</span></div>
+                    <div style="display:flex;flex-direction:column;gap:9px"><sc-for list="{{ artDetail.points }}" as="p" hint-placeholder-count="3"><div style="display:flex;gap:8px;font:400 12.5px/1.5 system-ui;color:var(--body)"><span style="width:5px;height:5px;border-radius:50%;background:#3478f6;flex:none;margin-top:7px"></span><span>{{ p }}</span></div></sc-for></div>
+                  </div>
+
+                  <div style="background:var(--surface);border:1px solid rgba(var(--kd),.08);border-radius:11px;padding:14px;box-shadow:0 1px 2px rgba(var(--kd),.03)">
+                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px"><span style="width:20px;height:20px;border-radius:6px;background:rgba(40,180,80,.14);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1f9d43" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span><span style="font:600 13px system-ui;color:var(--text)">可带走洞察</span></div>
+                    <div style="display:flex;flex-direction:column;gap:9px"><sc-for list="{{ artDetail.takeaways }}" as="p" hint-placeholder-count="2"><div style="display:flex;gap:8px;font:400 12.5px/1.5 system-ui;color:var(--body)"><span style="width:5px;height:5px;border-radius:50%;background:#1f9d43;flex:none;margin-top:7px"></span><span>{{ p }}</span></div></sc-for></div>
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- TEXT tab -->
+              <sc-if value="{{ showText }}" hint-placeholder-val="{{ false }}">
+                <div style="padding-top:6px;display:flex;flex-direction:column;gap:12px">
+                  <sc-for list="{{ artDetail.body }}" as="para" hint-placeholder-count="4">
+                    <p style="margin:0;font:400 13px/1.7 system-ui;color:var(--body)">{{ para }}</p>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+          </sc-if>
+          <sc-if value="{{ artClosed }}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{ artOpenFn }}" title="展开详情" style="width:40px;flex:none;border:none;border-left:1px solid rgba(var(--kd),.07);background:var(--panel);cursor:default;display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:18px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg><span style="writing-mode:vertical-rl;font:600 11px system-ui;color:var(--text3);letter-spacing:.06em">AI 解析</span></button>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ GITHUB 趋势 ═══════════════════ -->
+  <section id="trend" data-screen-label="GitHub 趋势(重设计)" style="scroll-margin-top:24px;display:flex;flex-direction:column;gap:11px">
+    <div style="display:flex;align-items:baseline;gap:9px"><a class="dv-oid" href="#trend">trend</a><span style="font:400 12.5px system-ui;color:rgba(var(--kd),.55)">趋势榜列表 + 右侧「Agent 调研」详情 · 简介 / 为什么上榜 / 核心亮点 / 是否值得关注</span></div>
+
+    <div style="width:1280px;height:812px;display:flex;background:var(--win);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.22),0 0 0 .5px rgba(var(--kd),.13);overflow:hidden;color:var(--text)">
+
+      <!-- RAIL (GitHub 趋势 active) -->
+      <div style="width:64px;flex:none;display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;border-right:1px solid rgba(var(--kd),.06);background:var(--rail)">
+        <div style="display:flex;gap:7px;margin-bottom:16px;align-self:flex-start;padding-left:16px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="任务台"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"></rect><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"></rect><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"></rect><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"></rect></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="对话"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="编队"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20a5.5 5.5 0 0 1 11 0"></path><path d="M16 6.5a3 3 0 0 1 0 5.5M20.5 20a5.2 5.2 0 0 0-4-5"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="日历"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg></div>
+        </div>
+        <div style="width:22px;height:1px;background:rgba(var(--kd),.1);margin:10px 0"></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="Gmail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="m3.5 6.5 8.5 6 8.5-6"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;background:var(--inv);color:var(--invtext);display:flex;align-items:center;justify-content:center" title="GitHub 趋势"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"></path><path d="M17 7h4v4"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="Bilibili"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="3"></rect><path d="m7 3 3 4M17 3l-3 4M9 13v2M15 13v2"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="文章"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"></rect><path d="M7 8.5h7M7 12h10M7 15.5h6"></path></svg></div>
+        </div>
+        <div style="flex:1"></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="用量"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19.5V10M12 19.5V4.5M20 19.5v-7"></path></svg></div>
+          <div style="width:40px;height:40px;border-radius:11px;color:var(--text3);display:flex;align-items:center;justify-content:center" title="设置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V20a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5.3 6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V2a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H22a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></div>
+        </div>
+      </div>
+
+      <!-- CONTENT -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--win)">
+        <!-- toolbar -->
+        <div style="flex:none;padding:16px 20px 0;display:flex;flex-direction:column;gap:13px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div><h1 style="margin:0;font:600 19px system-ui;letter-spacing:-.01em">GitHub 趋势</h1><p style="margin:3px 0 0;font:400 11.5px system-ui;color:var(--text3)">基于 OSSInsight · 点击「调研」让 Agent 深入分析仓库</p></div>
+            <div style="flex:1"></div>
+            <span style="font:400 11.5px system-ui;color:var(--text4)">共 8 个仓库</span>
+            <div style="display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid rgba(var(--kd),.13);border-radius:8px;font:500 12.5px system-ui;background:var(--surface)">全部语言<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></div>
+          </div>
+          <!-- period segmented -->
+          <div style="display:flex;background:rgba(var(--kd),.05);border-radius:9px;padding:2px;align-self:flex-start">
+            <sc-for list="{{ periods }}" as="p" hint-placeholder-count="4">
+              <button type="button" onClick="{{ p.onClick }}" style="border:none;cursor:default;font:600 12.5px system-ui;border-radius:7px;padding:5px 15px;background:{{ p.bg }};color:{{ p.fg }};box-shadow:{{ p.shadow }}">{{ p.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- body: list + detail -->
+        <div style="flex:1;min-height:0;display:flex;margin-top:13px;border-top:1px solid rgba(var(--kd),.07)">
+          <!-- list -->
+          <div class="scv" style="flex:1;min-width:0;overflow-y:auto;padding:12px 14px">
+            <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px">
+              <sc-for list="{{ repos }}" as="r" hint-placeholder-count="8">
+                <li><button type="button" onClick="{{ r.onClick }}" style="width:100%;text-align:left;display:flex;align-items:flex-start;gap:12px;border:1px solid {{ r.border }};background:{{ r.bg }};border-radius:12px;padding:13px 14px;cursor:default;box-shadow:{{ r.ring }}">
+                  <span style="width:22px;flex:none;text-align:center;font:700 14px ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;color:{{ r.rankColor }};padding-top:1px">{{ r.rank }}</span>
+                  <span style="flex:1;min-width:0">
+                    <span style="display:flex;align-items:baseline;gap:1px;font:400 14px system-ui"><span style="color:var(--text3)">{{ r.owner }}</span><span style="color:var(--text5)">/</span><span style="font-weight:700;color:var(--text)">{{ r.name }}</span></span>
+                    <span style="display:block;font:400 12px/1.5 system-ui;color:var(--text3);margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ r.desc }}</span>
+                    <span style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:8px;font:400 11.5px system-ui;color:var(--text3)">
+                      <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:50%;background:{{ r.langColor }}"></span>{{ r.lang }}</span>
+                      <span style="display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.6 6.2 21.4l1.1-6.5L2.6 9.8l6.5-.9z"></path></svg>{{ r.stars }}</span>
+                      <span style="display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"></circle><circle cx="18" cy="18" r="2.5"></circle><path d="M6 8.5v4a4 4 0 0 0 4 4h5.5"></path></svg>{{ r.forks }}</span>
+                      <span style="display:flex;align-items:center;gap:5px;color:#c47600;font-weight:600"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c47600" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s5 3.5 5 9a5 5 0 0 1-10 0c0-1.5.6-2.8 1.2-3.6C8.8 9 9 11 11 11c0-3 1-6 1-9z"></path></svg>{{ r.gained }}</span>
+                    </span>
+                  </span>
+                  <span style="flex:none;display:flex;align-items:center;gap:6px;padding-top:1px">
+                    <span onClick="{{ r.onResearch }}" style="display:flex;align-items:center;gap:5px;border:none;border-radius:8px;padding:6px 11px;font:600 12px system-ui;cursor:default;background:{{ r.btnBg }};color:{{ r.btnFg }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{ r.btnFg }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"></path></svg>{{ r.btnLabel }}</span>
+                  </span>
+                </button></li>
+              </sc-for>
+            </ol>
+          </div>
+
+          <!-- detail: Agent 调研 -->
+          <sc-if value="{{ trendOpen }}" hint-placeholder-val="{{ true }}">
+          <div class="scv" style="width:472px;flex:none;overflow-y:auto;border-left:1px solid rgba(var(--kd),.07);background:var(--panel)">
+            <div style="padding:18px 20px 24px;display:flex;flex-direction:column;gap:15px">
+              <div style="display:flex;align-items:flex-start;gap:10px">
+                <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:1px;font:400 15px system-ui"><span style="color:var(--text3)">{{ trendDetail.owner }}</span><span style="color:var(--text5)">/</span><span style="font-weight:700;color:var(--text);font-size:16px">{{ trendDetail.name }}</span></div>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:9px;font:500 12px system-ui;color:var(--text2)">
+                  <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:50%;background:{{ trendDetail.langColor }}"></span>{{ trendDetail.lang }}</span>
+                  <span style="display:flex;align-items:center;gap:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.6 6.2 21.4l1.1-6.5L2.6 9.8l6.5-.9z"></path></svg>{{ trendDetail.stars }}</span>
+                  <span style="display:flex;align-items:center;gap:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"></circle><circle cx="18" cy="18" r="2.5"></circle><path d="M6 8.5v4a4 4 0 0 0 4 4h5.5"></path></svg>{{ trendDetail.forks }}</span>
+                  <span style="display:flex;align-items:center;gap:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12M6 15a3 3 0 0 0 3 3h6M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path></svg>{{ trendDetail.prs }} PR</span>
+                </div>
+                </div>
+                <button type="button" onClick="{{ trendClose }}" title="收起" style="width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;border:1px solid rgba(var(--kd),.12);background:var(--surface);border-radius:7px;cursor:default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></button>
+              </div>
+
+              <div style="display:flex;gap:8px">
+                <button type="button" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:none;background:#5e5ce6;color:#fff;border-radius:8px;padding:9px 0;font:600 12.5px system-ui;cursor:default" style-hover="background:#4b45c4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"></path></svg>让 Agent 深入调研</button>
+                <button type="button" style="display:flex;align-items:center;gap:6px;border:1px solid rgba(var(--kd),.14);background:var(--surface);color:var(--text);border-radius:8px;padding:9px 14px;font:600 12.5px system-ui;cursor:default"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>GitHub</button>
+              </div>
+
+              <!-- Agent 调研 card -->
+              <div style="border:1px solid rgba(94,92,230,.22);border-radius:13px;overflow:hidden;box-shadow:0 4px 14px rgba(94,92,230,.08)">
+                <div style="display:flex;align-items:center;gap:8px;padding:11px 15px;background:linear-gradient(135deg,rgba(94,92,230,.1),rgba(52,120,246,.08));border-bottom:1px solid rgba(94,92,230,.14)"><span style="width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,#5e5ce6,#3478f6);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"></path></svg></span><span style="font:600 13px system-ui;color:#4b45c4">Agent 调研</span><span style="flex:1"></span><span style="font:500 10.5px system-ui;color:#7a76d8">已读 README + 近 30 天提交</span></div>
+                <div style="padding:14px 15px;background:var(--surface);display:flex;flex-direction:column;gap:14px">
+                  <div style="font:500 13.5px/1.6 system-ui;color:var(--body)">{{ trendDetail.gist }}</div>
+
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <div style="display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c47600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s5 3.5 5 9a5 5 0 0 1-10 0c0-1.5.6-2.8 1.2-3.6C8.8 9 9 11 11 11c0-3 1-6 1-9z"></path></svg><span style="font:600 11.5px system-ui;color:#c47600">为什么上榜</span></div>
+                    <div style="font:400 12.5px/1.55 system-ui;color:var(--text2)">{{ trendDetail.why }}</div>
+                  </div>
+
+                  <div style="background:var(--panel);border:1px solid rgba(var(--kd),.07);border-radius:9px;padding:12px">
+                    <div style="font:600 10.5px system-ui;letter-spacing:.05em;color:var(--text4);text-transform:uppercase;margin-bottom:9px">核心亮点</div>
+                    <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ trendDetail.highlights }}" as="h" hint-placeholder-count="3"><div style="display:flex;gap:8px;font:400 12.5px/1.5 system-ui;color:var(--body)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5e5ce6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ h }}</span></div></sc-for></div>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <div style="font:600 10.5px system-ui;letter-spacing:.05em;color:var(--text4);text-transform:uppercase">适合谁用</div>
+                    <div style="font:400 12.5px/1.55 system-ui;color:var(--text2)">{{ trendDetail.forWhom }}</div>
+                  </div>
+
+                  <div style="display:flex;align-items:flex-start;gap:10px;background:{{ trendDetail.verdictBg }};border:1px solid {{ trendDetail.verdictBorder }};border-radius:10px;padding:11px 12px">
+                    <span style="flex:none;font:700 10.5px system-ui;color:#fff;background:{{ trendDetail.verdictColor }};border-radius:6px;padding:3px 8px;white-space:nowrap">{{ trendDetail.verdictTag }}</span>
+                    <span style="font:400 12px/1.5 system-ui;color:var(--body)">{{ trendDetail.verdict }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+          <sc-if value="{{ trendClosed }}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{ trendOpenFn }}" title="展开详情" style="width:40px;flex:none;border:none;border-left:1px solid rgba(var(--kd),.07);background:var(--panel);cursor:default;display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:18px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg><span style="writing-mode:vertical-rl;font:600 11px system-ui;color:var(--text3);letter-spacing:.06em">Agent 调研</span></button>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1392,&quot;height&quot;:940},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;外观&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props)
+    this.state = { artSel: 'a1', artTab: 'analysis', artOpen: true, trendSel: 'opencode', trendPeriod: 'day', trendOpen: true }
+  }
+
+  renderVals() {
+    const theme = this.props && this.props.theme === 'dark' ? 'dark' : 'light'
+    // ── palettes ──
+    const TINT = {
+      violet: { cover: 'linear-gradient(135deg,rgba(94,92,230,.16),rgba(94,92,230,.06))', accent: '#5149c9' },
+      sky: { cover: 'linear-gradient(135deg,rgba(52,120,246,.16),rgba(52,120,246,.06))', accent: '#2f6fd6' },
+      emerald: { cover: 'linear-gradient(135deg,rgba(31,157,67,.16),rgba(31,157,67,.06))', accent: '#1f9d43' },
+      amber: { cover: 'linear-gradient(135deg,rgba(217,138,11,.18),rgba(217,138,11,.06))', accent: '#b5730a' },
+      rose: { cover: 'linear-gradient(135deg,rgba(224,80,122,.16),rgba(224,80,122,.06))', accent: '#c73e66' },
+    }
+
+    // ══════════ ARTICLES ══════════
+    const rawArticles = [
+      { id: 'a1', title: '构建可评测的 LLM 应用:从 Demo 到生产的流水线', site: 'Simon Willison', fav: 'S', time: '2 小时前', tint: 'violet', analyzed: true, readMin: 9 },
+      { id: 'a2', title: 'Rust 异步运行时是如何调度任务的', site: '阮一峰的网络日志', fav: '阮', time: '5 小时前', tint: 'amber', analyzed: true, readMin: 14 },
+      { id: 'a3', title: '可观测性三支柱:Metrics / Traces / Logs 该如何取舍', site: 'InfoQ', fav: 'I', time: '昨天', tint: 'sky', analyzed: true, readMin: 11 },
+      { id: 'a4', title: 'Postgres 索引进阶:GIN、部分索引与覆盖索引', site: '美团技术团队', fav: '美', time: '昨天', tint: 'emerald', analyzed: true, readMin: 16 },
+      { id: 'a5', title: '设计一个 Agent 编排框架:上下文、工具与恢复', site: 'Anthropic Engineering', fav: 'A', time: '2 天前', tint: 'violet', analyzed: true, readMin: 12 },
+      { id: 'a6', title: 'TypeScript 类型系统的边界在哪里', site: '少数派', fav: '派', time: '3 天前', tint: 'sky', analyzed: false, readMin: 8 },
+      { id: 'a7', title: '分布式系统中的时间、时钟与事件顺序', site: 'Martin Fowler', fav: 'M', time: '4 天前', tint: 'rose', analyzed: false, readMin: 18 },
+      { id: 'a8', title: '为什么你的缓存命中率一直上不去', site: '高可用架构', fav: '高', time: '5 天前', tint: 'emerald', analyzed: false, readMin: 10 },
+      { id: 'a9', title: '本地运行 7B 模型的显存账本:量化与吞吐', site: '机器之心', fav: '机', time: '上周', tint: 'amber', analyzed: false, readMin: 7 },
+    ]
+    const artSummaries = {
+      a1: {
+        gist: '没有评测集,一切 Prompt 优化都是玄学——把 LLM 应用做成「可回滚、可对比」的流水线,才是从 Demo 到生产的分水岭。',
+        points: ['先建评测集再谈优化:哪怕只有 20 条真实输入输出对,也强过拍脑袋改 Prompt', '把 Prompt、模型、检索当作可独立替换的组件,分别做 A/B', '用 LLM-as-judge 打分时给明确维度与示例,否则评分不稳定'],
+        takeaways: ['每次改动都跑全量评测集,记录版本与指标,形成可回滚基线', '接入 CI:改 Prompt 自动触发评测,离线掉点直接挡住合并'],
+        body: ['大多数团队从 Demo 走向生产时卡在同一个地方:改了 Prompt 感觉「好像更好了」,但没人能说清到底好了多少。', '作者的建议很直接——先建一个最小评测集。它不需要完美,20 到 50 条覆盖典型场景的样本就能把「感觉」变成「数字」。', '一旦有了数字,Prompt、模型选择、检索策略就都变成可以分别度量的变量。你可以像做实验一样,一次只动一个,看指标怎么变。', '最后,把评测接进 CI。每次改动自动跑一遍,离线掉点的改动根本进不了主干。这一步把「优化靠手感」彻底变成了工程流程。'],
+      },
+      a2: {
+        gist: 'Rust 异步的心智模型是「Future 是惰性状态机」;抓住这一点,Pin / Send / 生命周期的坑都能推理出来。',
+        points: ['async fn 只是返回一个实现 Future 的匿名状态机,不 .await 就什么都不发生', '.await 是让出点,运行时在此保存/恢复状态,而非阻塞线程', 'Send 约束来自跨 .await 持有的变量,把 !Send 的 guard 在 await 前 drop 即可'],
+        takeaways: ['调试卡死优先用 tokio-console 看任务状态,而不是盲加日志', '库代码不要自己 spawn 运行时,把执行器选择权留给调用方'],
+        body: ['Rust 的异步之所以让人困惑,是因为它和其它语言的「协程」看起来像、实际上不一样。', '关键的一步认知转变是:一个 async fn 什么都不会主动做。它返回的 Future 是惰性的,只有被 poll(通常通过 .await)才会推进。', '把 Future 理解成一台状态机后,很多规则就自洽了:.await 是让出点,运行时在这里保存现场;Send 约束来自跨越让出点还活着的变量。', '所以当编译器抱怨 !Send 时,你要做的不是加 unsafe,而是让那个 guard 在 .await 之前就被 drop 掉。'],
+      },
+      a3: {
+        gist: '可观测性不是「加更多监控」,而是让系统能回答你事先没想到的问题;核心是结构化事件 + 高基数标签。',
+        points: ['Metrics 回答「有没有问题」,Traces 回答「问题在哪」,Logs 回答「为什么」', '优先投资 Trace:一条请求的完整调用链比一堆孤立指标更能定位根因', '给事件打高基数标签(user_id、request_id),才能事后做任意维度下钻'],
+        takeaways: ['采样按「是否异常」而非纯随机,保留全部错误链路', '把 SLO 写进代码,用错误预算驱动是否继续上线'],
+        body: ['很多团队把「上监控」等同于「加更多指标面板」,但面板只能回答你已经想到的问题。', '真正的可观测性,是让系统在事后能回答你当时没想到的问题——这依赖结构化事件和高基数标签。', '三支柱各有分工:指标告诉你有没有异常,链路告诉你异常发生在调用链的哪一环,日志告诉你为什么。', '如果预算有限,作者建议优先投 Trace,因为一条完整调用链的定位能力,远超一堆互相割裂的指标。'],
+      },
+      a4: {
+        gist: '选对索引类型比加更多索引重要;GIN、部分索引、覆盖索引各自适配不同的查询形态。',
+        points: ['B-tree 适合等值与范围;GIN 适合数组、JSONB 与全文检索的多值列', '部分索引只为满足条件的行建索引,体积小、写入开销低', '覆盖索引把查询所需列都放进索引,直接走 Index-Only Scan'],
+        takeaways: ['先用 EXPLAIN (ANALYZE, BUFFERS) 看真实执行计划,再决定加哪种索引', '索引不是越多越好:每个索引都会拖慢写入并占用缓存'],
+        body: ['「查询慢就加索引」是一种常见的误区——加错类型的索引,可能一点用都没有,还拖慢写入。', '这篇文章按查询形态拆解:等值/范围用 B-tree;多值列(数组、JSONB、全文)用 GIN。', '部分索引是一个被低估的工具:如果你 90% 的查询只关心 status = active 的行,那就只给这些行建索引。', '覆盖索引则把查询要读的列都塞进索引本身,让 Postgres 走 Index-Only Scan,连回表都省了。'],
+      },
+      a5: {
+        gist: 'Agent 框架的难点不在「调用工具」,而在上下文管理、失败恢复与可观测——把这三件事做扎实,框架自然稳。',
+        points: ['上下文是第一约束:主动裁剪、摘要与检索,别让窗口被历史撑爆', '每个工具调用都要可重试、可回滚,失败恢复要设计成一等公民', '给 Agent 的每一步打结构化事件,才能在出错时回放整条决策链'],
+        takeaways: ['先设计「出错怎么办」再设计「正常怎么跑」', '把工具定义和权限边界显式化,别依赖模型自觉'],
+        body: ['很多人以为做 Agent 就是「让模型能调工具」,但真正难的部分在工具之外。', '第一是上下文:随着任务变长,历史会撑爆窗口。你需要主动裁剪、摘要,并把长期记忆放进可检索的存储。', '第二是恢复:工具会超时、会失败、会返回垃圾。把重试与回滚设计成一等公民,而不是事后补丁。', '第三是可观测:给每一步打结构化事件,出错时才能回放 Agent 的完整决策链,而不是对着一堆文本干瞪眼。'],
+      },
+      a6: { gist: '', points: [], takeaways: [], body: ['这篇文章尚未进行 AI 解析。点击上方「重新分析」,让 Agent 阅读全文并生成结构化摘要。'] },
+      a7: { gist: '', points: [], takeaways: [], body: ['这篇文章尚未进行 AI 解析。点击上方「重新分析」,让 Agent 阅读全文并生成结构化摘要。'] },
+      a8: { gist: '', points: [], takeaways: [], body: ['这篇文章尚未进行 AI 解析。点击上方「重新分析」,让 Agent 阅读全文并生成结构化摘要。'] },
+      a9: { gist: '', points: [], takeaways: [], body: ['这篇文章尚未进行 AI 解析。点击上方「重新分析」,让 Agent 阅读全文并生成结构化摘要。'] },
+    }
+    const articles = rawArticles.map((a) => {
+      const sel = this.state.artSel === a.id
+      const t = TINT[a.tint]
+      return {
+        ...a, cover: t.cover, accent: t.accent,
+        border: sel ? '#3478f6' : 'rgba(var(--kd),.09)',
+        bg: sel ? 'var(--surface)' : 'var(--surface2)',
+        ring: sel ? '0 0 0 3px rgba(52,120,246,.22)' : '0 1px 2px rgba(var(--kd),.03)',
+        onClick: () => this.setState({ artSel: a.id, artTab: 'analysis', artOpen: true }),
+      }
+    })
+    const selArt = rawArticles.find((a) => a.id === this.state.artSel) || rawArticles[0]
+    const selSum = artSummaries[this.state.artSel] || artSummaries.a1
+    const t0 = TINT[selArt.tint]
+    const artDetail = { title: selArt.title, site: selArt.site, time: selArt.time, initial: selArt.fav, cover: t0.cover, accent: t0.accent, readMin: selArt.readMin, ...selSum }
+
+    const tab = this.state.artTab
+    const segOn = ['var(--surface)', 'var(--text)', '0 1px 2px rgba(var(--kd),.13)']
+    const segOff = ['transparent', 'var(--text3)', 'none']
+    const A = tab === 'analysis' ? segOn : segOff
+    const T = tab === 'text' ? segOn : segOff
+
+    // ══════════ TRENDING ══════════
+    const LANG = { TypeScript: '#3178c6', Rust: '#dea584', Python: '#3572A5', Go: '#00ADD8', 'C++': '#f34b7d' }
+    const rawRepos = [
+      { id: 'opencode', owner: 'sst', name: 'opencode', desc: '为终端而生的 AI 编码 Agent:多模型、可挂载 LSP,把编辑器体验搬进命令行。', lang: 'TypeScript', stars: '31.2k', forks: '2.1k', prs: '486', gained: '+3.4k' },
+      { id: 'crawl4ai', owner: 'unclecode', name: 'crawl4ai', desc: '面向 LLM 的开源网页爬虫与抓取器,直接产出干净的 Markdown 与结构化数据。', lang: 'Python', stars: '28.7k', forks: '2.6k', prs: '312', gained: '+2.9k' },
+      { id: 'uv', owner: 'astral-sh', name: 'uv', desc: '用 Rust 写的极速 Python 包与项目管理器,可替代 pip、pip-tools、virtualenv。', lang: 'Rust', stars: '42.9k', forks: '1.3k', prs: '921', gained: '+2.1k' },
+      { id: 'browser-use', owner: 'browser-use', name: 'browser-use', desc: '让 AI Agent 能像人一样操作浏览器:点击、填表、读页面,几行代码即可接入。', lang: 'Python', stars: '55.4k', forks: '6.2k', prs: '540', gained: '+1.8k' },
+      { id: 'zed', owner: 'zed-industries', name: 'zed', desc: '用 Rust 打造的高性能多人协作代码编辑器,来自 Atom 与 Tree-sitter 的原班团队。', lang: 'Rust', stars: '59.1k', forks: '3.8k', prs: '1.2k', gained: '+1.5k' },
+      { id: 'ollama', owner: 'ollama', name: 'ollama', desc: '一条命令在本地跑起 Llama、Mistral、Gemma 等模型,自带模型库与 REST API。', lang: 'Go', stars: '98.3k', forks: '7.9k', prs: '640', gained: '+1.2k' },
+      { id: 'edit', owner: 'microsoft', name: 'edit', desc: '一个简单到极致的终端文本编辑器,致敬经典的 MS-DOS Editor,用 Rust 重写。', lang: 'Rust', stars: '18.6k', forks: '560', prs: '128', gained: '+980' },
+      { id: 'llama.cpp', owner: 'ggml-org', name: 'llama.cpp', desc: '纯 C/C++ 的 LLM 推理引擎,支持多平台与量化,是本地大模型生态的基石。', lang: 'C++', stars: '82.7k', forks: '12.4k', prs: '1.8k', gained: '+760' },
+    ]
+    const trendDetails = {
+      opencode: {
+        gist: '把 Claude Code 式的 Agent 体验带进任意终端:不锁定单一模型,并通过 LSP 让 Agent 真正「读懂」你的代码库。',
+        why: '近一周 star 增速居榜首,主因是 v0.3 加入了多模型切换与后台任务队列,恰好踩中「终端 Agent」的热点。',
+        highlights: ['模型无关:同一套 UI 下可切换 Claude、GPT、本地模型', '挂载 LSP,补全与跳转和你的编辑器一致', 'TUI 体验精致,支持分屏 diff 与会话回放'],
+        forWhom: '重度使用命令行、且不想被单一模型或云厂商锁定的工程师;也适合想研究终端 Agent 架构的人。',
+        verdictTag: '值得关注', verdictColor: '#1f9d43', verdictBg: 'rgba(40,180,80,.08)', verdictBorder: 'rgba(40,180,80,.2)',
+        verdict: '架构清晰、迭代活跃,与本产品的「统一命令台」思路高度契合,建议加入长期观察列表。',
+      },
+      crawl4ai: {
+        gist: '专为喂给大模型而设计的爬虫:输出的不是脏 HTML,而是干净可用的 Markdown 与结构化字段。',
+        why: '随着 RAG 与 Agent 需要大量高质量语料,「LLM-friendly 抓取」成为刚需,该库正好卡位这一需求。',
+        highlights: ['一步产出 Markdown,省去自己清洗 HTML 的苦活', '支持基于 schema 的结构化抽取', '内置浏览器池,可并发抓取动态页面'],
+        forWhom: '做 RAG 数据管线、需要批量把网页转成语料的团队。',
+        verdictTag: '值得关注', verdictColor: '#1f9d43', verdictBg: 'rgba(40,180,80,.08)', verdictBorder: 'rgba(40,180,80,.2)',
+        verdict: '与本产品的「文章收集 → AI 解析」链路可直接打通,建议评估作为抓取后端。',
+      },
+      uv: {
+        gist: '用 Rust 重写的 Python 工具链,把安装、锁定、虚拟环境统一成一个快到离谱的命令。',
+        why: 'Astral 团队(ruff 作者)背书 + 实测比 pip 快 10–100 倍,口碑持续发酵推动长期上榜。',
+        highlights: ['一个二进制取代 pip / pip-tools / virtualenv / pyenv', '全局缓存 + 并行解析,安装速度断层领先', '兼容现有 requirements 与 pyproject 生态'],
+        forWhom: '所有被 Python 依赖管理折磨过的开发者,尤其是 CI 时间敏感的团队。',
+        verdictTag: '可采用', verdictColor: '#5e5ce6', verdictBg: 'rgba(94,92,230,.07)', verdictBorder: 'rgba(94,92,230,.2)',
+        verdict: '已相当成熟,可直接在本项目的 Python 侧脚本中替换 pip,收益立竿见影。',
+      },
+      'browser-use': {
+        gist: '给 Agent 装上一双手和一双眼:让它像人一样在真实浏览器里点击、填表、读取结果。',
+        why: '「浏览器操作」是 Agent 落地的高频场景,该库把接入成本降到几行代码,社区示例快速扩散。',
+        highlights: ['视觉 + DOM 双通道理解页面,鲁棒性优于纯选择器', '几行代码即可让 Agent 完成一个网页任务', '支持主流模型,可与 LangChain 等编排层组合'],
+        forWhom: '需要自动化网页操作(下单、抓取、填表)的 Agent 开发者。',
+        verdictTag: '需评估', verdictColor: '#c47600', verdictBg: 'rgba(255,159,10,.08)', verdictBorder: 'rgba(255,159,10,.22)',
+        verdict: '能力强但对页面变化敏感、成本较高,建议先在受控场景小规模验证再决定是否深度集成。',
+      },
+      zed: {
+        gist: '把「多人协作」做进内核的高性能编辑器,底层用 GPU 渲染,启动与输入延迟都极低。',
+        why: '近期开源了协作与 AI 面板功能,叠加 Rust 社区关注度,持续获得关注。',
+        highlights: ['GPU 加速渲染,大文件与高刷新率下依旧顺滑', '原生多人协作,类似 Google Docs 的实时编辑', '内置 AI 助手面板,可接多家模型'],
+        forWhom: '追求极致性能、且做结对/远程协作的团队。',
+        verdictTag: '可借鉴', verdictColor: '#5e5ce6', verdictBg: 'rgba(94,92,230,.07)', verdictBorder: 'rgba(94,92,230,.2)',
+        verdict: '其协作与 AI 面板的交互设计,对本产品的多 Agent 协作视图有直接参考价值。',
+      },
+      ollama: {
+        gist: '本地大模型的「Docker 时刻」:一条命令拉起模型,自带模型库与统一的 REST API。',
+        why: '本地推理需求长期旺盛,新增对更多模型与工具调用的支持,维持稳定的高关注度。',
+        highlights: ['一行命令下载并运行主流开源模型', '统一 REST / OpenAI 兼容 API,接入零成本', '自动管理显存与量化,开箱即用'],
+        forWhom: '希望在本地或私有环境跑模型、注重数据隐私的开发者与团队。',
+        verdictTag: '可采用', verdictColor: '#5e5ce6', verdictBg: 'rgba(94,92,230,.07)', verdictBorder: 'rgba(94,92,230,.2)',
+        verdict: '成熟稳定,可作为本产品「本地模型」选项的推理后端,接入成本极低。',
+      },
+      edit: {
+        gist: '微软出品的极简终端编辑器,用 Rust 复刻经典 MS-DOS Editor,主打「开箱即用、零学习成本」。',
+        why: '「微软 + Rust + 情怀」的组合天然吸睛,发布即冲上趋势榜。',
+        highlights: ['体积小、启动快,内置于 Windows 也可跨平台', '鼠标 + 菜单交互,对新手比 Vim 友好', '开源、代码精简,适合学习 TUI 实现'],
+        forWhom: '想要一个不用背快捷键的终端编辑器的人,或研究 Rust TUI 的学习者。',
+        verdictTag: '仅观望', verdictColor: 'var(--text3)', verdictBg: 'rgba(var(--kd),.04)', verdictBorder: 'rgba(var(--kd),.1)',
+        verdict: '定位轻量、与本产品关联不大,热度更多来自话题性,列为一般观察即可。',
+      },
+      'llama.cpp': {
+        gist: '本地大模型生态的底层基石:纯 C/C++ 推理引擎,几乎所有本地推理工具都建立在它之上。',
+        why: '持续支持新模型与新量化格式,作为上游被大量项目依赖,关注度长期稳定。',
+        highlights: ['无重依赖,可在 CPU / GPU / 移动端运行', '丰富的量化方案,把大模型塞进消费级显存', '被 Ollama 等上层工具广泛作为推理内核'],
+        forWhom: '需要在受限硬件上做推理、或想深入理解推理优化的工程师。',
+        verdictTag: '可采用', verdictColor: '#5e5ce6', verdictBg: 'rgba(94,92,230,.07)', verdictBorder: 'rgba(94,92,230,.2)',
+        verdict: '作为底层引擎极其可靠;若要自建本地推理而非用 Ollama,可直接基于它构建。',
+      },
+    }
+    const repos = rawRepos.map((r, i) => {
+      const sel = this.state.trendSel === r.id
+      const top3 = i < 3
+      return {
+        ...r, rank: i + 1,
+        rankColor: top3 ? '#3478f6' : 'var(--text5)',
+        langColor: LANG[r.lang] || 'var(--text3)',
+        border: sel ? '#3478f6' : 'rgba(var(--kd),.08)',
+        bg: sel ? 'var(--surface)' : 'var(--surface2)',
+        ring: sel ? '0 0 0 3px rgba(52,120,246,.2)' : '0 1px 2px rgba(var(--kd),.03)',
+        btnBg: sel ? '#5e5ce6' : 'rgba(94,92,230,.1)',
+        btnFg: sel ? 'var(--surface)' : '#5149c9',
+        btnLabel: sel ? '调研中' : '调研',
+        onClick: () => this.setState({ trendSel: r.id, trendOpen: true }),
+        onResearch: () => this.setState({ trendSel: r.id, trendOpen: true }),
+      }
+    })
+    const selRepo = rawRepos.find((r) => r.id === this.state.trendSel) || rawRepos[0]
+    const td = trendDetails[this.state.trendSel] || trendDetails.opencode
+    const trendDetail = { owner: selRepo.owner, name: selRepo.name, lang: selRepo.lang, langColor: LANG[selRepo.lang] || 'var(--text3)', stars: selRepo.stars, forks: selRepo.forks, prs: selRepo.prs, ...td }
+
+    const PERIODS = [['day', '24 小时'], ['week', '一周'], ['month', '一月'], ['quarter', '三月']]
+    const periods = PERIODS.map(([k, label]) => {
+      const on = this.state.trendPeriod === k
+      return { label, bg: on ? 'var(--surface)' : 'transparent', fg: on ? 'var(--text)' : 'var(--text3)', shadow: on ? '0 1px 2px rgba(var(--kd),.13)' : 'none', onClick: () => this.setState({ trendPeriod: k }) }
+    })
+
+    return {
+      theme,
+      articles, artDetail,
+      showAnalysis: tab === 'analysis' ? true : '', showText: tab === 'text' ? true : '',
+      tabAnalysis: () => this.setState({ artTab: 'analysis' }), tabText: () => this.setState({ artTab: 'text' }),
+      tabAnalysisBg: A[0], tabAnalysisFg: A[1], tabAnalysisShadow: A[2],
+      tabTextBg: T[0], tabTextFg: T[1], tabTextShadow: T[2],
+      repos, trendDetail, periods,
+      artOpen: this.state.artOpen ? true : '', artClosed: this.state.artOpen ? '' : true,
+      artClose: () => this.setState({ artOpen: false }), artOpenFn: () => this.setState({ artOpen: true }),
+      trendOpen: this.state.trendOpen ? true : '', trendClosed: this.state.trendOpen ? '' : true,
+      trendClose: () => this.setState({ trendOpen: false }), trendOpenFn: () => this.setState({ trendOpen: true }),
+    }
+  }
+}
+</script>
+</body>
+</html>
