@@ -36,11 +36,29 @@ export function SidePanel(): JSX.Element {
     })
   }, [])
 
-  // Probe health on mount: if ok, hide the token form; if not ok, show it.
+  // Probe health on mount AND retry every 3s while still unhealthy. The WS
+  // client in the background reconnects asynchronously (on storage change /
+  // alarm), so a one-shot probe at mount would often race ahead of the
+  // connection and leave the token form stuck open. Retrying until success
+  // means the form disappears the moment the connection actually comes up.
+  // Stops retrying once connected or the panel unmounts.
   useEffect(() => {
-    browser.runtime.sendMessage({ type: 'health' }, (r: HealthResult) => {
-      setConnected(r?.ok === true)
-    })
+    let stopped = false
+    const probe = (): void => {
+      browser.runtime.sendMessage({ type: 'health' }, (r: HealthResult) => {
+        if (stopped) return
+        if (r?.ok) {
+          setConnected(true)
+        } else {
+          setConnected(false)
+          setTimeout(probe, 3000)
+        }
+      })
+    }
+    probe()
+    return () => {
+      stopped = true
+    }
   }, [])
 
   const collect = (): void => {
