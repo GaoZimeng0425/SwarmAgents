@@ -5,6 +5,7 @@
 // section state is now router-derived (see hooks/use-settings-nav.ts).
 import {
   Boxes,
+  Cable,
   Calendar,
   CircleDollarSign,
   CloudSun,
@@ -28,6 +29,7 @@ import { GmailSettingsView } from '@/components/views/gmail-view'
 import { McpServersView } from '@/components/views/mcp-servers-view'
 import { PermissionsView } from '@/components/views/permissions-view'
 import { ProvidersView } from '@/components/views/providers-view'
+import { RemoteView } from '@/components/views/remote-view'
 import { SkillsView } from '@/components/views/skills-view'
 import { WeatherView } from '@/components/views/weather-view'
 import { WebSearchView } from '@/components/views/web-search-view'
@@ -45,6 +47,7 @@ export type SettingsSection =
   | 'bilibili'
   | 'permissions'
   | 'about'
+  | 'remote'
 
 export type SectionGroup = '通用' | '模型' | '工具' | '连接' | '系统'
 
@@ -71,6 +74,7 @@ export const SECTIONS_REGISTRY: SectionMeta[] = [
   { key: 'gmail', label: 'Gmail', group: '连接', iconBg: '#ea4335', icon: Mail, View: GmailSettingsView },
   { key: 'calendar', label: '日历', group: '连接', iconBg: '#007aff', icon: Calendar, View: CalendarSettingsView },
   { key: 'bilibili', label: 'Bilibili', group: '连接', iconBg: '#fb7299', icon: Video, View: BilibiliSettingsView },
+  { key: 'remote', label: '远程连接', group: '连接', iconBg: '#5e5ce6', icon: Cable, View: RemoteView },
   { key: 'permissions', label: '权限', group: '系统', iconBg: '#30b0c7', icon: Lock, View: PermissionsView },
   { key: 'about', label: '关于', group: '系统', iconBg: '#8e8e93', icon: Info, View: AboutView },
 ]

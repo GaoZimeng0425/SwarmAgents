@@ -171,6 +171,10 @@ app.whenReady().then(async () => {
       cmdPalette,
     })
     wireArticleIpc({ serviceClient, providers: providers.service })
+    // Surface the WS host config (port + token) to the renderer so Settings →
+    // 远程连接 can display the token for the user to copy into the extension.
+    // wsHost is assigned at line 150 once the server is up; null before that.
+    ipcMain.handle('system:getWsHostConfig', () => wsHost ? { port: wsHost.port, token: wsHost.token } : null)
     log.info({ msg: 'core services up' })
   } catch (err) {
     log.error({ msg: 'Agent Service failed to start', err: String(err) })
