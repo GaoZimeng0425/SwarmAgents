@@ -129,10 +129,10 @@ describe('builtin roster', () => {
 })
 
 describe('gmail-analyst builtin', () => {
-  it('ships a low-iteration analysis agent', () => {
+  it('ships an analysis agent', () => {
     const a = defaultAgents.find((d) => d.id === 'gmail-analyst')
     expect(a).toBeDefined()
-    expect(a?.maxIterations).toBe(2)
+    expect(a?.maxIterations).toBe(1000)
     expect(a?.capabilities).toContain('gmail-analyze')
     expect(a?.systemPrompt).toMatch(/中文/)
     expect(a?.systemPrompt).toMatch(/摘要/)
