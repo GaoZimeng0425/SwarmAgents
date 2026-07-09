@@ -109,6 +109,7 @@ app.whenReady().then(async () => {
       SWARM_SERVICE_SKILLS_PATH: paths.skills(),
       SWARM_SERVICE_AGENTS_PATH: paths.agents(),
       SWARM_SERVICE_EXPORTS_DIR: paths.exports(),
+      SWARM_SERVICE_ARTICLES_DIR: paths.articles(),
       SWARM_SERVICE_HOOKS_PATH: paths.hooks(),
     },
   })
