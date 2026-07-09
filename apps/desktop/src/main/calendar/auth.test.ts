@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { CALENDAR_SCOPE, createAuth, exchangeCode, extractCode, refreshTokens } from './auth'
+import { CALENDAR_SCOPE, createAuth, exchangeCode, extractCode, isReauthRequired, refreshTokens } from './auth'
 import { createStore } from './store'
 
 vi.mock('electron', () => ({
@@ -79,6 +79,29 @@ describe('createAuth token handling', () => {
     expect(at).toBe('fresh')
     const after = await store.load()
     expect(after.tokens?.accessToken).toBe('fresh')
+  })
+
+  it('clears tokens and signals reauth when refresh returns invalid_grant', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'cal-'))
+    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    await store.save({
+      clientCreds: creds,
+      tokens: { accessToken: 'old', refreshToken: 'RT', expiresAt: Date.now() - 1000 },
+      accountEmail: 'me@x.com',
+    })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":"invalid_grant","error_description":"Token has been expired or revoked."}',
+    } as Response)
+    const auth = createAuth({ store, onProfile: async () => ({ emailAddress: 'me@x.com' }) })
+    const err = await auth.getAccessToken().catch((e) => e)
+    expect(isReauthRequired(err)).toBe(true)
+    // Dead tokens cleared; creds + email kept so the user can re-link.
+    const after = await store.load()
+    expect(after.tokens).toBeNull()
+    expect(after.clientCreds).toEqual(creds)
+    expect(after.accountEmail).toBe('me@x.com')
   })
 
   it('getAccessToken throws when not linked', async () => {

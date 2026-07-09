@@ -1,6 +1,7 @@
 // src/main/calendar/daemon.test.ts
 import { describe, expect, it, vi } from 'vitest'
 
+import { CalendarReauthRequiredError } from './auth'
 import { createCache, type GoogleEventRow } from './cache'
 import { createDaemon } from './daemon'
 
@@ -103,6 +104,22 @@ describe('calendar daemon', () => {
     expect(synced).toHaveBeenCalledWith(
       expect.objectContaining({ error: expect.stringContaining('boom'), pastDays: 30, futureDays: 90 })
     )
+    d.stop()
+    cache.close()
+  })
+
+  it('pollOnce flags reauthRequired when the refresh token is dead', async () => {
+    const cache = createCache({ filePath: ':memory:' })
+    const api = {
+      ...fakeApi([]),
+      listUpcoming: async () => {
+        throw new CalendarReauthRequiredError()
+      },
+    }
+    const synced = vi.fn()
+    const d = createDaemon({ api, cache, intervalMs: 60_000, onSynced: synced })
+    await d.pollOnce()
+    expect(synced).toHaveBeenCalledWith(expect.objectContaining({ count: 0, reauthRequired: true }))
     d.stop()
     cache.close()
   })

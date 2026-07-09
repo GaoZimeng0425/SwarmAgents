@@ -11,6 +11,7 @@
 import { createLogger } from '@shared/logger'
 
 import type { CalendarApi } from './api'
+import { isReauthRequired } from './auth'
 import type { Cache } from './cache'
 
 const log = createLogger({ process: 'main' }).child({ component: 'calendar-daemon' })
@@ -28,6 +29,9 @@ export type SyncedPayload = {
   pastDays: number
   futureDays: number
   error?: string
+  // Set when the sync failed because the refresh token is dead; the user must
+  // re-link. The daemon keeps running but every poll will fail until then.
+  reauthRequired?: boolean
 }
 
 export type Daemon = {
@@ -78,8 +82,9 @@ export function createDaemon(deps: DaemonDeps): Daemon {
       fireSynced({ count: rows.length, ts, pastDays: 30, futureDays: 90 })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      log.error({ msg: 'calendar sync failed', err: msg })
-      fireSynced({ count: 0, ts, pastDays: 30, futureDays: 90, error: msg })
+      const reauthRequired = isReauthRequired(err)
+      log.error({ msg: 'calendar sync failed', err: msg, reauthRequired })
+      fireSynced({ count: 0, ts, pastDays: 30, futureDays: 90, error: msg, reauthRequired })
     }
   }
 

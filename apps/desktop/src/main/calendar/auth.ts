@@ -23,6 +23,20 @@ const LOGIN_TIMEOUT_MS = 5 * 60 * 1000
 
 export type CodeExchangeResult = { accessToken: string; refreshToken: string; expiresAt: number }
 
+// Thrown when the refresh token is expired/revoked (Google `invalid_grant`).
+// The dead tokens are cleared before this is thrown, so the only recovery is a
+// fresh login — callers surface it as "re-link required".
+export class CalendarReauthRequiredError extends Error {
+  constructor(message = 'Google authorization expired or revoked; re-link required') {
+    super(message)
+    this.name = 'CalendarReauthRequiredError'
+  }
+}
+
+export function isReauthRequired(err: unknown): boolean {
+  return err instanceof Error && err.name === 'CalendarReauthRequiredError'
+}
+
 export function extractCode(callbackPath: string): string | null {
   try {
     const idx = callbackPath.indexOf('?')
@@ -119,8 +133,22 @@ export function createAuth(deps: AuthDeps): Auth {
     const cfg = await store.load()
     if (!cfg.clientCreds || !cfg.tokens) throw new Error('Calendar not linked')
     log.info({ msg: 'refreshing calendar access token' })
-    const r = await refreshTokens({ creds: cfg.clientCreds, refreshToken: cfg.tokens.refreshToken })
-    await persistTokens({ refreshToken: cfg.tokens.refreshToken, ...r })
+    try {
+      const r = await refreshTokens({ creds: cfg.clientCreds, refreshToken: cfg.tokens.refreshToken })
+      await persistTokens({ refreshToken: cfg.tokens.refreshToken, ...r })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // invalid_grant = refresh token dead (Testing-mode 7-day expiry, user
+      // revoked, or password change). Retrying is futile — clear the tokens
+      // (keep creds + email for the re-link) and signal reauth so the poll loop
+      // stops hammering a doomed refresh and the UI prompts to re-link.
+      if (/invalid_grant/i.test(msg)) {
+        await store.save({ clientCreds: cfg.clientCreds, tokens: null, accountEmail: cfg.accountEmail })
+        log.warn({ msg: 'calendar refresh token invalid; cleared tokens, re-link required' })
+        throw new CalendarReauthRequiredError()
+      }
+      throw err
+    }
   }
 
   const login: Auth['login'] = () =>

@@ -37,6 +37,9 @@ export const CalendarConfigViewSchema = z.object({
   googleEventCount: z.number().int().nullable(),
   localEventCount: z.number().int().nullable(),
   syncError: z.string().nullable(),
+  // True when the refresh token expired/was revoked and was cleared: the user
+  // must re-link. Distinct from a transient syncError so the UI can prompt.
+  reauthRequired: z.boolean(),
 })
 export type CalendarConfigView = z.infer<typeof CalendarConfigViewSchema>
 

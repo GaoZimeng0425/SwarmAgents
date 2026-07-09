@@ -29,6 +29,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  TriangleAlert,
   X,
 } from 'lucide-react'
 
@@ -37,6 +38,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { CalendarInsights } from '@/components/views/calendar-insights'
 import { useCalendarEvents, useCreateLocalEvent, useDeleteLocalEvent } from '@/hooks/use-calendar'
 import { useAllCronJobs, useAllCronRuns, useCancelCronJob } from '@/hooks/use-cron'
+import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { swarmApi } from '@/lib/api'
 import type { InsightInput } from '@/lib/calendar/build-insights'
 import { occurrencesInRange } from '@/lib/cron-occurrences'
@@ -80,6 +82,7 @@ const eventDot = (ev: CalendarEvent): string => (ev.source === 'google' ? 'text-
 
 export function ScheduledCalendarView(): React.JSX.Element {
   const navigate = useNavigate()
+  const { openSettings } = useSettingsNav()
   const qc = useQueryClient()
   const { data: tasks = [] } = useAllCronJobs()
   const { data: runs = [] } = useAllCronRuns()
@@ -216,14 +219,26 @@ export function ScheduledCalendarView(): React.JSX.Element {
             <CalendarClock className="size-[18px] text-primary" />
             <h1 className="font-semibold text-[17px] tracking-tight">{format(month, 'yyyy 年 M 月')}</h1>
             <span className="text-muted-foreground text-xs tabular-nums">{totalThisMonth} 个事项</span>
-            {calStatus?.accountEmail && (
-              <span
-                className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-600 dark:text-blue-400"
-                title={`Google 账号：${calStatus.accountEmail}`}
+            {calStatus?.reauthRequired ? (
+              <button
+                className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] text-destructive transition-colors hover:bg-destructive/20"
+                onClick={() => void openSettings('calendar')}
+                title="Google 授权已过期，点击重新连接"
+                type="button"
               >
-                <Mail className="size-3" />
-                <span className="max-w-[180px] truncate">{calStatus.accountEmail}</span>
-              </span>
+                <TriangleAlert className="size-3" />
+                授权已过期 · 重新连接
+              </button>
+            ) : (
+              calStatus?.accountEmail && (
+                <span
+                  className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-600 dark:text-blue-400"
+                  title={`Google 账号：${calStatus.accountEmail}`}
+                >
+                  <Mail className="size-3" />
+                  <span className="max-w-[180px] truncate">{calStatus.accountEmail}</span>
+                </span>
+              )
             )}
           </div>
           <div className="ml-auto flex items-center gap-1">

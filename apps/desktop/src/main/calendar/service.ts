@@ -43,6 +43,7 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
   const listeners = new Set<(v: CalendarConfigView) => void>()
   let cachedConfig: CalendarConfigOnDisk = await deps.store.load()
   let syncError: string | null = null
+  let reauthRequired = false
 
   const snapshot = (): CalendarConfigView => {
     const stats = deps.cache.stats()
@@ -54,6 +55,7 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
       googleEventCount: stats.googleCount || null,
       localEventCount: stats.localCount || null,
       syncError,
+      reauthRequired,
     }
   }
   const emit = (): void => {
@@ -72,9 +74,24 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
       hasClientCreds: !!cachedConfig.clientCreds,
     })
   }
-  // Background daemon polls must refresh the view too — otherwise only manual
-  // Sync now broadcasts calendar:stateChanged.
-  deps.daemon.onSynced(() => emit())
+  // Background daemon polls (and manual Sync now) update the view here — the
+  // single place syncError/reauthRequired are derived, so nothing else clobbers
+  // them. On reauth the auth layer already cleared the dead tokens; reload the
+  // config so loggedIn flips to false and the UI prompts to re-link.
+  deps.daemon.onSynced((payload) => {
+    if (payload.reauthRequired) {
+      reauthRequired = true
+      syncError = payload.error ?? null
+      void deps.store.load().then((cfg) => {
+        cachedConfig = cfg
+        emit()
+      })
+      return
+    }
+    reauthRequired = false
+    syncError = payload.error ?? null
+    emit()
+  })
 
   return {
     async setClientCreds(creds) {
@@ -119,6 +136,7 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
       // auth.login persisted fresh tokens into the store; mirror them in.
       cachedConfig = await deps.store.load()
       syncError = null
+      reauthRequired = false
       deps.daemon.start()
       log.info({ msg: 'calendar account linked', email: cachedConfig.accountEmail })
       emit()
@@ -126,6 +144,8 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
     },
     async unlinkAccount() {
       deps.daemon.stop()
+      reauthRequired = false
+      syncError = null
       try {
         await deps.auth.logout()
       } catch (e) {
@@ -141,15 +161,17 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
       return { ok: true }
     },
     async syncNow() {
+      // pollOnce doesn't throw; it fires onSynced, which owns syncError/
+      // reauthRequired and emits. The guard is for the unexpected only — do not
+      // set syncError=null on success here or it would clobber onSynced.
       try {
         await deps.daemon.pollOnce()
-        syncError = null
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         log.error({ msg: 'calendar syncNow failed', err: msg })
         syncError = msg
+        emit()
       }
-      emit()
     },
     getView: () => snapshot(),
     listInRange: (fromMs, toMs) => deps.cache.listInRange(fromMs, toMs),

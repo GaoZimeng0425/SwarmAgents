@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createCache } from './cache'
+import type { SyncedPayload } from './daemon'
 import { createService } from './service'
 import { createStore } from './store'
 
@@ -63,6 +64,38 @@ describe('calendar service', () => {
     await svc.setClientCreds({ clientId: 'cid', clientSecret: 'sec' })
     await svc.linkAccount()
     expect(daemon.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('a reauth sync payload flips the view to not-linked and reauthRequired', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'cal-'))
+    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    await store.save({
+      clientCreds: { clientId: 'c', clientSecret: 's' },
+      tokens: { accessToken: 'a', refreshToken: 'r', expiresAt: Date.now() + 1_000_000 },
+      accountEmail: 'me@x.com',
+    })
+    const cache = createCache({ filePath: ':memory:' })
+    let fire: (p: SyncedPayload) => void = () => {}
+    const daemon = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      pollOnce: vi.fn(),
+      onSynced: (cb: (p: SyncedPayload) => void) => {
+        fire = cb
+        return () => {}
+      },
+    }
+    const svc = await createService({ store, cache, auth: fakeAuth(), daemon })
+    expect(svc.getView().loggedIn).toBe(true)
+    // auth clears the dead tokens on invalid_grant; then the failed poll fires reauth.
+    await store.save({ clientCreds: { clientId: 'c', clientSecret: 's' }, tokens: null, accountEmail: 'me@x.com' })
+    fire({ count: 0, ts: Date.now(), pastDays: 30, futureDays: 90, reauthRequired: true, error: 'expired' })
+    await new Promise((r) => setTimeout(r, 0)) // service reloads config async
+    const v = svc.getView()
+    expect(v.reauthRequired).toBe(true)
+    expect(v.loggedIn).toBe(false)
+    expect(v.accountEmail).toBe('me@x.com')
+    cache.close()
   })
 
   it('createLocal then listInRange returns it; getView counts it', async () => {
