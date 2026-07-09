@@ -11,7 +11,7 @@ import { Area, AreaChart, ResponsiveContainer } from 'recharts'
 import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { useWeather } from '@/hooks/use-weather'
 import { WeatherDrawer } from './weather-drawer'
-import { aqiHex, weatherEmoji } from './weather-shared'
+import { aqiHex, relativeTime, weatherEmoji } from './weather-shared'
 
 export function WeatherCard(): React.JSX.Element {
   // Fetching, caching (staleTime), and window-focus refresh are all owned by the
@@ -111,7 +111,7 @@ function StripContent({
         <div className="truncate font-semibold text-[12.5px] text-foreground">{forecast.location}</div>
         <div className="truncate text-[11px] text-muted-foreground">
           {text}
-          {feelsLike !== null && ` · 体感 ${feelsLike}°`} · 降水 {pop}%
+          {feelsLike !== null && ` · 体感 ${feelsLike}°`} · 降水 {pop}% · {relativeTime(forecast.fetchedAt)}
         </div>
       </div>
 

@@ -104,6 +104,9 @@ export function useWeather(): UseWeather {
     staleTime: FORECAST_TTL_MS,
     gcTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: true,
+    // Poll every 30 min so the dashboard reading (and its "N ago" label) stays
+    // current without a user action. Matches FORECAST_TTL_MS / the main cache TTL.
+    refetchInterval: FORECAST_TTL_MS,
     retry: 1,
   })
 
