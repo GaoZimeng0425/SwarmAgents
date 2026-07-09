@@ -64,6 +64,11 @@ export function createArticleStore(deps: { userDataDir: string }): ArticleStore 
 
   load()
 
+  // Log the resolved path on boot so a misconfigured SWARM_SERVICE_ARTICLES_DIR
+  // (e.g. falling back to tmpdir()) shows up in the log immediately rather than
+  // being discovered when collected articles vanish after a restart.
+  log.info({ msg: 'article store path', file, count: cache.size })
+
   function load(): void {
     try {
       const raw = readFileSync(file, 'utf8')

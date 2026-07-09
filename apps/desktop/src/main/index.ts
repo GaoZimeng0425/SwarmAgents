@@ -9,7 +9,7 @@ import { createAnalysisStore } from './bilibili/analysis-store'
 import { initBudgets } from './budgets'
 import { initCalendar } from './calendar'
 import { initCmdPaletteArtifacts, toBilibiliArtifacts } from './cmd-palette'
-import { ensureSwarmDirs, paths } from './constants'
+import { ensureSwarmDirs, paths, servicePathEnv } from './constants'
 import { initGmail } from './gmail'
 import { startWsHost } from './host'
 import { wireArticleIpc } from './ipc/article-ipc'
@@ -104,13 +104,7 @@ app.whenReady().then(async () => {
     stdio: ['ignore', 'inherit', 'pipe'],
     env: {
       ...process.env,
-      SWARM_SERVICE_DB_PATH: paths.db(),
-      SWARM_SERVICE_MEMORY_PATH: paths.memory(),
-      SWARM_SERVICE_SKILLS_PATH: paths.skills(),
-      SWARM_SERVICE_AGENTS_PATH: paths.agents(),
-      SWARM_SERVICE_EXPORTS_DIR: paths.exports(),
-      SWARM_SERVICE_ARTICLES_DIR: paths.articles(),
-      SWARM_SERVICE_HOOKS_PATH: paths.hooks(),
+      ...Object.fromEntries(servicePathEnv.map(([name, getter]) => [name, getter()])),
     },
   })
 

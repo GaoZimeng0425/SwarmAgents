@@ -60,6 +60,24 @@ export const paths = {
 } as const
 
 /**
+ * The path config Main hands to the service child process as env vars. Each
+ * entry binds a SWARM_SERVICE_* name to its `paths` getter, so the service's
+ * on-disk locations have a single source of truth here — adding a new store is
+ * one line in this table, not a second hand-maintained list in index.ts that
+ * can silently drift (the article store was lost exactly that way: SWARM_SERVICE_ARTICLES_DIR
+ * was added to the service but never injected here, so it fell back to tmpdir()).
+ */
+export const servicePathEnv: ReadonlyArray<readonly [envName: string, getter: () => string]> = [
+  ['SWARM_SERVICE_DB_PATH', paths.db],
+  ['SWARM_SERVICE_MEMORY_PATH', paths.memory],
+  ['SWARM_SERVICE_SKILLS_PATH', paths.skills],
+  ['SWARM_SERVICE_AGENTS_PATH', paths.agents],
+  ['SWARM_SERVICE_EXPORTS_DIR', paths.exports],
+  ['SWARM_SERVICE_ARTICLES_DIR', paths.articles],
+  ['SWARM_SERVICE_HOOKS_PATH', paths.hooks],
+] as const
+
+/**
  * Materialize the hand-editable subdirs so ~/.swarm-agents is a discoverable
  * drop-in home from first launch — without it the dir is empty until the user
  * saves a skill/agent (builtins live in-memory and are never written to disk).
