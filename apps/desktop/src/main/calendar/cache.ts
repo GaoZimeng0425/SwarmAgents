@@ -1,8 +1,10 @@
 // src/main/calendar/cache.ts
 //
-// Local sqlite store for calendar. Two tables: google_events is a read-only
-// cache the daemon upserts; local_events is the writable app-local calendar
-// (agent + UI CRUD). Main process is the sole writer/reader; WAL for hygiene.
+// Local sqlite store for calendar. Two tables: google_events mirrors the
+// remote calendar (the daemon reconciles it each sync — upsert returned events
+// and prune ones that vanished from the window); local_events is the writable
+// app-local calendar (agent + UI CRUD). Main process is the sole
+// writer/reader; WAL for hygiene.
 import { randomUUID } from 'node:crypto'
 import type { CalendarEvent } from '@swarm/protocol'
 import type { Database as DB } from 'better-sqlite3'
@@ -33,7 +35,13 @@ export type LocalEventInput = {
 }
 
 export type Cache = {
-  upsertGoogleEvents(rows: GoogleEventRow[]): void
+  // Make google_events match the remote calendar for a sync window: upsert the
+  // returned rows and delete any cached rows that overlap [fromMs, toMs] for the
+  // same calendar but were NOT returned (deleted/moved remotely). Returns how
+  // many stale rows were pruned.
+  reconcileGoogleWindow(input: { calendarId: string; fromMs: number; toMs: number; rows: GoogleEventRow[] }): {
+    deleted: number
+  }
   listInRange(fromMs: number, toMs: number): CalendarEvent[]
   getEvent(id: string): CalendarEvent | null
   createLocal(input: LocalEventInput): CalendarEvent
@@ -107,10 +115,22 @@ export function createCache(opts: { filePath: string }): Cache {
        startMs=@startMs, endMs=@endMs, allDay=@allDay, attendees=@attendees, updatedAt=@updatedAt`
   )
 
-  const upsertGoogleEvents: Cache['upsertGoogleEvents'] = (rows) => {
+  // Prune cached rows overlapping [fromMs, toMs] for a calendar that are NOT in
+  // the kept-id set — i.e. events Google would have returned for this window but
+  // didn't (deleted or moved out of range remotely). json_each keeps the id set
+  // out of SQL parameter limits; an empty set correctly deletes the whole window.
+  const pruneStaleInWindow = db.prepare(
+    `DELETE FROM google_events
+     WHERE calendarId = @calendarId
+       AND startMs <= @toMs AND endMs >= @fromMs
+       AND id NOT IN (SELECT value FROM json_each(@keepIds))`
+  )
+
+  const reconcileGoogleWindow: Cache['reconcileGoogleWindow'] = ({ calendarId, fromMs, toMs, rows }) => {
     const now = Date.now()
-    const tx = db.transaction((items: GoogleEventRow[]) => {
-      for (const r of items) {
+    let deleted = 0
+    const tx = db.transaction(() => {
+      for (const r of rows) {
         upsertGoogle.run({
           id: r.id,
           sourceId: r.sourceId,
@@ -125,8 +145,15 @@ export function createCache(opts: { filePath: string }): Cache {
           updatedAt: now,
         })
       }
+      deleted = pruneStaleInWindow.run({
+        calendarId,
+        fromMs,
+        toMs,
+        keepIds: JSON.stringify(rows.map((r) => r.id)),
+      }).changes
     })
-    tx(rows)
+    tx()
+    return { deleted }
   }
 
   // Overlap: event [startMs, endMs] intersects [fromMs, toMs].
@@ -214,7 +241,7 @@ export function createCache(opts: { filePath: string }): Cache {
   }
 
   return {
-    upsertGoogleEvents,
+    reconcileGoogleWindow,
     listInRange,
     getEvent,
     createLocal,

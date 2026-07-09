@@ -59,6 +59,36 @@ describe('calendar daemon', () => {
     cache.close()
   })
 
+  it('pollOnce prunes google events removed remotely across polls', async () => {
+    const cache = createCache({ filePath: ':memory:' })
+    const t = Date.now()
+    const evt = (id: string): GoogleEventRow => ({
+      id: `primary:${id}`,
+      sourceId: id,
+      calendarId: 'primary',
+      title: id,
+      description: null,
+      location: null,
+      startMs: t + 3_600_000, // inside the daemon's sync window
+      endMs: t + 7_200_000,
+      allDay: false,
+      attendees: [],
+    })
+    let current = [evt('a'), evt('b')]
+    const api = { listUpcoming: async () => current, getPrimaryCalendarEmail: async () => 'me@x.com' }
+    const d = createDaemon({ api, cache, intervalMs: 60_000 })
+    await d.pollOnce()
+    expect(cache.stats().googleCount).toBe(2)
+    // 'b' is deleted remotely; the next poll no longer returns it.
+    current = [evt('a')]
+    await d.pollOnce()
+    expect(cache.stats().googleCount).toBe(1)
+    expect(cache.getEvent('primary:a')).not.toBeNull()
+    expect(cache.getEvent('primary:b')).toBeNull()
+    d.stop()
+    cache.close()
+  })
+
   it('pollOnce reports error without throwing', async () => {
     const cache = createCache({ filePath: ':memory:' })
     const api = {

@@ -1,10 +1,12 @@
 // src/main/calendar/daemon.ts
 //
 // Resident Calendar sync daemon. Polls the primary calendar on a fixed
-// interval and upserts the events into the cache. v1 uses re-list + UPSERT
-// (idempotent) over a window spanning 30 days back to 90 days forward: it does
-// NOT track deletions or events outside the window — the `calendar.synced`
-// event carries `pastDays`/`futureDays` so the limitation is visible. Mirrors
+// interval and reconciles the events into the cache over a window spanning 30
+// days back to 90 days forward. Each poll re-lists the window and makes the
+// cache match it: events added/changed remotely are upserted, events
+// deleted/moved out of the window are pruned — so the cache tracks the remote.
+// Events outside the window are neither fetched nor pruned. The `calendar.synced`
+// event carries `pastDays`/`futureDays` so the window is visible. Mirrors
 // gmail/daemon.ts.
 import { createLogger } from '@shared/logger'
 
@@ -66,15 +68,13 @@ export function createDaemon(deps: DaemonDeps): Daemon {
 
   const pollOnce: Daemon['pollOnce'] = async () => {
     const ts = Date.now()
+    const fromMs = ts - PAST_WINDOW_MS
+    const toMs = ts + FUTURE_WINDOW_MS
     try {
-      const rows = await deps.api.listUpcoming({
-        calendarId: 'primary',
-        fromMs: ts - PAST_WINDOW_MS,
-        toMs: ts + FUTURE_WINDOW_MS,
-      })
-      deps.cache.upsertGoogleEvents(rows)
+      const rows = await deps.api.listUpcoming({ calendarId: 'primary', fromMs, toMs })
+      const { deleted } = deps.cache.reconcileGoogleWindow({ calendarId: 'primary', fromMs, toMs, rows })
       deps.cache.setStats({ lastSyncAt: ts })
-      log.info({ msg: 'calendar synced', count: rows.length })
+      log.info({ msg: 'calendar synced', count: rows.length, pruned: deleted })
       fireSynced({ count: rows.length, ts, pastDays: 30, futureDays: 90 })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)

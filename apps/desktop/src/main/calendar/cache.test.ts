@@ -35,15 +35,46 @@ const googleRow = (over: Partial<GoogleEventRow> = {}): GoogleEventRow => ({
   ...over,
 })
 
+// Reconcile a set of google rows over a window wide enough to cover them all.
+const putGoogle = (cache: ReturnType<typeof createCache>, rows: GoogleEventRow[]): { deleted: number } =>
+  cache.reconcileGoogleWindow({ calendarId: 'primary', fromMs: 0, toMs: Number.MAX_SAFE_INTEGER, rows })
+
 describe('calendar cache', () => {
-  it('upsertGoogleEvents is idempotent', () => {
+  it('reconcileGoogleWindow is idempotent', () => {
     const db = tmpDb()
     paths.push(db)
     const cache = createCache({ filePath: db })
-    cache.upsertGoogleEvents([googleRow()])
-    cache.upsertGoogleEvents([googleRow()])
+    putGoogle(cache, [googleRow()])
+    putGoogle(cache, [googleRow()])
     const stats = cache.stats()
     expect(stats.googleCount).toBe(1)
+  })
+
+  it('reconcileGoogleWindow prunes events that vanished from the window but keeps out-of-window rows', () => {
+    const db = tmpDb()
+    paths.push(db)
+    const cache = createCache({ filePath: db })
+    const t = Date.now()
+    const inA = googleRow({ id: 'primary:a', sourceId: 'a', startMs: t + 1000, endMs: t + 2000 })
+    const inB = googleRow({ id: 'primary:b', sourceId: 'b', startMs: t + 3000, endMs: t + 4000 })
+    // An out-of-window row from an earlier, wider sync.
+    const far = googleRow({ id: 'primary:far', sourceId: 'far', startMs: t + 100_000, endMs: t + 100_001 })
+    putGoogle(cache, [far]) // seed the far row across the whole range
+    // Now reconcile only the [t, t+5000] window with A + B present.
+    cache.reconcileGoogleWindow({ calendarId: 'primary', fromMs: t, toMs: t + 5000, rows: [inA, inB] })
+    expect(
+      cache
+        .listInRange(t, t + 5000)
+        .map((e) => e.id)
+        .sort()
+    ).toEqual(['primary:a', 'primary:b'])
+    // B deleted remotely: reconcile the same window with A only -> B pruned.
+    const { deleted } = cache.reconcileGoogleWindow({ calendarId: 'primary', fromMs: t, toMs: t + 5000, rows: [inA] })
+    expect(deleted).toBe(1)
+    expect(cache.getEvent('primary:b')).toBeNull()
+    expect(cache.getEvent('primary:a')).not.toBeNull()
+    // The out-of-window row is untouched by the windowed reconcile.
+    expect(cache.getEvent('primary:far')).not.toBeNull()
   })
 
   it('listInRange merges google + local and filters by overlap', () => {
@@ -51,9 +82,7 @@ describe('calendar cache', () => {
     paths.push(db)
     const cache = createCache({ filePath: db })
     const t = Date.now()
-    cache.upsertGoogleEvents([
-      googleRow({ id: 'primary:g1', sourceId: 'g1', startMs: t + 1000, endMs: t + 2000, title: 'G' }),
-    ])
+    putGoogle(cache, [googleRow({ id: 'primary:g1', sourceId: 'g1', startMs: t + 1000, endMs: t + 2000, title: 'G' })])
     const local = cache.createLocal({ title: 'L', startMs: t + 3000, endMs: t + 4000 })
     const both = cache.listInRange(t, t + 5000)
     expect(both.map((e) => e.title).sort()).toEqual(['G', 'L'])
@@ -85,7 +114,7 @@ describe('calendar cache', () => {
     const db = tmpDb()
     paths.push(db)
     const cache = createCache({ filePath: db })
-    cache.upsertGoogleEvents([googleRow()])
+    putGoogle(cache, [googleRow()])
     cache.createLocal({ title: 'L', startMs: 1, endMs: 2 })
     cache.setStats({ lastSyncAt: 999 })
     const s = cache.stats()
