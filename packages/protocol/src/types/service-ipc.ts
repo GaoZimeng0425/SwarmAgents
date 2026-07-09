@@ -49,16 +49,20 @@ export type ServiceMethod =
   | 'researchedRepoNames'
   | 'exportSessionMarkdown'
 
+// `id` is a string, not a number: it's prefixed per ServiceClient instance
+// (see service-client.ts) so ids never collide across the main process's own
+// client and any number of WS-bridged peer clients sharing the same
+// service transport — each numbers its own requests from 1 independently.
 export type ServiceRequest = {
   kind: 'request'
-  id: number
+  id: string
   method: ServiceMethod
   args: unknown[]
 }
 
 export type ServiceResponse =
-  | { kind: 'response'; id: number; ok: true; result: unknown }
-  | { kind: 'response'; id: number; ok: false; error: string }
+  | { kind: 'response'; id: string; ok: true; result: unknown }
+  | { kind: 'response'; id: string; ok: false; error: string }
 
 export type ServiceEvent = {
   kind: 'event'
@@ -80,6 +84,7 @@ export type MainMethod =
   | 'calendar.create_local'
   | 'calendar.update_local'
   | 'calendar.delete_local'
+  | 'weather.get_forecast'
 
 export type MainRequest = {
   kind: 'mainRequest'

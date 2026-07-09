@@ -61,4 +61,46 @@ describe('ws bridge', () => {
     expect(seen[0]).toMatchObject({ kind: 'response', id: 1, ok: true })
     ws.close()
   })
+
+  it('does not forward a service mainRequest out to peers', async () => {
+    // Regression: mainRequest/mainResponse are main↔service private RPC (gmail.*/
+    // calendar.*/weather.*). A peer's own handler-less ServiceClient used to
+    // "answer" a leaked mainRequest with a bogus mainResponse, racing (and
+    // beating) main's real, network-bound reply for the same id.
+    const svc = fakeServiceTransport()
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
+    await new Promise((res, rej) => {
+      ws.once('open', res)
+      ws.once('error', rej)
+    })
+    const seen: unknown[] = []
+    ws.on('message', (raw) => seen.push(JSON.parse(raw.toString())))
+
+    svc.emit({ kind: 'mainRequest', id: 1, method: 'weather.get_forecast', args: [null, null] })
+    await new Promise((res) => setTimeout(res, 50))
+
+    expect(seen).toHaveLength(0)
+    ws.close()
+  })
+
+  it('does not forward a peer-sent mainResponse into the service', async () => {
+    const svc = fakeServiceTransport()
+    // Only the bridge's onPeerMessage should be able to call service.postMessage
+    // here — nothing else emits on this bus, so any hit is a leak.
+    const received: unknown[] = []
+    svc.on('message', (m) => received.push(m))
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
+    await new Promise((res, rej) => {
+      ws.once('open', res)
+      ws.once('error', rej)
+    })
+    ws.send(JSON.stringify({ kind: 'mainResponse', id: 1, ok: false, error: 'no handler for weather.get_forecast' }))
+    await new Promise((res) => setTimeout(res, 50))
+
+    expect(received).toHaveLength(0)
+    ws.close()
+  })
 })

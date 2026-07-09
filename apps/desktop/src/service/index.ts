@@ -167,6 +167,7 @@ registerBuiltinTools(toolRegistry, {
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
   gmailMainRpc: mainRpc.mainRpc,
   calendarMainRpc: mainRpc.mainRpc,
+  weatherMainRpc: mainRpc.mainRpc,
 })
 scheduler.start()
 

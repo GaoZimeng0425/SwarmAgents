@@ -147,6 +147,7 @@ app.whenReady().then(async () => {
     log.info({ msg: 'ws-host up', port: wsHost.port })
     gmail.registerMainRpc(serviceClient)
     calendar.registerMainRpc(serviceClient)
+    weather.registerMainRpc(serviceClient)
 
     // Command palette artifacts: scan cwd-recent-files + join bilibili analyses.
     // The analysis store is re-created from the same on-disk file the bilibili

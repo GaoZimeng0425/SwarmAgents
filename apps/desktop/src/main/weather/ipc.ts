@@ -3,7 +3,7 @@
 // (the dashboard card subscribes so it updates without polling). Config changes
 // are read on demand (the hook re-queries), so no push channel is needed there.
 import { createLogger } from '@shared/logger'
-import type { WeatherConfig } from '@swarm/protocol'
+import type { MainMethod, WeatherConfig } from '@swarm/protocol'
 import { BrowserWindow, ipcMain } from 'electron'
 
 import type { Service } from './service'
@@ -12,7 +12,54 @@ const log = createLogger({ process: 'main' }).child({ component: 'weather-ipc' }
 
 const FORECAST_CHANNEL = 'weather:forecastChanged'
 
-export function wireWeatherIpc(args: { service: Service }): { dispose: () => void } {
+// Forecast result shape crossing the service→main RPC boundary. Mirrors the
+// renderer-facing ipc handler result so both paths share one error mapping.
+export type ForecastRpcResult =
+  | { ok: true; forecast: Awaited<ReturnType<Service['getForecast']>> }
+  | { ok: false; code: 'not_configured' | 'locate_failed' | 'fetch_failed'; message: string }
+
+// Shared core: resolves + caches a forecast and maps errors to the result union.
+// `broadcast` pushes the fresh forecast to renderer windows (renderer ipc path)
+// but is skipped for the service→main RPC path (no renderer is watching).
+function resolveForecast(
+  service: Service,
+  lng: number | null,
+  lat: number | null,
+  broadcast: boolean
+): Promise<ForecastRpcResult> {
+  return service
+    .getForecast(lng, lat)
+    .then((forecast) => {
+      if (broadcast) {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed()) w.webContents.send(FORECAST_CHANNEL, forecast)
+        }
+      }
+      return { ok: true as const, forecast }
+    })
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err)
+      // Map to the WeatherForecastResult.code union. geo.ts throws messages
+      // like "ip-api HTTP …", "ip-api returned no coordinates", or
+      // "QWeather GeoAPI …" — all locate failures. The service throws the
+      // literal "not configured" sentinel before any locate attempt.
+      const lower = message.toLowerCase()
+      const isLocate =
+        lower.includes('ip-api') ||
+        lower.includes('coordinates') ||
+        lower.includes('geoapi') ||
+        lower.includes('locate')
+      const code = message === 'not configured' ? 'not_configured' : isLocate ? 'locate_failed' : 'fetch_failed'
+      return { ok: false as const, code, message }
+    })
+}
+
+export type MainRpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
+
+export function wireWeatherIpc(args: { service: Service }): {
+  dispose: () => void
+  mainRpcHandlers: MainRpcHandlers
+} {
   const { service } = args
 
   ipcMain.handle('weather:getConfig', () => service.getConfig())
@@ -27,32 +74,20 @@ export function wireWeatherIpc(args: { service: Service }): { dispose: () => voi
   ipcMain.handle('weather:getForecast', (_e: Electron.IpcMainInvokeEvent, lng: unknown, lat: unknown) => {
     const l = typeof lng === 'number' ? lng : null
     const la = typeof lat === 'number' ? lat : null
-    return service
-      .getForecast(l, la)
-      .then((forecast) => {
-        // Push the fresh forecast to every renderer so the dashboard card
-        // updates without a re-fetch.
-        for (const w of BrowserWindow.getAllWindows()) {
-          if (!w.isDestroyed()) w.webContents.send(FORECAST_CHANNEL, forecast)
-        }
-        return { ok: true as const, forecast }
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err)
-        // Map to the WeatherForecastResult.code union. geo.ts throws messages
-        // like "ip-api HTTP …", "ip-api returned no coordinates", or
-        // "QWeather GeoAPI …" — all locate failures. The service throws the
-        // literal "not configured" sentinel before any locate attempt.
-        const lower = message.toLowerCase()
-        const isLocate =
-          lower.includes('ip-api') ||
-          lower.includes('coordinates') ||
-          lower.includes('geoapi') ||
-          lower.includes('locate')
-        const code = message === 'not configured' ? 'not_configured' : isLocate ? 'locate_failed' : 'fetch_failed'
-        return { ok: false as const, code, message }
-      })
+    return resolveForecast(service, l, la, true)
   })
+
+  // Service→main RPC: the weather tool calls this to reuse the same QWeather
+  // service (same config, cache, location priority) the dashboard card uses.
+  // No GPS coords (the service worker has none) → service falls back to
+  // saved location > IP, exactly like a dashboard fetch without a GPS fix.
+  const mainRpcHandlers: MainRpcHandlers = {
+    'weather.get_forecast': (lng, lat) => {
+      const l = typeof lng === 'number' ? lng : null
+      const la = typeof lat === 'number' ? lat : null
+      return resolveForecast(service, l, la, false)
+    },
+  }
 
   log.info({ msg: 'weather IPC wired' })
 
@@ -62,5 +97,6 @@ export function wireWeatherIpc(args: { service: Service }): { dispose: () => voi
       ipcMain.removeHandler('weather:setConfig')
       ipcMain.removeHandler('weather:getForecast')
     },
+    mainRpcHandlers,
   }
 }

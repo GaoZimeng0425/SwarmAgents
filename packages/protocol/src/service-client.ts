@@ -92,10 +92,19 @@ export type ServiceClient = {
   registerMainRpc(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown> | unknown): void
 }
 
+// Every connected party (main's own client, plus one per WS-bridged peer)
+// numbers its own requests from 1 independently, but all replies broadcast
+// over the same shared transport (see bridge.ts) — so a bare number can
+// collide between two different callers' in-flight requests. Prefixing with
+// a per-instance random tag makes ids collision-free without needing any
+// caller to know about anyone else sharing the channel.
+const randomConnId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
 export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
   const { transport, onEvent } = cfg
+  const connId = randomConnId()
   let nextId = 1
-  const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>()
+  const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>()
   const mainRpcHandlers = new Map<MainMethod, (...args: unknown[]) => Promise<unknown> | unknown>()
   let listener: ((message: unknown) => void) | null = null
 
@@ -105,7 +114,8 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
       const p = pending.get(msg.id)
       if (!p) {
         // The desktop host bridges an external WS peer onto this same service
-        // transport; that peer's response ids are foreign to this client. Drop.
+        // transport; that peer's own (differently-prefixed) ids never match
+        // one of ours. Drop.
         return
       }
       pending.delete(msg.id)
@@ -135,7 +145,7 @@ export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
   }
 
   function call<T>(method: ServiceMethod, args: unknown[]): Promise<T> {
-    const id = nextId++
+    const id = `${connId}:${nextId++}`
     return new Promise<T>((resolve, reject) => {
       pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
       transport.postMessage({ kind: 'request', id, method, args })

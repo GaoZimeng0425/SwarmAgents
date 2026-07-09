@@ -66,6 +66,8 @@ export function registerBuiltinTools(
     gmailMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
     /** Service-side client for calendar.* mainRequest/mainResponse calls. */
     calendarMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
+    /** Service-side client for the weather.get_forecast mainRequest (QWeather). */
+    weatherMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
@@ -78,7 +80,7 @@ export function registerBuiltinTools(
   registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(currentTimeSpec())
-  registry.register(getWeatherSpec())
+  registry.register(getWeatherSpec(deps?.weatherMainRpc))
   registry.register(webFetchSpec())
   // Vision: analyze_image resolves an image-capable model from the task's
   // provider chain at call time (via ctx.analyzeImage); ocr_image runs local

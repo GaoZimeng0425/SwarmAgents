@@ -4,7 +4,7 @@ import { createServiceClient, type ServiceTransport } from './service-client'
 
 function mockTransport() {
   const listeners = new Set<(m: unknown) => void>()
-  const posted: Array<{ kind: string; id: number; method: string; args: unknown[] }> = []
+  const posted: Array<{ kind: string; id: string; method: string; args: unknown[] }> = []
   const t = {
     posted,
     postMessage(m: unknown) {
