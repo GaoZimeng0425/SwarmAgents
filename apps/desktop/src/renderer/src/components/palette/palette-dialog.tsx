@@ -142,7 +142,14 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
         // `translate-y-0` cancels the base DialogContent's `-translate-y-1/2`
         // (it centers vertically); without it our `top-[96px]` anchor is pulled
         // up half the dialog height and the top rows clip off-screen.
-        className="top-[96px] left-1/2 grid h-[660px] max-h-[660px] w-[760px] max-w-[760px] -translate-x-1/2 translate-y-0 gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 dark:bg-popover/82"
+        // Height is NOT fixed: only `max-h` caps it, so a short result list
+        // yields a short dialog. `grid-rows-[auto_minmax(0,1fr)_auto]` lets the
+        // middle (results/preview) row shrink so overflow scrolls inside it
+        // instead of clipping the footer.
+        // Responsive: below `md` (<768px) the palette fills the viewport width
+        // and drops the preview aside; from `md` up it caps at 920×720 with the
+        // 340px preview column.
+        className="top-[96px] left-1/2 grid max-h-[calc(100vh-128px)] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 md:max-h-[720px] md:w-[920px] md:max-w-[920px] dark:bg-popover/82"
         // The palette manages its own input focus + keyboard; hide the
         // default close X (Esc + backdrop still dismiss via base-ui).
         onKeyDown={state.onKeyDown}
@@ -158,7 +165,7 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
           scope={state.scope}
         />
 
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0">
           <PaletteResults
             className="flex-1"
             flat={state.flat}
@@ -167,7 +174,7 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
             sections={state.sections}
             selIndex={state.selIndex}
           />
-          <aside className="cmdscroll w-[296px] flex-none overflow-y-auto border-border/60 border-l bg-muted/30">
+          <aside className="cmdscroll hidden w-[340px] flex-none overflow-y-auto border-border/60 border-l bg-muted/30 md:block">
             <PreviewSwitch
               formations={state.formations}
               onPick={state.setPickedFormation}

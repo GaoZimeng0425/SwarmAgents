@@ -1,12 +1,14 @@
 // apps/desktop/src/renderer/src/components/palette/preview/chat.tsx
 // Lazy preview of the last ~20 chat messages for a session. Fetches the raw
 // RunEvent[] via swarmApi.getRunEvents and filters to run.progress events whose
-// nested TaskEvent is an llm.message. Each message is rendered with a
-// role-colored label (你 / Agent / 工具) and its content sliced to 200 chars.
+// nested TaskEvent is an llm.message. Assistant messages are rendered as
+// markdown (code blocks, lists, emphasis) via the shared Markdown component;
+// user/tool messages stay plain text since they rarely contain markdown.
 import { useQuery } from '@tanstack/react-query'
 
 import { swarmApi } from '../../../lib/api'
 import type { PreviewData } from '../../../lib/palette/types'
+import { Markdown } from '../../markdown'
 
 export type ChatPreviewData = Extract<PreviewData, { type: 'chat' }>
 
@@ -36,10 +38,16 @@ export function ChatPreview({ data }: { data: ChatPreviewData }): React.JSX.Elem
         {msgs.map((m, i) => {
           const msg = (m.event as any).event
           const role = msg.role === 'user' ? '你' : msg.role === 'assistant' ? 'Agent' : '工具'
+          const content = String(msg.content ?? '')
           return (
-            <p key={i}>
-              <span className="font-medium">{role}:</span> {String(msg.content ?? '').slice(0, 200)}
-            </p>
+            <div className="space-y-0.5" key={i}>
+              <span className="font-medium">{role}</span>
+              {msg.role === 'assistant' ? (
+                <Markdown className="text-xs">{content}</Markdown>
+              ) : (
+                <p className="text-muted-foreground">{content}</p>
+              )}
+            </div>
           )
         })}
       </div>
