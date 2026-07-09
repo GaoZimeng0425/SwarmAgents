@@ -58,6 +58,32 @@ describe('calendar api', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer TOKEN')
   })
 
+  it('listUpcoming follows nextPageToken across pages', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      const body = url.includes('pageToken=TOK')
+        ? { items: [{ id: 'evt-2', summary: 'Page 2', start: { date: '2026-07-03' }, end: { date: '2026-07-04' } }] }
+        : {
+            items: [
+              {
+                id: 'evt-1',
+                summary: 'Page 1',
+                start: { dateTime: '2026-07-02T09:00:00Z' },
+                end: { dateTime: '2026-07-02T09:30:00Z' },
+              },
+            ],
+            nextPageToken: 'TOK',
+          }
+      return new Response(JSON.stringify(body), { status: 200 }) as Response
+    })
+    const api = createApi({ getAccessToken: async () => 'TOKEN', refreshAccessToken: async () => {} })
+    const rows = await api.listUpcoming({ calendarId: 'primary', fromMs: 0, toMs: 1, maxResults: 1 })
+    expect(rows.map((r) => r.sourceId)).toEqual(['evt-1', 'evt-2'])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain('pageToken')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('pageToken=TOK')
+  })
+
   it('getPrimaryCalendarEmail returns the primary calendar id', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ items: [{ primary: true, id: 'user@example.com' }] }), {

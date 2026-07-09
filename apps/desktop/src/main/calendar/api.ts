@@ -14,6 +14,10 @@ const log = createLogger({ process: 'main' }).child({ component: 'calendar-api' 
 // (e.g. /users/me/calendarList) — do not use it.
 const BASE = 'https://www.googleapis.com/calendar/v3'
 
+// Safety cap on pagination (page size defaults to 250 → up to ~10k events per
+// window). Guards against a pathological never-terminating nextPageToken loop.
+const MAX_PAGES = 40
+
 type Auth = { getAccessToken(): Promise<string>; refreshAccessToken(): Promise<void> }
 
 export type CalendarApi = {
@@ -85,17 +89,32 @@ export function createApi(auth: Auth): CalendarApi {
 
   return {
     async listUpcoming({ calendarId, fromMs, toMs, maxResults = 250 }) {
-      const params = new URLSearchParams({
-        singleEvents: 'true',
-        orderBy: 'startTime',
-        timeMin: new Date(fromMs).toISOString(),
-        timeMax: new Date(toMs).toISOString(),
-        maxResults: String(maxResults),
-      })
-      const json = await request(`/calendars/${encodeURIComponent(calendarId)}/events?${params}`)
-      const items = ((json.items ?? []) as Record<string, unknown>[]).map((r) => normalise(calendarId, r))
-      log.debug({ msg: 'calendar listUpcoming', count: items.length })
-      return items
+      // maxResults is the PAGE size; follow nextPageToken until the window is
+      // fully fetched, so a window with >maxResults events isn't truncated
+      // (truncation would make reconcile prune the missing ones as "deleted").
+      const rows: GoogleEventRow[] = []
+      let pageToken: string | undefined
+      let page = 0
+      do {
+        const params = new URLSearchParams({
+          singleEvents: 'true',
+          orderBy: 'startTime',
+          timeMin: new Date(fromMs).toISOString(),
+          timeMax: new Date(toMs).toISOString(),
+          maxResults: String(maxResults),
+        })
+        if (pageToken) params.set('pageToken', pageToken)
+        const json = await request(`/calendars/${encodeURIComponent(calendarId)}/events?${params}`)
+        for (const r of (json.items ?? []) as Record<string, unknown>[]) rows.push(normalise(calendarId, r))
+        pageToken = typeof json.nextPageToken === 'string' ? json.nextPageToken : undefined
+        page++
+        if (pageToken && page >= MAX_PAGES) {
+          log.warn({ msg: 'calendar listUpcoming hit page cap; results truncated', pages: page, count: rows.length })
+          break
+        }
+      } while (pageToken)
+      log.debug({ msg: 'calendar listUpcoming', count: rows.length, pages: page })
+      return rows
     },
     async getPrimaryCalendarEmail() {
       const json = await request('/users/me/calendarList')
