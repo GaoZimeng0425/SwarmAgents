@@ -1,0 +1,33 @@
+import type React from 'react'
+import { useEffect } from 'react'
+import { OverlayProvider } from '@gluestack-ui/core/overlay/creator'
+import { ToastProvider } from '@gluestack-ui/core/toast/creator'
+import { View, type ViewProps } from 'react-native'
+import { Uniwind } from 'uniwind'
+
+export type ModeType = 'light' | 'dark' | 'system'
+
+export function GluestackUIProvider({
+  mode = 'dark',
+  ...props
+}: {
+  mode?: ModeType
+  children?: React.ReactNode
+  style?: ViewProps['style']
+}) {
+  useEffect(() => {
+    if (mode === 'system') {
+      Uniwind.setTheme('system')
+    } else {
+      Uniwind.setTheme(mode)
+    }
+  }, [mode])
+
+  return (
+    <View style={[{ flex: 1, height: '100%', width: '100%' }, props.style]}>
+      <OverlayProvider>
+        <ToastProvider>{props.children}</ToastProvider>
+      </OverlayProvider>
+    </View>
+  )
+}

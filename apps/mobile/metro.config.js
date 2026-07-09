@@ -1,22 +1,12 @@
 const { getDefaultConfig } = require('expo/metro-config')
-const path = require('node:path')
+const { withNativewind } = require('nativewind/metro')
 
-// Monorepo support: watch the repo root (so packages/protocol/src changes
-// rebuild), and let metro follow pnpm's symlinks (unstable_enableSymlinks)
-// instead of forcing node-linker=hoisted (which would affect the whole repo).
-const projectRoot = __dirname
-const monorepoRoot = path.resolve(projectRoot, '../..')
+const config = getDefaultConfig(__dirname)
 
-const config = getDefaultConfig(projectRoot)
-config.watchFolders = [monorepoRoot]
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(monorepoRoot, 'node_modules'),
-]
-config.resolver.unstable_enableSymlinks = true
-config.resolver.unstable_enablePackageExports = true
+// Polyfill buffer for react-native-svg
 config.resolver.extraNodeModules = {
-  '@swarm/protocol': path.resolve(monorepoRoot, 'packages/protocol/src'),
+  ...config.resolver.extraNodeModules,
+  buffer: require.resolve('buffer'),
 }
 
-module.exports = config
+module.exports = withNativewind(config, { inlineRem: 16 })

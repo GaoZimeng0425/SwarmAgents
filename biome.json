@@ -74,6 +74,7 @@
       "!**/packages/design/src/components/ui",
       "!**/packages/ui/src/components/ui",
       "!src/renderer/src/components/ui",
+      "!apps/mobile/components",
       "!**/src/renderer/src/routeTree.gen.ts",
       "!**/src/renderer/src/routeTreeSettings.gen.ts"
     ]
@@ -90,6 +91,7 @@
       "!**/packages/design/src/components/ui/**",
       "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
+      "!apps/mobile/components/**",
       "!**/src/renderer/src/routeTree.gen.ts",
       "!**/src/renderer/src/routeTreeSettings.gen.ts"
     ],
@@ -127,10 +129,12 @@
       "!**/packages/design/src/components/ui/**",
       "!**/packages/ui/src/components/ui/**",
       "!src/renderer/src/components/ui/**",
+      "!apps/mobile/components/**",
       "!**/.next",
       "!**/src/renderer/src/routeTree.gen.ts",
       "!**/src/renderer/src/routeTreeSettings.gen.ts",
       "!**/docs/**",
+      "!apps/mobile/app/+html.tsx",
       "!**/.claude/**",
       "!**/*.dc.html",
       "!**/support.js"
