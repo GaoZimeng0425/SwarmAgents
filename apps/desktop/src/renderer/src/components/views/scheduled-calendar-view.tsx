@@ -10,11 +10,13 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  formatDistanceToNow,
   isSameDay,
   isSameMonth,
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
+import { zhCN } from 'date-fns/locale'
 import { sortBy } from 'es-toolkit'
 import {
   CalendarClock,
@@ -118,6 +120,16 @@ export function ScheduledCalendarView(): React.JSX.Element {
     [qc]
   )
 
+  // Re-render once a minute so the relative "last synced" label stays fresh
+  // between syncs (nothing else re-renders this header while idle).
+  const [, setNowTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+  const lastSyncedLabel =
+    calStatus?.lastSyncAt != null ? formatDistanceToNow(calStatus.lastSyncAt, { addSuffix: true, locale: zhCN }) : null
+
   // Inline "new local event" form state (scoped to the selected day).
   const [showCreate, setShowCreate] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
@@ -215,6 +227,11 @@ export function ScheduledCalendarView(): React.JSX.Element {
             )}
           </div>
           <div className="ml-auto flex items-center gap-1">
+            {lastSyncedLabel && (
+              <span className="mr-1 text-[11px] text-muted-foreground tabular-nums" title="上次同步时间">
+                {sync.isPending ? '同步中…' : `更新于${lastSyncedLabel}`}
+              </span>
+            )}
             <Button
               aria-label="刷新日历"
               disabled={sync.isPending}
