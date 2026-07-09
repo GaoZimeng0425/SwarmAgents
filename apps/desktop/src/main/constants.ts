@@ -37,6 +37,10 @@ export const paths = {
   // Session-markdown exports (the command palette's "export" action). Plain
   // .md files the user opens outside the app, so userData (not swarmHome).
   exports: () => join(app.getPath('userData'), 'exports'),
+  // Collected-articles store + repo-research cache (the article store owns its
+  // own filename collected-articles.json). userData, not swarmHome, so the
+  // service pins a stable dir instead of falling back to tmpdir().
+  articles: () => join(app.getPath('userData'), 'articles'),
   providers: () => join(app.getPath('userData'), 'providers.enc'),
   bilibili: () => join(app.getPath('userData'), 'bilibili.bin'),
   bilibiliAnalysis: () => join(app.getPath('userData'), 'bilibili-analysis.json'),
