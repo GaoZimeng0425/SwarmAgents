@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CalendarEvent, CronRun, ScheduledTask } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import { Button, Input } from '@swarm/ui'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   addMonths,
@@ -22,8 +22,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Mail,
   PanelRightClose,
   Plus,
+  RefreshCw,
   Trash2,
   X,
 } from 'lucide-react'
@@ -92,6 +94,20 @@ export function ScheduledCalendarView(): React.JSX.Element {
   const { data: events = [] } = useCalendarEvents(gridStart, gridEnd)
   const createLocal = useCreateLocalEvent()
   const deleteLocal = useDeleteLocalEvent()
+
+  // Linked Google account — surfaced in the header so it's clear whose calendar
+  // this is. Kept live by the calendarOnStateChanged invalidation below.
+  const { data: calStatus } = useQuery({
+    queryKey: ['calendar', 'status'],
+    queryFn: () => swarmApi.calendarGetStatus(),
+  })
+
+  // Manual "refresh" pulls the Google calendar cache now instead of waiting for
+  // the background daemon's next poll. State refetches via calendarOnStateChanged.
+  const sync = useMutation({
+    mutationFn: () => swarmApi.calendarSyncNow(),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['calendar'] }),
+  })
 
   // Background daemon syncs push calendar:stateChanged; refetch the range.
   useEffect(
@@ -188,8 +204,27 @@ export function ScheduledCalendarView(): React.JSX.Element {
             <CalendarClock className="size-[18px] text-primary" />
             <h1 className="font-semibold text-[17px] tracking-tight">{format(month, 'yyyy 年 M 月')}</h1>
             <span className="text-muted-foreground text-xs tabular-nums">{totalThisMonth} 个事项</span>
+            {calStatus?.accountEmail && (
+              <span
+                className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-600 dark:text-blue-400"
+                title={`Google 账号：${calStatus.accountEmail}`}
+              >
+                <Mail className="size-3" />
+                <span className="max-w-[180px] truncate">{calStatus.accountEmail}</span>
+              </span>
+            )}
           </div>
           <div className="ml-auto flex items-center gap-1">
+            <Button
+              aria-label="刷新日历"
+              disabled={sync.isPending}
+              onClick={() => sync.mutate()}
+              size="icon-sm"
+              title="刷新 Google 日历"
+              variant="ghost"
+            >
+              <RefreshCw className={cn('size-4', sync.isPending && 'animate-spin')} />
+            </Button>
             <Button onClick={() => setMonth(startOfMonth(new Date()))} size="sm" variant="ghost">
               今天
             </Button>

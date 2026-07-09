@@ -62,7 +62,16 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
   }
 
   // If already linked at boot (tokens present), keep the daemon running.
-  if (cachedConfig.tokens) deps.daemon.start()
+  // Otherwise stay idle and say so — otherwise the daemon is silent in the log
+  // and "why aren't Google events syncing" is undiagnosable from logs alone.
+  if (cachedConfig.tokens) {
+    deps.daemon.start()
+  } else {
+    log.warn({
+      msg: 'calendar daemon not started at boot: account not linked',
+      hasClientCreds: !!cachedConfig.clientCreds,
+    })
+  }
   // Background daemon polls must refresh the view too — otherwise only manual
   // Sync now broadcasts calendar:stateChanged.
   deps.daemon.onSynced(() => emit())

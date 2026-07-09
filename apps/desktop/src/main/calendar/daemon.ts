@@ -2,9 +2,10 @@
 //
 // Resident Calendar sync daemon. Polls the primary calendar on a fixed
 // interval and upserts the events into the cache. v1 uses re-list + UPSERT
-// (idempotent) over a forward 90-day window: it does NOT track deletions or
-// events outside the window — the `calendar.synced` event carries
-// `windowDays: 90` so the limitation is visible. Mirrors gmail/daemon.ts.
+// (idempotent) over a window spanning 30 days back to 90 days forward: it does
+// NOT track deletions or events outside the window — the `calendar.synced`
+// event carries `pastDays`/`futureDays` so the limitation is visible. Mirrors
+// gmail/daemon.ts.
 import { createLogger } from '@shared/logger'
 
 import type { CalendarApi } from './api'
@@ -13,12 +14,17 @@ import type { Cache } from './cache'
 const log = createLogger({ process: 'main' }).child({ component: 'calendar-daemon' })
 
 const DEFAULT_INTERVAL_MS = 30 * 60 * 1000
-const WINDOW_MS = 90 * 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+// Look back far enough to surface recent past events (Google's timeMin is
+// forward-only otherwise), and forward for upcoming ones.
+const PAST_WINDOW_MS = 30 * DAY_MS
+const FUTURE_WINDOW_MS = 90 * DAY_MS
 
 export type SyncedPayload = {
   count: number
   ts: number
-  windowDays: 90
+  pastDays: number
+  futureDays: number
   error?: string
 }
 
@@ -63,17 +69,17 @@ export function createDaemon(deps: DaemonDeps): Daemon {
     try {
       const rows = await deps.api.listUpcoming({
         calendarId: 'primary',
-        fromMs: ts,
-        toMs: ts + WINDOW_MS,
+        fromMs: ts - PAST_WINDOW_MS,
+        toMs: ts + FUTURE_WINDOW_MS,
       })
       deps.cache.upsertGoogleEvents(rows)
       deps.cache.setStats({ lastSyncAt: ts })
       log.info({ msg: 'calendar synced', count: rows.length })
-      fireSynced({ count: rows.length, ts, windowDays: 90 })
+      fireSynced({ count: rows.length, ts, pastDays: 30, futureDays: 90 })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       log.error({ msg: 'calendar sync failed', err: msg })
-      fireSynced({ count: 0, ts, windowDays: 90, error: msg })
+      fireSynced({ count: 0, ts, pastDays: 30, futureDays: 90, error: msg })
     }
   }
 

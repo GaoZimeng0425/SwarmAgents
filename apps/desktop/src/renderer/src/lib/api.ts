@@ -118,10 +118,12 @@ export const swarmApi = {
   gmailGetThreadAnalysis: (threadId: string): Promise<GmailThreadAnalysis | null> =>
     window.swarm.gmail.getThreadAnalysis(threadId),
   // Calendar (page-surface subset; settings-panel OAuth methods stay on window.swarm.calendar directly).
+  calendarGetStatus: (): Promise<CalendarConfigView> => window.swarm.calendar.getStatus(),
   calendarListInRange: (fromMs: number, toMs: number): Promise<CalendarEvent[]> =>
     window.swarm.calendar.listInRange(fromMs, toMs),
   calendarCreateLocal: (input: CalendarLocalInput): Promise<CalendarEvent> => window.swarm.calendar.createLocal(input),
   calendarDeleteLocal: (id: string): Promise<boolean> => window.swarm.calendar.deleteLocal(id),
+  calendarSyncNow: (): Promise<void> => window.swarm.calendar.syncNow(),
   calendarOnStateChanged: (cb: (view: CalendarConfigView) => void): (() => void) =>
     window.swarm.calendar.onStateChanged(cb),
   listCronJobsForSession: (sessionId: string): Promise<CronJobSummary[]> => window.swarm.cron.listForSession(sessionId),
