@@ -28,7 +28,11 @@ export function WeatherDrawer({
           {/* Refresh sits inline to the right of the "fetched N ago" line, clear
               of the Sheet's built-in close X in the top-right corner. */}
           <div className="flex items-center gap-1.5">
-            {forecast && <p className="text-muted-foreground text-xs">和风天气 · {relativeTime(forecast.fetchedAt)}</p>}
+            {forecast && (
+              <p className="text-muted-foreground text-xs">
+                和风天气 · <span className="text-muted-foreground/60">{relativeTime(forecast.fetchedAt)}</span>
+              </p>
+            )}
             <button
               aria-label="刷新"
               className="ml-1 text-muted-foreground hover:text-foreground disabled:opacity-50"

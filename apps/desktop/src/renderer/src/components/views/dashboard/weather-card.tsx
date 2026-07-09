@@ -111,7 +111,8 @@ function StripContent({
         <div className="truncate font-semibold text-[12.5px] text-foreground">{forecast.location}</div>
         <div className="truncate text-[11px] text-muted-foreground">
           {text}
-          {feelsLike !== null && ` · 体感 ${feelsLike}°`} · 降水 {pop}% · {relativeTime(forecast.fetchedAt)}
+          {feelsLike !== null && ` · 体感 ${feelsLike}°`} · 降水 {pop}%
+          <span className="text-muted-foreground/60"> · {relativeTime(forecast.fetchedAt)}</span>
         </div>
       </div>
 
