@@ -15,6 +15,7 @@
 import { useMemo } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@swarm/ui'
 import { useNavigate } from '@tanstack/react-router'
+import { Sparkles } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { usePaletteData } from '../../hooks/use-palette-data'
@@ -32,17 +33,39 @@ import { usePaletteState } from './use-palette-state'
 
 const THEME_ORDER = ['system', 'light', 'dark'] as const
 
+// The primary-action verb shown next to ↵, keyed off the selected row's kind so
+// the footer reads like the design (查看进度 for a live task, 指派 for the
+// dispatch hero, 打开 for a chat, 执行 for everything else).
+function primaryActionLabel(selected: PaletteItem | null): string {
+  switch (selected?.kind) {
+    case 'taskRun':
+      return '查看进度'
+    case 'dispatch':
+      return '指派给 Agent'
+    case 'chat':
+      return '打开对话'
+    case 'service':
+    case 'file':
+      return '打开'
+    default:
+      return '执行'
+  }
+}
+
 // Footer bar: shows the selected row's title (or 未选择 when nothing is
 // selected) on the left, and a compact legend of the two keyboard affordances
-// (↵ 执行, ⌘K 操作) on the right. Mounted inside DialogContent after the
+// (↵ <action>, ⌘K 操作) on the right. Mounted inside DialogContent after the
 // results+preview flex row so it always sits at the palette's bottom edge.
 function PaletteFooter({ selected }: { selected: PaletteItem | null }): React.JSX.Element {
   return (
     <div className="flex items-center justify-between border-border/60 border-t px-4 py-2 text-muted-foreground text-xs">
-      <span className="min-w-0 truncate">{selected?.title ?? '未选择'}</span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Sparkles className="size-3.5 shrink-0 text-primary" />
+        <span className="truncate">{selected?.title ?? '未选择'}</span>
+      </span>
       <span className="flex shrink-0 items-center gap-2">
         <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px]">↵</kbd>
-        <span>执行</span>
+        <span>{primaryActionLabel(selected)}</span>
         <span className="opacity-50">·</span>
         <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⌘K</kbd>
         <span>操作</span>
@@ -61,7 +84,7 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
   const { theme, setTheme } = useTheme()
   const setComposerAgent = useComposerDefaults((s) => s.setAgentType)
   const submitGoal = useSubmitGoal()
-  const inputs = usePaletteData()
+  const inputs = usePaletteData(open)
   const close = useSearchDialog((s) => s.close)
 
   // `submitGoal` submits with whatever formation the user picked. The picked
@@ -116,7 +139,10 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
       open={open}
     >
       <DialogContent
-        className="top-[96px] left-1/2 grid h-[660px] max-h-[660px] w-[760px] max-w-[760px] -translate-x-1/2 gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 dark:bg-popover/82"
+        // `translate-y-0` cancels the base DialogContent's `-translate-y-1/2`
+        // (it centers vertically); without it our `top-[96px]` anchor is pulled
+        // up half the dialog height and the top rows clip off-screen.
+        className="top-[96px] left-1/2 grid h-[660px] max-h-[660px] w-[760px] max-w-[760px] -translate-x-1/2 translate-y-0 gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 dark:bg-popover/82"
         // The palette manages its own input focus + keyboard; hide the
         // default close X (Esc + backdrop still dismiss via base-ui).
         onKeyDown={state.onKeyDown}

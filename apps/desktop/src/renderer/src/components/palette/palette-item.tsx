@@ -10,12 +10,15 @@ import {
   Brain,
   CalendarClock,
   CalendarPlus,
+  ChevronRight,
   Command,
   Download,
   FileText,
+  Flame,
   Folder,
   ListChecks,
   LoaderCircle,
+  Mail,
   MessageSquare,
   Palette,
   PlayCircle,
@@ -54,6 +57,8 @@ export const ICONS: Record<string, LucideIcon> = {
   Sparkles,
   ArrowRight,
   Rocket,
+  Mail,
+  Flame,
   // SCOPE_META icons (input row)
   Command,
   ListChecks,
@@ -82,10 +87,14 @@ export type PaletteItemRowProps = {
 export function PaletteItemRow({ item, flatIndex, selIndex, onSelect, onRun }: PaletteItemRowProps): React.JSX.Element {
   const active = selIndex === flatIndex
   const Icon = resolveIcon(item.icon)
+  const hasProgress = typeof item.progress === 'number'
+  // Emphasize the icon tile for actionable/live rows (dispatch hero + resume
+  // cards) with a primary tint; everything else stays neutral.
+  const accent = item.kind === 'dispatch' || hasProgress
   return (
     <button
       className={cn(
-        'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] outline-none transition-colors',
+        'flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors',
         'data-active:bg-accent data-active:text-accent-foreground'
       )}
       data-active={active}
@@ -96,17 +105,37 @@ export function PaletteItemRow({ item, flatIndex, selIndex, onSelect, onRun }: P
       onMouseEnter={() => onSelect(flatIndex)}
       type="button"
     >
-      <Icon className="size-[18px] shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate font-medium">{item.title}</span>
-      {item.subtitle ? (
-        <span className="min-w-0 max-w-[40%] shrink truncate text-muted-foreground text-xs">{item.subtitle}</span>
-      ) : null}
+      <span
+        className={cn(
+          'flex size-9 shrink-0 items-center justify-center rounded-[10px]',
+          accent ? 'bg-primary/15 text-primary' : 'bg-muted/70 text-muted-foreground'
+        )}
+      >
+        <Icon className="size-[18px]" />
+      </span>
+
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate font-medium text-[13px]">{item.title}</span>
+        {item.subtitle ? <span className="truncate text-muted-foreground text-xs">{item.subtitle}</span> : null}
+      </span>
+
       {item.badge ? (
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{item.badge}</span>
       ) : null}
-      {typeof item.progress === 'number' ? (
-        <span className="block h-0.5 w-10 shrink-0 overflow-hidden rounded-full bg-muted">
-          <span className="block h-full bg-primary" style={{ width: `${Math.round(item.progress * 100)}%` }} />
+      {item.shortcut ? (
+        <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          {item.shortcut}
+        </kbd>
+      ) : null}
+      {hasProgress ? (
+        <span className="flex shrink-0 items-center gap-1.5">
+          <span className="block h-1 w-14 overflow-hidden rounded-full bg-muted">
+            <span
+              className="block h-full rounded-full bg-primary"
+              style={{ width: `${Math.round((item.progress ?? 0) * 100)}%` }}
+            />
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground/70" />
         </span>
       ) : null}
     </button>

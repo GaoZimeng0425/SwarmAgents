@@ -4,10 +4,11 @@ import { describe, expect, it } from 'vitest'
 import { selectPalette } from './select-palette'
 import type { PaletteItem } from './types'
 
-const mk = (id: string, kind: PaletteItem['kind']): PaletteItem => ({
+const mk = (id: string, kind: PaletteItem['kind'], section?: string): PaletteItem => ({
   id,
   kind,
   title: id,
+  section,
   icon: 'Search',
   run: () => {},
   preview: { type: 'info', title: id, rows: [] },
@@ -34,29 +35,25 @@ describe('selectPalette', () => {
     const out = selectPalette('file', [mk('f', 'file')])
     expect(out.sections[0].heading).toBe('文件 & 产出')
   })
-  it('mixed scope → 「指派给 Agent」「命令」「对话」「文件 & 产出」「任务」「服务 · 记忆 · 技能」 (empty dropped)', () => {
+  it('mixed scope → groups by explicit `section` in first-seen order (design home)', () => {
     const items = [
-      mk('d', 'dispatch'),
-      mk('c', 'command'),
-      mk('s', 'chat'),
-      mk('f', 'file'),
-      mk('r', 'taskRun'),
-      mk('svc', 'service'),
-      mk('m', 'memory'),
+      mk('r', 'taskRun', '继续未完成'),
+      mk('c', 'command', '建议操作'),
+      mk('s', 'chat', '最近对话'),
+      mk('svc', 'service', '快捷入口'),
     ]
     const out = selectPalette('mixed', items)
-    expect(out.sections.map((s) => s.heading)).toEqual([
-      '指派给 Agent',
-      '命令',
-      '对话',
-      '文件 & 产出',
-      '任务',
-      '服务 · 记忆 · 技能',
-    ])
+    expect(out.sections.map((s) => s.heading)).toEqual(['继续未完成', '建议操作', '最近对话', '快捷入口'])
   })
-  it('flat order matches section order', () => {
-    const items = [mk('r', 'taskRun'), mk('d', 'dispatch')]
+  it('mixed scope → items sharing a section collapse into one group', () => {
+    const items = [mk('a', 'taskRun', 'A'), mk('b', 'command', 'B'), mk('c', 'chat', 'A')]
     const out = selectPalette('mixed', items)
-    expect(out.flat.map((i) => i.id)).toEqual(['d', 'r'])
+    expect(out.sections.map((s) => s.heading)).toEqual(['A', 'B'])
+    // Flat order follows first-seen section order, items in arrival order within.
+    expect(out.flat.map((i) => i.id)).toEqual(['a', 'c', 'b'])
+  })
+  it('mixed scope → items with no section fall back to 「其他」', () => {
+    const out = selectPalette('mixed', [mk('x', 'command')])
+    expect(out.sections[0].heading).toBe('其他')
   })
 })

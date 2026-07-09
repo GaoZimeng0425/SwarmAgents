@@ -36,6 +36,14 @@ export type PaletteItem = {
   badge?: string
   /** Optional 0..1 progress for running tasks. */
   progress?: number
+  /** Optional keyboard-shortcut hint shown at the row's trailing edge (e.g. ⌘N). */
+  shortcut?: string
+  /**
+   * Explicit section heading for the row. When set (mixed scope), selectPalette
+   * groups by this instead of by `kind`, so the same kind can land in different
+   * design sections (e.g. a running run under 「继续未完成」 vs 「任务」).
+   */
+  section?: string
   /** lucide icon name; resolved to a component in the React layer. */
   icon: string
   /** Run on Enter or click. Returns void; navigation/side-effects happen inside. */

@@ -180,10 +180,11 @@ describe('SessionSearchDialog — palette integration smoke test', () => {
     expect(input).toBeInTheDocument()
     // The input auto-focuses on mount (palette-input.tsx mount effect).
     expect(document.activeElement).toBe(input)
-    // Footer is rendered: the mixed home row's hero is selected by default
-    // (selIndex 0), so the left label shows its title — not 未选择. The two
-    // kbd legends (执行 / 操作) are always present.
-    expect(screen.getByText('执行')).toBeInTheDocument()
+    // Footer is rendered: the empty home's first row (the running run surfaced
+    // under 继续未完成) is selected by default (selIndex 0), so the primary-action
+    // legend reads 查看进度 for a taskRun. The 操作 (⌘K) legend is always present,
+    // and the left label shows the row title — not 未选择.
+    expect(screen.getByText('查看进度')).toBeInTheDocument()
     expect(screen.getByText('操作')).toBeInTheDocument()
     expect(screen.queryByText('未选择')).not.toBeInTheDocument()
   })

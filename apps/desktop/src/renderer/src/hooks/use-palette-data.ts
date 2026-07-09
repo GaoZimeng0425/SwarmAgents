@@ -18,14 +18,19 @@ import { useSkills } from './use-skills'
 // The mixed 「快捷入口」 group navigates to the four service routes. Hardcoded
 // here (not in the store) because these are fixed app sections, not user data.
 const SERVICES = [
-  { id: 'bilibili', label: 'Bilibili', route: '/bilibili' },
+  { id: 'bilibili', label: 'Bilibili 收藏', route: '/bilibili' },
   { id: 'gmail', label: 'Gmail', route: '/gmail' },
   { id: 'scheduled', label: '定时任务', route: '/scheduled' },
   { id: 'trending', label: '热点', route: '/trending' },
 ] as const
 
-/** Gather every data source the palette needs into the BuildInputs shape. */
-export function usePaletteData(): BuildInputs {
+/**
+ * Gather every data source the palette needs into the BuildInputs shape.
+ * `open` gates the heavier 快捷入口 count queries (Bilibili scrape / Gmail inbox)
+ * so they only run while the palette is on screen — they share query keys with
+ * the Bilibili/Gmail views, so an already-visited view makes them free.
+ */
+export function usePaletteData(open = false): BuildInputs {
   const sessions = useSessionsStore((s) => s.sessions)
   const currentSessionId = useSessionsStore((s) => s.selectedSessionId)
   const allRuns = useRuns()
@@ -39,14 +44,52 @@ export function usePaletteData(): BuildInputs {
     staleTime: 60_000,
   })
 
+  // --- 快捷入口 live counts (best-effort; errors just omit the count) ----------
+  const biliList = useQuery({
+    queryKey: ['bilibili', 'list'],
+    queryFn: () => swarmApi.getBilibiliList(),
+    enabled: open,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+  const biliAnalyzed = useQuery({
+    queryKey: ['bilibili', 'analyzedBvids'],
+    queryFn: () => swarmApi.bilibiliAnalyzedBvids(),
+    enabled: open,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+  const gmailInbox = useQuery({
+    queryKey: ['gmail', 'inboxCount'],
+    queryFn: () => window.swarm.gmail.listInboxPage(0),
+    enabled: open,
+    staleTime: 60_000,
+    retry: false,
+  })
+
+  const serviceDetail = useMemo<Record<string, string>>(() => {
+    const biliTotal =
+      (biliList.data?.folders ?? []).reduce((n, f) => n + f.videos.length, 0) + (biliList.data?.watchLater.length ?? 0)
+    const analyzed = biliAnalyzed.data?.length ?? 0
+    const gmailTotal = gmailInbox.data?.total
+    return {
+      bilibili: biliTotal > 0 ? `${biliTotal} 个视频 · AI 已解析 ${analyzed}` : '视频收藏与解析',
+      gmail: gmailTotal != null ? `收件箱 ${gmailTotal} 封` : '邮件收件箱',
+      scheduled: `${cron.data?.length ?? 0} 个计划任务`,
+      trending: 'GitHub 热门仓库',
+    }
+  }, [biliList.data, biliAnalyzed.data, gmailInbox.data, cron.data])
+
   return useMemo<BuildInputs>(
     () => ({
       sessions: sessions
         .filter((s) => !s.isSystem)
         .map((s) => ({ id: s.id, title: s.title, lastActiveAt: s.lastActiveAt, agentType: s.agentType })),
       currentSessionId,
+      // 继续未完成 surfaces any live run: running/pending plus awaiting_user
+      // (paused for input). Clicking navigates to the session to continue it.
       runningRuns: allRuns
-        .filter((r) => r.status === 'running' || r.status === 'pending')
+        .filter((r) => r.status === 'running' || r.status === 'pending' || r.status === 'awaiting_user')
         .map((r) => ({
           id: r.id,
           sessionId: r.sessionId,
@@ -84,8 +127,18 @@ export function usePaletteData(): BuildInputs {
         timestamp: m.timestamp,
       })),
       skills: skills.skills.map((s) => ({ name: s.name, description: s.description, enabled: s.enabled })),
-      services: SERVICES.map((s) => ({ id: s.id, label: s.label, route: s.route })),
+      services: SERVICES.map((s) => ({ id: s.id, label: s.label, route: s.route, detail: serviceDetail[s.id] })),
     }),
-    [sessions, currentSessionId, allRuns, cron.data, formations, memory.entries, skills.skills, artifacts.data]
+    [
+      sessions,
+      currentSessionId,
+      allRuns,
+      cron.data,
+      formations,
+      memory.entries,
+      skills.skills,
+      artifacts.data,
+      serviceDetail,
+    ]
   )
 }

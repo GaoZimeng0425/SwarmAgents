@@ -152,13 +152,20 @@ describe('buildItems — run() wiring', () => {
 })
 
 describe('buildItems — mixed scope', () => {
-  it('empty term yields hero dispatch + recent sessions + commands + services', () => {
+  it('empty term yields the design home: 继续未完成 + 建议操作 + 最近对话 + 快捷入口 (no hero)', () => {
     const items = buildItems('mixed', '', baseInputs, cb)
-    const titles = items.map((i) => i.title)
-    expect(titles).toContain('把目标交给 Agent') // hero dispatch item
-    expect(items.find((i) => i.kind === 'dispatch')).toBeTruthy()
-    expect(items.some((i) => i.kind === 'command')).toBe(true)
-    expect(items.some((i) => i.kind === 'service')).toBe(true)
+    // No dispatch hero in the empty home — nothing to submit until the user types.
+    expect(items.find((i) => i.kind === 'dispatch')).toBeUndefined()
+    // 继续未完成: the running run surfaced as a resume card (plan 1/2 = 50%).
+    const resume = items.find((i) => i.section === '继续未完成')
+    expect(resume?.title).toBe('继续:抓取邮件')
+    expect(resume?.subtitle).toBe('上次进行到 50%·点此继续')
+    // 建议操作 carries 新建对话 with its ⌘N shortcut.
+    const newChat = items.find((i) => i.section === '建议操作' && i.title === '新建对话')
+    expect(newChat?.shortcut).toBe('⌘N')
+    // 最近对话 + 快捷入口 present.
+    expect(items.some((i) => i.kind === 'chat' && i.section === '最近对话')).toBe(true)
+    expect(items.some((i) => i.kind === 'service' && i.section === '快捷入口')).toBe(true)
   })
   it('with-query hero dispatch run() submits goal + navigates', async () => {
     const items = buildItems('mixed', '分析这段视频', baseInputs, cb)
@@ -168,12 +175,12 @@ describe('buildItems — mixed scope', () => {
     expect(cb.submitGoal).toHaveBeenCalledWith('分析这段视频', 'ceo') // default formation
     expect(cb.navigate).toHaveBeenCalledWith('/session/new-1')
   })
-  it('empty-term hero run() does NOT submit a blank goal (guarded)', async () => {
-    // `cb` is module-shared, so reset the call history to isolate this assertion.
+  it('empty term cannot submit a blank goal — there is no dispatch hero at all', () => {
+    // The old empty-goal guard is now structural: the empty home omits the hero,
+    // so a bare Enter runs the first real row instead of dispatching an empty goal.
     vi.mocked(cb.submitGoal).mockClear()
     const items = buildItems('mixed', '', baseInputs, cb)
-    const hero = items.find((i) => i.kind === 'dispatch')!
-    await hero.run()
+    expect(items.some((i) => i.kind === 'dispatch')).toBe(false)
     expect(cb.submitGoal).not.toHaveBeenCalled()
   })
   it('with-query filters sessions/commands by term', () => {

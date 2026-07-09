@@ -35,8 +35,8 @@ export type BuildInputs = {
   memory: { id: string; key: string; namespace: string; category: string; content: string; timestamp: number }[]
   /** Skills. */
   skills: { name: string; description: string; enabled?: boolean }[]
-  /** Service routes for mixed "快捷入口". */
-  services: { id: string; label: string; route: string }[]
+  /** Service routes for mixed "快捷入口". `detail` is a live count line (e.g. "214 个视频 · 已解析 86"); falls back to the route when absent. */
+  services: { id: string; label: string; route: string; detail?: string }[]
 }
 
 /** Side-effect callbacks the builder wires into each item's `run`. */
@@ -265,17 +265,84 @@ function skillItems(skills: BuildInputs['skills'], cb: Callbacks): PaletteItem[]
   }))
 }
 
+/** Per-service lucide icon; falls back to the generic ArrowRight. */
+const SERVICE_ICON: Record<string, string> = {
+  bilibili: 'PlayCircle',
+  gmail: 'Mail',
+  scheduled: 'CalendarClock',
+  trending: 'Flame',
+}
+
 function serviceItems(services: BuildInputs['services'], cb: Callbacks): PaletteItem[] {
   return services.map((sv) => ({
     id: `service:${sv.id}`,
     kind: 'service',
     title: sv.label,
-    subtitle: sv.route,
-    icon: 'ArrowRight',
+    subtitle: sv.detail ?? sv.route,
+    icon: SERVICE_ICON[sv.id] ?? 'ArrowRight',
     run: () => cb.navigate(sv.route),
-    searchText: `${sv.label} ${sv.route}`,
-    preview: { type: 'info', title: sv.label, desc: sv.route, rows: [] },
+    searchText: `${sv.label} ${sv.route} ${sv.detail ?? ''}`,
+    preview: { type: 'info', title: sv.label, desc: sv.detail ?? sv.route, rows: [] },
   }))
+}
+
+/**
+ * 「继续未完成」rows: the running / pending / awaiting_user runs, restyled as
+ * resume cards. Reuses taskRunItems (progress + live-log preview) but rewrites
+ * the title/subtitle to the design's 继续:… / 上次进行到 N%·点此继续 form.
+ */
+function resumeItems(runs: BuildInputs['runningRuns'], cb: Callbacks): PaletteItem[] {
+  return taskRunItems(runs, cb).map((it) => {
+    const pct = typeof it.progress === 'number' ? Math.round(it.progress * 100) : null
+    return {
+      ...it,
+      title: `继续:${it.title}`,
+      subtitle: pct != null ? `上次进行到 ${pct}%·点此继续` : '进行中·点此继续',
+      icon: 'Sparkles',
+    }
+  })
+}
+
+/**
+ * 「建议操作」rows: 新建对话 (⌘N) · 新建定时任务 · 研究编队. The first two reuse the
+ * command builders (with the design's descriptions); 研究编队 dispatches a
+ * research formation when one exists, else opens the formations page.
+ */
+function suggestionItems(inputs: BuildInputs, cb: Callbacks): PaletteItem[] {
+  const cmds = commandItems(inputs, cb)
+  const newChat: PaletteItem = {
+    ...cmds.find((i) => i.id === 'cmd:new-chat')!,
+    subtitle: '开始一个空白会话',
+    shortcut: '⌘N',
+  }
+  const newSched: PaletteItem = {
+    ...cmds.find((i) => i.id === 'cmd:new-scheduled')!,
+    subtitle: '让 Agent 按计划自动执行',
+  }
+  const research = inputs.formations.find((f) => /research|研究|检索/i.test(`${f.id} ${f.label}`))
+  const researchTeam: PaletteItem = {
+    id: 'suggest:research-team',
+    kind: research ? 'agent' : 'command',
+    title: '研究编队',
+    subtitle: '检索 · 阅读 · 归纳',
+    icon: 'Users',
+    run: () => {
+      if (research) {
+        cb.setComposerAgent(research.id)
+        cb.navigate('/')
+      } else {
+        cb.navigate('/formations')
+      }
+    },
+    searchText: '研究编队 research team 检索 阅读 归纳',
+    preview: { type: 'info', title: '研究编队', desc: '检索 · 阅读 · 归纳', rows: [] },
+  }
+  return [newChat, newSched, researchTeam]
+}
+
+/** Tag every item with an explicit section heading for selectPalette (mixed scope). */
+function withSection(items: PaletteItem[], section: string): PaletteItem[] {
+  return items.map((i) => ({ ...i, section }))
 }
 
 /**
@@ -305,25 +372,55 @@ function heroItem(trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteI
   }
 }
 
-/** Mixed scope. Empty term shows a curated home row; non-empty term searches across sources. */
+/**
+ * Mixed scope. Empty term shows the design's curated home (继续未完成 · 建议操作 ·
+ * 最近对话 · 快捷入口, no hero row); non-empty term shows the dispatch hero first
+ * then everything matching the term, grouped by search section.
+ */
 function mixedItems(t: string, trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteItem[] {
-  const hero = heroItem(trimmed, inputs, cb)
-
-  // Empty-term home: hero + new-chat command + top-3 recent chats + services.
+  // Empty-term home: four curated sections. No hero row — there is nothing to
+  // dispatch until the user types, so a bare Enter runs the first real row
+  // (a resume card, or the first suggestion when no runs are active).
   if (!t) {
-    const recent = [...inputs.sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 3)
-    const newChat = commandItems(inputs, cb).find((i) => i.id === 'cmd:new-chat')!
-    return [hero, newChat, ...chatItems(recent, cb), ...serviceItems(inputs.services, cb)]
+    const recent = [...inputs.sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 5)
+    return [
+      ...withSection(resumeItems(inputs.runningRuns, cb), '继续未完成'),
+      ...withSection(suggestionItems(inputs, cb), '建议操作'),
+      ...withSection(chatItems(recent, cb), '最近对话'),
+      ...withSection(serviceItems(inputs.services, cb), '快捷入口'),
+    ]
   }
 
   // With-query: hero always first, then everything that matches the term.
-  const commands = commandItems(inputs, cb).filter((i) => matches(t, i.searchText))
-  const chats = chatItems(inputs.sessions, cb).filter((i) => matches(t, i.searchText))
-  const files = fileItems(inputs.artifacts, cb).filter((i) => matches(t, i.searchText))
-  const runs = taskRunItems(inputs.runningRuns, cb).filter((i) => matches(t, i.searchText))
-  const crons = taskSchedItems(inputs.cronJobs, cb).filter((i) => matches(t, i.searchText))
-  const memory = memoryItems(inputs.memory, cb).filter((i) => matches(t, i.searchText))
-  const skills = skillItems(inputs.skills, cb).filter((i) => matches(t, i.searchText))
+  const hero = { ...heroItem(trimmed, inputs, cb), section: '指派给 Agent' }
+  const commands = withSection(
+    commandItems(inputs, cb).filter((i) => matches(t, i.searchText)),
+    '命令'
+  )
+  const chats = withSection(
+    chatItems(inputs.sessions, cb).filter((i) => matches(t, i.searchText)),
+    '对话'
+  )
+  const files = withSection(
+    fileItems(inputs.artifacts, cb).filter((i) => matches(t, i.searchText)),
+    '文件 & 产出'
+  )
+  const runs = withSection(
+    taskRunItems(inputs.runningRuns, cb).filter((i) => matches(t, i.searchText)),
+    '任务'
+  )
+  const crons = withSection(
+    taskSchedItems(inputs.cronJobs, cb).filter((i) => matches(t, i.searchText)),
+    '任务'
+  )
+  const memory = withSection(
+    memoryItems(inputs.memory, cb).filter((i) => matches(t, i.searchText)),
+    '记忆'
+  )
+  const skills = withSection(
+    skillItems(inputs.skills, cb).filter((i) => matches(t, i.searchText)),
+    '技能'
+  )
 
   return [hero, ...commands, ...chats, ...files, ...runs, ...crons, ...memory, ...skills]
 }
