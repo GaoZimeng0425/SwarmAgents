@@ -114,6 +114,14 @@ Rules:
 - Prefer this project's native worktree tooling when available; otherwise fall back to
   `git worktree add`.
 
+Node modules in a worktree: don't run `pnpm install` there (slow, and it breaks the
+app's native-module ABI). Instead symlink the main checkout's already-installed
+`node_modules` in and out:
+- After creating a worktree: `bash scripts/wt-setup.sh` (run from inside it) — links
+  the root plus every workspace package's `node_modules` back to the main checkout.
+- Before removing a worktree: `bash scripts/wt-teardown.sh` — removes those symlinks
+  so the removal is clean; the worktree deletion itself stays with your worktree tool.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
