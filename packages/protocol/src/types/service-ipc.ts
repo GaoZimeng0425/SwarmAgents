@@ -1,7 +1,14 @@
-// Wire protocol for the Main <-> Service utilityProcess channel.
-// Main sends ServiceRequest; Service replies with ServiceResponse (matched by
-// `id`), pushes ServiceEvent unsolicited, and sends one ServiceReady at boot.
+// Wire protocol for the Main <-> Service utilityProcess channel, and (via the
+// WS bridge) for external peers <-> Service. One symmetric request/response
+// pair: whoever registers a handler for a method answers it, regardless of
+// which side initiated the connection or which side is calling. `id` is a
+// string, not a number: it's prefixed per RpcPeer instance (see rpc-peer.ts)
+// so ids never collide across main's own peer and any number of WS-bridged
+// external peers sharing the same service transport — each numbers its own
+// requests from 1 independently.
 
+// Methods the service process can serve — main calls these on behalf of the
+// renderer (createSession, submitGoal, listAgents, ...).
 export type ServiceMethod =
   | 'createSession'
   | 'submitGoal'
@@ -49,32 +56,8 @@ export type ServiceMethod =
   | 'researchedRepoNames'
   | 'exportSessionMarkdown'
 
-// `id` is a string, not a number: it's prefixed per ServiceClient instance
-// (see service-client.ts) so ids never collide across the main process's own
-// client and any number of WS-bridged peer clients sharing the same
-// service transport — each numbers its own requests from 1 independently.
-export type ServiceRequest = {
-  kind: 'request'
-  id: string
-  method: ServiceMethod
-  args: unknown[]
-}
-
-export type ServiceResponse =
-  | { kind: 'response'; id: string; ok: true; result: unknown }
-  | { kind: 'response'; id: string; ok: false; error: string }
-
-export type ServiceEvent = {
-  kind: 'event'
-  event: string
-  data: unknown
-}
-
-export type ServiceReady = { kind: 'ready' }
-
-// Service→Main request/reply: symmetric reverse direction. Main answers a
-// MainRequest with a MainResponse matched by `id`. Used by service-side tools
-// that need data only Main holds (e.g. the gmail cache).
+// Methods only Main can serve — the service process calls these when a tool
+// needs data only Main holds (the gmail/calendar cache, QWeather config).
 export type MainMethod =
   | 'gmail.search'
   | 'gmail.get_thread'
@@ -86,16 +69,25 @@ export type MainMethod =
   | 'calendar.delete_local'
   | 'weather.get_forecast'
 
-export type MainRequest = {
-  kind: 'mainRequest'
-  id: number
-  method: MainMethod
+export type RpcMethod = ServiceMethod | MainMethod
+
+export type RpcRequest = {
+  kind: 'request'
+  id: string
+  method: RpcMethod
   args: unknown[]
 }
 
-export type MainResponse =
-  | { kind: 'mainResponse'; id: number; ok: true; result: unknown }
-  | { kind: 'mainResponse'; id: number; ok: false; error: string }
+export type RpcResponse =
+  | { kind: 'response'; id: string; ok: true; result: unknown }
+  | { kind: 'response'; id: string; ok: false; error: string }
 
-export type MainToService = ServiceRequest | MainResponse
-export type ServiceToMain = ServiceResponse | ServiceEvent | ServiceReady | MainRequest
+export type RpcEvent = {
+  kind: 'event'
+  event: string
+  data: unknown
+}
+
+export type RpcReady = { kind: 'ready' }
+
+export type RpcMessage = RpcRequest | RpcResponse | RpcEvent | RpcReady
