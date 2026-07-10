@@ -11,7 +11,11 @@ export type RpcTransport = {
   off(channel: 'message', listener: (message: unknown) => void): void
 }
 
-export type RpcMessage =
+// Not exported: the concrete, business-typed RpcMessage lives in
+// ./types/service-ipc (its `method` field is constrained to RpcMethod). This
+// local, direction-neutral envelope (method: string) is only the cast target
+// for the incoming-message switch below.
+type RpcMessage =
   | { kind: 'request'; id: string; method: string; args: unknown[] }
   | { kind: 'response'; id: string; ok: true; result: unknown }
   | { kind: 'response'; id: string; ok: false; error: string }
