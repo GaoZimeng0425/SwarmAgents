@@ -15,14 +15,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 const QUERY_KEY = ['workbench'] as const
 
-/** Load all tasks + columns, kept in sync with main's state-change broadcast. */
+/** Load all tasks + columns, kept in sync with main's state-change broadcast.
+ *  Overrides the global query-client defaults (staleTime: Infinity,
+ *  refetchOnMount: false) which would otherwise suppress the initial fetch. */
 export function useWorkbenchData() {
   return useQuery({
     queryKey: QUERY_KEY,
     queryFn: () => window.swarm.workbench.getAll(),
-    // staleTime is Infinity globally (query-client.ts), so without this the
-    // query never refetches on invalidate. Override to 0 so invalidation works.
     staleTime: 0,
+    refetchOnMount: true,
     initialData: emptyWorkbenchData,
   })
 }
@@ -107,6 +108,14 @@ export function useDeleteColumn() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => window.swarm.workbench.deleteColumn(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  })
+}
+
+export function useReorderColumns() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (orderedIds: string[]) => window.swarm.workbench.reorderColumns(orderedIds),
     onSuccess: () => void qc.invalidateQueries({ queryKey: QUERY_KEY }),
   })
 }

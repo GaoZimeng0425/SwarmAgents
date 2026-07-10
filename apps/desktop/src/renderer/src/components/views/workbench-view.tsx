@@ -1,11 +1,27 @@
 // Workbench (工作面板) — a kanban task board ported from the WorkPanel macOS app.
-// Layout: header (title + task count) over a horizontally-scrolling row of
-// columns + an "add column" button. Each column has an inline quick-capture
-// input (parsed by input-parser), a scrollable list of task cards, and a
-// header menu (rename / delete). Cards have a complete-checkbox, priority dot,
-// title, badges (deadline / tags), and a context menu (edit / move / delete).
-// No drag-and-drop yet — cards are moved via the context menu's "move to" submenu.
-import { useState } from 'react'
+// Layout: header (title + count + filter toggle) over an optional filter bar,
+// then a horizontally-draggable row of columns. Each column has a scrollable,
+// vertically-draggable list of task cards. Creating and editing tasks both open
+// the same TaskDialog. Filtering is pure renderer state (BoardFilter).
+import { useMemo, useState } from 'react'
+import {
+  closestCorners,
+  DndContext,
+  type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Priority, WorkbenchColumn, WorkbenchTask } from '@swarm/protocol'
 import {
   Badge,
@@ -19,15 +35,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Textarea,
 } from '@swarm/ui'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, CalendarClock, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
+import { CalendarClock, Filter, MoreVertical, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react'
 
 import {
   useAddColumn,
@@ -38,11 +53,18 @@ import {
   useMoveTask,
   useRenameColumn,
   useReopenTask,
+  useReorderColumns,
   useUpdateTask,
   useWorkbenchData,
   useWorkbenchSync,
 } from '@/hooks/use-workbench'
+import { cn } from '@/lib/utils'
 import { parseInput } from '@/lib/workbench/input-parser'
+import { GanttView } from './workbench/gantt-view'
+import { MatrixView } from './workbench/matrix-view'
+import { PriorityView } from './workbench/priority-view'
+
+// --- Constants & helpers -----------------------------------------------------
 
 const PRIORITY_LABEL: Record<Priority, string> = { high: '高', medium: '中', low: '低' }
 const PRIORITY_DOT: Record<Priority, string> = {
@@ -50,6 +72,8 @@ const PRIORITY_DOT: Record<Priority, string> = {
   medium: 'bg-yellow-500',
   low: 'bg-blue-400',
 }
+const PRIORITIES: Priority[] = ['high', 'medium', 'low']
+const URGENT_WINDOW_MS = 48 * 3600_000
 
 function formatDeadline(iso: string | null): string | null {
   if (!iso) return null
@@ -71,86 +95,423 @@ function isOverdue(iso: string | null): boolean {
   return new Date(iso).getTime() < Date.now()
 }
 
+function isUrgent(task: WorkbenchTask): boolean {
+  if (!task.deadline) return false
+  return new Date(task.deadline).getTime() <= Date.now() + URGENT_WINDOW_MS
+}
+
+// --- Board filter (ported from WorkPanel's BoardFilter.swift) ----------------
+
+type BoardFilter = {
+  search: string
+  priorities: Set<Priority>
+  urgentOnly: boolean
+  tags: Set<string>
+}
+
+const emptyFilter = (): BoardFilter => ({ search: '', priorities: new Set(), urgentOnly: false, tags: new Set() })
+
+function isFilterActive(f: BoardFilter): boolean {
+  return f.search.trim() !== '' || f.priorities.size > 0 || f.urgentOnly || f.tags.size > 0
+}
+
+/** AND across dimensions, OR within. Ported from BoardFilter.apply. */
+function applyFilter(tasks: WorkbenchTask[], f: BoardFilter): WorkbenchTask[] {
+  if (!isFilterActive(f)) return tasks
+  const q = f.search.trim().toLowerCase()
+  return tasks.filter((t) => {
+    if (q && !t.title.toLowerCase().includes(q) && !t.notes.toLowerCase().includes(q)) return false
+    if (f.priorities.size > 0 && !f.priorities.has(t.priority)) return false
+    if (f.urgentOnly && !isUrgent(t)) return false
+    if (f.tags.size > 0 && !t.tags.some((tag) => f.tags.has(tag))) return false
+    return true
+  })
+}
+
+// --- Dialog state ------------------------------------------------------------
+
+type DialogState = { mode: 'create'; columnId: string } | { mode: 'edit'; task: WorkbenchTask } | null
+
+type ViewMode = 'kanban' | 'matrix' | 'priority' | 'gantt'
+
+const VIEW_TABS: { mode: ViewMode; label: string }[] = [
+  { mode: 'kanban', label: '看板' },
+  { mode: 'matrix', label: '象限' },
+  { mode: 'priority', label: '优先级' },
+  { mode: 'gantt', label: '甘特' },
+]
+
+// =========================================================================== //
+//                              WorkbenchView                                   //
+// =========================================================================== //
+
 export function WorkbenchView(): React.JSX.Element {
   const { data } = useWorkbenchData()
   useWorkbenchSync()
 
-  const columns = [...data.columns].sort((a, b) => a.order - b.order)
+  const columns = useMemo(() => [...data.columns].sort((a, b) => a.order - b.order), [data.columns])
+  const [filter, setFilter] = useState<BoardFilter>(emptyFilter)
+  const [showFilter, setShowFilter] = useState(true)
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban')
+  const [dialog, setDialog] = useState<DialogState>(null)
+
+  // Derive unique tags from all tasks (no backend Tag entity needed).
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of data.tasks) for (const tag of t.tags) set.add(tag)
+    return [...set].sort()
+  }, [data.tasks])
+
+  const filteredTasks = useMemo(() => applyFilter(data.tasks, filter), [data.tasks, filter])
   const totalTasks = data.tasks.filter((t) => !t.isCompleted).length
 
   return (
     <div className="flex h-full w-full flex-col">
-      <header className="flex flex-none flex-col gap-3 border-border/70 border-b px-5 pt-4 pb-3">
+      <header className="flex flex-none flex-col gap-2 border-border/70 border-b px-5 pt-4 pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-semibold text-foreground text-xl tracking-tight">工作面板</h1>
             <p className="mt-0.5 text-muted-foreground text-xs">看板任务管理 · {totalTasks} 个进行中</p>
           </div>
+          {/* View mode tab strip */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-0.5">
+            {VIEW_TABS.map((tab) => (
+              <button
+                className={cn(
+                  'rounded-md px-3 py-1 font-medium text-xs transition-colors',
+                  viewMode === tab.mode ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
+                )}
+                key={tab.mode}
+                onClick={() => setViewMode(tab.mode)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              className={cn('gap-1.5', isFilterActive(filter) && 'text-primary')}
+              onClick={() => setShowFilter((v) => !v)}
+              size="sm"
+              variant="ghost"
+            >
+              <Filter className="size-4" />
+              筛选
+              {isFilterActive(filter) && <span className="size-1.5 rounded-full bg-primary" />}
+            </Button>
+            <Button
+              className="gap-1.5"
+              onClick={() => setDialog({ mode: 'create', columnId: columns[0]?.id ?? '' })}
+              size="sm"
+            >
+              <Plus className="size-4" />
+              新建任务
+            </Button>
+          </div>
         </div>
+        {showFilter && <WorkbenchFilterBar allTags={allTags} filter={filter} onChange={setFilter} />}
       </header>
 
-      <div className="cmdscroll flex min-h-0 flex-1 gap-3 overflow-x-auto p-4">
-        {columns.map((col) => (
-          <WorkbenchColumnView col={col} columns={columns} key={col.id} tasks={data.tasks} />
-        ))}
-        <AddColumnButton />
-      </div>
+      {viewMode === 'kanban' && (
+        <BoardArea
+          columns={columns}
+          filteredTasks={filteredTasks}
+          onEditTask={(task) => setDialog({ mode: 'edit', task })}
+        />
+      )}
+      {viewMode === 'matrix' && (
+        <MatrixView onEditTask={(task) => setDialog({ mode: 'edit', task })} tasks={filteredTasks} />
+      )}
+      {viewMode === 'priority' && (
+        <PriorityView onEditTask={(task) => setDialog({ mode: 'edit', task })} tasks={filteredTasks} />
+      )}
+      {viewMode === 'gantt' && (
+        <GanttView columns={columns} onEditTask={(task) => setDialog({ mode: 'edit', task })} tasks={filteredTasks} />
+      )}
+
+      {dialog && <TaskDialog onClose={() => setDialog(null)} state={dialog} />}
     </div>
   )
 }
 
-// --- Column ------------------------------------------------------------------
+// --- Filter bar --------------------------------------------------------------
 
-function WorkbenchColumnView(props: {
-  col: WorkbenchColumn
-  columns: WorkbenchColumn[]
-  tasks: WorkbenchTask[]
+function WorkbenchFilterBar(props: {
+  filter: BoardFilter
+  allTags: string[]
+  onChange: (f: BoardFilter) => void
 }): React.JSX.Element {
-  const { col, columns, tasks } = props
-  const createTask = useCreateTask()
+  const { filter, allTags, onChange } = props
+
+  const togglePriority = (p: Priority): void => {
+    const next = new Set(filter.priorities)
+    if (next.has(p)) next.delete(p)
+    else next.add(p)
+    onChange({ ...filter, priorities: next })
+  }
+
+  const toggleTag = (tag: string): void => {
+    const next = new Set(filter.tags)
+    if (next.has(tag)) next.delete(tag)
+    else next.add(tag)
+    onChange({ ...filter, tags: next })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <Search className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="h-8 w-48 pl-7 text-sm"
+          onChange={(e) => onChange({ ...filter, search: e.target.value })}
+          placeholder="搜索标题 / 备注"
+          value={filter.search}
+        />
+      </div>
+      <div className="flex items-center gap-1">
+        {PRIORITIES.map((p) => (
+          <PillButton
+            active={filter.priorities.has(p)}
+            color={PRIORITY_DOT[p]}
+            key={p}
+            label={PRIORITY_LABEL[p]}
+            onClick={() => togglePriority(p)}
+          />
+        ))}
+      </div>
+      <PillButton
+        active={filter.urgentOnly}
+        color="bg-orange-500"
+        label="⚡ 紧急"
+        onClick={() => onChange({ ...filter, urgentOnly: !filter.urgentOnly })}
+      />
+      <Popover>
+        <PopoverTrigger
+          render={
+            <button
+              className={cn(
+                'flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                filter.tags.size > 0
+                  ? 'border-primary/50 bg-primary/10 text-primary'
+                  : 'border-border/70 text-muted-foreground hover:bg-muted'
+              )}
+              type="button"
+            >
+              <Tag className="size-3" />
+              标签{filter.tags.size > 0 ? ` ${filter.tags.size}` : ''}
+            </button>
+          }
+        />
+        <PopoverContent align="start">
+          <div className="flex max-h-60 w-48 flex-col gap-0.5 overflow-y-auto">
+            {allTags.length === 0 ? (
+              <p className="px-2 py-3 text-center text-muted-foreground text-xs">暂无标签</p>
+            ) : (
+              allTags.map((tag) => (
+                <button
+                  className={cn(
+                    'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted',
+                    filter.tags.has(tag) && 'text-primary'
+                  )}
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  type="button"
+                >
+                  <span className="truncate">#{tag}</span>
+                  {filter.tags.has(tag) && <span className="text-xs">✓</span>}
+                </button>
+              ))
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+      {isFilterActive(filter) && (
+        <button
+          className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+          onClick={() => onChange(emptyFilter())}
+          type="button"
+        >
+          <X className="size-3" />
+          清除
+        </button>
+      )}
+    </div>
+  )
+}
+
+function PillButton(props: { label: string; color: string; active: boolean; onClick: () => void }): React.JSX.Element {
+  return (
+    <button
+      className={cn(
+        'rounded-full border px-2.5 py-1 font-medium text-xs transition-colors',
+        props.active ? 'border-transparent text-foreground' : 'border-border/70 text-muted-foreground hover:bg-muted'
+      )}
+      onClick={props.onClick}
+      style={props.active ? { backgroundColor: 'var(--color-muted)' } : undefined}
+      type="button"
+    >
+      <span className={cn('mr-1 inline-block size-2 rounded-full align-middle', props.color)} />
+      {props.label}
+    </button>
+  )
+}
+
+// =========================================================================== //
+//                              Board DnD area                                   //
+// =========================================================================== //
+
+function BoardArea(props: {
+  columns: WorkbenchColumn[]
+  filteredTasks: WorkbenchTask[]
+  onEditTask: (task: WorkbenchTask) => void
+}): React.JSX.Element {
+  const { columns, filteredTasks, onEditTask } = props
+  const reorderColumns = useReorderColumns()
+  const moveTask = useMoveTask()
+
+  // Track the active drag item so DragOverlay can render a floating preview.
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const activeTask = activeId ? filteredTasks.find((t) => t.id === activeId) : null
+
+  const onDragStart = (e: DragStartEvent): void => {
+    setActiveId(String(e.active.id))
+  }
+  const onDragEndInternal = (e: DragEndEvent): void => {
+    setActiveId(null)
+    onColumnDragEnd(e)
+    onCardDragEnd(e)
+  }
+
+  const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const cardSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  const onColumnDragEnd = (e: DragEndEvent): void => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const oldIndex = columns.findIndex((c) => c.id === active.id)
+    const newIndex = columns.findIndex((c) => c.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const ordered = [...columns]
+    ordered.splice(oldIndex, 1)
+    ordered.splice(newIndex, 0, columns[oldIndex])
+    reorderColumns.mutate(ordered.map((c) => c.id))
+  }
+
+  // Card drag: active.id / over.id are task ids. Resolve the target column from
+  // `over` — if over is a task, use its columnId + position; if over is a column
+  // droppable id, append to the end of that column.
+  const onCardDragEnd = (e: DragEndEvent): void => {
+    const { active, over } = e
+    if (!over) return
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    const activeTask = filteredTasks.find((t) => t.id === activeId)
+    if (!activeTask) return
+
+    // over is another task → target column is its columnId, index is its position
+    if (overId !== activeId) {
+      const overTask = filteredTasks.find((t) => t.id === overId)
+      if (overTask) {
+        const targetColumnId = overTask.columnId ?? ''
+        if (!targetColumnId) return
+        const colTasks = filteredTasks
+          .filter((t) => t.columnId === targetColumnId && !t.isCompleted)
+          .sort((a, b) => a.boardOrder - b.boardOrder)
+        const overIndex = colTasks.findIndex((t) => t.id === overId)
+        moveTask.mutate({ taskId: activeId, columnId: targetColumnId, index: overIndex >= 0 ? overIndex : 0 })
+        return
+      }
+    }
+    // over is a column droppable (id = `col:${id}`) → append to end
+    if (overId.startsWith('col:')) {
+      const targetColumnId = overId.slice(4)
+      moveTask.mutate({ taskId: activeId, columnId: targetColumnId, index: Number.MAX_SAFE_INTEGER })
+      return
+    }
+    // over is a column sortable id (the column itself, not a card inside it) → append to end
+    if (columns.some((c) => c.id === overId)) {
+      moveTask.mutate({ taskId: activeId, columnId: overId, index: Number.MAX_SAFE_INTEGER })
+    }
+  }
+
+  return (
+    // Single DndContext for both column-level (horizontal) and card-level
+    // (vertical + cross-column) drag. Nested DndContexts break cross-column
+    // card drops, so both dimensions share one context.
+    <DndContext
+      collisionDetection={closestCorners}
+      onDragEnd={onDragEndInternal}
+      onDragStart={onDragStart}
+      sensors={[...columnSensors, ...cardSensors]}
+    >
+      <SortableContext items={columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+        <div className="cmdscroll flex min-h-0 flex-1 gap-3 overflow-x-auto p-4">
+          {columns.map((col) => (
+            <SortableColumn col={col} filteredTasks={filteredTasks} key={col.id} onEditTask={onEditTask} />
+          ))}
+          <AddColumnButton />
+        </div>
+      </SortableContext>
+      <DragOverlay dropAnimation={null}>
+        {activeTask ? (
+          <div className="w-64 rounded-lg border border-border/50 bg-background p-2.5 shadow-xl">
+            <span className="text-sm leading-snug">{activeTask.title}</span>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  )
+}
+
+// --- Sortable column ---------------------------------------------------------
+
+function SortableColumn(props: {
+  col: WorkbenchColumn
+  filteredTasks: WorkbenchTask[]
+  onEditTask: (task: WorkbenchTask) => void
+}): React.JSX.Element {
+  const { col, filteredTasks, onEditTask } = props
   const deleteColumn = useDeleteColumn()
   const renameColumn = useRenameColumn()
-  const moveTask = useMoveTask()
-  const [draft, setDraft] = useState('')
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(col.name)
-  const [editingTask, setEditingTask] = useState<WorkbenchTask | null>(null)
 
-  const columnTasks = tasks
-    .filter((t) => t.columnId === col.id)
-    .sort((a, b) => {
-      // Incomplete first, then by boardOrder
-      if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1
-      return a.boardOrder - b.boardOrder
-    })
+  // Column-level sortable (for horizontal reordering) + droppable (card drop target).
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: col.id })
+  const { setNodeRef: setDropRef } = useDroppable({ id: `col:${col.id}` })
 
-  const submitDraft = (): void => {
-    const trimmed = draft.trim()
-    if (!trimmed) return
-    const parsed = parseInput(trimmed)
-    createTask.mutate({
-      title: parsed.title || trimmed,
-      notes: '',
-      deadline: parsed.deadline,
-      priority: parsed.priority,
-      tags: parsed.tags,
-      columnId: col.id,
-    })
-    setDraft('')
-  }
+  const columnTasks = useMemo(
+    () =>
+      filteredTasks
+        .filter((t) => t.columnId === col.id)
+        .sort((a, b) => {
+          if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1
+          return a.boardOrder - b.boardOrder
+        }),
+    [filteredTasks, col.id]
+  )
 
   const submitRename = (): void => {
     const name = renameValue.trim()
-    if (name && name !== col.name) {
-      renameColumn.mutate({ id: col.id, name })
-    }
+    if (name && name !== col.name) renameColumn.mutate({ id: col.id, name })
     setRenaming(false)
   }
 
   return (
-    <div className="flex w-72 shrink-0 flex-col rounded-xl border border-border/60 bg-muted/30">
-      {/* Column header */}
-      <div className="flex items-center justify-between gap-1 border-border/60 border-b px-3 py-2">
+    <div
+      className={cn(
+        'flex w-72 shrink-0 flex-col rounded-xl border border-border/60 bg-muted/30',
+        isDragging && 'opacity-50'
+      )}
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      {...attributes}
+    >
+      {/* Column header — the drag handle for column reordering. Listeners are
+          scoped here (not the whole container) so card DnD in the list below
+          isn't intercepted. */}
+      <div className="flex items-center justify-between gap-1 border-border/60 border-b px-3 py-2" {...listeners}>
         {renaming ? (
           <Input
             autoFocus
@@ -205,55 +566,27 @@ function WorkbenchColumnView(props: {
         </DropdownMenu>
       </div>
 
-      {/* Quick capture */}
-      <div className="border-border/60 border-b px-3 py-2">
-        <Input
-          className="h-8 text-sm"
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') submitDraft()
-          }}
-          placeholder="写周报 明天 18:00 !高 #工作"
-          value={draft}
-        />
+      {/* Task list (card-level DnD via the shared DndContext in BoardArea).
+          The droppable ref makes the whole list area a drop target so cards
+          can be dropped here even when the column is empty. */}
+      <div className="cmdscroll flex min-h-0 flex-1 flex-col p-2" ref={setDropRef}>
+        <SortableContext items={columnTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col gap-1.5">
+            {columnTasks.map((task) => (
+              <SortableTaskCard key={task.id} onEdit={() => onEditTask(task)} task={task} />
+            ))}
+          </div>
+        </SortableContext>
       </div>
-
-      {/* Task list */}
-      <div className="cmdscroll flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
-        {columnTasks.length === 0 ? (
-          <p className="py-4 text-center text-muted-foreground text-xs">暂无任务</p>
-        ) : (
-          columnTasks.map((task, i) => (
-            <TaskCard
-              columns={columns}
-              index={i}
-              key={task.id}
-              onEdit={() => setEditingTask(task)}
-              onMove={(toColId, toIndex) => moveTask.mutate({ taskId: task.id, columnId: toColId, index: toIndex })}
-              task={task}
-              totalInColumn={columnTasks.filter((t) => !t.isCompleted).length}
-            />
-          ))
-        )}
-      </div>
-
-      {/* Task edit dialog */}
-      {editingTask && <TaskEditDialog onClose={() => setEditingTask(null)} task={editingTask} />}
     </div>
   )
 }
 
-// --- Task Card ---------------------------------------------------------------
+// --- Sortable task card ------------------------------------------------------
 
-function TaskCard(props: {
-  task: WorkbenchTask
-  columns: WorkbenchColumn[]
-  index: number
-  totalInColumn: number
-  onEdit: () => void
-  onMove: (toColId: string, index: number) => void
-}): React.JSX.Element {
-  const { task, columns, index, totalInColumn, onEdit, onMove } = props
+function SortableTaskCard(props: { task: WorkbenchTask; onEdit: () => void }): React.JSX.Element {
+  const { task, onEdit } = props
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
   const completeTask = useCompleteTask()
   const reopenTask = useReopenTask()
   const deleteTask = useDeleteTask()
@@ -263,9 +596,15 @@ function TaskCard(props: {
 
   return (
     <div
-      className={`group flex flex-col gap-1 rounded-lg border border-border/50 bg-background p-2.5 transition-colors hover:border-border ${
-        task.isCompleted ? 'opacity-50' : ''
-      }`}
+      className={cn(
+        'group flex flex-col gap-1 rounded-lg border border-border/50 bg-background p-2.5 transition-colors hover:border-border',
+        task.isCompleted && 'opacity-50',
+        isDragging && 'opacity-0'
+      )}
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
     >
       <div className="flex items-start gap-2">
         <Checkbox
@@ -274,7 +613,7 @@ function TaskCard(props: {
           onCheckedChange={() => (task.isCompleted ? reopenTask.mutate(task.id) : completeTask.mutate(task.id))}
         />
         <button
-          className={`flex-1 text-left text-sm leading-snug ${task.isCompleted ? 'line-through' : ''}`}
+          className={cn('flex-1 text-left text-sm leading-snug', task.isCompleted && 'line-through')}
           onClick={onEdit}
           type="button"
         >
@@ -295,31 +634,6 @@ function TaskCard(props: {
             <DropdownMenuItem onClick={onEdit}>
               <Pencil className="mr-2 size-3.5" /> 编辑
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {index > 0 && (
-              <DropdownMenuItem onClick={() => onMove(task.columnId ?? '', index - 1)}>
-                <ArrowUp className="mr-2 size-3.5" /> 上移
-              </DropdownMenuItem>
-            )}
-            {index < totalInColumn - 1 && (
-              <DropdownMenuItem onClick={() => onMove(task.columnId ?? '', index + 2)}>
-                <ArrowDown className="mr-2 size-3.5" /> 下移
-              </DropdownMenuItem>
-            )}
-            {columns.length > 1 && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>移动到…</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {columns
-                    .filter((c) => c.id !== task.columnId)
-                    .map((c) => (
-                      <DropdownMenuItem key={c.id} onClick={() => onMove(c.id, Number.MAX_SAFE_INTEGER)}>
-                        {c.name}
-                      </DropdownMenuItem>
-                    ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={() => deleteTask.mutate(task.id)}>
               <Trash2 className="mr-2 size-3.5" /> 删除
@@ -348,7 +662,7 @@ function TaskCard(props: {
 
       {/* Priority dot */}
       <div className="flex items-center gap-1 pl-6">
-        <span className={`inline-block size-2 rounded-full ${PRIORITY_DOT[task.priority]}`} />
+        <span className={cn('inline-block size-2 rounded-full', PRIORITY_DOT[task.priority])} />
         <span className="text-[10px] text-muted-foreground">{PRIORITY_LABEL[task.priority]}</span>
       </div>
     </div>
@@ -406,39 +720,56 @@ function AddColumnButton(): React.JSX.Element {
   )
 }
 
-// --- Task Edit Dialog --------------------------------------------------------
+// --- Task Dialog (unified create + edit) -------------------------------------
 
-const PRIORITIES: Priority[] = ['high', 'medium', 'low']
+function TaskDialog(props: { state: NonNullable<DialogState>; onClose: () => void }): React.JSX.Element {
+  const { state, onClose } = props
+  const existing = state.mode === 'edit' ? state.task : null
+  const isEdit = existing !== null
 
-function TaskEditDialog(props: { task: WorkbenchTask; onClose: () => void }): React.JSX.Element {
-  const { task, onClose } = props
+  const createTask = useCreateTask()
   const updateTask = useUpdateTask()
-  const [title, setTitle] = useState(task.title)
-  const [notes, setNotes] = useState(task.notes)
-  const [priority, setPriority] = useState<Priority>(task.priority)
-  const [deadline, setDeadline] = useState(task.deadline ?? '')
-  const [tagsText, setTagsText] = useState(task.tags.join(' '))
+
+  const [title, setTitle] = useState(existing?.title ?? '')
+  const [notes, setNotes] = useState(existing?.notes ?? '')
+  const [priority, setPriority] = useState<Priority>(existing?.priority ?? 'medium')
+  const [deadline, setDeadline] = useState(existing?.deadline ?? '')
+  const [tagsText, setTagsText] = useState(existing?.tags.join(' ') ?? '')
+
+  const parsed = title ? parseInput(title) : null
+  const effectivePriority = isEdit ? priority : (parsed?.priority ?? priority)
+  const effectiveTags = isEdit ? tagsText : parsed && parsed.tags.length > 0 ? parsed.tags.join(' ') : tagsText
+  const effectiveDeadline = isEdit ? deadline : (parsed?.deadline ?? deadline)
 
   const save = (): void => {
-    updateTask.mutate({
-      id: task.id,
-      patch: {
-        title: title.trim() || task.title,
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) return
+
+    if (isEdit && existing) {
+      updateTask.mutate({
+        id: existing.id,
+        patch: {
+          title: trimmedTitle,
+          notes,
+          priority,
+          deadline: deadline || null,
+          tags: tagsText.split(/\s+/).filter(Boolean),
+        },
+      })
+    } else {
+      createTask.mutate({
+        title: parsed?.title || trimmedTitle,
         notes,
-        priority,
-        deadline: deadline || null,
-        tags: tagsText.split(/\s+/).filter(Boolean),
-      },
-    })
+        deadline: parsed?.deadline ?? (deadline || null),
+        priority: effectivePriority,
+        tags: (isEdit ? tagsText : effectiveTags).split(/\s+/).filter(Boolean),
+        columnId: state.mode === 'create' ? state.columnId : null,
+      })
+    }
     onClose()
   }
 
-  // Parse live preview of the title line (like the quick-capture)
-  const preview = useQuery({
-    queryKey: ['workbench', 'preview', title],
-    queryFn: () => parseInput(title),
-    staleTime: 0,
-  }).data
+  const preview = parsed && (parsed.tags.length > 0 || parsed.deadline || parsed.priority !== 'medium')
 
   return (
     <Dialog
@@ -449,30 +780,36 @@ function TaskEditDialog(props: { task: WorkbenchTask; onClose: () => void }): Re
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>编辑任务</DialogTitle>
+          <DialogTitle>{isEdit ? '编辑任务' : '新建任务'}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3 py-2">
           <div>
             <span className="mb-1 block text-muted-foreground text-xs">标题</span>
             <Input
+              autoFocus
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save()
+              }}
               placeholder="标题 (可含 !高 #标签 明天 18:00)"
               value={title}
             />
-            {preview && (preview.tags.length > 0 || preview.deadline) && (
+            {!isEdit && preview && (
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {preview.deadline && (
+                {parsed?.deadline && (
                   <Badge variant="outline">
                     <CalendarClock className="mr-1 size-3" />
-                    {formatDeadline(preview.deadline)}
+                    {formatDeadline(parsed.deadline)}
                   </Badge>
                 )}
-                {preview.tags.map((t) => (
+                {parsed?.tags.map((t) => (
                   <Badge key={t} variant="secondary">
                     #{t}
                   </Badge>
                 ))}
-                {preview.priority !== 'medium' && <Badge variant="ghost">{PRIORITY_LABEL[preview.priority]}</Badge>}
+                {parsed && parsed.priority !== 'medium' && (
+                  <Badge variant="ghost">{PRIORITY_LABEL[parsed.priority]}</Badge>
+                )}
               </div>
             )}
           </div>
@@ -486,13 +823,16 @@ function TaskEditDialog(props: { task: WorkbenchTask; onClose: () => void }): Re
               <div className="flex gap-1">
                 {PRIORITIES.map((p) => (
                   <button
-                    className={`flex-1 rounded-md border px-2 py-1.5 text-sm transition-colors ${
-                      priority === p
+                    className={cn(
+                      'flex-1 rounded-md border px-2 py-1.5 text-sm transition-colors',
+                      effectivePriority === p
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-border text-muted-foreground hover:bg-muted'
-                    }`}
+                    )}
                     key={p}
-                    onClick={() => setPriority(p)}
+                    onClick={() => {
+                      if (isEdit) setPriority(p)
+                    }}
                     type="button"
                   >
                     {PRIORITY_LABEL[p]}
@@ -503,23 +843,33 @@ function TaskEditDialog(props: { task: WorkbenchTask; onClose: () => void }): Re
             <div className="flex-1">
               <span className="mb-1 block text-muted-foreground text-xs">截止时间</span>
               <Input
-                onChange={(e) => setDeadline(e.target.value)}
-                placeholder="ISO 或留空"
+                onChange={(e) => {
+                  if (isEdit) setDeadline(e.target.value)
+                }}
+                placeholder="留空"
                 type="datetime-local"
-                value={deadline ? new Date(deadline).toISOString().slice(0, 16) : ''}
+                value={effectiveDeadline ? new Date(effectiveDeadline).toISOString().slice(0, 16) : ''}
               />
             </div>
           </div>
           <div>
             <span className="mb-1 block text-muted-foreground text-xs">标签 (空格分隔)</span>
-            <Input onChange={(e) => setTagsText(e.target.value)} placeholder="工作 学习 个人" value={tagsText} />
+            <Input
+              onChange={(e) => {
+                if (isEdit) setTagsText(e.target.value)
+              }}
+              placeholder="工作 学习 个人"
+              value={effectiveTags}
+            />
           </div>
         </div>
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="outline">
             取消
           </Button>
-          <Button onClick={save}>保存</Button>
+          <Button disabled={!title.trim()} onClick={save}>
+            {isEdit ? '保存' : '创建'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
