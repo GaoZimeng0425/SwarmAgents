@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
+  Timer,
   Trash2,
   Wrench,
   XCircleIcon,
@@ -275,6 +276,49 @@ function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): 
   )
 }
 
+// Wall-clock end of a run's turn: the ts of its terminal (run.complete /
+// run.error) event once the run reached a terminal status; null while the run is
+// still in flight (pending / running / awaiting_user), which drives the live
+// timer below to keep ticking.
+function runEndedAt(run: RunRecord): number | null {
+  const done = run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled'
+  if (!done) return null
+  for (let i = run.events.length - 1; i >= 0; i--) {
+    const ev = run.events[i]
+    if (ev.kind === 'run.complete' || ev.kind === 'run.error') return ev.ts
+  }
+  return run.events[run.events.length - 1]?.ts ?? null
+}
+
+// Elapsed seconds, compact: "12s" under a minute, "2m 05s" beyond.
+function formatElapsed(secs: number): string {
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m}m ${s.toString().padStart(2, '0')}s`
+}
+
+// Live elapsed counter shown above an assistant reply: counts up from 0 the
+// moment the agent received the turn (run.startedAt) and freezes at the total
+// once the turn completes (endedAt set). While running (endedAt null) it ticks
+// once per second; the interval is torn down as soon as endedAt arrives.
+function ElapsedTimer({ startedAt, endedAt }: { startedAt: number; endedAt: number | null }): React.JSX.Element {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (endedAt != null) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [endedAt])
+  const end = endedAt ?? now
+  const secs = Math.max(0, Math.floor((end - safeTs(startedAt)) / 1000))
+  return (
+    <span className="flex items-center gap-1 px-1 text-[10px] text-muted-foreground/50 tabular-nums">
+      <Timer className="size-3" />
+      {formatElapsed(secs)}
+    </span>
+  )
+}
+
 // Build the per-segment renderer. Closures (busy/onSend/onCopy/onDelete) are
 // passed explicitly so both the live chat thread and the read-only results card
 // share one rendering implementation. onDelete omitted → no Delete action.
@@ -284,33 +328,33 @@ function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): 
 // Top-level single tools render as SingleToolBlock to match the Thinking row.
 function createSegmentRenderer(opts: {
   busy: boolean
+  tasks: RunRecord[]
   onSend?: (text: string) => void
   onCopy: (text: string) => void
   onDelete?: (runId: string) => void
   onOpenFile?: (file: ViewerFile) => void
 }): (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element {
-  const { busy, onSend, onCopy, onDelete, onOpenFile } = opts
+  const { busy, tasks, onSend, onCopy, onDelete, onOpenFile } = opts
+  const runById = new Map(tasks.map((t) => [t.id, t]))
 
-  const messageTime = (ts: number): React.JSX.Element => (
-    <time
-      className="px-1 text-[10px] text-muted-foreground/50 tabular-nums group-[.is-user]:text-right"
-      dateTime={new Date(safeTs(ts)).toISOString()}
-    >
-      {formatMessageTime(ts)}
-    </time>
-  )
-
-  const messageActions = (text: string, runId: string): React.JSX.Element => (
-    <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 group-[.is-user]:justify-end">
-      <MessageAction label="Copy" onClick={() => onCopy(text)} tooltip="Copy message">
-        <Copy className="size-3.5" />
-      </MessageAction>
-      {onDelete && (
-        <MessageAction label="Delete" onClick={() => onDelete(runId)} tooltip="Delete message">
-          <Trash2 className="size-3.5" />
+  // Time + copy/delete on one row: time always visible, actions revealed on
+  // hover. User messages right-align the whole row.
+  const messageFooter = (text: string, runId: string, ts: number): React.JSX.Element => (
+    <div className="flex items-center gap-2 px-1 group-[.is-user]:justify-end">
+      <time className="text-[10px] text-muted-foreground/50 tabular-nums" dateTime={new Date(safeTs(ts)).toISOString()}>
+        {formatMessageTime(ts)}
+      </time>
+      <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100">
+        <MessageAction label="Copy" onClick={() => onCopy(text)} tooltip="Copy message">
+          <Copy className="size-3.5" />
         </MessageAction>
-      )}
-    </MessageActions>
+        {onDelete && (
+          <MessageAction label="Delete" onClick={() => onDelete(runId)} tooltip="Delete message">
+            <Trash2 className="size-3.5" />
+          </MessageAction>
+        )}
+      </MessageActions>
+    </div>
   )
 
   const renderSegment = (seg: Segment, isLiveTail: boolean, nested = false): React.JSX.Element => {
@@ -335,23 +379,23 @@ function createSegmentRenderer(opts: {
             )}
             <span className="whitespace-pre-wrap">{seg.text}</span>
           </MessageContent>
-          {messageTime(seg.ts)}
-          {messageActions(seg.text, seg.runId)}
+          {messageFooter(seg.text, seg.runId, seg.ts)}
         </Message>
       )
     }
     if (seg.kind === 'assistant') {
       const images = extractImagePaths(seg.text)
+      const run = runById.get(seg.runId)
       return (
         <Message className="group" data-run-id={seg.runId} from="assistant" key={seg.key}>
+          {run && <ElapsedTimer endedAt={runEndedAt(run)} startedAt={run.startedAt} />}
           <MessageContent>
             <MessageResponse>{seg.text}</MessageResponse>
             {images.map((p) => (
               <ToolImage key={p} path={p} showName={false} />
             ))}
           </MessageContent>
-          {messageTime(seg.ts)}
-          {messageActions(seg.text, seg.runId)}
+          {messageFooter(seg.text, seg.runId, seg.ts)}
         </Message>
       )
     }
@@ -427,6 +471,7 @@ type TaskTimelineProps = {
 // chat thread so neither duplicates the viewerFile wiring.
 export function useTimelineRenderer(opts: {
   busy: boolean
+  tasks: RunRecord[]
   onSend?: (text: string) => void
   onCopy: (text: string) => void
   onDelete?: (runId: string) => void
@@ -476,7 +521,7 @@ export function TaskTimeline({
   onDelete,
   showDayDividers = true,
 }: TaskTimelineProps): React.JSX.Element {
-  const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onDelete, onSend })
+  const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onDelete, onSend, tasks })
   const items = buildThreadItems(tasks, renderSegment, { busy, showDayDividers })
   return (
     <>
