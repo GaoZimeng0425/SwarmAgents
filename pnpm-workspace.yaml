@@ -5,10 +5,10 @@ packages:
 
 catalog:
   # toolchain / framework (must stay in lockstep)
-  typescript: ^6.0.3
+  typescript: ^7.0.2
   react: ^19.2.7
   react-dom: ^19.2.7
-  vitest: ^4.1.9
+  vitest: ^4.1.10
   zod: ^4.4.3
   recharts: ^3.9.2
   # shadcn / tailwind UI stack (shared desktop <-> @swarm/ui)
@@ -34,6 +34,7 @@ catalog:
 overrides:
   '@types/react': '19.2.17'
   '@types/react-dom': '19.2.3'
+  lightningcss: '1.30.1'
 
 onlyBuiltDependencies:
   - electron
@@ -48,6 +49,7 @@ allowBuilds:
   esbuild: true
   protobufjs: false
   spawn-sync: true
+  unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.3'
   - '@expo/fingerprint@0.20.1'
