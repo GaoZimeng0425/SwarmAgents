@@ -19,7 +19,7 @@ import { createStore } from './store'
 // ServiceClient type gains this method in a later task; importing it here
 // would create a forward-dependency that fails typecheck until that lands.
 type MainRpcClient = {
-  registerMainRpc(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
+  registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
 }
 
 export type GmailHandle = {
@@ -50,7 +50,7 @@ export async function initGmail(): Promise<GmailHandle> {
     service,
     registerMainRpc(client) {
       ;(Object.keys(wired.mainRpcHandlers) as Array<keyof typeof wired.mainRpcHandlers>).forEach((method) => {
-        client.registerMainRpc(method, wired.mainRpcHandlers[method]!)
+        client.registerHandler(method, wired.mainRpcHandlers[method]!)
       })
     },
     dispose() {
