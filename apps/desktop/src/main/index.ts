@@ -27,6 +27,7 @@ import { initWeather } from './weather'
 import { initWebSearch } from './web-search'
 import { createMainWindow } from './windows/main-window'
 import { openSettings } from './windows/open-settings'
+import { initWorkbench } from './workbench'
 
 // productName in electron-builder.yml only renames packaged builds; in dev
 // app.name falls back to "Electron". Set it explicitly so the macOS app menu
@@ -72,6 +73,9 @@ app.whenReady().then(async () => {
   const budgets = await initBudgets()
   log.info({ msg: 'budget config initialised' })
 
+  const workbench = await initWorkbench()
+  log.info({ msg: 'workbench initialised' })
+
   const trending = initTrending()
   log.info({ msg: 'trending IPC initialised' })
 
@@ -97,6 +101,7 @@ app.whenReady().then(async () => {
     gmail.dispose()
     calendar.dispose()
     weather.dispose()
+    workbench.dispose()
   })
 
   const serviceEntry = join(__dirname, 'service.js')

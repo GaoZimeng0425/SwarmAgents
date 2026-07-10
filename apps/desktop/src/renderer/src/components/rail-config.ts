@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Network,
   Newspaper,
+  Rocket,
   TrendingUp,
   Video,
 } from 'lucide-react'
@@ -65,6 +66,12 @@ export const RAIL_SECTIONS: RailSection[] = [
       },
       { key: 'bilibili', label: 'Bilibili', icon: Video, target: { kind: 'route', to: '/bilibili', match: 'exact' } },
       { key: 'article', label: '文章', icon: Newspaper, target: { kind: 'route', to: '/articles', match: 'exact' } },
+      {
+        key: 'workbench',
+        label: '工作面板',
+        icon: Rocket,
+        target: { kind: 'route', to: '/workbench', match: 'exact' },
+      },
     ],
   },
 ]

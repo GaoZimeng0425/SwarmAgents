@@ -149,7 +149,7 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
         // Responsive: below `md` (<768px) the palette fills the viewport width
         // and drops the preview aside; from `md` up it caps at 920×720 with the
         // 340px preview column.
-        className="top-[96px] left-1/2 grid max-h-[calc(100vh-128px)] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 md:max-h-[720px] md:w-[920px] md:max-w-[920px] dark:bg-popover/82"
+        className="top-[96px] left-1/2 grid max-h-[calc(100vh-128px)] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-2xl border-border/60 bg-popover/82 p-0 text-popover-foreground shadow-2xl backdrop-blur-[40px] backdrop-saturate-150 supports-[backdrop-filter]:bg-popover/70 md:max-h-[min(720px,calc(100vh-128px))] md:w-[920px] md:max-w-[min(920px,calc(100vw-2rem))] dark:bg-popover/82"
         // The palette manages its own input focus + keyboard; hide the
         // default close X (Esc + backdrop still dismiss via base-ui).
         onKeyDown={state.onKeyDown}

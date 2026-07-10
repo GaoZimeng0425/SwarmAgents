@@ -73,6 +73,9 @@ import type {
   WebSearchKeyId,
   WebSearchProviderId,
   WebSearchSetResult,
+  WorkbenchBridge,
+  WorkbenchData,
+  WorkbenchMutationResult,
 } from '@swarm/protocol'
 import { contextBridge, ipcRenderer } from 'electron'
 
@@ -87,6 +90,7 @@ const MCP_STATUS_CHANNEL = 'mcp:status'
 const WEB_SEARCH_STATE_CHANNEL = 'webSearch:stateChanged'
 const WEATHER_FORECAST_CHANNEL = 'weather:forecastChanged'
 const BUDGETS_STATE_CHANNEL = 'budgets:stateChanged'
+const WORKBENCH_STATE_CHANNEL = 'workbench:stateChanged'
 
 const providers: ProvidersBridge = {
   get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
@@ -199,6 +203,28 @@ const budgets: BudgetsBridge = {
     ipcRenderer.on(BUDGETS_STATE_CHANNEL, listener)
     return () => {
       ipcRenderer.removeListener(BUDGETS_STATE_CHANNEL, listener)
+    }
+  },
+}
+
+const workbench: WorkbenchBridge = {
+  getAll: () => ipcRenderer.invoke('workbench:getAll') as Promise<WorkbenchData>,
+  createTask: (input) => ipcRenderer.invoke('workbench:createTask', input) as Promise<WorkbenchMutationResult>,
+  updateTask: (id, patch) => ipcRenderer.invoke('workbench:updateTask', id, patch) as Promise<WorkbenchMutationResult>,
+  completeTask: (id) => ipcRenderer.invoke('workbench:completeTask', id) as Promise<WorkbenchMutationResult>,
+  reopenTask: (id) => ipcRenderer.invoke('workbench:reopenTask', id) as Promise<WorkbenchMutationResult>,
+  deleteTask: (id) => ipcRenderer.invoke('workbench:deleteTask', id) as Promise<WorkbenchMutationResult>,
+  moveTask: (input) => ipcRenderer.invoke('workbench:moveTask', input) as Promise<WorkbenchMutationResult>,
+  addColumn: (input) => ipcRenderer.invoke('workbench:addColumn', input) as Promise<WorkbenchMutationResult>,
+  renameColumn: (input) => ipcRenderer.invoke('workbench:renameColumn', input) as Promise<WorkbenchMutationResult>,
+  deleteColumn: (id) => ipcRenderer.invoke('workbench:deleteColumn', id) as Promise<WorkbenchMutationResult>,
+  reorderColumns: (orderedIds) =>
+    ipcRenderer.invoke('workbench:reorderColumns', orderedIds) as Promise<WorkbenchMutationResult>,
+  onStateChanged: (cb) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WorkbenchData): void => cb(payload)
+    ipcRenderer.on(WORKBENCH_STATE_CHANNEL, listener)
+    return () => {
+      ipcRenderer.removeListener(WORKBENCH_STATE_CHANNEL, listener)
     }
   },
 }
@@ -452,6 +478,7 @@ const swarm: SwarmBridge = {
   bilibili,
   gmail,
   calendar,
+  workbench,
 }
 
 if (process.contextIsolated) {

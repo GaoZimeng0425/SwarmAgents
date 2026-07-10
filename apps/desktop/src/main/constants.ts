@@ -57,6 +57,7 @@ export const paths = {
   gmailDb: () => join(app.getPath('userData'), 'gmail.db'),
   calendar: () => join(app.getPath('userData'), 'calendar.enc'),
   calendarDb: () => join(app.getPath('userData'), 'calendar.db'),
+  workbench: () => join(app.getPath('userData'), 'workbench.json'),
 } as const
 
 /**
