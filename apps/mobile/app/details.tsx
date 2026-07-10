@@ -1,37 +1,95 @@
-import React from 'react'
+import { BlurView } from 'expo-blur'
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect'
 import { router, Stack } from 'expo-router'
-import { Pressable } from 'react-native'
+import { Pressable, ScrollView, View, type ViewStyle } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { Box } from '@/components/ui/box'
+import { useColorMode } from '@/components/color-mode'
 import { Heading } from '@/components/ui/heading'
-import { ArrowLeftIcon, InfoIcon } from '@/components/ui/icon'
+import { ChevronLeftIcon, InfoIcon } from '@/components/ui/icon'
 import { Text } from '@/components/ui/text'
 import { VStack } from '@/components/ui/vstack'
 
+const sections = [
+  {
+    title: 'Overview',
+    body: 'This screen demonstrates a modern iOS-style header with a frosted-glass blur effect. Scroll up and watch the content slide under the translucent navigation bar.',
+  },
+  {
+    title: 'Routing',
+    body: 'Every file under app/ becomes a route automatically. This file is app/details.tsx, so its route is /details.',
+  },
+  {
+    title: 'Navigation',
+    body: 'Use router.push to go forward and router.back to return. The back arrow in the header also works.',
+  },
+  {
+    title: 'Styling',
+    body: 'All styling uses tailwind classNames via nativewind. Color tokens like bg-background and text-foreground are defined in global.css.',
+  },
+  {
+    title: 'Next steps',
+    body: 'Replace this placeholder content with real features. Add more routes, connect data, build out the UI.',
+  },
+]
+
+const BUTTON_SIZE = 44
+
+const circleStyle: ViewStyle = {
+  width: BUTTON_SIZE,
+  height: BUTTON_SIZE,
+  borderRadius: BUTTON_SIZE / 2,
+  alignItems: 'center',
+  justifyContent: 'center',
+  overflow: 'hidden',
+}
+
+// Floating Liquid Glass back button. Uses the native iOS 26 glass effect when
+// available and falls back to a frosted BlurView circle on older systems.
+function GlassBackButton({ top }: { top: number }) {
+  const { colorMode } = useColorMode()
+  const iconColor = colorMode === 'dark' ? '#F2F2F7' : '#1C1C1E'
+
+  return (
+    <Pressable
+      hitSlop={12}
+      onPress={() => router.back()}
+      style={{ position: 'absolute', top: top + 8, left: 16, zIndex: 10 }}
+    >
+      {isLiquidGlassAvailable() ? (
+        <GlassView colorScheme={colorMode} glassEffectStyle="regular" isInteractive style={circleStyle}>
+          <ChevronLeftIcon color={iconColor} height={26} style={{ marginLeft: -2 }} width={26} />
+        </GlassView>
+      ) : (
+        <BlurView blurMethod="dimezisBlurView" intensity={60} style={circleStyle} tint={colorMode}>
+          <ChevronLeftIcon color={iconColor} height={26} style={{ marginLeft: -2 }} width={26} />
+        </BlurView>
+      )}
+    </Pressable>
+  )
+}
+
 export default function DetailsScreen() {
+  const insets = useSafeAreaInsets()
+
   return (
     <>
-      <Stack.Screen options={{ title: 'Details' }} />
-      <Box className="flex-1 bg-background">
-        <VStack className="flex-1 items-center justify-center gap-6 px-6">
-          <InfoIcon className="h-12 w-12 text-primary-500" />
+      <Stack.Screen options={{ headerShown: false }} />
+      <View className="flex-1 bg-background">
+        <GlassBackButton top={insets.top} />
 
-          <VStack className="items-center gap-2">
-            <Heading size="xl">Details</Heading>
-            <Text className="text-center text-typography-400">
-              This is a second route. Add more screens under app/ and they become routes automatically.
-            </Text>
+        <ScrollView className="flex-1">
+          <VStack className="gap-6 px-6 pb-12" style={{ paddingTop: insets.top + BUTTON_SIZE + 24 }}>
+            {sections.map((section, i) => (
+              <VStack className="gap-2" key={section.title}>
+                {i === 0 && <InfoIcon className="mb-2 text-primary" height={48} width={48} />}
+                <Heading size="md">{section.title}</Heading>
+                <Text className="text-typography-400">{section.body}</Text>
+              </VStack>
+            ))}
           </VStack>
-
-          <Pressable
-            className="flex-row items-center justify-center gap-2 rounded-md border border-border bg-background px-8 py-2 active:opacity-80"
-            onPress={() => router.back()}
-          >
-            <ArrowLeftIcon className="h-4 w-4 text-foreground" />
-            <Text className="text-foreground text-sm">Go back</Text>
-          </Pressable>
-        </VStack>
-      </Box>
+        </ScrollView>
+      </View>
     </>
   )
 }

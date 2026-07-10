@@ -1,11 +1,12 @@
+import { ColorModeProvider, useColorMode } from '@/components/color-mode'
 import { Fab, FabIcon } from '@/components/ui/fab'
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider'
 import { MoonIcon, SunIcon } from '@/components/ui/icon'
 import '@/global.css'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { useFonts } from 'expo-font'
-import { DarkTheme, DefaultTheme, Slot, Stack, ThemeProvider, usePathname } from 'expo-router'
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -33,23 +34,35 @@ export default function RootLayout() {
       SplashScreen.hideAsync()
     }
   }, [loaded])
-  return <RootLayoutNav />
+  return (
+    <ColorModeProvider>
+      <RootLayoutNav />
+    </ColorModeProvider>
+  )
 }
 
 function RootLayoutNav() {
   const pathname = usePathname()
-  const [colorMode, setColorMode] = useState<'light' | 'dark' | 'system'>('dark')
+  const { colorMode, toggleColorMode } = useColorMode()
 
   return (
     <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <GluestackUIProvider mode={colorMode}>
           <StatusBar style={colorMode === 'dark' ? 'light' : 'dark'} />
-          <Stack>
+          <Stack
+            screenOptions={{
+              headerTransparent: true,
+              contentStyle: {
+                backgroundColor: colorMode === 'dark' ? '#151718' : '#fff',
+              },
+            }}
+          >
             <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="details" options={{ headerShown: false }} />
           </Stack>
           {pathname === '/' && (
-            <Fab className="m-6" onPress={() => setColorMode(colorMode === 'dark' ? 'light' : 'dark')} size="lg">
+            <Fab className="m-6" onPress={toggleColorMode} size="lg">
               <FabIcon as={colorMode === 'dark' ? MoonIcon : SunIcon} />
             </Fab>
           )}
