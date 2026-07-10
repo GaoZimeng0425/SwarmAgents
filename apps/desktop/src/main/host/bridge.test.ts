@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { WebSocket, WebSocketServer } from 'ws'
 
-import { attachBridge } from './bridge'
+import { attachBridge, createConnRegistry } from './bridge'
 
 // A fake service transport: structured like the Electron utilityProcess —
 // postMessage + EventEmitter 'message'. The host's main serviceClient uses the
@@ -17,6 +17,15 @@ function fakeServiceTransport() {
   }
 }
 
+async function connectPeer(port: number): Promise<WebSocket> {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}`)
+  await new Promise((res, rej) => {
+    ws.once('open', res)
+    ws.once('error', rej)
+  })
+  return ws
+}
+
 describe('ws bridge', () => {
   let server: WebSocketServer
   let port: number
@@ -27,80 +36,124 @@ describe('ws bridge', () => {
   })
   afterEach(() => server.close())
 
-  it('relays peer→service (peer sends request JSON, service transport gets it)', async () => {
+  it('relays a peer request to the service transport', async () => {
     const svc = fakeServiceTransport()
     const received: unknown[] = []
     svc.on('message', (m) => received.push(m))
-    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
+    const registry = createConnRegistry()
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console, registry }))
 
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
-    await new Promise((res, rej) => {
-      ws.once('open', res)
-      ws.once('error', rej)
-    })
-    ws.send(JSON.stringify({ kind: 'request', id: 1, method: 'listAgents', args: [] }))
+    const ws = await connectPeer(port)
+    ws.send(JSON.stringify({ kind: 'request', id: 'peerA:1', method: 'listAgents', args: [] }))
     await new Promise((res) => setTimeout(res, 50))
     expect(received).toHaveLength(1)
-    expect(received[0]).toMatchObject({ kind: 'request', id: 1, method: 'listAgents' })
+    expect(received[0]).toMatchObject({ kind: 'request', id: 'peerA:1', method: 'listAgents' })
     ws.close()
   })
 
-  it('relays service→peer (service posts response, peer receives JSON)', async () => {
+  it('routes a response only to the peer that claimed its connId', async () => {
     const svc = fakeServiceTransport()
-    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
-    await new Promise((res, rej) => {
-      ws.once('open', res)
-      ws.once('error', rej)
-    })
-    const seen: unknown[] = []
-    ws.on('message', (raw) => seen.push(JSON.parse(raw.toString())))
+    const registry = createConnRegistry()
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console, registry }))
 
-    svc.emit({ kind: 'response', id: 1, ok: true, result: { agents: [] } })
+    const peerA = await connectPeer(port)
+    const peerB = await connectPeer(port)
+    const seenA: unknown[] = []
+    const seenB: unknown[] = []
+    peerA.on('message', (raw) => seenA.push(JSON.parse(raw.toString())))
+    peerB.on('message', (raw) => seenB.push(JSON.parse(raw.toString())))
+
+    // Only peerA asks — this is what claims connId "peerA" for peerA.
+    peerA.send(JSON.stringify({ kind: 'request', id: 'peerA:1', method: 'listAgents', args: [] }))
     await new Promise((res) => setTimeout(res, 50))
-    expect(seen[0]).toMatchObject({ kind: 'response', id: 1, ok: true })
-    ws.close()
+
+    svc.emit({ kind: 'response', id: 'peerA:1', ok: true, result: { agents: [] } })
+    await new Promise((res) => setTimeout(res, 50))
+
+    expect(seenA).toEqual([{ kind: 'response', id: 'peerA:1', ok: true, result: { agents: [] } }])
+    expect(seenB).toHaveLength(0)
+    peerA.close()
+    peerB.close()
   })
 
-  it('does not forward a service mainRequest out to peers', async () => {
-    // Regression: mainRequest/mainResponse are main↔service private RPC (gmail.*/
-    // calendar.*/weather.*). A peer's own handler-less ServiceClient used to
-    // "answer" a leaked mainRequest with a bogus mainResponse, racing (and
-    // beating) main's real, network-bound reply for the same id.
+  it('broadcasts an event to every connected peer', async () => {
     const svc = fakeServiceTransport()
-    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
-    await new Promise((res, rej) => {
-      ws.once('open', res)
-      ws.once('error', rej)
-    })
-    const seen: unknown[] = []
-    ws.on('message', (raw) => seen.push(JSON.parse(raw.toString())))
+    const registry = createConnRegistry()
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console, registry }))
 
-    svc.emit({ kind: 'mainRequest', id: 1, method: 'weather.get_forecast', args: [null, null] })
+    const peerA = await connectPeer(port)
+    const peerB = await connectPeer(port)
+    const seenA: unknown[] = []
+    const seenB: unknown[] = []
+    peerA.on('message', (raw) => seenA.push(JSON.parse(raw.toString())))
+    peerB.on('message', (raw) => seenB.push(JSON.parse(raw.toString())))
+
+    svc.emit({ kind: 'event', event: 'run.progress', data: { runId: 'r1' } })
+    await new Promise((res) => setTimeout(res, 50))
+
+    expect(seenA).toEqual([{ kind: 'event', event: 'run.progress', data: { runId: 'r1' } }])
+    expect(seenB).toEqual([{ kind: 'event', event: 'run.progress', data: { runId: 'r1' } }])
+    peerA.close()
+    peerB.close()
+  })
+
+  it('never forwards a request the service itself emits (a main-only call) to any peer', async () => {
+    // Regression: gmail.*/calendar.*/weather.* calls are the service asking
+    // main directly — main answers via its own listener on the same
+    // transport, never via the bridge. No peer ever claimed this id, so it
+    // must never be delivered to anyone.
+    const svc = fakeServiceTransport()
+    const registry = createConnRegistry()
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console, registry }))
+
+    const peer = await connectPeer(port)
+    const seen: unknown[] = []
+    peer.on('message', (raw) => seen.push(JSON.parse(raw.toString())))
+
+    svc.emit({ kind: 'request', id: 'service:1', method: 'weather.get_forecast', args: [null, null] })
     await new Promise((res) => setTimeout(res, 50))
 
     expect(seen).toHaveLength(0)
-    ws.close()
+    peer.close()
   })
 
-  it('does not forward a peer-sent mainResponse into the service', async () => {
+  it('never forwards a response for an id no connected peer claimed', async () => {
     const svc = fakeServiceTransport()
-    // Only the bridge's onPeerMessage should be able to call service.postMessage
-    // here — nothing else emits on this bus, so any hit is a leak.
-    const received: unknown[] = []
-    svc.on('message', (m) => received.push(m))
-    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console }))
+    const registry = createConnRegistry()
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log: console, registry }))
 
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
-    await new Promise((res, rej) => {
-      ws.once('open', res)
-      ws.once('error', rej)
-    })
-    ws.send(JSON.stringify({ kind: 'mainResponse', id: 1, ok: false, error: 'no handler for weather.get_forecast' }))
+    const peer = await connectPeer(port)
+    const seen: unknown[] = []
+    peer.on('message', (raw) => seen.push(JSON.parse(raw.toString())))
+
+    // This peer never sent a request with this id — e.g. it answers main's
+    // own submitGoal call, made directly against the service, not via this peer.
+    svc.emit({ kind: 'response', id: 'main-conn:1', ok: true, result: { runId: 'r1' } })
     await new Promise((res) => setTimeout(res, 50))
 
-    expect(received).toHaveLength(0)
-    ws.close()
+    expect(seen).toHaveLength(0)
+    peer.close()
+  })
+
+  it("removes a peer's claimed connIds when it disconnects", async () => {
+    const svc = fakeServiceTransport()
+    const registry = createConnRegistry()
+    // Mirror host/index.ts: wire detach to the server-side ws 'close' so the
+    // peer's claimed connIds are released on disconnect.
+    server.on('connection', (ws) => {
+      const detach = attachBridge({ peer: ws, service: svc as never, log: console, registry })
+      ws.on('close', () => detach())
+    })
+
+    const peer = await connectPeer(port)
+    peer.send(JSON.stringify({ kind: 'request', id: 'peerA:1', method: 'listAgents', args: [] }))
+    await new Promise((res) => setTimeout(res, 50))
+    // ownerOf returns the server-side ws this test can't reach; assert it is
+    // claimed (defined) here, then released (undefined) after disconnect.
+    expect(registry.ownerOf('peerA')).toBeDefined()
+
+    peer.close()
+    await new Promise((res) => setTimeout(res, 50))
+    expect(registry.ownerOf('peerA')).toBeUndefined()
   })
 })

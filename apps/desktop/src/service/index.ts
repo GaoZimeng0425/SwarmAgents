@@ -1,8 +1,14 @@
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createLogger } from '@shared/logger'
-import type { ProviderInjection, ServiceRequest, WebSearchInjection } from '@swarm/protocol'
-import { type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
+import {
+  type BudgetConfig,
+  createRpcPeer,
+  defaultBudgetConfig,
+  type ProviderInjection,
+  type ServiceMethod,
+  type WebSearchInjection,
+} from '@swarm/protocol'
 import { defaultAgents, retiredBuiltinIds } from '@swarm/shared'
 
 import { createAgentStore, syncBuiltinAgents } from './agents/store'
@@ -14,7 +20,6 @@ import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
 import { createAnalyzeEmail } from './gmail/analyze'
 import { createAnalyzeThread } from './gmail/analyze-thread'
-import { createMainRpc } from './gmail/main-rpc'
 import { createHookDispatcher, createHooksStore } from './hooks'
 import { createBroadcaster } from './ipc/broadcaster'
 import { createDispatcher } from './ipc/dispatcher'
@@ -143,20 +148,40 @@ const claudeCode = createClaudeCodeManager()
 // terminal in the registry.
 service.markInterruptedRunsTerminal()
 
-// Service-side main-rpc client: gmail.* tools call mainRpc('gmail.search', [...]),
-// which posts a mainRequest that Main answers with a mainResponse. The client
-// resolves the pending promise for each matched id. subscribe adds a second
-// parentPort 'message' listener (the ServiceRequest handler filters by kind, so
-// there is no conflict); utilityProcess parentPort has no off(), so unsubscribe
-// is a no-op — the listener lives for the process lifetime.
-const mainRpc = createMainRpc({
-  post: (m) => parentPort.postMessage(m),
-  subscribe: (fn) => {
-    const listener = (e: { data: unknown }): void => fn(e.data)
-    parentPort.on('message', listener)
-    return () => {}
+// One symmetric RPC peer over parentPort, both directions: main sends
+// `request`s that this side answers via `dispatch` (registered below as the
+// defaultHandler, so the service keeps its single big method table instead
+// of calling registerHandler once per ServiceMethod), and gmail.*/calendar.*/
+// weather.* tools call() out to main for data only main holds. parentPort has
+// no off(), so disconnect() is never called — the listener lives for the
+// process lifetime.
+const rpcPeer = createRpcPeer({
+  transport: {
+    postMessage: (m) => parentPort.postMessage(m),
+    on: (_ch, fn) => parentPort.on('message', (e) => fn(e.data)),
+    off: () => {},
+  },
+  defaultHandler: async (method, args, id) => {
+    const m = method as ServiceMethod
+    const t0 = Date.now()
+    log.debug({ msg: 'request', method: m, id })
+    try {
+      const result = await dispatch(m, args)
+      log.debug({ msg: 'request ok', method: m, id, durationMs: Date.now() - t0 })
+      return result
+    } catch (err) {
+      log.error({
+        msg: 'request failed',
+        method: m,
+        id,
+        durationMs: Date.now() - t0,
+        err: err instanceof Error ? err.message : String(err),
+      })
+      throw err
+    }
   },
 })
+rpcPeer.connect()
 
 registerBuiltinTools(toolRegistry, {
   memoryStore,
@@ -165,9 +190,9 @@ registerBuiltinTools(toolRegistry, {
   claudeCode,
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
-  gmailMainRpc: mainRpc.mainRpc,
-  calendarMainRpc: mainRpc.mainRpc,
-  weatherMainRpc: mainRpc.mainRpc,
+  gmailMainRpc: (method, args) => rpcPeer.call(method, args),
+  calendarMainRpc: (method, args) => rpcPeer.call(method, args),
+  weatherMainRpc: (method, args) => rpcPeer.call(method, args),
 })
 scheduler.start()
 
@@ -263,27 +288,6 @@ const dispatch = createDispatcher({
   cancelCronJob: (id) => {
     scheduler.remove(id)
   },
-})
-
-parentPort.on('message', async (e) => {
-  const msg = e.data as ServiceRequest
-  if (msg?.kind !== 'request') return
-  const t0 = Date.now()
-  log.debug({ msg: 'request', method: msg.method, id: msg.id })
-  try {
-    const result = await dispatch(msg.method, msg.args)
-    parentPort.postMessage({ kind: 'response', id: msg.id, ok: true, result })
-    log.debug({ msg: 'request ok', method: msg.method, id: msg.id, durationMs: Date.now() - t0 })
-  } catch (err) {
-    log.error({
-      msg: 'request failed',
-      method: msg.method,
-      id: msg.id,
-      durationMs: Date.now() - t0,
-      err: err instanceof Error ? err.message : String(err),
-    })
-    parentPort.postMessage({ kind: 'response', id: msg.id, ok: false, error: String(err) })
-  }
 })
 
 parentPort.postMessage({ kind: 'ready' })

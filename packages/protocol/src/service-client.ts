@@ -1,3 +1,4 @@
+import { createRpcPeer, type RpcTransport } from './rpc-peer'
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './types/agent'
 import type {
   AnalyzeArticleRequest,
@@ -11,30 +12,16 @@ import type { BudgetConfig } from './types/budgets'
 import type { McpServerConfig, McpServerStatus } from './types/mcp'
 import type { MemoryView } from './types/memory'
 import type { ProviderInjection } from './types/provider'
-import type { MainMethod, MainRequest, ServiceMethod, ServiceToMain } from './types/service-ipc'
+import type { MainMethod } from './types/service-ipc'
 import type { Skill, SkillMutationResult } from './types/skill'
 import type { ToolGroupInfo, ToolToggles } from './types/tool-toggles'
 import type { RepoResearch, ResearchRepoRequest, ResearchRepoResult } from './types/trending'
 import type { PermissionDecision } from './types/ui'
 import type { WebSearchInjection } from './types/web-search'
 
-// @swarm/protocol is logger-free (no pino dep) so it stays portable across
-// desktop/extension/RN. Diagnostics go to console; desktop wraps if it needs
-// structured pino output.
-const log = console
-
-// Minimal duplex channel the client needs. Electron's UtilityProcess satisfies
-// this structurally (postMessage + EventEmitter on/off); tests pass a fake.
-export type ServiceTransport = {
-  postMessage(message: unknown): void
-  on(channel: 'message', listener: (message: unknown) => void): void
-  off(channel: 'message', listener: (message: unknown) => void): void
-}
-
-type ServiceClientConfig = {
-  transport: ServiceTransport
-  onEvent?: (event: string, data: unknown) => void
-}
+// Kept as an alias so existing imports of ServiceTransport (desktop main,
+// extension, RN) don't need to change.
+export type ServiceTransport = RpcTransport
 
 export type ServiceClient = {
   connect(): Promise<void>
@@ -89,216 +76,95 @@ export type ServiceClient = {
   listAllCronJobs(): Promise<import('./types/ui').ScheduledTask[]>
   listAllCronRuns(): Promise<import('./types/ui').CronRun[]>
   cancelCronJob(id: string): Promise<void>
-  registerMainRpc(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown> | unknown): void
+  // Registers a handler this side can serve for the other side's call() — e.g.
+  // main registers 'weather.get_forecast' so the service process can call it.
+  // Renamed from the old registerMainRpc: with one symmetric request/response
+  // pair there's no "main-specific" RPC anymore, just "a handler this
+  // instance can serve."
+  registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown> | unknown): void
 }
 
-// Every connected party (main's own client, plus one per WS-bridged peer)
-// numbers its own requests from 1 independently, but all replies broadcast
-// over the same shared transport (see bridge.ts) — so a bare number can
-// collide between two different callers' in-flight requests. Prefixing with
-// a per-instance random tag makes ids collision-free without needing any
-// caller to know about anyone else sharing the channel.
-const randomConnId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-
-export function createServiceClient(cfg: ServiceClientConfig): ServiceClient {
-  const { transport, onEvent } = cfg
-  const connId = randomConnId()
-  let nextId = 1
-  const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>()
-  const mainRpcHandlers = new Map<MainMethod, (...args: unknown[]) => Promise<unknown> | unknown>()
-  let listener: ((message: unknown) => void) | null = null
-
-  const handle = (message: unknown): void => {
-    const msg = message as ServiceToMain
-    if (msg.kind === 'response') {
-      const p = pending.get(msg.id)
-      if (!p) {
-        // The desktop host bridges an external WS peer onto this same service
-        // transport; that peer's own (differently-prefixed) ids never match
-        // one of ours. Drop.
-        return
-      }
-      pending.delete(msg.id)
-      if (msg.ok) p.resolve(msg.result)
-      else p.reject(new Error(msg.error))
-    } else if (msg.kind === 'event') {
-      if (onEvent) onEvent(msg.event, msg.data)
-    } else if (msg.kind === 'mainRequest') {
-      const req = msg as MainRequest
-      const handler = mainRpcHandlers.get(req.method)
-      if (!handler) {
-        log.warn({ msg: 'no main-rpc handler', method: req.method, id: req.id })
-        transport.postMessage({ kind: 'mainResponse', id: req.id, ok: false, error: `no handler for ${req.method}` })
-        return
-      }
-      Promise.resolve()
-        .then(() => handler(...req.args))
-        .then(
-          (result) => transport.postMessage({ kind: 'mainResponse', id: req.id, ok: true, result }),
-          (err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err)
-            log.error({ msg: 'main-rpc handler threw', method: req.method, id: req.id, err: message })
-            transport.postMessage({ kind: 'mainResponse', id: req.id, ok: false, error: message })
-          }
-        )
-    }
-  }
-
-  function call<T>(method: ServiceMethod, args: unknown[]): Promise<T> {
-    const id = `${connId}:${nextId++}`
-    return new Promise<T>((resolve, reject) => {
-      pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
-      transport.postMessage({ kind: 'request', id, method, args })
-    })
-  }
+export function createServiceClient(cfg: {
+  transport: ServiceTransport
+  onEvent?: (event: string, data: unknown) => void
+}): ServiceClient {
+  const peer = createRpcPeer({ transport: cfg.transport, onEvent: cfg.onEvent })
 
   return {
-    connect() {
-      listener = handle
-      transport.on('message', listener)
-      return Promise.resolve()
-    },
-    disconnect() {
-      if (listener) transport.off('message', listener)
-      listener = null
-    },
-    registerMainRpc(method, fn) {
-      mainRpcHandlers.set(method, fn)
-    },
-    createSession(provider) {
-      return call('createSession', [provider])
-    },
-    submitGoal(sessionId, goal, attachments, options) {
-      return call('submitGoal', [sessionId, goal, attachments, options])
-    },
-    analyzeEmail(req) {
-      return call('analyzeEmail', [req])
-    },
-    analyzeThread(req) {
-      return call('analyzeThread', [req])
-    },
-    collectArticle(input) {
-      return call('collectArticle', [input])
-    },
-    analyzeArticle(req) {
-      return call('analyzeArticle', [req])
-    },
-    listArticles() {
-      return call('listArticles', [])
-    },
-    getArticleAnalysis(articleId) {
-      return call('getArticleAnalysis', [articleId])
-    },
+    connect: () => peer.connect(),
+    disconnect: () => peer.disconnect(),
+    registerHandler: (method, fn) => peer.registerHandler(method, fn),
+    createSession: (provider) => peer.call('createSession', [provider]),
+    submitGoal: (sessionId, goal, attachments, options) =>
+      peer.call('submitGoal', [sessionId, goal, attachments, options]),
+    analyzeEmail: (req) => peer.call('analyzeEmail', [req]),
+    analyzeThread: (req) => peer.call('analyzeThread', [req]),
+    collectArticle: (input) => peer.call('collectArticle', [input]),
+    analyzeArticle: (req) => peer.call('analyzeArticle', [req]),
+    listArticles: () => peer.call('listArticles', []),
+    getArticleAnalysis: (articleId) => peer.call('getArticleAnalysis', [articleId]),
     async deleteArticle(articleId) {
-      await call('deleteArticle', [articleId])
+      await peer.call('deleteArticle', [articleId])
     },
-    researchRepo(req) {
-      return call('researchRepo', [req])
-    },
-    getRepoResearch(repoName) {
-      return call('getRepoResearch', [repoName])
-    },
-    researchedRepoNames() {
-      return call('researchedRepoNames', [])
-    },
-    listSessions() {
-      return call('listSessions', [])
-    },
-    getRunEvents(sessionId) {
-      return call('getRunEvents', [sessionId])
-    },
-    exportSessionMarkdown(sessionId) {
-      return call('exportSessionMarkdown', [sessionId])
-    },
+    researchRepo: (req) => peer.call('researchRepo', [req]),
+    getRepoResearch: (repoName) => peer.call('getRepoResearch', [repoName]),
+    researchedRepoNames: () => peer.call('researchedRepoNames', []),
+    listSessions: () => peer.call('listSessions', []),
+    getRunEvents: (sessionId) => peer.call('getRunEvents', [sessionId]),
+    exportSessionMarkdown: (sessionId) => peer.call('exportSessionMarkdown', [sessionId]),
     async deleteSession(sessionId) {
-      await call('deleteSession', [sessionId])
+      await peer.call('deleteSession', [sessionId])
     },
     async renameSession(sessionId, title) {
-      await call('renameSession', [sessionId, title])
+      await peer.call('renameSession', [sessionId, title])
     },
     async setSessionPinned(sessionId, pinned) {
-      await call('setSessionPinned', [sessionId, pinned])
+      await peer.call('setSessionPinned', [sessionId, pinned])
     },
     async updateSessionSettings(sessionId, settings) {
-      await call('updateSessionSettings', [sessionId, settings])
+      await peer.call('updateSessionSettings', [sessionId, settings])
     },
     async reorderSessions(orderedIds) {
-      await call('reorderSessions', [orderedIds])
+      await peer.call('reorderSessions', [orderedIds])
     },
     async decidePermission(sessionId, actionId, decision) {
-      await call('decidePermission', [sessionId, actionId, decision])
+      await peer.call('decidePermission', [sessionId, actionId, decision])
     },
     async cancelRun(sessionId, runId) {
-      await call('cancelRun', [sessionId, runId])
+      await peer.call('cancelRun', [sessionId, runId])
     },
     async interruptWith(sessionId, runId) {
-      await call('interruptWith', [sessionId, runId])
+      await peer.call('interruptWith', [sessionId, runId])
     },
     async setMcpServers(configs) {
-      await call('setMcpServers', [configs])
+      await peer.call('setMcpServers', [configs])
     },
-    getMcpStatus() {
-      return call('getMcpStatus', [])
-    },
+    getMcpStatus: () => peer.call('getMcpStatus', []),
     async setWebSearchConfig(config) {
-      await call('setWebSearchConfig', [config])
+      await peer.call('setWebSearchConfig', [config])
     },
     async setBudgetConfig(config) {
-      await call('setBudgetConfig', [config])
+      await peer.call('setBudgetConfig', [config])
     },
-    listSkills() {
-      return call('listSkills', [])
-    },
-    listAgents() {
-      return call('listAgents', [])
-    },
-    saveAgent(def) {
-      return call('saveAgent', [def])
-    },
-    deleteAgent(id) {
-      return call('deleteAgent', [id])
-    },
-    restoreDefaultAgents() {
-      return call('restoreDefaultAgents', [])
-    },
-    saveSkill(skill) {
-      return call('saveSkill', [skill])
-    },
-    deleteSkill(name) {
-      return call('deleteSkill', [name])
-    },
-    importSkill(sourceDir, overwrite) {
-      return call('importSkill', [sourceDir, overwrite])
-    },
-    getToolToggles() {
-      return call('getToolToggles', [])
-    },
-    setSkillEnabled(name, enabled) {
-      return call('setSkillEnabled', [name, enabled])
-    },
-    setToolGroupEnabled(group, enabled) {
-      return call('setToolGroupEnabled', [group, enabled])
-    },
-    listToolGroups() {
-      return call('listToolGroups', [])
-    },
-    listMemory(namespace) {
-      return call('listMemory', [namespace])
-    },
-    getUsageStats(rangeDays) {
-      return call('getUsageStats', [rangeDays])
-    },
-    listCronJobsForSession(sessionId) {
-      return call('listCronJobsForSession', [sessionId])
-    },
-    listAllCronJobs() {
-      return call('listAllCronJobs', [])
-    },
-    listAllCronRuns() {
-      return call('listAllCronRuns', [])
-    },
+    listSkills: () => peer.call('listSkills', []),
+    listAgents: () => peer.call('listAgents', []),
+    saveAgent: (def) => peer.call('saveAgent', [def]),
+    deleteAgent: (id) => peer.call('deleteAgent', [id]),
+    restoreDefaultAgents: () => peer.call('restoreDefaultAgents', []),
+    saveSkill: (skill) => peer.call('saveSkill', [skill]),
+    deleteSkill: (name) => peer.call('deleteSkill', [name]),
+    importSkill: (sourceDir, overwrite) => peer.call('importSkill', [sourceDir, overwrite]),
+    getToolToggles: () => peer.call('getToolToggles', []),
+    setSkillEnabled: (name, enabled) => peer.call('setSkillEnabled', [name, enabled]),
+    setToolGroupEnabled: (group, enabled) => peer.call('setToolGroupEnabled', [group, enabled]),
+    listToolGroups: () => peer.call('listToolGroups', []),
+    listMemory: (namespace) => peer.call('listMemory', [namespace]),
+    getUsageStats: (rangeDays) => peer.call('getUsageStats', [rangeDays]),
+    listCronJobsForSession: (sessionId) => peer.call('listCronJobsForSession', [sessionId]),
+    listAllCronJobs: () => peer.call('listAllCronJobs', []),
+    listAllCronRuns: () => peer.call('listAllCronRuns', []),
     async cancelCronJob(id) {
-      await call('cancelCronJob', [id])
+      await peer.call('cancelCronJob', [id])
     },
   }
 }
