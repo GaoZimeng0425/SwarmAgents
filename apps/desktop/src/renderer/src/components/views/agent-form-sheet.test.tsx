@@ -62,11 +62,12 @@ describe('AgentFormSheet', () => {
         open
       />
     )
-    const parent = screen.getByLabelText('parent') as HTMLSelectElement
-    const values = Array.from(parent.options).map((o) => o.value)
-    expect(values).toContain('') // "(none)"
-    expect(values).toContain('eng')
-    expect(values).not.toContain('pm') // cannot parent to self
+    // Base UI Select mounts its items into a portal only once opened.
+    fireEvent.click(screen.getByLabelText('parent'))
+    const labels = screen.getAllByRole('option').map((o) => o.textContent)
+    expect(labels).toContain('(none)')
+    expect(labels).toContain('Eng (eng)')
+    expect(labels).not.toContain('PM (pm)') // cannot parent to self
   })
 
   it('toggling "Team head" sets teamRole to head on submit', () => {

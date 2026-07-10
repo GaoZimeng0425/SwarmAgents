@@ -6,7 +6,7 @@ import {
   type TrendingPeriod,
   type TrendingRepo,
 } from '@swarm/protocol'
-import { Button, NativeSelect, NativeSelectOption, Skeleton } from '@swarm/ui'
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from '@swarm/ui'
 import { useQuery } from '@tanstack/react-query'
 import { range } from 'es-toolkit'
 import { GitFork, GitPullRequest, Loader2, Sparkles, Star } from 'lucide-react'
@@ -114,13 +114,18 @@ export function TrendingView(): React.JSX.Element {
             {data && data.length > 0 ? (
               <span className="text-muted-foreground text-xs">共 {data.length} 个仓库</span>
             ) : null}
-            <NativeSelect aria-label="语言" onChange={(e) => setLanguage(e.target.value)} value={language}>
-              {TRENDING_LANGUAGES.map((l) => (
-                <NativeSelectOption key={l} value={l}>
-                  {l}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+            <Select onValueChange={(v) => setLanguage(v ?? 'All')} value={language}>
+              <SelectTrigger aria-label="语言">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TRENDING_LANGUAGES.map((l) => (
+                  <SelectItem key={l} value={l}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <div className="inline-flex items-center gap-0.5 self-start rounded-lg border border-input bg-muted/50 p-0.5">

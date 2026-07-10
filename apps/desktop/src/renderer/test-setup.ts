@@ -39,6 +39,23 @@ if (typeof Element !== 'undefined' && typeof HTMLElement !== 'undefined') {
     Element.prototype.getAnimations = () => []
   }
 
+  // jsdom implements neither Element.scrollIntoView nor the Pointer Capture API,
+  // both of which base-ui's Select touches when its popup opens (it scrolls the
+  // active item into view and captures the pointer on the trigger). Stub them so
+  // Select-based fields can be opened in tests without throwing.
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => {}
+  }
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => {}
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => {}
+  }
+
   // jsdom has no layout engine, so offsetWidth/offsetHeight are always 0. That
   // starves `@tanstack/react-virtual`, which sizes its scroll viewport and
   // measures rows via offsetHeight: a 0px viewport makes it render no rows.

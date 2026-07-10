@@ -4,8 +4,11 @@ import {
   Button,
   Input,
   Label,
-  NativeSelect,
-  NativeSelectOption,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Sheet,
   SheetContent,
   SheetFooter,
@@ -129,16 +132,26 @@ export function AgentFormSheet({
             <Label htmlFor="agent-authoring">Authoring (write_agent / write_skill access)</Label>
           </div>
           <Field htmlFor="agent-parent" label="parent">
-            <NativeSelect id="agent-parent" onChange={(e) => setParentId(e.target.value)} value={parentId}>
-              <NativeSelectOption value="">(none)</NativeSelectOption>
-              {agents
-                .filter((a) => a.id !== agent?.id)
-                .map((a) => (
-                  <NativeSelectOption key={a.id} value={a.id}>
-                    {a.name} ({a.id})
-                  </NativeSelectOption>
-                ))}
-            </NativeSelect>
+            <Select onValueChange={(v) => setParentId(v ?? '')} value={parentId}>
+              <SelectTrigger className="w-full" id="agent-parent">
+                <SelectValue>
+                  {(v: string) => {
+                    const parent = agents.find((a) => a.id === v)
+                    return parent ? `${parent.name} (${parent.id})` : '(none)'
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">(none)</SelectItem>
+                {agents
+                  .filter((a) => a.id !== agent?.id)
+                  .map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name} ({a.id})
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field htmlFor="agent-team" label="team">
             <Input id="agent-team" onChange={(e) => setTeam(e.target.value)} value={team} />

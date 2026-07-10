@@ -4,8 +4,11 @@ import {
   Badge,
   Button,
   Input,
-  NativeSelect,
-  NativeSelectOption,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Switch,
   Tabs,
   TabsContent,
@@ -21,6 +24,12 @@ import { cn } from '@/lib/utils'
 import { SettingsHeader } from './settings-primitives'
 
 const RISKS: McpToolRisk[] = ['low', 'medium', 'high']
+
+const TRANSPORT_LABELS: Record<McpTransport, string> = {
+  stdio: 'stdio (local)',
+  http: 'http (remote)',
+  sse: 'sse (remote)',
+}
 
 const STATE_BADGE: Record<McpConnectionState, { label: string; className: string }> = {
   idle: { label: 'Disabled', className: 'bg-muted text-muted-foreground' },
@@ -303,11 +312,16 @@ function ManualForm(): React.JSX.Element {
           placeholder="Name (used as the tool namespace, e.g. github)"
           value={name}
         />
-        <NativeSelect onChange={(e) => setTransport(e.target.value as McpTransport)} value={transport}>
-          <NativeSelectOption value="stdio">stdio (local)</NativeSelectOption>
-          <NativeSelectOption value="http">http (remote)</NativeSelectOption>
-          <NativeSelectOption value="sse">sse (remote)</NativeSelectOption>
-        </NativeSelect>
+        <Select onValueChange={(v) => setTransport(v as McpTransport)} value={transport}>
+          <SelectTrigger>
+            <SelectValue>{(v: McpTransport) => TRANSPORT_LABELS[v]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="stdio">stdio (local)</SelectItem>
+            <SelectItem value="http">http (remote)</SelectItem>
+            <SelectItem value="sse">sse (remote)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       {transport === 'stdio' ? (
         <>
@@ -446,25 +460,28 @@ function ServerCard({
               >
                 {t.name}
               </span>
-              <NativeSelect
-                onChange={(e) =>
+              <Select
+                onValueChange={(v) =>
                   void report(
                     window.swarm.mcp.setToolOverride(server.id, t.name, {
                       enabled: t.enabled,
-                      risk: e.target.value as McpToolRisk,
+                      risk: v as McpToolRisk,
                     })
                   )
                 }
-                size="sm"
-                title="Risk level"
                 value={t.risk}
               >
-                {RISKS.map((r) => (
-                  <NativeSelectOption key={r} value={r}>
-                    {r}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                <SelectTrigger size="sm" title="Risk level">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RISKS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ))}
         </div>
