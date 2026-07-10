@@ -15,6 +15,7 @@ import { Route as TrendingRouteImport } from './routes/trending'
 import { Route as SessionRouteImport } from './routes/session'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as GmailRouteImport } from './routes/gmail'
+import { Route as GlassRouteImport } from './routes/glass'
 import { Route as FormationsRouteImport } from './routes/formations'
 import { Route as BilibiliRouteImport } from './routes/bilibili'
 import { Route as ArticlesRouteImport } from './routes/articles'
@@ -50,6 +51,11 @@ const ScheduledRoute = ScheduledRouteImport.update({
 const GmailRoute = GmailRouteImport.update({
   id: '/gmail',
   path: '/gmail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GlassRoute = GlassRouteImport.update({
+  id: '/glass',
+  path: '/glass',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FormationsRoute = FormationsRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
+  '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/session': typeof SessionRouteWithChildren
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
+  '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
+  '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/session': typeof SessionRouteWithChildren
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/articles'
     | '/bilibili'
     | '/formations'
+    | '/glass'
     | '/gmail'
     | '/scheduled'
     | '/session'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/articles'
     | '/bilibili'
     | '/formations'
+    | '/glass'
     | '/gmail'
     | '/scheduled'
     | '/trending'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '/articles'
     | '/bilibili'
     | '/formations'
+    | '/glass'
     | '/gmail'
     | '/scheduled'
     | '/session'
@@ -174,6 +186,7 @@ export interface RootRouteChildren {
   ArticlesRoute: typeof ArticlesRoute
   BilibiliRoute: typeof BilibiliRoute
   FormationsRoute: typeof FormationsRoute
+  GlassRoute: typeof GlassRoute
   GmailRoute: typeof GmailRoute
   ScheduledRoute: typeof ScheduledRoute
   SessionRoute: typeof SessionRouteWithChildren
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       path: '/gmail'
       fullPath: '/gmail'
       preLoaderRoute: typeof GmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/glass': {
+      id: '/glass'
+      path: '/glass'
+      fullPath: '/glass'
+      preLoaderRoute: typeof GlassRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/formations': {
@@ -289,6 +309,7 @@ const rootRouteChildren: RootRouteChildren = {
   ArticlesRoute: ArticlesRoute,
   BilibiliRoute: BilibiliRoute,
   FormationsRoute: FormationsRoute,
+  GlassRoute: GlassRoute,
   GmailRoute: GmailRoute,
   ScheduledRoute: ScheduledRoute,
   SessionRoute: SessionRouteWithChildren,
