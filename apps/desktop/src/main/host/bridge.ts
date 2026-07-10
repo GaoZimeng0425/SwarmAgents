@@ -3,47 +3,89 @@ import type { WebSocket } from 'ws'
 
 export type BridgeLog = { info: (m: unknown) => void; warn: (m: unknown) => void; error: (m: unknown) => void }
 
+// Tracks which WS peer originated each in-flight request id, keyed by the
+// connId prefix every RpcPeer stamps onto its own ids (see rpc-peer.ts:
+// `${connId}:${counter}`). Shared across every peer connection on one
+// startWsHost instance so a response is routed to exactly the peer that
+// asked for it — never broadcast, never delivered to the wrong peer.
+export type ConnRegistry = {
+  claim(connId: string, peer: WebSocket): void
+  ownerOf(connId: string): WebSocket | undefined
+  release(peer: WebSocket): void
+}
+
+export function createConnRegistry(): ConnRegistry {
+  const byConnId = new Map<string, WebSocket>()
+  return {
+    claim(connId, peer) {
+      byConnId.set(connId, peer)
+    },
+    ownerOf(connId) {
+      return byConnId.get(connId)
+    },
+    release(peer) {
+      for (const [connId, owner] of byConnId) {
+        if (owner === peer) byConnId.delete(connId)
+      }
+    },
+  }
+}
+
 export type AttachBridge = {
   peer: WebSocket
   service: ServiceTransport
   log: BridgeLog
+  registry: ConnRegistry
 }
 
-// Wire one WS peer to the service transport: peer JSON → service.postMessage;
-// service 'message' → peer.send(JSON). The main serviceClient keeps its own
-// 'message' handler on the same transport and simply ignores ids it didn't
-// open (see service-client.ts). Heartbeat: the peer (extension SW / RN) pings;
-// ws auto-answers with pong, and the host logs the ping for liveness.
-//
-// Only 'request'/'response'/'event' are peer-facing traffic. mainRequest/
-// mainResponse are the private channel the desktop main process uses to
-// answer the service's gmail.*/calendar.*/weather.* RPCs — allowlisted (not
-// blocklisted) so any *future* main-only kind is excluded by default instead
-// of requiring someone to remember to add it here. Forwarding them used to let
-// every connected peer's own (handler-less) ServiceClient "answer" main's
-// mainRequests with a bogus `no handler for <method>` mainResponse — racing,
-// and usually beating, main's real (network-bound) reply for the same request
-// id, since the peer's answer is a synchronous empty-Map lookup. See
-// get_weather always falling back to wttr.in while the dashboard weather card
-// (a different IPC channel) worked fine.
-const PEER_FACING_KINDS = new Set(['request', 'response', 'event'])
-const isPeerFacing = (msg: unknown): boolean => PEER_FACING_KINDS.has((msg as { kind?: string } | null)?.kind ?? '')
+const connIdOf = (id: unknown): string | null => {
+  if (typeof id !== 'string') return null
+  const i = id.indexOf(':')
+  return i < 0 ? null : id.slice(0, i)
+}
 
+// Wire one WS peer to the service transport, with per-connection routing
+// instead of a broadcast:
+//   peer -> service: only 'request' messages are forwarded (peers only ever
+//     ask for things); the connId in the request's id is claimed for this peer.
+//   service -> peer: 'event' is broadcast to every connected peer (nobody
+//     asked for it specifically; everybody who cares should see it).
+//     'response' is sent ONLY to the peer that claimed the matching connId —
+//     if no peer claimed it (it answers a request main itself made, or an
+//     internal gmail.*/calendar.*/weather.* call the service made to main),
+//     no peer ever sees it. A bare 'request' emitted BY the service (never by
+//     a peer, since peers only ever initiate 'request') is always such an
+//     internal main-only call, and is never forwarded either.
+// Heartbeat: the peer (extension SW / RN) pings; ws auto-answers with pong,
+// and the host logs the ping for liveness.
 export function attachBridge(cfg: AttachBridge): () => void {
-  const { peer, service, log } = cfg
+  const { peer, service, log, registry } = cfg
 
   const onPeerMessage = (raw: unknown): void => {
     try {
       const msg = typeof raw === 'string' ? JSON.parse(raw) : JSON.parse(String(raw))
-      if (!isPeerFacing(msg)) return
+      const kind = (msg as { kind?: string }).kind
+      if (kind !== 'request') return
+      const connId = connIdOf((msg as { id?: unknown }).id)
+      if (connId) registry.claim(connId, peer)
       service.postMessage(msg)
     } catch (err) {
       log.warn({ msg: 'ws-host peer sent invalid json', err: String(err) })
     }
   }
   const onServiceMessage = (msg: unknown): void => {
-    if (!isPeerFacing(msg)) return
-    if (peer.readyState === peer.OPEN) peer.send(JSON.stringify(msg))
+    const m = msg as { kind?: string; id?: unknown }
+    if (m.kind === 'event') {
+      if (peer.readyState === peer.OPEN) peer.send(JSON.stringify(msg))
+      return
+    }
+    if (m.kind === 'response') {
+      const connId = connIdOf(m.id)
+      if (connId && registry.ownerOf(connId) === peer && peer.readyState === peer.OPEN) {
+        peer.send(JSON.stringify(msg))
+      }
+    }
+    // 'request' (service calling main) and 'ready' never reach any peer.
   }
 
   peer.on('message', onPeerMessage)
@@ -54,6 +96,7 @@ export function attachBridge(cfg: AttachBridge): () => void {
   return () => {
     peer.off('message', onPeerMessage)
     service.off('message', onServiceMessage)
+    registry.release(peer)
     log.info({ msg: 'ws-host bridge detached' })
   }
 }

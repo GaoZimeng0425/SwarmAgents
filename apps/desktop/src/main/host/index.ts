@@ -1,7 +1,7 @@
 import type { ServiceTransport } from '@swarm/protocol'
 
 import { loadOrCreateHostConfig } from './auth'
-import { attachBridge } from './bridge'
+import { attachBridge, createConnRegistry } from './bridge'
 import { startWsServer } from './ws-server'
 
 export type StartWsHost = {
@@ -11,15 +11,18 @@ export type StartWsHost = {
 }
 
 // Boot the agent-runtime WS host: load/create port+token, start the loopback
-// server, and attach a bridge on each authenticated peer. Returns dispose().
+// server, and attach a bridge on each authenticated peer. One ConnRegistry is
+// shared across every peer connection so responses route to the peer that
+// asked, never to a different one. Returns dispose().
 export async function startWsHost(cfg: StartWsHost): Promise<{ port: number; token: string; dispose: () => void }> {
   const { port, token } = loadOrCreateHostConfig(cfg.userDataDir)
+  const registry = createConnRegistry()
   const started = await startWsServer({
     port,
     token,
     log: cfg.log,
     onPeer: (peer) => {
-      const detach = attachBridge({ peer, service: cfg.serviceProcess, log: cfg.log })
+      const detach = attachBridge({ peer, service: cfg.serviceProcess, log: cfg.log, registry })
       peer.on('close', () => detach())
     },
   })
