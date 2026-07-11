@@ -9,7 +9,11 @@ export type BridgeLog = { info: (m: unknown) => void; warn: (m: unknown) => void
 // startWsHost instance so a response is routed to exactly the peer that
 // asked for it — never broadcast, never delivered to the wrong peer.
 export type ConnRegistry = {
-  claim(connId: string, peer: WebSocket): void
+  // Returns false when the connId already belongs to a DIFFERENT live peer —
+  // granting it would route that peer's responses to the claimant (response
+  // hijacking). A claim over a closed/stale owner succeeds: that's a peer
+  // reconnecting before its old socket's close event was processed.
+  claim(connId: string, peer: WebSocket): boolean
   ownerOf(connId: string): WebSocket | undefined
   release(peer: WebSocket): void
 }
@@ -18,7 +22,10 @@ export function createConnRegistry(): ConnRegistry {
   const byConnId = new Map<string, WebSocket>()
   return {
     claim(connId, peer) {
+      const owner = byConnId.get(connId)
+      if (owner && owner !== peer && owner.readyState === owner.OPEN) return false
       byConnId.set(connId, peer)
+      return true
     },
     ownerOf(connId) {
       return byConnId.get(connId)
@@ -66,8 +73,18 @@ export function attachBridge(cfg: AttachBridge): () => void {
       const msg = typeof raw === 'string' ? JSON.parse(raw) : JSON.parse(String(raw))
       const kind = (msg as { kind?: string }).kind
       if (kind !== 'request') return
-      const connId = connIdOf((msg as { id?: unknown }).id)
-      if (connId) registry.claim(connId, peer)
+      const id = (msg as { id?: unknown }).id
+      const connId = connIdOf(id)
+      if (!connId) {
+        // No connId prefix means the response could never be routed back —
+        // dispatching would silently hang the caller. Refuse loudly instead.
+        log.warn({ msg: 'ws-host request dropped: id has no connId prefix', id })
+        return
+      }
+      if (!registry.claim(connId, peer)) {
+        log.warn({ msg: 'ws-host request dropped: connId already claimed by another peer', connId })
+        return
+      }
       service.postMessage(msg)
     } catch (err) {
       log.warn({ msg: 'ws-host peer sent invalid json', err: String(err) })

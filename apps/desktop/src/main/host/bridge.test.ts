@@ -135,6 +135,76 @@ describe('ws bridge', () => {
     peer.close()
   })
 
+  it('drops (and warns about) a request whose id has no connId prefix — its response could never route back', async () => {
+    const svc = fakeServiceTransport()
+    const received: unknown[] = []
+    svc.on('message', (m) => received.push(m))
+    const registry = createConnRegistry()
+    const warns: unknown[] = []
+    const log = { info: () => {}, warn: (m: unknown) => warns.push(m), error: () => {} }
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log, registry }))
+
+    const peer = await connectPeer(port)
+    peer.send(JSON.stringify({ kind: 'request', id: 'bare-id-no-colon', method: 'listAgents', args: [] }))
+    await new Promise((res) => setTimeout(res, 50))
+
+    expect(received).toHaveLength(0)
+    expect(warns).toHaveLength(1)
+    peer.close()
+  })
+
+  it('drops (and warns about) a request whose connId is already claimed by a different live peer — no response hijacking', async () => {
+    const svc = fakeServiceTransport()
+    const received: unknown[] = []
+    svc.on('message', (m) => received.push(m))
+    const registry = createConnRegistry()
+    const warns: unknown[] = []
+    const log = { info: () => {}, warn: (m: unknown) => warns.push(m), error: () => {} }
+    server.on('connection', (ws) => attachBridge({ peer: ws, service: svc as never, log, registry }))
+
+    const peerA = await connectPeer(port)
+    const peerB = await connectPeer(port)
+    peerA.send(JSON.stringify({ kind: 'request', id: 'peerA:1', method: 'listAgents', args: [] }))
+    await new Promise((res) => setTimeout(res, 50))
+    const ownerAfterA = registry.ownerOf('peerA')
+
+    // peerB tries to take over peerA's connId to have peerA's responses
+    // routed to itself. The request must be dropped and the claim unchanged.
+    peerB.send(JSON.stringify({ kind: 'request', id: 'peerA:99', method: 'listSessions', args: [] }))
+    await new Promise((res) => setTimeout(res, 50))
+
+    expect(received).toHaveLength(1) // only peerA's original request went through
+    expect(warns).toHaveLength(1)
+    expect(registry.ownerOf('peerA')).toBe(ownerAfterA)
+    peerA.close()
+    peerB.close()
+  })
+
+  it('lets a reconnecting peer reuse its connId once the previous socket is gone', async () => {
+    const svc = fakeServiceTransport()
+    const received: unknown[] = []
+    svc.on('message', (m) => received.push(m))
+    const registry = createConnRegistry()
+    server.on('connection', (ws) => {
+      const detach = attachBridge({ peer: ws, service: svc as never, log: console, registry })
+      ws.on('close', () => detach())
+    })
+
+    const first = await connectPeer(port)
+    first.send(JSON.stringify({ kind: 'request', id: 'peerA:1', method: 'listAgents', args: [] }))
+    await new Promise((res) => setTimeout(res, 50))
+    first.close()
+    await new Promise((res) => setTimeout(res, 50))
+
+    const second = await connectPeer(port)
+    second.send(JSON.stringify({ kind: 'request', id: 'peerA:2', method: 'listAgents', args: [] }))
+    await new Promise((res) => setTimeout(res, 50))
+
+    expect(received).toHaveLength(2)
+    expect(registry.ownerOf('peerA')).toBeDefined()
+    second.close()
+  })
+
   it("removes a peer's claimed connIds when it disconnects", async () => {
     const svc = fakeServiceTransport()
     const registry = createConnRegistry()
