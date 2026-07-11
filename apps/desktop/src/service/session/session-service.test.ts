@@ -581,7 +581,7 @@ describe('SessionService', () => {
     expect(allowlists[0]).toEqual(PLAN_READONLY_ALLOWLIST)
 
     // Contrast: a goal-mode turn resolves the agent's own allowlist instead.
-    service.submitPrompt(sessionId, 'do it', undefined, undefined, { executionMode: 'goal' })
+    service.submitPrompt(sessionId, 'do it', undefined, undefined, { executionMode: 'direct' })
     await vi.waitFor(() => expect(allowlists).toHaveLength(2))
     expect(allowlists[1]).toEqual(allowlistForAgent(DEFAULT_AGENT_DEF))
     expect(allowlists[1]).not.toEqual(PLAN_READONLY_ALLOWLIST)

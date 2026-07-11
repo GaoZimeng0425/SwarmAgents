@@ -57,7 +57,7 @@ describe('ChatInput thinking stepper (TanStack Ranger)', () => {
   }
 
   it('ArrowRight commits the next level up', async () => {
-    render(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
+    render(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" />)
     const slider = await openStepper()
     // Active level is 'low' (index 1); ArrowRight → 'medium'.
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
@@ -65,7 +65,7 @@ describe('ChatInput thinking stepper (TanStack Ranger)', () => {
   })
 
   it('ArrowLeft commits the next level down', async () => {
-    render(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
+    render(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" />)
     const slider = await openStepper()
     // Active level is 'low' (index 1); ArrowLeft → 'off'.
     fireEvent.keyDown(slider, { key: 'ArrowLeft' })
@@ -78,7 +78,7 @@ describe('ChatInput thinking stepper (TanStack Ranger)', () => {
     const mod = await import('@/hooks/use-providers')
     vi.spyOn(mod, 'useProviders').mockReturnValue({ state: topState, ready: true, decryptFailed: false } as never)
 
-    render(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
+    render(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" />)
     const slider = await openStepper()
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
     // Already at 'high' (last index): the clamp keeps it there, no commit.

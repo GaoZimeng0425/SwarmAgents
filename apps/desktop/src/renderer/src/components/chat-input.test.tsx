@@ -8,7 +8,7 @@ import { ChatInput } from './chat-input'
 
 // Helper so tests don't repeat the minimum required props.
 function renderChatInput(props: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
-  return render(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" {...props} />)
+  return render(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" {...props} />)
 }
 
 // No configured providers → the model/thinking pickers stay hidden, keeping the
@@ -40,7 +40,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// The execution-mode toggle (goal/plan) was folded into the "＋" add-menu in the
+// The execution-mode toggle (direct/plan) was folded into the "＋" add-menu in the
 // footer, so its label is only mounted once that menu is open. Open it via the
 // menu trigger (the icon-only button carrying aria-haspopup="menu").
 function openAddMenu() {
@@ -51,11 +51,11 @@ function openAddMenu() {
 
 describe('ChatInput composer controls', () => {
   it('renders the working-directory chip plus the permission select, and the execution mode in the add-menu', async () => {
-    render(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
+    render(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" />)
     expect(screen.getByText('工作目录')).toBeInTheDocument()
     expect(screen.getByText('询问权限')).toBeInTheDocument()
     openAddMenu()
-    await waitFor(() => expect(screen.getByText('目标模式')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('直接执行')).toBeInTheDocument())
   })
 
   it('reflects the current cwd basename and a non-default mode in the controls', async () => {
@@ -69,7 +69,7 @@ describe('ChatInput composer controls', () => {
   it('opens the native folder dialog and reports the chosen path via onCwdChange', async () => {
     pickDirectory.mockResolvedValue('/picked/dir')
     const onCwdChange = vi.fn()
-    render(<ChatInput executionMode="goal" onCwdChange={onCwdChange} onSubmit={vi.fn()} permissionMode="ask" />)
+    render(<ChatInput executionMode="direct" onCwdChange={onCwdChange} onSubmit={vi.fn()} permissionMode="ask" />)
 
     // The working-directory control is now a menu; "选择目录…" is the only entry
     // that opens the native dialog.
@@ -83,7 +83,7 @@ describe('ChatInput composer controls', () => {
   it('does not call onCwdChange when the folder dialog is cancelled', async () => {
     pickDirectory.mockResolvedValue(null)
     const onCwdChange = vi.fn()
-    render(<ChatInput executionMode="goal" onCwdChange={onCwdChange} onSubmit={vi.fn()} permissionMode="ask" />)
+    render(<ChatInput executionMode="direct" onCwdChange={onCwdChange} onSubmit={vi.fn()} permissionMode="ask" />)
 
     fireEvent.click(screen.getByText('工作目录'))
     fireEvent.click(await screen.findByText('选择目录…'))
@@ -124,7 +124,7 @@ describe('ChatInput composer controls', () => {
     const { rerender } = render(
       <ChatInput
         agentType="ceo"
-        executionMode="goal"
+        executionMode="direct"
         onAgentTypeChange={vi.fn()}
         onSubmit={vi.fn()}
         permissionMode="ask"
@@ -136,7 +136,7 @@ describe('ChatInput composer controls', () => {
     rerender(
       <ChatInput
         agentType="training-head"
-        executionMode="goal"
+        executionMode="direct"
         onAgentTypeChange={vi.fn()}
         onSubmit={vi.fn()}
         permissionMode="ask"
@@ -145,7 +145,7 @@ describe('ChatInput composer controls', () => {
     )
     expect(screen.getAllByText('Agent 训练团队').length).toBeGreaterThan(0)
 
-    rerender(<ChatInput executionMode="goal" onSubmit={vi.fn()} permissionMode="ask" />)
+    rerender(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" />)
     expect(screen.queryByText('Agent 训练团队')).not.toBeInTheDocument()
   })
 })

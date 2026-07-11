@@ -37,7 +37,7 @@ export type EngineDeps = {
   history: AgentMessage[]
   budget: ResourceBudget
   cwd?: string
-  executionMode?: 'goal' | 'plan'
+  executionMode?: 'direct' | 'plan'
   permissionMode?: PermissionMode
   getPermissionMode?: () => PermissionMode
   tools: AgentTool[]

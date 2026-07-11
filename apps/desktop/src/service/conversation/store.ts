@@ -269,6 +269,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
     }
   }
 
+  // The execution mode VALUE 'goal' was renamed to 'direct'. Runs after the
+  // ALTER loop so legacy DBs have the column; a plain UPDATE is idempotent,
+  // so no version guard is needed.
+  db.exec(`UPDATE sessions SET execution_mode = 'direct' WHERE execution_mode = 'goal'`)
+
   // One-time backfill: give pre-existing rows a sort_order matching the old
   // recency order (newest = smallest). Rows already migrated keep their value.
   try {
@@ -488,7 +493,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         isSystem: (r.id as string) === SYSTEM_SESSION_ID,
         cwd: (r.cwd as string | null) ?? undefined,
         permissionMode: (r.permissionMode as 'ask' | 'full' | null) ?? undefined,
-        executionMode: (r.executionMode as 'goal' | 'plan' | null) ?? undefined,
+        executionMode: (r.executionMode as 'direct' | 'plan' | null) ?? undefined,
         agentType: (r.agentType as string | null) ?? undefined,
         tokensUsed: r.tokensUsed as number,
         usdCents: r.usdCents as number,
@@ -509,7 +514,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       return {
         cwd: (r.cwd as string | null) ?? undefined,
         permissionMode: (r.permissionMode as 'ask' | 'full' | null) ?? undefined,
-        executionMode: (r.executionMode as 'goal' | 'plan' | null) ?? undefined,
+        executionMode: (r.executionMode as 'direct' | 'plan' | null) ?? undefined,
         agentType: (r.agentType as string | null) ?? undefined,
       }
     },

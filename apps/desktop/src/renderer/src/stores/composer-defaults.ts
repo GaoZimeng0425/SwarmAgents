@@ -25,13 +25,23 @@ export const useComposerDefaults = create<ComposerDefaultsStore>()(
     (set) => ({
       cwd: undefined,
       permissionMode: 'ask',
-      executionMode: 'goal',
+      executionMode: 'direct',
       agentType: 'ceo',
       setCwd: (cwd) => set({ cwd }),
       setPermissionMode: (permissionMode) => set({ permissionMode }),
       setExecutionMode: (executionMode) => set({ executionMode }),
       setAgentType: (agentType) => set({ agentType }),
     }),
-    { name: 'swarm:composer-defaults' }
+    {
+      name: 'swarm:composer-defaults',
+      // v1: the execution mode value 'goal' was renamed to 'direct'; rewrite
+      // the persisted copy so old localStorage keeps rehydrating cleanly.
+      version: 1,
+      migrate: (persisted) => {
+        const s = persisted as { executionMode?: string } | undefined
+        if (s && (s.executionMode as string) === 'goal') s.executionMode = 'direct'
+        return persisted as ComposerDefaultsStore
+      },
+    }
   )
 )

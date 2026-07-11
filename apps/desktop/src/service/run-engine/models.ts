@@ -105,7 +105,7 @@ export function injectionSupportsImages(p: ProviderInjection): boolean {
 // Prepend task-scoped context to the agent's base system prompt so the model
 // honors the composer's choices: the working directory (relative paths/commands
 // land there) and, in plan mode, the read-only "produce a plan first" constraint.
-export function composeSystemPrompt(base: string, ctx: { cwd?: string; executionMode?: 'goal' | 'plan' }): string {
+export function composeSystemPrompt(base: string, ctx: { cwd?: string; executionMode?: 'direct' | 'plan' }): string {
   const prefix: string[] = []
   if (ctx.cwd) {
     prefix.push(

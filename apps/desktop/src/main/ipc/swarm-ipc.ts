@@ -208,7 +208,7 @@ export function wireSwarmIpc(args: {
       attachments: attachments?.length ?? 0,
       cwd: options?.cwd ?? null,
       permissionMode: options?.permissionMode ?? 'ask',
-      executionMode: options?.executionMode ?? 'goal',
+      executionMode: options?.executionMode ?? 'direct',
     })
     return { runId }
   }

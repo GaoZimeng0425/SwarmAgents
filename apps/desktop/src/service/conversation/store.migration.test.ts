@@ -207,6 +207,20 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     expect(jobs[0].prompt).toBe('summarize inbox')
   })
 
+  it("rewrites a persisted execution_mode of 'goal' to 'direct'", () => {
+    const store1 = createConversationStore(dbPath)
+    store1.createSession('ses-em', { id: 'anthropic', apiStyle: 'anthropic', model: 'm', apiKey: 'k' } as never)
+    store1.close()
+    const raw = new Database(dbPath)
+    raw.prepare(`UPDATE sessions SET execution_mode = 'goal' WHERE id = 'ses-em'`).run()
+    raw.close()
+
+    const store2 = createConversationStore(dbPath)
+    const settings = store2.getSessionSettings('ses-em')
+    store2.close()
+    expect(settings?.executionMode).toBe('direct')
+  })
+
   it('migration v3 renames the run.created goal key to prompt', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)

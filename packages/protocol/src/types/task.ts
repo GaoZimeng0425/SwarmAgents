@@ -57,10 +57,10 @@ export const emptyUsed = (): ConsumedResources => ({
 // Per-task execution controls chosen in the composer. `permissionMode` 'full'
 // bypasses every permission prompt; 'ask' keeps the default risk gate.
 // `executionMode` 'plan' restricts the agent to read-only tools and asks it to
-// produce a plan first; 'goal' executes autonomously.
+// produce a plan first; 'direct' executes autonomously.
 export const PermissionModeSchema = z.enum(['ask', 'full'])
 export type PermissionMode = z.infer<typeof PermissionModeSchema>
-export const ExecutionModeSchema = z.enum(['goal', 'plan'])
+export const ExecutionModeSchema = z.enum(['direct', 'plan'])
 export type ExecutionMode = z.infer<typeof ExecutionModeSchema>
 
 export const planStatusValues = ['pending', 'in_progress', 'completed'] as const

@@ -70,7 +70,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const session = sessions.find((s) => s.id === selectedSessionId)
   const cwd = session?.cwd
   const permissionMode = session?.permissionMode ?? 'ask'
-  const executionMode = session?.executionMode ?? 'goal'
+  const executionMode = session?.executionMode ?? 'direct'
   const agentType = session?.agentType ?? 'ceo'
   const teamOptions = useTeamOptions()
   const persistSettings = (patch: Partial<SessionSettings>): void => {

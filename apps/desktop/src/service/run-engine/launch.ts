@@ -42,7 +42,7 @@ export type RunSpec = {
    *  (e.g. allowlistForAgent); an empty list resolves NO tools. */
   tools?: string[]
   cwd?: string
-  executionMode?: 'goal' | 'plan'
+  executionMode?: 'direct' | 'plan'
   permissionMode?: PermissionMode
   getPermissionMode?: () => PermissionMode
   saveSnapshot?: (messages: AgentMessage[], used: ConsumedResources, contextWindow?: number) => void

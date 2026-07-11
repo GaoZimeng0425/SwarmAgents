@@ -97,7 +97,7 @@ const PERMISSION_LABELS: Record<PermissionMode, string> = {
 }
 
 const EXECUTION_LABELS: Record<ExecutionMode, string> = {
-  goal: '目标模式',
+  direct: '直接执行',
   plan: '计划模式',
 }
 
@@ -164,7 +164,7 @@ function AttachmentThumbnails({ onOpenFile }: { onOpenFile: (file: ViewerFile) =
 }
 
 // The "＋" menu in the footer: attach files / reference a path, plus the
-// goal/plan execution-mode toggle. Anchored to the composer box (not the trigger)
+// direct/plan execution-mode toggle. Anchored to the composer box (not the trigger)
 // and opened with side="top", so the whole panel floats entirely above the input
 // box instead of overlapping it. Must be a child of PromptInput (attachments context).
 function ComposerAddMenu({
@@ -204,13 +204,13 @@ function ComposerAddMenu({
           选择文件夹
         </PromptInputActionMenuItem>
         <PromptInputActionMenuSeparator />
-        <PromptInputActionMenuItem onClick={() => onExecutionModeChange?.('goal')}>
+        <PromptInputActionMenuItem onClick={() => onExecutionModeChange?.('direct')}>
           <Target className="size-4" />
           <span className="flex flex-col">
-            <span>{EXECUTION_LABELS.goal}</span>
+            <span>{EXECUTION_LABELS.direct}</span>
             <span className="text-muted-foreground text-xs">持续努力实现设定的目标</span>
           </span>
-          {executionMode === 'goal' && <Check className="ml-auto size-4" />}
+          {executionMode === 'direct' && <Check className="ml-auto size-4" />}
         </PromptInputActionMenuItem>
         <PromptInputActionMenuItem onClick={() => onExecutionModeChange?.('plan')}>
           <ListChecks className="size-4" />
@@ -293,7 +293,7 @@ export function ChatInput({
   onCwdChange,
   permissionMode = 'ask',
   onPermissionModeChange,
-  executionMode = 'goal',
+  executionMode = 'direct',
   onExecutionModeChange,
   teamOptions,
   agentType,

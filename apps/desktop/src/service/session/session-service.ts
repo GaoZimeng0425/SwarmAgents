@@ -624,7 +624,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         agentDefId: agentDef.id,
         cwd: options?.cwd ?? null,
         permissionMode: options?.permissionMode ?? 'ask',
-        executionMode: options?.executionMode ?? 'goal',
+        executionMode: options?.executionMode ?? 'direct',
       })
 
       // launchRun never rejects; on settlement advance the FIFO + notify caller.
