@@ -26,8 +26,10 @@ import { CalendarClock, ChevronRight, Folder, Loader2, Pencil, Pin, PinOff, Plus
 import { toast } from 'sonner'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useNow } from '@/hooks/use-now'
 import { useRuns } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
+import { formatRelativeTime } from '@/lib/format-time'
 import { formatTokens } from '@/lib/format-usage'
 import { type DirectoryGroup, flattenForReorder, groupSessionsByDirectory, UNGROUPED } from '@/lib/session-grouping'
 import { pickNextSession } from '@/lib/session-nav'
@@ -110,6 +112,7 @@ export function SessionList(): React.JSX.Element {
   const reorder = useSessionsStore((s) => s.reorder)
   const navigate = useNavigate()
   const tasks = useRuns()
+  const now = useNow(30_000)
   const openSearch = useSearchDialog((s) => s.openSearch)
 
   const mode = useSessionView((s) => s.mode)
@@ -311,16 +314,18 @@ export function SessionList(): React.JSX.Element {
             <button
               aria-current={isSelected ? 'true' : undefined}
               className={cn(
-                'group flex w-full min-w-0 flex-col gap-1 rounded-[10px] border border-transparent px-2.5 py-2 text-left transition-colors',
+                'group relative flex w-full min-w-0 flex-col gap-1 overflow-hidden rounded-[10px] border border-transparent px-2.5 py-2 text-left transition-colors',
                 isSelected ? 'border-sidebar-border bg-sidebar-accent' : 'hover:bg-sidebar-accent/50'
               )}
               onClick={() => onSelect(s.id)}
               title={title}
               type="button"
             >
-              {/* Line 1: status/pin/unread marker + title (+ cost when idle). */}
+              {/* Line 1: status/pin/unread marker + title (+ relative time when idle). */}
               <div className="flex min-w-0 items-center gap-2">
-                {status === 'running' && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+                {status === 'running' && (
+                  <Loader2 aria-label="Running" className="size-3 shrink-0 animate-spin text-primary" />
+                )}
                 {status === 'awaiting' && (
                   <span
                     aria-label="Awaiting input"
@@ -340,9 +345,14 @@ export function SessionList(): React.JSX.Element {
                 >
                   {title}
                 </span>
-                {!statusText && usageLabel && (
-                  <span className="shrink-0 text-[11px] text-muted-foreground/50 tabular-nums" title={usageTitle}>
-                    {usageLabel}
+                {/* Relative time of last activity; fades out on hover so the
+                    action overlay can take its place. */}
+                {!statusText && (
+                  <span
+                    className="shrink-0 text-[11px] text-muted-foreground/50 tabular-nums opacity-100 transition-opacity duration-150 group-hover:opacity-0"
+                    title={new Date(s.lastActiveAt).toLocaleString()}
+                  >
+                    {formatRelativeTime(s.lastActiveAt, now)}
                   </span>
                 )}
               </div>
@@ -358,6 +368,37 @@ export function SessionList(): React.JSX.Element {
                   )}
                 </div>
               )}
+
+              {/* Hover action overlay: pin (left) + delete (right). Each side
+                  fades in from its edge over a matching gradient so it reads as
+                  a single surface floating above the row. */}
+              <div className="pointer-events-none absolute inset-0 flex items-stretch justify-between opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                <button
+                  className={cn(
+                    'pointer-events-auto flex w-14 items-center justify-start bg-[linear-gradient(to_right,var(--sidebar-accent)_0%,var(--sidebar-accent)_30%,transparent_100%)] pl-2.5 text-muted-foreground transition-colors hover:text-primary',
+                    s.pinned && 'text-primary'
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void togglePin(s)
+                  }}
+                  title={s.pinned ? 'Unpin' : 'Pin to top'}
+                  type="button"
+                >
+                  {s.pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5 rotate-45" />}
+                </button>
+                <button
+                  className="pointer-events-auto flex w-9 items-center justify-end bg-[linear-gradient(to_left,var(--sidebar-accent)_0%,var(--sidebar-accent)_55%,transparent_100%)] pr-2.5 text-muted-foreground transition-colors hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setPendingDelete(s)
+                  }}
+                  title="Delete"
+                  type="button"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
             </button>
           }
         />
