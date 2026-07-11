@@ -3,7 +3,7 @@
 // End-to-end guard for the three-level delegation machinery (CEO → team Leaders
 // → leaf engineers) over the REAL SessionService + launch + engine and a real
 // store. Every level runs single-shot: no maxVerifyRounds, no acceptance
-// criteria, no verification audit. The tree shape lives in run_events.parentRunId.
+// criteria, no verification audit. The tree shape lives in run_events.parentMessageId.
 //
 // The delegation is driven from the test through each run's captured
 // ToolRunContext (ctx.spawnChild / ctx.setDelegationPlan) — the same seam the
@@ -73,8 +73,8 @@ describe('CEO → Leader → subagent pipeline (single-shot, agent-driven)', () 
     })
     const { sessionId } = service.createSession(fakeProvider)
 
-    // Level 1: CEO. runWork returns { runId, status, summary }; a spawned child
-    // returns DelegateResult & { runId } (the tool-facing shape).
+    // Level 1: CEO. runWork returns { messageId, status, summary }; a spawned child
+    // returns DelegateResult & { messageId } (the tool-facing shape).
     const ceo = await service.runWork(sessionId, 'ship it', { agentType: 'ceo' })
     const ceoCtx = ctxs[0]
 
@@ -95,29 +95,31 @@ describe('CEO → Leader → subagent pipeline (single-shot, agent-driven)', () 
     expect(ceo.status).toBe('completed')
     for (const r of [leadA, leadB, leafA, leafB]) expect(r.status).toBe('completed')
 
-    const allEvents = store.getRunEvents(sessionId)
-    const parentOf = (runId: string): string | null => allEvents.find((r) => r.runId === runId)?.parentRunId ?? null
-    const isTerminal = (runId: string): boolean =>
+    const allEvents = store.getMessageEvents(sessionId)
+    const parentOf = (messageId: string): string | null =>
+      allEvents.find((r) => r.messageId === messageId)?.parentMessageId ?? null
+    const isTerminal = (messageId: string): boolean =>
       allEvents.some(
         (r) =>
-          r.runId === runId &&
-          ((r.event as { kind?: string }).kind === 'run.complete' ||
-            (r.event as { kind?: string }).kind === 'run.error')
+          r.messageId === messageId &&
+          ((r.event as { kind?: string }).kind === 'message.complete' ||
+            (r.event as { kind?: string }).kind === 'message.error')
       )
 
     // Tree shape: Leaders parented by the CEO, leaves parented by their Leader.
-    expect(parentOf(leadA.runId)).toBe(ceo.runId)
-    expect(parentOf(leadB.runId)).toBe(ceo.runId)
-    expect(parentOf(leafA.runId)).toBe(leadA.runId)
-    expect(parentOf(leafB.runId)).toBe(leadB.runId)
+    expect(parentOf(leadA.messageId)).toBe(ceo.messageId)
+    expect(parentOf(leadB.messageId)).toBe(ceo.messageId)
+    expect(parentOf(leafA.messageId)).toBe(leadA.messageId)
+    expect(parentOf(leafB.messageId)).toBe(leadB.messageId)
 
     // Single-shot — every run reaches a terminal event, no verify stall.
-    for (const id of [ceo.runId, leadA.runId, leadB.runId, leafA.runId, leafB.runId]) expect(isTerminal(id)).toBe(true)
+    for (const id of [ceo.messageId, leadA.messageId, leadB.messageId, leafA.messageId, leafB.messageId])
+      expect(isTerminal(id)).toBe(true)
 
     // Leaders that declared a delegation plan emit it on the run stream.
     for (const lead of [leadA, leadB]) {
       const planEvt = allEvents.find(
-        (r) => r.runId === lead.runId && (r.event as { kind?: string }).kind === 'run.delegation_plan'
+        (r) => r.messageId === lead.messageId && (r.event as { kind?: string }).kind === 'message.delegation_plan'
       )
       expect((planEvt?.event as { plan?: unknown[] } | undefined)?.plan ?? []).toHaveLength(1)
     }

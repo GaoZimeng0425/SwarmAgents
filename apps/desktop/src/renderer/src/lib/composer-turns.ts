@@ -1,4 +1,4 @@
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { sortBy } from 'es-toolkit'
 
 export type ComposerTurns = {
@@ -7,16 +7,16 @@ export type ComposerTurns = {
    * awaiting_user turn, or — when nothing is running yet — the earliest pending
    * turn that is about to be dispatched.
    */
-  activeTask: RunRecord | undefined
+  activeTask: MessageRecord | undefined
   /** Turns genuinely waiting behind the active turn, FIFO (oldest first). */
-  queuedTasks: RunRecord[]
+  queuedTasks: MessageRecord[]
   /**
    * Tasks belonging in the conversation transcript: every session task except
    * the queued ones, which are staged as pending cards in the composer and not
    * yet part of the conversation. Keeps a message submitted mid-run out of the
    * message list (it shows only in the pending list until it starts).
    */
-  transcriptTasks: RunRecord[]
+  transcriptTasks: MessageRecord[]
 }
 
 /**
@@ -33,7 +33,7 @@ export type ComposerTurns = {
  * sub-agent children belong in the transcript, not the composer queue.
  */
 export function classifyComposerTurns(
-  sessionTasks: RunRecord[],
+  sessionTasks: MessageRecord[],
   // Mirrors SessionSummary['status']. A non-active (interrupted/ended) session
   // can't resume any turn, so its pending turns are stale zombies — render them
   // in the transcript instead of as phantom queued cards.
@@ -42,11 +42,11 @@ export function classifyComposerTurns(
   if (sessionStatus !== 'active') {
     return { activeTask: undefined, queuedTasks: [], transcriptTasks: sessionTasks }
   }
-  const topLevel = sessionTasks.filter((t) => !t.parentRunId)
+  const topLevel = sessionTasks.filter((t) => !t.parentMessageId)
   const running = topLevel.find((t) => t.status === 'running' || t.status === 'awaiting_user')
   const pending = sortBy(
     topLevel.filter((t) => t.status === 'pending'),
-    ['startedAt']
+    ['createdAt']
   )
   const startingTask = running ? undefined : pending[0]
   const queuedTasks = startingTask ? pending.slice(1) : pending

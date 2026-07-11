@@ -3,21 +3,27 @@
 import { emptyUsed } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
-import { createRunEmit } from '../run-engine/emit'
-import type { launchRun } from '../run-engine/launch'
+import { createMessageEmit } from '../message-engine/emit'
+import type { launchMessage } from '../message-engine/launch'
 import { createAnalyzeEmail } from './analyze'
 
 const fakeProvider = { id: 'p', model: 'm', apiKey: 'k' } as unknown as import('@swarm/protocol').ProviderInjection
 
-// A fake launchRun that drives the real emit adapter: it feeds run.* wire events
-// through createRunEmit (the same path the engine uses), so the analyze module's
+// A fake launchMessage that drives the real emit adapter: it feeds message.* wire events
+// through createMessageEmit (the same path the engine uses), so the analyze module's
 // broadcast port is exercised end-to-end.
-function fakeLaunch(events: import('../run-engine/emit').RunEmitInput[]): typeof launchRun {
+function fakeLaunch(events: import('../message-engine/emit').MessageEmitInput[]): typeof launchMessage {
   return (async (spec, ports) => {
-    const emit = createRunEmit(ports.emit, { sessionId: spec.sessionId, runId: spec.runId ?? 'r' })
+    const emit = createMessageEmit(ports.emit, { sessionId: spec.sessionId, messageId: spec.messageId ?? 'r' })
     for (const e of events) emit(e)
-    return { runId: spec.runId ?? 'r', status: 'completed' as const, summary: 'ok', messages: [], used: emptyUsed() }
-  }) as unknown as typeof launchRun
+    return {
+      messageId: spec.messageId ?? 'r',
+      status: 'completed' as const,
+      summary: 'ok',
+      messages: [],
+      used: emptyUsed(),
+    }
+  }) as unknown as typeof launchMessage
 }
 
 type Deps = Parameters<typeof createAnalyzeEmail>[0]
@@ -31,9 +37,9 @@ describe('analyzeEmail', () => {
       toolRegistry: {} as Deps['toolRegistry'],
       getBudgetConfig: () => ({}) as import('@swarm/protocol').BudgetConfig,
       launch: fakeLaunch([
-        { kind: 'run.progress', event: { kind: 'llm.message', role: 'assistant', content: '## 摘要\n', ts: 1 } },
-        { kind: 'run.progress', event: { kind: 'llm.message', role: 'assistant', content: '测试', ts: 2 } },
-        { kind: 'run.complete', summary: '## 摘要\n测试' },
+        { kind: 'message.progress', event: { kind: 'llm.message', role: 'assistant', content: '## 摘要\n', ts: 1 } },
+        { kind: 'message.progress', event: { kind: 'llm.message', role: 'assistant', content: '测试', ts: 2 } },
+        { kind: 'message.complete', summary: '## 摘要\n测试' },
       ]),
     })
 
@@ -55,7 +61,9 @@ describe('analyzeEmail', () => {
       agentStore: { get: () => undefined } as Deps['agentStore'],
       toolRegistry: {} as Deps['toolRegistry'],
       getBudgetConfig: () => ({}) as import('@swarm/protocol').BudgetConfig,
-      launch: fakeLaunch([{ kind: 'run.error', error: { code: 'agent_exception', message: 'boom', tier: 'fatal' } }]),
+      launch: fakeLaunch([
+        { kind: 'message.error', error: { code: 'agent_exception', message: 'boom', tier: 'fatal' } },
+      ]),
     })
 
     analyze({ messageId: 'm2', subject: 's', from: 'a@b', content: 'body', provider: fakeProvider })

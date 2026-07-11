@@ -68,7 +68,7 @@ function installAgent(reply = 'done.'): void {
 // ---------------------------------------------------------------------------
 // In-memory fake ConversationStore — only the ~15 methods the service touches.
 // ---------------------------------------------------------------------------
-type Row = { runId: string; parentRunId: string | null; seq: number; ts: number; event: UIEvent }
+type Row = { messageId: string; parentMessageId: string | null; seq: number; ts: number; event: UIEvent }
 type FakeSession = {
   id: string
   providerSnapshot: ProviderInjection
@@ -141,17 +141,17 @@ function createFakeStore() {
       if (s) s.agentSnapshot = messages
     },
     getAgentSnapshot: (id: string) => sessions.get(id)?.agentSnapshot ?? [],
-    appendRunEvent: (sessionId: string, runId: string, parentRunId: string | null, event: UIEvent) => {
+    appendMessageEvent: (sessionId: string, messageId: string, parentMessageId: string | null, event: UIEvent) => {
       // run_events has NO foreign key on session_id: the real store INSERTS
       // unconditionally, even for a deleted session (mirrors store.ts). The
       // service — not the store — is what guards against post-delete writes.
       const list = rows.get(sessionId) ?? []
       rows.set(sessionId, list)
       const e = event as unknown as { seq: number; ts: number }
-      list.push({ runId, parentRunId, seq: e.seq, ts: e.ts, event })
+      list.push({ messageId, parentMessageId, seq: e.seq, ts: e.ts, event })
     },
-    getRunEvents: (sessionId: string) => rows.get(sessionId) ?? [],
-    getTerminalRunStatuses: () => [],
+    getMessageEvents: (sessionId: string) => rows.get(sessionId) ?? [],
+    getTerminalMessageStatuses: () => [],
     getUsageStats: () => ({}) as never,
   }
 }
@@ -221,23 +221,23 @@ describe('SessionService', () => {
   it('1. submitPrompt happy path: ordered run.* events, store parity, buffer + titling', async () => {
     const { service, store, calls } = makeService()
     const { sessionId } = service.createSession(provider)
-    const { runId } = service.submitPrompt(sessionId, 'hello world', undefined, undefined)
-    await vi.waitFor(() => expect(runKinds(calls)).toContain('run.complete'))
+    const { messageId } = service.submitPrompt(sessionId, 'hello world', undefined, undefined)
+    await vi.waitFor(() => expect(runKinds(calls)).toContain('message.complete'))
 
     const kinds = runKinds(calls)
-    expect(kinds[0]).toBe('run.created')
-    expect(kinds[1]).toBe('run.progress')
-    const userEvt = calls.find((c) => c.event === 'run.progress')?.data as {
+    expect(kinds[0]).toBe('message.created')
+    expect(kinds[1]).toBe('message.progress')
+    const userEvt = calls.find((c) => c.event === 'message.progress')?.data as {
       event: { kind: string; role: string; content: string }
     }
     expect(userEvt.event).toMatchObject({ kind: 'llm.message', role: 'user', content: 'hello world' })
-    expect(kinds[2]).toBe('run.dispatched')
-    expect(kinds[kinds.length - 1]).toBe('run.complete')
+    expect(kinds[2]).toBe('message.dispatched')
+    expect(kinds[kinds.length - 1]).toBe('message.complete')
 
     // Store received the exact same run.* rows the broadcaster saw.
-    const storeRunEvents = store.getRunEvents(sessionId).map((r) => r.event)
-    const broadcastRunEvents = calls.filter((c) => c.event.startsWith('run.')).map((c) => c.data)
-    expect(storeRunEvents).toEqual(broadcastRunEvents)
+    const storeMessageEvents = store.getMessageEvents(sessionId).map((r) => r.event)
+    const broadcastMessageEvents = calls.filter((c) => c.event.startsWith('run.')).map((c) => c.data)
+    expect(storeMessageEvents).toEqual(broadcastMessageEvents)
 
     // Buffer updated via saveSnapshot; prompt NOT double-seeded (one user turn).
     const snap = store.getAgentSnapshot(sessionId)
@@ -246,60 +246,64 @@ describe('SessionService', () => {
     // First goal titles the session + broadcasts session.updated.
     expect(store.getSession(sessionId)?.title).toBe('hello world')
     expect(calls.some((c) => c.event === 'session.updated')).toBe(true)
-    expect(runId).toBeTruthy()
+    expect(messageId).toBeTruthy()
   })
 
   it('2. FIFO: the second turn dispatches only after the first reaches a terminal', async () => {
     const { service, calls } = makeService()
     const { sessionId } = service.createSession(provider)
-    const a = service.submitPrompt(sessionId, 'A').runId
-    const b = service.submitPrompt(sessionId, 'B').runId
-    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'run.complete')).toHaveLength(2))
+    const a = service.submitPrompt(sessionId, 'A').messageId
+    const b = service.submitPrompt(sessionId, 'B').messageId
+    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'message.complete')).toHaveLength(2))
 
-    const seqOf = (runId: string, kind: string): number => {
+    const seqOf = (messageId: string, kind: string): number => {
       const c = calls.find(
         (x) =>
           x.event.startsWith('run.') &&
-          (x.data as { runId: string }).runId === runId &&
+          (x.data as { messageId: string }).messageId === messageId &&
           (x.data as { kind: string }).kind === kind
       )
       return (c!.data as { seq: number }).seq
     }
-    expect(seqOf(b, 'run.dispatched')).toBeGreaterThan(seqOf(a, 'run.complete'))
+    expect(seqOf(b, 'message.dispatched')).toBeGreaterThan(seqOf(a, 'message.complete'))
   })
 
-  it('3. cancelRun on the QUEUED second run: it cancels without dispatching; the first is unaffected', async () => {
+  it('3. cancelMessage on the QUEUED second run: it cancels without dispatching; the first is unaffected', async () => {
     holdPrompt = true
     const { service, calls } = makeService()
     const { sessionId } = service.createSession(provider)
-    const a = service.submitPrompt(sessionId, 'A').runId
-    const b = service.submitPrompt(sessionId, 'B').runId
-    await vi.waitFor(() => expect(runKinds(calls)).toContain('run.dispatched')) // A dispatched
+    const a = service.submitPrompt(sessionId, 'A').messageId
+    const b = service.submitPrompt(sessionId, 'B').messageId
+    await vi.waitFor(() => expect(runKinds(calls)).toContain('message.dispatched')) // A dispatched
 
-    service.cancelRun(sessionId, b)
+    service.cancelMessage(sessionId, b)
     await vi.waitFor(() => expect(service.terminalRegistry.getStatus(b)).toBe('cancelled'))
 
     // B never dispatched; A still running (no terminal yet).
-    const bDispatched = calls.some((c) => c.event === 'run.dispatched' && (c.data as { runId: string }).runId === b)
+    const bDispatched = calls.some(
+      (c) => c.event === 'message.dispatched' && (c.data as { messageId: string }).messageId === b
+    )
     expect(bDispatched).toBe(false)
     expect(service.terminalRegistry.getStatus(a)).toBeUndefined()
     releaseAllHeld()
   })
 
-  it('4. promoteQueuedRun: A running (held) + B queued → A cancels, B dispatches next', async () => {
+  it('4. promoteQueuedMessage: A running (held) + B queued → A cancels, B dispatches next', async () => {
     holdPrompt = true
     const { service, calls } = makeService()
     const { sessionId } = service.createSession(provider)
-    const a = service.submitPrompt(sessionId, 'A').runId
-    const b = service.submitPrompt(sessionId, 'B').runId
-    await vi.waitFor(() => expect(runKinds(calls)).toContain('run.dispatched')) // A dispatched
+    const a = service.submitPrompt(sessionId, 'A').messageId
+    const b = service.submitPrompt(sessionId, 'B').messageId
+    await vi.waitFor(() => expect(runKinds(calls)).toContain('message.dispatched')) // A dispatched
 
-    service.promoteQueuedRun(sessionId, b)
+    service.promoteQueuedMessage(sessionId, b)
     holdPrompt = false // let the promoted B complete
     await vi.waitFor(() => expect(service.terminalRegistry.getStatus(a)).toBe('cancelled'))
     await vi.waitFor(() => expect(service.terminalRegistry.getStatus(b)).toBe('completed'))
 
-    const bDispatched = calls.find((c) => c.event === 'run.dispatched' && (c.data as { runId: string }).runId === b)
+    const bDispatched = calls.find(
+      (c) => c.event === 'message.dispatched' && (c.data as { messageId: string }).messageId === b
+    )
     expect(bDispatched).toBeDefined()
   })
 
@@ -307,8 +311,8 @@ describe('SessionService', () => {
     holdPrompt = true
     const { service, calls } = makeService()
     const { sessionId } = service.createSession(provider)
-    const turn = service.submitPrompt(sessionId, 'held turn').runId
-    await vi.waitFor(() => expect(runKinds(calls)).toContain('run.dispatched')) // turn dispatched
+    const turn = service.submitPrompt(sessionId, 'held turn').messageId
+    await vi.waitFor(() => expect(runKinds(calls)).toContain('message.dispatched')) // turn dispatched
 
     holdPrompt = false
     const r = await service.runWork(sessionId, 'do work')
@@ -320,11 +324,11 @@ describe('SessionService', () => {
     releaseAllHeld()
   })
 
-  it('6. delegate via ctx.spawnChild: child gets parentRunId, summary + status flow back, unknown agentType → default', async () => {
+  it('6. delegate via ctx.spawnChild: child gets parentMessageId, summary + status flow back, unknown agentType → default', async () => {
     holdPrompt = true
     const { service, store, ctxs } = makeService()
     const { sessionId } = service.createSession(provider)
-    const parent = service.submitPrompt(sessionId, 'parent').runId
+    const parent = service.submitPrompt(sessionId, 'parent').messageId
     await vi.waitFor(() => expect(ctxs.length).toBeGreaterThan(0))
     const parentCtx = ctxs[0]
 
@@ -333,10 +337,10 @@ describe('SessionService', () => {
     expect(child.summary.length).toBeGreaterThan(0)
     expect(child.status).toBe('completed')
 
-    const childRows = store.getRunEvents(sessionId).filter((r) => r.runId === child.runId)
+    const childRows = store.getMessageEvents(sessionId).filter((r) => r.messageId === child.messageId)
     expect(childRows.length).toBeGreaterThan(0)
-    expect(childRows.every((r) => r.parentRunId === parent)).toBe(true)
-    const created = childRows.find((r) => (r.event as { kind: string }).kind === 'run.created')
+    expect(childRows.every((r) => r.parentMessageId === parent)).toBe(true)
+    const created = childRows.find((r) => (r.event as { kind: string }).kind === 'message.created')
     expect((created!.event as { agentDefId?: string }).agentDefId).toBe(DEFAULT_AGENT_DEF.id)
     releaseAllHeld()
   })
@@ -354,7 +358,7 @@ describe('SessionService', () => {
     const childCtx = ctxs[1]
     expect(childCtx.createTask).toBeDefined()
     const res = await childCtx.createTask!('nested work')
-    expect(res.runId).toBeTruthy()
+    expect(res.messageId).toBeTruthy()
     expect(res.summary.length).toBeGreaterThan(0)
     releaseAllHeld()
   })
@@ -364,10 +368,10 @@ describe('SessionService', () => {
     // Seed two interrupted sessions with an un-terminated run each.
     store.createSession('s-run', provider)
     store.updateSessionStatus('s-run', 'interrupted')
-    store.appendRunEvent('s-run', 'r-new', null, {
-      kind: 'run.created',
+    store.appendMessageEvent('s-run', 'r-new', null, {
+      kind: 'message.created',
       sessionId: 's-run',
-      runId: 'r-new',
+      messageId: 'r-new',
       prompt: 'g',
       seq: 1,
       ts: 1,
@@ -375,7 +379,7 @@ describe('SessionService', () => {
 
     store.createSession('s-legacy', provider)
     store.updateSessionStatus('s-legacy', 'interrupted')
-    store.appendRunEvent('s-legacy', 'r-old', null, {
+    store.appendMessageEvent('s-legacy', 'r-old', null, {
       kind: 'task.created',
       sessionId: 's-legacy',
       taskId: 'r-old',
@@ -390,7 +394,7 @@ describe('SessionService', () => {
       ['s-run', 'r-new'],
       ['s-legacy', 'r-old'],
     ] as const) {
-      const closeout = store.getRunEvents(sid).find((r) => (r.event as { kind: string }).kind === 'run.error')
+      const closeout = store.getMessageEvents(sid).find((r) => (r.event as { kind: string }).kind === 'message.error')
       expect(closeout).toBeDefined()
       expect((closeout!.event as { error: { code: string } }).error.code).toBe('cancelled')
       expect(service.terminalRegistry.getStatus(rid)).toBe('cancelled')
@@ -402,24 +406,24 @@ describe('SessionService', () => {
     const { registry } = stubRegistry('risky')
     const { service, store, calls } = makeService({ toolRegistry: registry })
     const { sessionId } = service.createSession(provider)
-    const { runId } = service.submitPrompt(sessionId, 'use a tool')
+    const { messageId } = service.submitPrompt(sessionId, 'use a tool')
 
-    await vi.waitFor(() => expect(calls.some((c) => c.event === 'run.permission_request')).toBe(true))
-    const req = calls.find((c) => c.event === 'run.permission_request')!.data as {
+    await vi.waitFor(() => expect(calls.some((c) => c.event === 'message.permission_request')).toBe(true))
+    const req = calls.find((c) => c.event === 'message.permission_request')!.data as {
       actionId: string
-      runId: string
+      messageId: string
       taskId?: string
     }
-    expect(req.runId).toBe(runId)
+    expect(req.messageId).toBe(messageId)
     // The run.* vocabulary: no top-level taskId leaks onto the wire.
     expect(req.taskId).toBeUndefined()
     const persisted = store
-      .getRunEvents(sessionId)
-      .find((r) => (r.event as { kind: string }).kind === 'run.permission_request')
-    expect(persisted?.runId).toBe(runId)
+      .getMessageEvents(sessionId)
+      .find((r) => (r.event as { kind: string }).kind === 'message.permission_request')
+    expect(persisted?.messageId).toBe(messageId)
 
     service.resolvePermission(sessionId, req.actionId, 'grant')
-    await vi.waitFor(() => expect(service.terminalRegistry.getStatus(runId)).toBe('completed'))
+    await vi.waitFor(() => expect(service.terminalRegistry.getStatus(messageId)).toBe('completed'))
   })
 
   it('9a. a WORK run inherits the session full permission mode: risky tool bypasses the prompt', async () => {
@@ -439,7 +443,7 @@ describe('SessionService', () => {
 
     const r = await service.runWork(sessionId, 'do risky work')
     expect(r.status).toBe('completed')
-    expect(calls.some((c) => c.event === 'run.permission_request')).toBe(false)
+    expect(calls.some((c) => c.event === 'message.permission_request')).toBe(false)
   })
 
   it('9b. a delegated CHILD run inherits the session full permission mode: no prompt', async () => {
@@ -471,7 +475,7 @@ describe('SessionService', () => {
     holdPrompt = false
     const child = await ctxs[0].spawnChild('risky child work')
     expect(child.status).toBe('completed')
-    expect(calls.some((c) => c.event === 'run.permission_request')).toBe(false)
+    expect(calls.some((c) => c.event === 'message.permission_request')).toBe(false)
     releaseAllHeld()
   })
 
@@ -479,9 +483,9 @@ describe('SessionService', () => {
     holdPrompt = true
     const { service, store, calls } = makeService()
     const { sessionId } = service.createSession(provider)
-    const a = service.submitPrompt(sessionId, 'A').runId
-    const b = service.submitPrompt(sessionId, 'B').runId
-    await vi.waitFor(() => expect(runKinds(calls)).toContain('run.dispatched')) // A dispatched, B queued
+    const a = service.submitPrompt(sessionId, 'A').messageId
+    const b = service.submitPrompt(sessionId, 'B').messageId
+    await vi.waitFor(() => expect(runKinds(calls)).toContain('message.dispatched')) // A dispatched, B queued
 
     service.deleteSession(sessionId)
     await vi.waitFor(() => {
@@ -491,12 +495,12 @@ describe('SessionService', () => {
     // Rows dropped with the session (the SERVICE guard prevents post-delete
     // appends now — the fake store itself inserts unconditionally, mirroring
     // the real no-FK DB).
-    expect(store.getRunEvents(sessionId)).toEqual([])
+    expect(store.getMessageEvents(sessionId)).toEqual([])
     // The registry/broadcast path is unaffected by the persistence skip: both
     // cancelled terminals still went out over the wire.
     const errorRunIds = calls
-      .filter((c) => c.event.startsWith('run.') && (c.data as { kind: string }).kind === 'run.error')
-      .map((c) => (c.data as { runId: string }).runId)
+      .filter((c) => c.event.startsWith('run.') && (c.data as { kind: string }).kind === 'message.error')
+      .map((c) => (c.data as { messageId: string }).messageId)
     expect(errorRunIds).toEqual(expect.arrayContaining([a, b]))
     releaseAllHeld()
   })
@@ -549,12 +553,12 @@ describe('SessionService', () => {
     const { sessionId: sB } = service.createSession(provider)
     service.submitPrompt(sA, 'A')
     service.submitPrompt(sB, 'B')
-    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(1))
+    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'message.dispatched')).toHaveLength(1))
 
     // Exactly one dispatched under the cap; the other is parked on the pool.
-    expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(1)
+    expect(runKinds(calls).filter((k) => k === 'message.dispatched')).toHaveLength(1)
     releaseAllHeld()
-    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'run.dispatched')).toHaveLength(2))
+    await vi.waitFor(() => expect(runKinds(calls).filter((k) => k === 'message.dispatched')).toHaveLength(2))
   })
 
   it('15. plan mode resolves EXACTLY the read-only allowlist; goal mode resolves the agent allowlist', async () => {

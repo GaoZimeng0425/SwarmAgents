@@ -148,10 +148,10 @@ export const TaskEventSchema = z.discriminatedUnion('kind', [
 ])
 export type TaskEvent = z.infer<typeof TaskEventSchema>
 
-/** One row of a session's run-event stream (UIEvent-shaped; the renderer's replay source). */
-export type RunEvent = {
-  runId: string
-  parentRunId: string | null
+/** One row of a session's message-event stream (UIEvent-shaped; the renderer's replay source). */
+export type MessageEvent = {
+  messageId: string
+  parentMessageId: string | null
   seq: number
   ts: number
   event: UIEvent

@@ -81,11 +81,11 @@ describe('createResearchRepo broadcast', () => {
     const store = fakeStore()
     const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
       ports.emit.broadcast({
-        kind: 'run.progress',
+        kind: 'message.progress',
         event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props: research } },
       })
-      ports.emit.broadcast({ kind: 'run.complete' })
-      return Promise.resolve({ status: 'complete', runId: 'r' })
+      ports.emit.broadcast({ kind: 'message.complete' })
+      return Promise.resolve({ status: 'complete', messageId: 'r' })
     })
     const run = createResearchRepo({
       broadcaster: broadcaster as never,
@@ -109,8 +109,8 @@ describe('createResearchRepo broadcast', () => {
     const broadcaster = fakeBroadcaster()
     const store = fakeStore()
     const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
-      ports.emit.broadcast({ kind: 'run.complete' })
-      return Promise.resolve({ status: 'complete', runId: 'r' })
+      ports.emit.broadcast({ kind: 'message.complete' })
+      return Promise.resolve({ status: 'complete', messageId: 'r' })
     })
     const run = createResearchRepo({
       broadcaster: broadcaster as never,

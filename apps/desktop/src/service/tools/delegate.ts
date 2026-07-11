@@ -23,13 +23,13 @@ const DelegateParams = Type.Object({
   ),
 })
 
-// A non-completed run surfaces its disposition to the parent as a prefix, so the
+// A non-completed message surfaces its disposition to the parent as a prefix, so the
 // model does not read a failed/cancelled child's partial summary as success.
-function delegateResult(runId: string, status: DelegateResult['status'], summary: string) {
+function delegateResult(messageId: string, status: DelegateResult['status'], summary: string) {
   const prefix = status && status !== 'completed' ? `[${status}] ` : ''
   return {
     content: [{ type: 'text' as const, text: `${prefix}${summary}` }],
-    details: { runId, status, summary },
+    details: { messageId, status, summary },
   }
 }
 
@@ -60,8 +60,8 @@ export function delegateSpec(): ToolSpec {
               details: { error: 'not_wired' },
             }
           }
-          const { runId, status, summary } = await ctx.createTask(p.prompt, p.agentType)
-          return delegateResult(runId, status, summary)
+          const { messageId, status, summary } = await ctx.createTask(p.prompt, p.agentType)
+          return delegateResult(messageId, status, summary)
         }
         if (!ctx.spawnChild) {
           return {
@@ -69,12 +69,12 @@ export function delegateSpec(): ToolSpec {
             details: { error: 'not_wired' },
           }
         }
-        const { runId, status, summary } = await ctx.spawnChild(p.prompt, {
+        const { messageId, status, summary } = await ctx.spawnChild(p.prompt, {
           suggestedTools: p.suggestedTools,
           providerKey: p.providerKey,
           agentType: p.agentType,
         })
-        return delegateResult(runId, status, summary)
+        return delegateResult(messageId, status, summary)
       },
     }),
   }

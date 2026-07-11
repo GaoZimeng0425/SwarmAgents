@@ -4,7 +4,7 @@ import { RiskSchema } from './ipc'
 
 export const PermissionRequestPayloadSchema = z.object({
   actionId: z.string(),
-  runId: z.string(),
+  messageId: z.string(),
   toolName: z.string(),
   risk: RiskSchema,
   summary: z.string(),

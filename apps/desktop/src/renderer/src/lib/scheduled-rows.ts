@@ -1,4 +1,4 @@
-import type { RunRecord, RunStatus } from '@shared/lib/apply-event'
+import type { MessageRecord, MessageStatus } from '@shared/lib/apply-event'
 import type { CronRun } from '@swarm/protocol'
 import { orderBy } from 'es-toolkit'
 
@@ -6,10 +6,10 @@ import { orderBy } from 'es-toolkit'
 // run's top-level record, enriched with cron metadata (job name, run error) when
 // a cron_run links them. Pure; unit-tested.
 export type ScheduledRow = {
-  runId: string
+  messageId: string
   name: string
-  status: RunStatus
-  startedAt: number
+  status: MessageStatus
+  createdAt: number
   durationMs?: number
   summary: string | null
   error: string | null
@@ -20,7 +20,7 @@ export type ScheduledRow = {
 // cron_run whose taskId matches; a missing/null name falls back to task.prompt so
 // manual or legacy tasks still render.
 export function buildScheduledRows(
-  tasks: RunRecord[],
+  tasks: MessageRecord[],
   runs: CronRun[],
   jobs: ReadonlyArray<{ id: string; name: string | null }>
 ): ScheduledRow[] {
@@ -29,36 +29,36 @@ export function buildScheduledRows(
   for (const r of runs) if (r.taskId) runByTaskId.set(r.taskId, r)
 
   const rows = tasks
-    .filter((t) => !t.parentRunId)
+    .filter((t) => !t.parentMessageId)
     .map((t) => {
       const run = runByTaskId.get(t.id)
       const name = (run ? jobName.get(run.jobId) : undefined) ?? t.prompt
       return {
-        runId: t.id,
+        messageId: t.id,
         name,
         status: t.status,
-        startedAt: t.startedAt,
+        createdAt: t.createdAt,
         durationMs: t.used?.wallMs,
         summary: t.summary,
         error: run?.error ?? null,
       }
     })
-  return orderBy(rows, ['startedAt'], ['desc'])
+  return orderBy(rows, ['createdAt'], ['desc'])
 }
 
 // A run's full task set: the root plus every spawned sub-agent descendant
 // (transitive), so the expanded transcript shows sub-agent blocks too.
-export function collectSubtree(tasks: RunRecord[], rootId: string): RunRecord[] {
+export function collectSubtree(tasks: MessageRecord[], rootId: string): MessageRecord[] {
   const root = tasks.find((t) => t.id === rootId)
   if (!root) return []
-  const byParent = new Map<string, RunRecord[]>()
+  const byParent = new Map<string, MessageRecord[]>()
   for (const t of tasks) {
-    if (!t.parentRunId) continue
-    const arr = byParent.get(t.parentRunId) ?? []
+    if (!t.parentMessageId) continue
+    const arr = byParent.get(t.parentMessageId) ?? []
     arr.push(t)
-    byParent.set(t.parentRunId, arr)
+    byParent.set(t.parentMessageId, arr)
   }
-  const out: RunRecord[] = [root]
+  const out: MessageRecord[] = [root]
   const stack = [rootId]
   while (stack.length > 0) {
     const id = stack.pop() as string

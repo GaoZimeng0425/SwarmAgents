@@ -17,7 +17,7 @@
 // for the failure event shape); the other (child-ok) completes normally.
 
 import type { AgentDefinition, ProviderInjection } from '@swarm/protocol'
-import { terminalStatusForRunEvent } from '@swarm/protocol'
+import { terminalStatusForMessageEvent } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 const MockAgent = vi.hoisted(() => vi.fn())
@@ -134,7 +134,7 @@ function realDelegateRegistry() {
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 30))
 
 describe('delegate tree — CEO delegates two children over the real delegate tool', () => {
-  it('parentRunId linkage, [failed] surfacing, slot sanity under maxConcurrent 2, all-run.* replay to terminal', async () => {
+  it('parentMessageId linkage, [failed] surfacing, slot sanity under maxConcurrent 2, all-run.* replay to terminal', async () => {
     const results: { ok?: ToolExecResult; fail?: ToolExecResult } = {}
     installAgent((ok, fail) => {
       results.ok = ok
@@ -158,8 +158,8 @@ describe('delegate tree — CEO delegates two children over the real delegate to
     expect(results.ok).toBeDefined()
     expect(results.fail).toBeDefined()
 
-    const okRunId = results.ok!.details!.runId as string
-    const failRunId = results.fail!.details!.runId as string
+    const okRunId = results.ok!.details!.messageId as string
+    const failRunId = results.fail!.details!.messageId as string
 
     // (b) the parent's tool result for the failed child carries the [failed]
     // prefix and details.status 'failed'; the ok child carries neither.
@@ -170,34 +170,35 @@ describe('delegate tree — CEO delegates two children over the real delegate to
     expect(okText.type === 'text' && okText.text?.startsWith('[')).toBe(false)
     expect(results.ok!.details).toMatchObject({ status: 'completed' })
 
-    const allEvents = store.getRunEvents(sessionId)
+    const allEvents = store.getMessageEvents(sessionId)
 
     // (d) every persisted event kind starts with `run.` — no task.* leakage.
     for (const row of allEvents) {
       expect((row.event as { kind: string }).kind.startsWith('run.')).toBe(true)
     }
 
-    // (a) both children's run.created carry parentRunId = the CEO's runId.
-    const createdOf = (runId: string) => allEvents.find((r) => r.runId === runId && r.event.kind === 'run.created')
-    expect(createdOf(okRunId)?.parentRunId).toBe(ceo.runId)
-    expect(createdOf(failRunId)?.parentRunId).toBe(ceo.runId)
+    // (a) both children's run.created carry parentMessageId = the CEO's messageId.
+    const createdOf = (messageId: string) =>
+      allEvents.find((r) => r.messageId === messageId && r.event.kind === 'message.created')
+    expect(createdOf(okRunId)?.parentMessageId).toBe(ceo.messageId)
+    expect(createdOf(failRunId)?.parentMessageId).toBe(ceo.messageId)
 
     // (c) slot sanity: with maxConcurrent 2 the tree above (1 parent + 2
     // children) completed at all — the CEO awaited above, so if the parent's
     // slot-yield (withSlotReleased) were broken, this call would have hung
     // instead of resolving.
 
-    // (d) replay via getRunEvents reaches a terminal for all three runs, and
+    // (d) replay via getMessageEvents reaches a terminal for all three runs, and
     // the terminal statuses match what the tool result reported.
-    const terminalStatusOf = (runId: string): string | undefined => {
+    const terminalStatusOf = (messageId: string): string | undefined => {
       for (const row of allEvents) {
-        if (row.runId !== runId) continue
-        const status = terminalStatusForRunEvent(row.event as { kind: string; error?: unknown })
+        if (row.messageId !== messageId) continue
+        const status = terminalStatusForMessageEvent(row.event as { kind: string; error?: unknown })
         if (status) return status
       }
       return undefined
     }
-    expect(terminalStatusOf(ceo.runId)).toBe('completed')
+    expect(terminalStatusOf(ceo.messageId)).toBe('completed')
     expect(terminalStatusOf(okRunId)).toBe('completed')
     expect(terminalStatusOf(failRunId)).toBe('failed')
 

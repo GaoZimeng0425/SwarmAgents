@@ -48,13 +48,20 @@ describe('hook dispatcher', () => {
       UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
     })
     try {
-      dispatch('run.created', { kind: 'run.created', sessionId: 's', runId: 'r', prompt: 'hi', seq: 1, ts: 1 })
+      dispatch('message.created', {
+        kind: 'message.created',
+        sessionId: 's',
+        messageId: 'r',
+        prompt: 'hi',
+        seq: 1,
+        ts: 1,
+      })
       await waitForOutfile(out)
       const parsed = JSON.parse(readFileSync(out, 'utf8'))
       expect(parsed.event).toBe('UserPromptSubmit')
-      expect(parsed.hookEventName).toBe('run.created')
+      expect(parsed.hookEventName).toBe('message.created')
       expect(parsed.sessionId).toBe('s')
-      expect(parsed.runId).toBe('r')
+      expect(parsed.messageId).toBe('r')
       // identity fields are promoted to the top level for shell convenience
       expect(parsed.seq).toBe(1)
     } finally {
@@ -69,10 +76,10 @@ describe('hook dispatcher', () => {
       PostToolUse: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
     })
     try {
-      dispatch('run.tool_call', {
-        kind: 'run.tool_call',
+      dispatch('message.tool_call', {
+        kind: 'message.tool_call',
         sessionId: 's',
-        runId: 'r',
+        messageId: 'r',
         tool: 'run_shell',
         args: {},
         seq: 1,
@@ -94,10 +101,10 @@ describe('hook dispatcher', () => {
       PermissionRequest: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(pOut) }] }],
     })
     try {
-      dispatch('run.permission_request', {
-        kind: 'run.permission_request',
+      dispatch('message.permission_request', {
+        kind: 'message.permission_request',
         sessionId: 's',
-        runId: 'r',
+        messageId: 'r',
         actionId: 'a',
         risk: 'high',
         summary: 'rm',
@@ -122,8 +129,15 @@ describe('hook dispatcher', () => {
       Stop: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(stopOut) }] }],
     })
     try {
-      // No parentRunId → top-level → Stop
-      dispatch('run.complete', { kind: 'run.complete', sessionId: 's', runId: 'r', summary: 'done', seq: 1, ts: 1 })
+      // No parentMessageId → top-level → Stop
+      dispatch('message.complete', {
+        kind: 'message.complete',
+        sessionId: 's',
+        messageId: 'r',
+        summary: 'done',
+        seq: 1,
+        ts: 1,
+      })
       await waitForOutfile(stopOut)
       expect(JSON.parse(readFileSync(stopOut, 'utf8')).event).toBe('Stop')
     } finally {
@@ -140,12 +154,12 @@ describe('hook dispatcher', () => {
       SubagentStop: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(subOut) }] }],
     })
     try {
-      // parentRunId present → child → SubagentStop, NOT Stop
-      dispatch('run.complete', {
-        kind: 'run.complete',
+      // parentMessageId present → child → SubagentStop, NOT Stop
+      dispatch('message.complete', {
+        kind: 'message.complete',
         sessionId: 's',
-        runId: 'child',
-        parentRunId: 'parent',
+        messageId: 'child',
+        parentMessageId: 'parent',
         summary: 'done',
         seq: 1,
         ts: 1,
@@ -167,7 +181,14 @@ describe('hook dispatcher', () => {
       SubagentStart: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
     })
     try {
-      dispatch('run.spawned', { kind: 'run.spawned', sessionId: 's', runId: 'r', childRunId: 'c', seq: 1, ts: 1 })
+      dispatch('message.spawned', {
+        kind: 'message.spawned',
+        sessionId: 's',
+        messageId: 'r',
+        childMessageId: 'c',
+        seq: 1,
+        ts: 1,
+      })
       await waitForOutfile(out)
       expect(JSON.parse(readFileSync(out, 'utf8')).event).toBe('SubagentStart')
     } finally {
@@ -182,7 +203,7 @@ describe('hook dispatcher', () => {
       UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(sentinel) }] }],
     })
     try {
-      dispatch('run.usage', { kind: 'run.usage', sessionId: 's', runId: 'r', used: {}, seq: 1, ts: 1 })
+      dispatch('message.usage', { kind: 'message.usage', sessionId: 's', messageId: 'r', used: {}, seq: 1, ts: 1 })
       await new Promise((r) => setTimeout(r, 150))
       expect(existsSync(sentinel)).toBe(false)
     } finally {
@@ -200,7 +221,14 @@ describe('hook dispatcher', () => {
       Stop: [{ matcher: '', hooks: [{ type: 'command', command: `~/${basename(scriptPath)}` }] }],
     })
     try {
-      dispatch('run.complete', { kind: 'run.complete', sessionId: 's', runId: 'r', summary: 'x', seq: 1, ts: 1 })
+      dispatch('message.complete', {
+        kind: 'message.complete',
+        sessionId: 's',
+        messageId: 'r',
+        summary: 'x',
+        seq: 1,
+        ts: 1,
+      })
       await waitForOutfile(out)
       expect(JSON.parse(readFileSync(out, 'utf8')).event).toBe('Stop')
     } finally {
@@ -214,7 +242,14 @@ describe('hook dispatcher', () => {
     const store = createHooksStore({ filePath: join(tmpdir(), 'definitely-missing-hooks.json') })
     const dispatch = createHookDispatcher({ store })
     expect(() =>
-      dispatch('run.complete', { kind: 'run.complete', sessionId: 's', runId: 'r', summary: 'x', seq: 1, ts: 1 })
+      dispatch('message.complete', {
+        kind: 'message.complete',
+        sessionId: 's',
+        messageId: 'r',
+        summary: 'x',
+        seq: 1,
+        ts: 1,
+      })
     ).not.toThrow()
   })
 })

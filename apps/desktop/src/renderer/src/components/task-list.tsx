@@ -1,10 +1,10 @@
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useUiStore } from '@/stores/ui'
 import { TaskListItem } from './task-list-item'
 
-type Props = { tasks: RunRecord[] }
+type Props = { tasks: MessageRecord[] }
 
 export function TaskList({ tasks }: Props): React.JSX.Element {
   const selected = useUiStore((s) => s.selectedTaskId)

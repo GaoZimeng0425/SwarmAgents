@@ -46,13 +46,13 @@ vi.mock('../../stores/sessions', () => ({
     }),
 }))
 
-vi.mock('../../hooks/use-runs', () => ({
+vi.mock('../../hooks/use-messages', () => ({
   // useSubmitPrompt is consumed by palette-dialog; stub it as a no-op mutation so
   // the hero dispatch item's run() doesn't blow up if it ever fires.
   useSubmitPrompt: () => ({
     mutateAsync: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
   }),
-  useRuns: () => [{ id: 'r1', sessionId: 's1', prompt: 'g', status: 'running', summary: null, events: [] }],
+  useMessages: () => [{ id: 'r1', sessionId: 's1', prompt: 'g', status: 'running', summary: null, events: [] }],
 }))
 
 vi.mock('../../hooks/use-cron', () => ({
@@ -88,14 +88,14 @@ vi.mock('../../hooks/use-skills', () => ({
   useSkills: () => ({ skills: [], setSkills: () => {}, reload: () => {} }),
 }))
 
-// swarmApi: listArtifacts drives a useQuery in usePaletteData; getRunEvents
+// swarmApi: listArtifacts drives a useQuery in usePaletteData; getMessageEvents
 // drives the lazy preview queries for chat/task-run. Both resolve [] so the
 // preview pane never throws.
 vi.mock('../../lib/api', () => ({
   swarmApi: {
     listArtifacts: vi.fn().mockResolvedValue([]),
     exportSessionMarkdown: vi.fn().mockResolvedValue({ path: '/tmp/x.md' }),
-    getRunEvents: vi.fn().mockResolvedValue([]),
+    getMessageEvents: vi.fn().mockResolvedValue([]),
     submitPrompt: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
   },
 }))

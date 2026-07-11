@@ -18,7 +18,7 @@ import { usePaletteState } from './use-palette-state'
 const inputs: BuildInputs = {
   currentSessionId: null,
   sessions: [{ id: 's1', title: 'Chat', lastActiveAt: 0 }],
-  runningRuns: [],
+  runningMessages: [],
   cronJobs: [],
   formations: [],
   artifacts: [],

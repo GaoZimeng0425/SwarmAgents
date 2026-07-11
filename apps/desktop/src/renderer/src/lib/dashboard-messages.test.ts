@@ -48,10 +48,10 @@ describe('selectDashboardMessages', () => {
     expect(out.running.map((r) => r.id)).toEqual(['1'])
   })
 
-  it('sorts running newest-first by startedAt', () => {
+  it('sorts running newest-first by createdAt', () => {
     const messages = [
-      message({ id: 'old', sessionId: 's1', status: 'running', startedAt: NOW - 10_000 }),
-      message({ id: 'new', sessionId: 's2', status: 'running', startedAt: NOW - 1_000 }),
+      message({ id: 'old', sessionId: 's1', status: 'running', createdAt: NOW - 10_000 }),
+      message({ id: 'new', sessionId: 's2', status: 'running', createdAt: NOW - 1_000 }),
     ]
     const out = selectDashboardMessages(messages, [], [], NOW)
     expect(out.running.map((r) => r.id)).toEqual(['new', 'old'])
@@ -75,8 +75,8 @@ describe('selectDashboardMessages', () => {
     expect(out.running[0].agentLabel).toBe('unknown')
   })
 
-  it('computes wallMs from now - startedAt', () => {
-    const messages = [message({ id: '1', sessionId: 's1', status: 'running', startedAt: NOW - 60_000 })]
+  it('computes wallMs from now - createdAt', () => {
+    const messages = [message({ id: '1', sessionId: 's1', status: 'running', createdAt: NOW - 60_000 })]
     const out = selectDashboardMessages(messages, [], [], NOW)
     expect(out.running[0].wallMs).toBe(60_000)
   })

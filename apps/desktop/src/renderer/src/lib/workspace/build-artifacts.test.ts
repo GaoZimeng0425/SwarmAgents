@@ -1,19 +1,20 @@
 // apps/desktop/src/renderer/src/lib/workspace/build-artifacts.test.ts
 
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { ArtifactEntry } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { buildArtifacts } from './build-artifacts'
 
-function mkRun(over: Partial<RunRecord> & Pick<RunRecord, 'id'>): RunRecord {
+function mkRun(over: Partial<MessageRecord> & Pick<MessageRecord, 'id'>): MessageRecord {
   return {
     sessionId: 's1',
     prompt: 'g',
     status: 'running',
     summary: null,
-    startedAt: 1,
+    createdAt: 1,
     attachments: [],
+    order: 0,
     events: [],
     ...over,
   }
@@ -26,20 +27,20 @@ describe('buildArtifacts', () => {
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         {
-          kind: 'run.tool_call',
+          kind: 'message.tool_call',
           sessionId: 's1',
-          runId: 'r1',
-          seq: 1,
+          messageId: 'r1',
+          order: 1,
           ts: 1,
           tool: 'edit',
           args: { path: '/abs/report.md', label: 'a title' },
         } as any,
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         {
-          kind: 'run.tool_call',
+          kind: 'message.tool_call',
           sessionId: 's1',
-          runId: 'r1',
-          seq: 2,
+          messageId: 'r1',
+          order: 2,
           ts: 2,
           tool: 'edit',
           args: { file: './src/x.ts' },
@@ -57,10 +58,10 @@ describe('buildArtifacts', () => {
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         {
-          kind: 'run.tool_call',
+          kind: 'message.tool_call',
           sessionId: 's1',
-          runId: 'r1',
-          seq: 1,
+          messageId: 'r1',
+          order: 1,
           ts: 1,
           tool: 'x',
           args: { files: ['/a.txt', './b.js', 'not a path'] },
@@ -80,10 +81,10 @@ describe('buildArtifacts', () => {
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         {
-          kind: 'run.tool_call',
+          kind: 'message.tool_call',
           sessionId: 's1',
-          runId: 'r1',
-          seq: 1,
+          messageId: 'r1',
+          order: 1,
           ts: 1,
           tool: 'x',
           args: { url: 'https://example.com/x', dir: '/etc' },
@@ -99,10 +100,10 @@ describe('buildArtifacts', () => {
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         {
-          kind: 'run.tool_call',
+          kind: 'message.tool_call',
           sessionId: 's1',
-          runId: 'r1',
-          seq: 1,
+          messageId: 'r1',
+          order: 1,
           ts: 1,
           tool: 'x',
           args: { a: '/tmp/./report.md', b: '/tmp/report.md' },
@@ -127,10 +128,10 @@ describe('buildArtifacts', () => {
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         {
-          kind: 'run.tool_call',
+          kind: 'message.tool_call',
           sessionId: 's1',
-          runId: 'r1',
-          seq: 1,
+          messageId: 'r1',
+          order: 1,
           ts: 1,
           tool: 'x',
           args: { p: '/out/session.md' },

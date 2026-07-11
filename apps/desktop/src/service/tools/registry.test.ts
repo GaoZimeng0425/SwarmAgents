@@ -23,7 +23,7 @@ const spec = (group: string, name: string, risk: 'low' | 'medium' | 'high'): Too
 const ctx: ToolRunContext = {
   sessionId: 's',
   taskId: 't',
-  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: '', artifacts: [] }),
+  spawnChild: async () => ({ messageId: 'c', status: 'completed', summary: '', artifacts: [] }),
   requestPermission: async () => 'grant',
   findPeers: () => [],
 }

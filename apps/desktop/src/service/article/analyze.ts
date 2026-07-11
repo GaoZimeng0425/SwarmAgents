@@ -3,7 +3,7 @@
 // a broadcast adapter translating run.* into article.analysis* events keyed by articleId.
 // The agent streams a natural-language markdown summary (shown live) and emits its
 // structured fields via a render_ui({type:'analysis', props:{gist, points, takeaways}})
-// tool call, captured with readAnalysisCard. On run.complete a valid card caches the
+// tool call, captured with readAnalysisCard. On message.complete a valid card caches the
 // summary back to the article store (re-viewable, like bili's analysis cache); no valid
 // card degrades to analysisError.
 import { createLogger } from '@shared/logger'
@@ -13,8 +13,8 @@ import { ulid } from 'ulid'
 
 import type { AgentStore } from '../agents/store'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { RunEmitPorts } from '../run-engine/emit'
-import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
+import type { MessageEmitPorts } from '../message-engine/emit'
+import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
 import { createPermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry } from '../tools/registry'
 import { readAnalysisCard } from '../tools/render-ui'
@@ -31,7 +31,7 @@ export type AnalyzeDeps = {
   toolRegistry: ToolRegistry
   getBudgetConfig(): BudgetConfig
   /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchRun
+  launch?: typeof launchMessage
 }
 
 // Validate the render_ui analysis card props into an ArticleSummary. Returns
@@ -44,7 +44,7 @@ export function toArticleSummary(props: Record<string, unknown>): ArticleSummary
 }
 
 export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleRequest) => AnalyzeArticleResult {
-  const run = deps.launch ?? launchRun
+  const run = deps.launch ?? launchMessage
   return (req) => {
     if (!req.provider) {
       return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
@@ -61,19 +61,19 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
     // PRIVATE emit ports: a silent seq (no session/store), no persistence, no
     // terminal registry — the analysis lives entirely in the broadcast stream.
     // The broadcast port translates the run.* wire into article.analysis* events:
-    // run.progress llm.message → analysisDelta (streamed prose),
+    // message.progress llm.message → analysisDelta (streamed prose),
     // run.progress tool.call (analysis card) → capture {gist, points, takeaways},
-    // run.complete → saveAnalysis→analysisComplete (or analysisError if no valid
-    // card), run.error → analysisError.
+    // message.complete → saveAnalysis→analysisComplete (or analysisError if no valid
+    // card), message.error → analysisError.
     let card: ArticleSummary | null = null
 
     let seq = 0
-    const emitPorts: RunEmitPorts = {
+    const emitPorts: MessageEmitPorts = {
       nextSeq: () => seq++,
       appendEvent: () => undefined,
       markTerminal: () => undefined,
       broadcast: (evt) => {
-        if (evt.kind === 'run.progress') {
+        if (evt.kind === 'message.progress') {
           const ev = evt.event
           if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
             deps.broadcaster.broadcast('article.analysisDelta', {
@@ -85,7 +85,7 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
           }
           const props = readAnalysisCard(evt)
           if (props) card = toArticleSummary(props)
-        } else if (evt.kind === 'run.complete') {
+        } else if (evt.kind === 'message.complete') {
           if (card) {
             deps.store.saveAnalysis(req.articleId, card)
             deps.broadcaster.broadcast('article.analysisComplete', {
@@ -101,7 +101,7 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
               ts: Date.now(),
             })
           }
-        } else if (evt.kind === 'run.error') {
+        } else if (evt.kind === 'message.error') {
           deps.broadcaster.broadcast('article.analysisError', {
             articleId: req.articleId,
             error: evt.error?.message ?? 'analysis failed',
@@ -124,7 +124,7 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
     }
 
     const analyzePrompt = `分析下面这篇文章。\n\nTitle: ${article.title}\nSource: ${article.url}\n\n${article.contentMarkdown}`
-    const spec: RunSpec = {
+    const spec: MessageSpec = {
       kind: 'work',
       sessionId: `analyze-article:${ulid()}`,
       agent: def,
@@ -137,7 +137,7 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
 
     const t0 = Date.now()
     log.info({ msg: 'article analyze started', articleId: req.articleId, contentLen: article.contentMarkdown.length })
-    // launchRun never rejects: every failure path emits run.error, which the
+    // launchMessage never rejects: every failure path emits message.error, which the
     // broadcast port already forwards as analysisError. The catch is purely
     // defensive (log-only, no double broadcast).
     void run(spec, ports)

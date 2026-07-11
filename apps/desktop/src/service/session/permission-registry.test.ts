@@ -17,7 +17,7 @@ describe('PermissionRegistry', () => {
 
     expect(broadcast).toHaveBeenCalledOnce()
     const [event, data] = broadcast.mock.calls[0] as [string, { actionId: string }]
-    expect(event).toBe('run.permission_request')
+    expect(event).toBe('message.permission_request')
     expect(data.actionId).toBeTruthy()
 
     registry.resolve(data.actionId, 'grant')

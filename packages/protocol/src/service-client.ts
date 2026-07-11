@@ -32,7 +32,7 @@ export type ServiceClient = {
     prompt: string,
     attachments?: import('./types/task').Attachment[],
     options?: import('./types/task').RunOptions
-  ): Promise<{ runId: string }>
+  ): Promise<{ messageId: string }>
   analyzeEmail(req: import('./types/ui').AnalyzeEmailRequest): Promise<import('./types/ui').AnalyzeEmailResult>
   analyzeThread(req: import('./types/ui').AnalyzeThreadRequest): Promise<import('./types/ui').AnalyzeThreadResult>
   collectArticle(input: ArticleSource): Promise<CollectArticleResult>
@@ -44,7 +44,7 @@ export type ServiceClient = {
   getRepoResearch(repoName: string): Promise<{ research: RepoResearch | null; researchedAt: string | null }>
   researchedRepoNames(): Promise<string[]>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
-  getRunEvents(sessionId: string): Promise<import('./types/task').RunEvent[]>
+  getMessageEvents(sessionId: string): Promise<import('./types/task').MessageEvent[]>
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
   deleteSession(sessionId: string): Promise<void>
   renameSession(sessionId: string, title: string): Promise<void>
@@ -52,8 +52,8 @@ export type ServiceClient = {
   updateSessionSettings(sessionId: string, settings: import('./types/ui').SessionSettings): Promise<void>
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
-  cancelRun(sessionId: string, runId: string): Promise<void>
-  promoteQueuedRun(sessionId: string, runId: string): Promise<void>
+  cancelMessage(sessionId: string, messageId: string): Promise<void>
+  promoteQueuedMessage(sessionId: string, messageId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
@@ -122,7 +122,7 @@ export function createServiceClient(cfg: {
     getRepoResearch: (repoName) => peer.call('getRepoResearch', [repoName]),
     researchedRepoNames: () => peer.call('researchedRepoNames', []),
     listSessions: () => peer.call('listSessions', []),
-    getRunEvents: (sessionId) => peer.call('getRunEvents', [sessionId]),
+    getMessageEvents: (sessionId) => peer.call('getMessageEvents', [sessionId]),
     exportSessionMarkdown: (sessionId) => peer.call('exportSessionMarkdown', [sessionId]),
     async deleteSession(sessionId) {
       await peer.call('deleteSession', [sessionId])
@@ -142,11 +142,11 @@ export function createServiceClient(cfg: {
     async decidePermission(sessionId, actionId, decision) {
       await peer.call('decidePermission', [sessionId, actionId, decision])
     },
-    async cancelRun(sessionId, runId) {
-      await peer.call('cancelRun', [sessionId, runId])
+    async cancelMessage(sessionId, messageId) {
+      await peer.call('cancelMessage', [sessionId, messageId])
     },
-    async promoteQueuedRun(sessionId, runId) {
-      await peer.call('promoteQueuedRun', [sessionId, runId])
+    async promoteQueuedMessage(sessionId, messageId) {
+      await peer.call('promoteQueuedMessage', [sessionId, messageId])
     },
     async setMcpServers(configs) {
       await peer.call('setMcpServers', [configs])

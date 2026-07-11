@@ -56,9 +56,9 @@ describe('agent-driven verify — single-shot work run', () => {
     expect(work.status).toBe('completed')
 
     // No Task row for a work run — assert against the run stream.
-    const events = store.getRunEvents(sessionId).filter((r) => r.runId === work.runId)
+    const events = store.getMessageEvents(sessionId).filter((r) => r.messageId === work.messageId)
     const isTerminal = (r: { event: { kind?: string } }): boolean =>
-      r.event.kind === 'run.complete' || r.event.kind === 'run.error'
+      r.event.kind === 'message.complete' || r.event.kind === 'message.error'
     expect(events.some(isTerminal)).toBe(true)
     // No verification event on the stream (single-shot).
     expect(events.some((r) => (r.event as { event?: { kind?: string } }).event?.kind === 'verification')).toBe(false)

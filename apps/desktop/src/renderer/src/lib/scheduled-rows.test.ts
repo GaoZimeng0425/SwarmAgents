@@ -1,16 +1,17 @@
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { CronRun } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { buildScheduledRows, collectSubtree, formatDuration } from './scheduled-rows'
 
-const task = (over: Partial<RunRecord> & { id: string }): RunRecord => ({
+const task = (over: Partial<MessageRecord> & { id: string }): MessageRecord => ({
   sessionId: '__system__',
   prompt: 'goal',
   status: 'completed',
   summary: null,
-  startedAt: 0,
+  createdAt: 0,
   attachments: [],
+  order: 0,
   events: [],
   ...over,
 })
@@ -26,12 +27,12 @@ const run = (over: Partial<CronRun> & { id: string; jobId: string; taskId: strin
 
 describe('buildScheduledRows', () => {
   it('uses the cron job name when a run links the task to a named job', () => {
-    const tasks = [task({ id: 't1', prompt: 'raw goal', startedAt: 100, summary: 'done' })]
+    const tasks = [task({ id: 't1', prompt: 'raw goal', createdAt: 100, summary: 'done' })]
     const runs = [run({ id: 'r1', jobId: 'j1', taskId: 't1' })]
     const jobs = [{ id: 'j1', name: 'Daily report' }]
     const rows = buildScheduledRows(tasks, runs, jobs)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ runId: 't1', name: 'Daily report', status: 'completed', summary: 'done' })
+    expect(rows[0]).toMatchObject({ messageId: 't1', name: 'Daily report', status: 'completed', summary: 'done' })
   })
 
   it('falls back to task.prompt when there is no run, no job, or a null job name', () => {
@@ -56,12 +57,12 @@ describe('buildScheduledRows', () => {
 
   it('excludes sub-agent tasks and sorts newest first', () => {
     const tasks = [
-      task({ id: 'old', startedAt: 100 }),
-      task({ id: 'new', startedAt: 200 }),
-      task({ id: 'child', startedAt: 250, parentRunId: 'new' }),
+      task({ id: 'old', createdAt: 100 }),
+      task({ id: 'new', createdAt: 200 }),
+      task({ id: 'child', createdAt: 250, parentMessageId: 'new' }),
     ]
     const rows = buildScheduledRows(tasks, [], [])
-    expect(rows.map((r) => r.runId)).toEqual(['new', 'old'])
+    expect(rows.map((r) => r.messageId)).toEqual(['new', 'old'])
   })
 })
 
@@ -69,8 +70,8 @@ describe('collectSubtree', () => {
   it('returns the root plus its transitive descendants', () => {
     const tasks = [
       task({ id: 'root' }),
-      task({ id: 'a', parentRunId: 'root' }),
-      task({ id: 'b', parentRunId: 'a' }),
+      task({ id: 'a', parentMessageId: 'root' }),
+      task({ id: 'b', parentMessageId: 'a' }),
       task({ id: 'other' }),
     ]
     const ids = collectSubtree(tasks, 'root')

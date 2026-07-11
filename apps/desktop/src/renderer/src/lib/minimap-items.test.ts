@@ -1,19 +1,20 @@
 // @vitest-environment node
 
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
 import { minimapItems } from './minimap-items'
 
-function task(over: Partial<RunRecord>): RunRecord {
+function task(over: Partial<MessageRecord>): MessageRecord {
   return {
     id: 't',
     sessionId: 's1',
     prompt: 'g',
     status: 'completed',
     summary: null,
-    startedAt: 0,
+    createdAt: 0,
     attachments: [],
+    order: 0,
     events: [],
     ...over,
   }
@@ -24,22 +25,22 @@ describe('minimapItems', () => {
     expect(minimapItems([])).toEqual([])
   })
 
-  it('maps top-level tasks to {runId, text, ts} ordered by startedAt', () => {
+  it('maps top-level tasks to {messageId, text, ts} ordered by order', () => {
     const items = minimapItems([
-      task({ id: 'b', prompt: 'second', startedAt: 20 }),
-      task({ id: 'a', prompt: 'first', startedAt: 10 }),
+      task({ id: 'b', prompt: 'second', createdAt: 20, order: 2 }),
+      task({ id: 'a', prompt: 'first', createdAt: 10, order: 1 }),
     ])
     expect(items).toEqual([
-      { runId: 'a', text: 'first', ts: 10 },
-      { runId: 'b', text: 'second', ts: 20 },
+      { messageId: 'a', text: 'first', ts: 10 },
+      { messageId: 'b', text: 'second', ts: 20 },
     ])
   })
 
-  it('excludes sub-agent tasks (parentRunId set)', () => {
+  it('excludes sub-agent tasks (parentMessageId set)', () => {
     const items = minimapItems([
-      task({ id: 'top', startedAt: 1 }),
-      task({ id: 'sub', startedAt: 2, parentRunId: 'top' }),
+      task({ id: 'top', createdAt: 1, order: 1 }),
+      task({ id: 'sub', createdAt: 2, parentMessageId: 'top', order: 2 }),
     ])
-    expect(items.map((i) => i.runId)).toEqual(['top'])
+    expect(items.map((i) => i.messageId)).toEqual(['top'])
   })
 })

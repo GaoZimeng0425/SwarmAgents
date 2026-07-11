@@ -9,8 +9,14 @@ import { SessionHeader } from '@/components/session-header'
 import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
 import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
+import {
+  useCancelMessage,
+  useDecidePermission,
+  useMessages,
+  usePromoteQueuedMessage,
+  useSubmitPrompt,
+} from '@/hooks/use-messages'
 import { useProviders } from '@/hooks/use-providers'
-import { useCancelRun, useDecidePermission, usePromoteQueuedRun, useRuns, useSubmitPrompt } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
 import { classifyComposerTurns } from '@/lib/composer-turns'
 import { latestTopLevelTask, sessionDisplayUsage } from '@/lib/session-usage'
@@ -18,15 +24,15 @@ import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
 export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React.JSX.Element {
-  const tasks = useRuns()
+  const tasks = useMessages()
   const queue = usePermissionStore((s) => s.queue)
   const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
   const sessions = useSessionsStore((s) => s.sessions)
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
   const submitPrompt = useSubmitPrompt()
   const decide = useDecidePermission()
-  const cancelRun = useCancelRun()
-  const promoteQueuedRun = usePromoteQueuedRun()
+  const cancelMessage = useCancelMessage()
+  const promoteQueuedMessage = usePromoteQueuedMessage()
   const { ready, state } = useProviders()
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
@@ -47,9 +53,9 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // order. The agent replaces its plan per turn, but every turn persists its own
   // copy, so grouping by task preserves the whole history.
   const planGroups = sortBy(
-    sessionTasks.filter((t) => !t.parentRunId && t.plan && t.plan.length > 0),
-    ['startedAt']
-  ).map((t) => ({ runId: t.id, prompt: t.prompt, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
+    sessionTasks.filter((t) => !t.parentMessageId && t.plan && t.plan.length > 0),
+    ['createdAt']
+  ).map((t) => ({ messageId: t.id, prompt: t.prompt, plan: t.plan ?? [], status: t.status, createdAt: t.createdAt }))
   // The composer's inline todo strip shows only the in-flight turn's plan
   // (the latest group) — a live "what's happening now" strip, not history.
   const activePlan = planGroups[planGroups.length - 1]?.plan
@@ -68,6 +74,11 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // session's saved values, and editing one writes straight back (persisted even
   // without sending a turn).
   const session = sessions.find((s) => s.id === selectedSessionId)
+  // Context tokens/window are session-level (read from SessionSummary, not the
+  // message record). The session list SQL extracts the latest top-level message's
+  // values; live updates flow through use-events-subscription.
+  const contextTokens = session?.contextTokens
+  const contextWindow = session?.contextWindow
   const cwd = session?.cwd
   const permissionMode = session?.permissionMode ?? 'ask'
   const executionMode = session?.executionMode ?? 'direct'
@@ -90,9 +101,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // top-level turn as the composer ring.
   const headerStatus = sessionPrompts.length > 0 ? 'awaiting' : runningTask ? 'running' : 'idle'
   const contextPct =
-    latestTask?.contextTokens && latestTask?.contextWindow
-      ? Math.round((latestTask.contextTokens / latestTask.contextWindow) * 100)
-      : undefined
+    contextTokens != null && contextWindow != null ? Math.round((contextTokens / contextWindow) * 100) : undefined
 
   // The system session ("定时任务") only surfaces scheduled-run RESULTS — it is
   // read-only: no composer, no send/queue overlay, no right panel. Everything
@@ -125,8 +134,8 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
         <ChatInput
           agentType={agentType}
           cacheReadTokens={latestTask?.used?.cacheRead}
-          contextTokens={latestTask?.contextTokens}
-          contextWindow={latestTask?.contextWindow}
+          contextTokens={contextTokens}
+          contextWindow={contextWindow}
           cwd={cwd}
           disabled={!ready}
           executionMode={executionMode}
@@ -135,7 +144,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           onExecutionModeChange={setExecutionMode}
           onPermissionModeChange={setPermissionMode}
           onStop={() => {
-            if (runningTask) cancelRun.mutate({ sessionId: runningTask.sessionId, runId: runningTask.id })
+            if (runningTask) cancelMessage.mutate({ sessionId: runningTask.sessionId, messageId: runningTask.id })
           }}
           onSubmit={async (g, attachments) => {
             if (!ready) return
@@ -143,16 +152,16 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           }}
           overlay={
             <ComposerOverlay
-              onCancelQueued={(runId) => {
-                if (selectedSessionId) cancelRun.mutate({ sessionId: selectedSessionId, runId })
+              onCancelQueued={(messageId) => {
+                if (selectedSessionId) cancelMessage.mutate({ sessionId: selectedSessionId, messageId })
               }}
               onDecide={(actionId, decision) => {
                 const p = sessionPrompts.find((x) => x.actionId === actionId)
                 if (!p) return
                 decide.mutate({ sessionId: p.sessionId, actionId, decision })
               }}
-              onInterrupt={(runId) => {
-                if (selectedSessionId) promoteQueuedRun.mutate({ sessionId: selectedSessionId, runId })
+              onInterrupt={(messageId) => {
+                if (selectedSessionId) promoteQueuedMessage.mutate({ sessionId: selectedSessionId, messageId })
               }}
               prompts={sessionPrompts}
               queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, prompt: t.prompt }))}
@@ -168,13 +177,13 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
         />
       </div>
       <WorkspacePanel
+        messages={sessionTasks}
         onDecide={(actionId, decision) => {
           const p = sessionPrompts.find((x) => x.actionId === actionId)
           if (!p) return
           decide.mutate({ sessionId: p.sessionId, actionId, decision })
         }}
         planGroups={planGroups}
-        runs={sessionTasks}
         session={session}
       />
     </div>

@@ -1,4 +1,4 @@
-import type { RunWireEvent } from '@swarm/protocol'
+import type { MessageWireEvent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import type { ToolRunContext } from './registry'
@@ -7,7 +7,7 @@ import { readAnalysisCard, renderUiSpec } from './render-ui'
 const ctx = {
   sessionId: 's1',
   taskId: 't1',
-  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: '', artifacts: [] }),
+  spawnChild: async () => ({ messageId: 'c', status: 'completed', summary: '', artifacts: [] }),
   send: () => undefined,
   requestPermission: async () => 'grant' as const,
 } as unknown as ToolRunContext
@@ -52,11 +52,11 @@ describe('render_ui', () => {
   })
 })
 
-const analysisEvent = (props: unknown): RunWireEvent =>
+const analysisEvent = (props: unknown): MessageWireEvent =>
   ({
-    kind: 'run.progress',
+    kind: 'message.progress',
     event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props } },
-  }) as unknown as RunWireEvent
+  }) as unknown as MessageWireEvent
 
 describe('readAnalysisCard', () => {
   it('extracts props from a render_ui analysis tool call', () => {
@@ -69,17 +69,17 @@ describe('readAnalysisCard', () => {
 
   it('returns null for a non-analysis render_ui card', () => {
     const e = {
-      kind: 'run.progress',
+      kind: 'message.progress',
       event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'choice' } },
-    } as unknown as RunWireEvent
+    } as unknown as MessageWireEvent
     expect(readAnalysisCard(e)).toBeNull()
   })
 
   it('returns null for a non-tool-call event', () => {
     const e = {
-      kind: 'run.progress',
+      kind: 'message.progress',
       event: { kind: 'llm.message', role: 'assistant', content: 'hi' },
-    } as unknown as RunWireEvent
+    } as unknown as MessageWireEvent
     expect(readAnalysisCard(e)).toBeNull()
   })
 })

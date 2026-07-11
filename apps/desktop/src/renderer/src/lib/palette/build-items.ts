@@ -9,7 +9,7 @@ export type BuildInputs = {
   /** Non-system sessions (the 「对话」 group). */
   sessions: { id: string; title: string | null; lastActiveAt: number; agentType?: string }[]
   /** Running or pending runs. */
-  runningRuns: {
+  runningMessages: {
     id: string
     sessionId: string
     prompt: string
@@ -161,7 +161,7 @@ function chatItems(sessions: BuildInputs['sessions'], cb: Callbacks): PaletteIte
   }))
 }
 
-function taskRunItems(runs: BuildInputs['runningRuns'], cb: Callbacks): PaletteItem[] {
+function taskRunItems(runs: BuildInputs['runningMessages'], cb: Callbacks): PaletteItem[] {
   return runs.map((r) => {
     const plan = r.plan ?? []
     const done = plan.filter((p) => p.status === 'completed').length
@@ -291,7 +291,7 @@ function serviceItems(services: BuildInputs['services'], cb: Callbacks): Palette
  * resume cards. Reuses taskRunItems (progress + live-log preview) but rewrites
  * the title/subtitle to the design's 继续:… / 上次进行到 N%·点此继续 form.
  */
-function resumeItems(runs: BuildInputs['runningRuns'], cb: Callbacks): PaletteItem[] {
+function resumeItems(runs: BuildInputs['runningMessages'], cb: Callbacks): PaletteItem[] {
   return taskRunItems(runs, cb).map((it) => {
     const pct = typeof it.progress === 'number' ? Math.round(it.progress * 100) : null
     return {
@@ -384,7 +384,7 @@ function mixedItems(t: string, trimmed: string, inputs: BuildInputs, cb: Callbac
   if (!t) {
     const recent = [...inputs.sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 5)
     return [
-      ...withSection(resumeItems(inputs.runningRuns, cb), '继续未完成'),
+      ...withSection(resumeItems(inputs.runningMessages, cb), '继续未完成'),
       ...withSection(suggestionItems(inputs, cb), '建议操作'),
       ...withSection(chatItems(recent, cb), '最近对话'),
       ...withSection(serviceItems(inputs.services, cb), '快捷入口'),
@@ -406,7 +406,7 @@ function mixedItems(t: string, trimmed: string, inputs: BuildInputs, cb: Callbac
     '文件 & 产出'
   )
   const runs = withSection(
-    taskRunItems(inputs.runningRuns, cb).filter((i) => matches(t, i.searchText)),
+    taskRunItems(inputs.runningMessages, cb).filter((i) => matches(t, i.searchText)),
     '任务'
   )
   const crons = withSection(
@@ -444,7 +444,7 @@ export function buildItems(scope: PaletteScope, term: string, inputs: BuildInput
     case 'agent':
       return agentItems(inputs.formations, cb).filter((i) => matches(t, i.searchText))
     case 'task':
-      return [...taskRunItems(inputs.runningRuns, cb), ...taskSchedItems(inputs.cronJobs, cb)].filter((i) =>
+      return [...taskRunItems(inputs.runningMessages, cb), ...taskSchedItems(inputs.cronJobs, cb)].filter((i) =>
         matches(t, i.searchText)
       )
     case 'file':

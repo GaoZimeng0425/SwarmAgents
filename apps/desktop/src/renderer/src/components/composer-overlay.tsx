@@ -15,8 +15,8 @@ type Props = {
   todos: PlanTodo[]
   running: boolean
   queued?: QueuedItem[]
-  onCancelQueued?: (runId: string) => void
-  onInterrupt?: (runId: string) => void
+  onCancelQueued?: (messageId: string) => void
+  onInterrupt?: (messageId: string) => void
 }
 
 /**

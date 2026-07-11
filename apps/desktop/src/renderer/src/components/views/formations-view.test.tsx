@@ -22,7 +22,7 @@ vi.mock('@/hooks/use-agent-mutations', () => ({
 
 // useAgentActivity normally derives a Map from all runs + sessions. The smoke
 // tests drive it with a fixed activity map so they don't have to construct
-// RunRecord/Session fixtures. `current` is reassigned per test before render.
+// MessageRecord/Session fixtures. `current` is reassigned per test before render.
 let current: Map<string, AgentActivity> = new Map()
 vi.mock('@/hooks/use-agent-activity', () => ({
   useAgentActivity: () => current,

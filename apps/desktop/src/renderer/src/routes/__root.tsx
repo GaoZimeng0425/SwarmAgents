@@ -8,7 +8,7 @@ import { NoProviderBanner } from '@/components/no-provider-banner'
 import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { TitleBar } from '@/components/title-bar'
-import { useLoadSessions } from '@/hooks/use-runs'
+import { useLoadSessions } from '@/hooks/use-messages'
 import { isValidSection, type SettingsSection } from '@/stores/settings-dialog'
 
 // Opt-in only — devtools overlap the UI and interfere with manual/automated UI

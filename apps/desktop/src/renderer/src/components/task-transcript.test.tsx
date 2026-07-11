@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -12,27 +12,28 @@ afterEach(() => {
 })
 
 // Persisted history events are JSON-parsed without zod re-validation, so a
-// legacy or corrupt task can reach the renderer with a non-finite startedAt /
+// legacy or corrupt task can reach the renderer with a non-finite createdAt /
 // event ts. One such value must not take down <TaskTimeline>; it degrades to a
-// harmless row (see safeTs in lib/timeline.ts).
-function task(overrides: Partial<RunRecord> = {}): RunRecord {
+// harmless row (see safe_ts in lib/timeline.ts).
+function task(overrides: Partial<MessageRecord> = {}): MessageRecord {
   return {
     id: 't1',
     sessionId: 's1',
     prompt: 'do x',
     status: 'running',
     summary: null,
-    startedAt: 1,
+    createdAt: 1,
     attachments: [],
+    order: 1,
     events: [],
     ...overrides,
   }
 }
 
 describe('TaskTimeline', () => {
-  it('does not crash when a task startedAt is non-finite (corrupt/legacy event)', () => {
+  it('does not crash when a task createdAt is non-finite (corrupt/legacy event)', () => {
     expect(() =>
-      render(<TaskTimeline busy={false} onCopy={() => {}} tasks={[task({ startedAt: Number.NaN })]} />)
+      render(<TaskTimeline busy={false} onCopy={() => {}} tasks={[task({ createdAt: Number.NaN })]} />)
     ).not.toThrow()
     expect(screen.getByText('do x')).toBeInTheDocument()
   })
@@ -40,18 +41,18 @@ describe('TaskTimeline', () => {
   it('shows a frozen elapsed timer above a completed assistant reply', () => {
     const completed = task({
       status: 'completed',
-      startedAt: 1000,
+      createdAt: 1000,
       events: [
         {
-          kind: 'run.progress',
+          kind: 'message.progress',
           sessionId: 's1',
-          runId: 't1',
+          messageId: 't1',
           seq: 1,
           ts: 1000,
           event: { kind: 'llm.message', role: 'assistant', content: 'hello', ts: 1000, seq: 1 },
         },
-        { kind: 'run.complete', sessionId: 's1', runId: 't1', seq: 2, ts: 13_000, summary: 'done' },
-      ] as RunRecord['events'],
+        { kind: 'message.complete', sessionId: 's1', messageId: 't1', seq: 2, ts: 13_000, summary: 'done' },
+      ] as MessageRecord['events'],
     })
     render(<TaskTimeline busy={false} onCopy={() => {}} tasks={[completed]} />)
     // 13_000ms - 1000ms = 12s, frozen (run is terminal).

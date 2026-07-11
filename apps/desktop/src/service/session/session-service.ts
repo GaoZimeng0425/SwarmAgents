@@ -22,8 +22,8 @@ import { buildMarkdown } from '../conversation/markdown-export'
 import type { ConversationStore } from '../conversation/store'
 import { createAgentDirectory } from '../directory/receptionist'
 import type { Broadcaster } from '../ipc/broadcaster'
-import { createRunEmit, type RunEmitPorts } from '../run-engine/emit'
-import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
+import { createMessageEmit, type MessageEmitPorts } from '../message-engine/emit'
+import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
 import { withSkills } from '../skills/prompt'
 import type { SkillStore } from '../skills/store'
 import { registerBuiltinTools } from '../tools/builtins'
@@ -89,22 +89,22 @@ export type SessionService = {
     attachments?: Attachment[],
     onComplete?: (status: 'completed' | 'failed' | 'cancelled', error?: string) => void,
     options?: RunOptions
-  ): { runId: string }
+  ): { messageId: string }
   runWork(
     sessionId: string,
     prompt: string,
     options?: RunOptions
-  ): Promise<{ runId: string; status: string; summary: string }>
+  ): Promise<{ messageId: string; status: string; summary: string }>
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
-  cancelRun(sessionId: string, runId: string): void
-  promoteQueuedRun(sessionId: string, runId: string): void
+  cancelMessage(sessionId: string, messageId: string): void
+  promoteQueuedMessage(sessionId: string, messageId: string): void
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
   setSessionPinned(sessionId: string, pinned: boolean): void
   updateSessionSettings(sessionId: string, settings: import('@swarm/protocol').SessionSettings): void
   reorderSessions(orderedIds: string[]): void
   listSessions(): import('@swarm/protocol').SessionSummary[]
-  getRunEvents(sessionId: string): import('@swarm/protocol').RunEvent[]
+  getMessageEvents(sessionId: string): import('@swarm/protocol').MessageEvent[]
   /** Build a markdown transcript of the session and write it to exportsDir; returns the file path. */
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
@@ -165,23 +165,23 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   const resolvePermissionMode = (sid: string): PermissionMode => store.getSessionSettings(sid)?.permissionMode ?? 'ask'
   const directory = createAgentDirectory({ listAgentDefs: () => cfg.agentStore?.list() ?? [] })
 
-  const seqCounter = createSeqCounter((sid: string) => store.getRunEvents(sid))
-  const terminalRegistry = createTerminalRegistry(store.getTerminalRunStatuses())
+  const seqCounter = createSeqCounter((sid: string) => store.getMessageEvents(sid))
+  const terminalRegistry = createTerminalRegistry(store.getTerminalMessageStatuses())
 
-  // The ONE emit-port adapter, shared by every run. Persists each run.* event
-  // to run_events, marks the first-wins terminal registry, broadcasts on the wire.
-  const emitPorts: RunEmitPorts = {
+  // The ONE emit-port adapter, shared by every message. Persists each message.* event
+  // to message_events, marks the first-wins terminal registry, broadcasts on the wire.
+  const emitPorts: MessageEmitPorts = {
     nextSeq: (sid) => seqCounter.nextSeq(sid),
     appendEvent: (evt) => {
       // Deleted-session guard: skip persistence only — markTerminal/broadcast
-      // are separate port calls in createRunEmit and proceed unaffected.
+      // are separate port calls in createMessageEmit and proceed unaffected.
       if (deletedSessions.has(evt.sessionId)) {
-        log.debug({ msg: 'run event dropped for deleted session', runId: evt.runId, kind: evt.kind })
+        log.debug({ msg: 'message event dropped for deleted session', messageId: evt.messageId, kind: evt.kind })
         return
       }
-      store.appendRunEvent(evt.sessionId, evt.runId, evt.parentRunId ?? null, evt)
+      store.appendMessageEvent(evt.sessionId, evt.messageId, evt.parentMessageId ?? null, evt)
     },
-    markTerminal: (runId, status) => terminalRegistry.markTerminal(runId, status),
+    markTerminal: (messageId, status) => terminalRegistry.markTerminal(messageId, status),
     broadcast: (evt) => {
       broadcaster.broadcast(evt.kind, evt)
       // Hooks sink: fire-and-forget alongside the wire broadcast. Guarded so
@@ -192,48 +192,48 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         log.warn({
           msg: 'dispatchHook threw',
           kind: evt.kind,
-          runId: evt.runId,
+          messageId: evt.messageId,
           err: err instanceof Error ? err.message : String(err),
         })
       }
     },
   }
 
-  // The permission registry emits the `run.permission_request` event for
-  // whichever run is currently prompting; its runId rides on the payload's
+  // The permission registry emits the `message.permission_request` event for
+  // whichever message is currently prompting; its messageId rides on the payload's
   // `taskId` field (there is no closure identity). This dedicated adapter ports
-  // makeRunEmit's payload-derived-runId behavior for THIS event only: persist +
-  // broadcast under the run.* vocabulary (top-level `runId`, no `taskId`).
+  // makeMessageEmit's payload-derived-messageId behavior for THIS event only: persist +
+  // broadcast under the message.* vocabulary (top-level `messageId`, no `taskId`).
   const permissionEmit =
     (sessionId: string) =>
     (event: string, data: unknown): void => {
       const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
       const seq = seqCounter.nextSeq(sessionId)
       const ts = Date.now()
-      const runId = obj?.taskId as string | undefined
+      const messageId = obj?.taskId as string | undefined
       const parent = (obj?.parentTaskId as string | undefined) ?? null
-      // Strip the source vocabulary keys so the emitted event is pure run.*.
+      // Strip the source vocabulary keys so the emitted event is pure message.*.
       const { taskId: _taskId, parentTaskId: _parentTaskId, ...rest } = obj ?? {}
-      if (runId) {
-        store.appendRunEvent(sessionId, runId, parent, {
+      if (messageId) {
+        store.appendMessageEvent(sessionId, messageId, parent, {
           kind: event,
           ...rest,
           sessionId,
-          runId,
+          messageId,
           seq,
           ts,
         } as UIEvent)
       }
-      broadcaster.broadcast(event, obj ? { ...rest, sessionId, runId, seq, ts } : data)
+      broadcaster.broadcast(event, obj ? { ...rest, sessionId, messageId, seq, ts } : data)
       // Same hooks sink as emitPorts.broadcast — permissionEmit is the sole
-      // emit path for run.permission_request, so it must dispatch hooks too.
+      // emit path for message.permission_request, so it must dispatch hooks too.
       try {
-        if (runId) cfg.dispatchHook?.(event, { ...rest, sessionId, runId, seq, ts })
+        if (messageId) cfg.dispatchHook?.(event, { ...rest, sessionId, messageId, seq, ts })
       } catch (err) {
         log.warn({
           msg: 'dispatchHook threw',
           kind: event,
-          runId,
+          messageId,
           err: err instanceof Error ? err.message : String(err),
         })
       }
@@ -299,7 +299,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   const aborts = new Map<string, () => void>()
 
   // ---- Per-session FIFO turn tickets → launch's waitTurn -------------------
-  type Ticket = { runId: string; grant: () => void }
+  type Ticket = { messageId: string; grant: () => void }
   const turnQueues = new Map<string, { current: string | null; queue: Ticket[] }>()
   const q = (sid: string): { current: string | null; queue: Ticket[] } => {
     const existing = turnQueues.get(sid)
@@ -313,25 +313,25 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     if (st.current) return
     const next = st.queue.shift()
     if (!next) return
-    st.current = next.runId
-    log.info({ msg: 'turn granted', sessionId: sid, runId: next.runId, queueDepth: st.queue.length })
+    st.current = next.messageId
+    log.info({ msg: 'turn granted', sessionId: sid, messageId: next.messageId, queueDepth: st.queue.length })
     next.grant()
   }
-  const waitTurn = (sid: string, runId: string, _signal: AbortSignal): Promise<void> =>
+  const waitTurn = (sid: string, messageId: string, _signal: AbortSignal): Promise<void> =>
     new Promise<void>((grant) => {
-      q(sid).queue.push({ runId, grant })
+      q(sid).queue.push({ messageId, grant })
       pumpTurns(sid)
     })
-  // Called when a turn's launchRun promise settles: clear it if current, or drop
+  // Called when a turn's launchMessage promise settles: clear it if current, or drop
   // it from the queue if it aborted while still waiting, then pump the next one.
   // Looks up (never creates): a settlement racing a deleteSession must not
   // resurrect an empty queue entry for a session that's already gone.
-  const settleTurn = (sid: string, runId: string): void => {
+  const settleTurn = (sid: string, messageId: string): void => {
     const st = turnQueues.get(sid)
     if (!st) return
-    if (st.current === runId) st.current = null
+    if (st.current === messageId) st.current = null
     else {
-      const i = st.queue.findIndex((t) => t.runId === runId)
+      const i = st.queue.findIndex((t) => t.messageId === messageId)
       if (i !== -1) st.queue.splice(i, 1)
     }
     pumpTurns(sid)
@@ -347,10 +347,10 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     registerAbort: (id, abort) => aborts.set(id, abort),
     unregisterAbort: (id) => aborts.delete(id),
     waitTurn,
-    delegate: (parentRunId, prompt, opts) => delegate(session, parentRunId, prompt, opts),
+    delegate: (parentMessageId, prompt, opts) => delegate(session, parentMessageId, prompt, opts),
     createTask: (prompt, agentType) =>
       runWork(session.id, prompt, agentType ? { agentType } : {}).then((r) => ({
-        runId: r.runId,
+        messageId: r.messageId,
         status: r.status,
         summary: r.summary,
         artifacts: [],
@@ -363,14 +363,14 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   })
 
   // Recursive child launch — resolve agentType/provider exactly like the old
-  // spawnChild, then a nested launchRun({ kind: 'child' }). The child's STATUS
+  // spawnChild, then a nested launchMessage({ kind: 'child' }). The child's STATUS
   // survives to the tool layer (spec §4, ledger #6).
   const delegate = async (
     session: SessionState,
-    parentRunId: string,
+    parentMessageId: string,
     prompt: string,
     opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
-  ): Promise<DelegateResult & { runId: string }> => {
+  ): Promise<DelegateResult & { messageId: string }> => {
     const { agentType, providerKey, suggestedTools } = opts
     // Resolve the sub-agent type; an unknown type falls back to the default.
     const def = (agentType ? cfg.agentStore?.get(agentType) : undefined) ?? DEFAULT_AGENT_DEF
@@ -384,12 +384,12 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     // The agent type may pin a model tier; otherwise inherit the provider's.
     // applyAgentModel preserves the provider's fallback chain.
     const resolvedProvider = applyAgentModel(lookedUp ?? session.provider, def)
-    log.info({ msg: 'child delegated', sessionId: session.id, parentRunId, agentDefId: def.id })
-    const r = await launchRun(
+    log.info({ msg: 'child delegated', sessionId: session.id, parentMessageId, agentDefId: def.id })
+    const r = await launchMessage(
       {
         kind: 'child',
         sessionId: session.id,
-        parentRunId,
+        parentMessageId,
         agent: withPrompt(def),
         provider: resolvedProvider,
         prompt,
@@ -402,7 +402,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       },
       basePorts(session)
     )
-    return { runId: r.runId, status: r.status, summary: r.summary, artifacts: [] }
+    return { messageId: r.messageId, status: r.status, summary: r.summary, artifacts: [] }
   }
 
   // Agent-authored top-level work run (delegate topLevel): a self-contained
@@ -412,7 +412,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     sessionId: string,
     prompt: string,
     options: RunOptions = {}
-  ): Promise<{ runId: string; status: 'completed' | 'failed' | 'cancelled'; summary: string }> => {
+  ): Promise<{ messageId: string; status: 'completed' | 'failed' | 'cancelled'; summary: string }> => {
     const session = getOrRehydrate(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
     const resolvedByType = options.agentType ? cfg.agentStore?.get(options.agentType) : undefined
@@ -422,7 +422,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     const agentDef = resolvedByType ?? DEFAULT_AGENT_DEF
     const tools = options.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
     log.info({ msg: 'work run started', sessionId, agentDefId: agentDef.id, promptLen: prompt.length })
-    const r = await launchRun(
+    const r = await launchMessage(
       {
         kind: 'work',
         sessionId,
@@ -440,8 +440,8 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       },
       basePorts(session)
     )
-    log.info({ msg: 'work run finished', sessionId, runId: r.runId, status: r.status })
-    return { runId: r.runId, status: r.status, summary: r.summary }
+    log.info({ msg: 'work run finished', sessionId, messageId: r.messageId, status: r.status })
+    return { messageId: r.messageId, status: r.status, summary: r.summary }
   }
 
   const getOrRehydrate = (sessionId: string): SessionState | undefined => {
@@ -471,30 +471,35 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     if (interrupted.length === 0) return
     let closed = 0
     for (const s of interrupted) {
-      const rows = store.getRunEvents(s.id)
+      const rows = store.getMessageEvents(s.id)
       const started = new Set<string>()
       const terminal = new Set<string>()
       for (const r of rows) {
         const kind = (r.event as { kind?: string }).kind
-        if (kind === 'task.created' || kind === 'run.created') started.add(r.runId)
-        else if (kind === 'task.complete' || kind === 'task.error' || kind === 'run.complete' || kind === 'run.error')
-          terminal.add(r.runId)
+        if (kind === 'task.created' || kind === 'message.created') started.add(r.messageId)
+        else if (
+          kind === 'task.complete' ||
+          kind === 'task.error' ||
+          kind === 'message.complete' ||
+          kind === 'message.error'
+        )
+          terminal.add(r.messageId)
       }
-      for (const runId of started) {
-        if (terminal.has(runId)) continue
+      for (const messageId of started) {
+        if (terminal.has(messageId)) continue
         const seq = seqCounter.nextSeq(s.id)
         const ts = Date.now()
-        store.appendRunEvent(s.id, runId, null, {
-          kind: 'run.error',
+        store.appendMessageEvent(s.id, messageId, null, {
+          kind: 'message.error',
           sessionId: s.id,
-          runId,
-          // 'cancelled' keeps the reducer, the registry, and getTerminalRunStatuses
+          messageId,
+          // 'cancelled' keeps the reducer, the registry, and getTerminalMessageStatuses
           // (next restart) all in sync.
           error: { code: 'cancelled', message: 'run interrupted by restart', tier: 'fatal' },
           seq,
           ts,
         } as unknown as UIEvent)
-        terminalRegistry.markTerminal(runId, 'cancelled')
+        terminalRegistry.markTerminal(messageId, 'cancelled')
         closed += 1
       }
     }
@@ -552,7 +557,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       if (!session) throw new Error(`session ${sessionId} not found`)
 
       const attachments = attachmentsArg ?? []
-      const runId = ulid()
+      const messageId = ulid()
 
       // Resolve agent definition: options.agentType, then DEFAULT_AGENT_DEF.
       const resolvedByType = options?.agentType ? cfg.agentStore?.get(options.agentType) : undefined
@@ -563,9 +568,9 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       // Plan mode forces the read-only tool set even for a conversation turn.
       const tools = options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
 
-      const spec: RunSpec = {
+      const spec: MessageSpec = {
         kind: 'turn',
-        runId,
+        messageId,
         sessionId,
         agent: withPrompt(agentDef),
         provider: session.provider,
@@ -588,17 +593,17 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       }
 
       // Fire the run IMMEDIATELY so run.created renders as a pending card. This
-      // runs synchronously up to launchRun's first await, which emits run.created
+      // runs synchronously up to launchMessage's first await, which emits run.created
       // and pushes the FIFO ticket before returning the pending promise.
-      const done = launchRun(spec, basePorts(session))
+      const done = launchMessage(spec, basePorts(session))
 
       // The user message is a first-class, seq'd run.progress event rendered in
       // true causal position — right after run.created, before dispatch (port of
       // the 4c behavior). Guarded: a throwing store here must not escape to the
       // dispatcher while the run is already streaming (Minor #3).
       try {
-        createRunEmit(emitPorts, { sessionId, runId })({
-          kind: 'run.progress',
+        createMessageEmit(emitPorts, { sessionId, messageId })({
+          kind: 'message.progress',
           event: { kind: 'llm.message', role: 'user', content: prompt, ts: Date.now() },
         })
         store.updateSessionLastActive(sessionId)
@@ -613,36 +618,36 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         log.error({
           msg: 'post-launch bookkeeping failed',
           sessionId,
-          runId,
+          messageId,
           err: err instanceof Error ? err.message : String(err),
         })
       }
       log.info({
         msg: 'conversation turn submitted',
         sessionId,
-        runId,
+        messageId,
         agentDefId: agentDef.id,
         cwd: options?.cwd ?? null,
         permissionMode: options?.permissionMode ?? 'ask',
         executionMode: options?.executionMode ?? 'direct',
       })
 
-      // launchRun never rejects; on settlement advance the FIFO + notify caller.
+      // launchMessage never rejects; on settlement advance the FIFO + notify caller.
       void done.then((r) => {
-        settleTurn(sessionId, runId)
+        settleTurn(sessionId, messageId)
         try {
           onComplete?.(r.status)
         } catch (err) {
           log.error({
             msg: 'submitPrompt onComplete threw',
             sessionId,
-            runId,
+            messageId,
             err: err instanceof Error ? err.message : String(err),
           })
         }
       })
 
-      return { runId }
+      return { messageId }
     },
 
     runWork(sessionId, prompt, options) {
@@ -653,32 +658,32 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       sessions.get(sessionId)?.permissionRegistry.resolve(actionId, decision)
     },
 
-    cancelRun(sessionId, runId) {
-      log.info({ msg: 'run cancel requested', sessionId, runId })
+    cancelMessage(sessionId, messageId) {
+      log.info({ msg: 'run cancel requested', sessionId, messageId })
       // Launch registers the abort BEFORE its waits, so a queued run cancels
       // cleanly through the same handle — no queued-branch needed (ledger #4).
-      const abort = aborts.get(runId)
+      const abort = aborts.get(messageId)
       if (abort) {
         abort()
         return
       }
-      log.warn({ msg: 'cancelRun: unknown or already-finished run', sessionId, runId })
+      log.warn({ msg: 'cancelMessage: unknown or already-finished run', sessionId, messageId })
     },
 
-    promoteQueuedRun(sessionId, runId) {
+    promoteQueuedMessage(sessionId, messageId) {
       const st = turnQueues.get(sessionId)
-      const idx = st ? st.queue.findIndex((t) => t.runId === runId) : -1
+      const idx = st ? st.queue.findIndex((t) => t.messageId === messageId) : -1
       if (!st || idx === -1) {
-        log.warn({ msg: 'promoteQueuedRun: run not in queue', sessionId, runId })
+        log.warn({ msg: 'promoteQueuedMessage: run not in queue', sessionId, messageId })
         return
       }
       // Promote the chosen ticket to the front of the queue.
       const [item] = st.queue.splice(idx, 1)
       st.queue.unshift(item)
       const cancelledRunId = st.current
-      log.info({ msg: 'run interrupted, promoted to front', sessionId, runId, cancelledRunId })
+      log.info({ msg: 'run interrupted, promoted to front', sessionId, messageId, cancelledRunId })
       if (cancelledRunId) {
-        // Abort the running run; its launchRun settles cancelled (partial output
+        // Abort the running run; its launchMessage settles cancelled (partial output
         // already saved via saveSnapshot), settleTurn clears current and pumps
         // the promoted ticket.
         aborts.get(cancelledRunId)?.()
@@ -698,7 +703,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       const st = turnQueues.get(sessionId)
       if (st) {
         if (st.current) aborts.get(st.current)?.()
-        for (const t of st.queue) aborts.get(t.runId)?.()
+        for (const t of st.queue) aborts.get(t.messageId)?.()
       }
       sessions.delete(sessionId)
       turnQueues.delete(sessionId)
@@ -736,12 +741,12 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       return store.listSessions()
     },
 
-    getRunEvents(sessionId) {
-      return store.getRunEvents(sessionId)
+    getMessageEvents(sessionId) {
+      return store.getMessageEvents(sessionId)
     },
 
     async exportSessionMarkdown(sessionId) {
-      const rows = store.getRunEvents(sessionId)
+      const rows = store.getMessageEvents(sessionId)
       const md = buildMarkdown(rows)
       const dir = cfg.exportsDir
       if (!dir) throw new Error('exportSessionMarkdown: exportsDir not configured')

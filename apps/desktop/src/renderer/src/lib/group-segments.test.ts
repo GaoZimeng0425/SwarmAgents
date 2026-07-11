@@ -12,12 +12,12 @@ const tool = (name: string, extra: Partial<{ ok: boolean | null }> = {}): Segmen
     input: {},
     output: null,
     key: `k${n++}`,
-    runId: 't',
+    messageId: 't',
     ts: n,
-    seq: n,
+    order: n,
     ...extra,
   }) as Segment
-const assistant = (): Segment => ({ kind: 'assistant', text: '', key: `k${n++}`, runId: 't', ts: n, seq: n })
+const assistant = (): Segment => ({ kind: 'assistant', text: '', key: `k${n++}`, messageId: 't', ts: n, order: n })
 
 describe('groupSegments', () => {
   it('keeps a lone tool as a single item', () => {

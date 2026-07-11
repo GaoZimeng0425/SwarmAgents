@@ -63,12 +63,12 @@ describe('unified runs', () => {
     const work = await service.runWork(sessionId, 'build it')
     await flush()
 
-    const rows = store.getRunEvents(sessionId)
+    const rows = store.getMessageEvents(sessionId)
     const isTerminal = (r: { event: { kind?: string } }): boolean =>
-      r.event.kind === 'run.complete' || r.event.kind === 'run.error'
+      r.event.kind === 'message.complete' || r.event.kind === 'message.error'
     // Both runs reached a terminal event in run_events.
-    expect(rows.filter((r) => r.runId === work.runId).some(isTerminal)).toBe(true) // work
-    expect(rows.filter((r) => r.runId === turn.runId).some(isTerminal)).toBe(true) // conversation
+    expect(rows.filter((r) => r.messageId === work.messageId).some(isTerminal)).toBe(true) // work
+    expect(rows.filter((r) => r.messageId === turn.messageId).some(isTerminal)).toBe(true) // conversation
 
     store.close()
   })

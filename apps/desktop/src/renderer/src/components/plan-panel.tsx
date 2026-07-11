@@ -7,11 +7,11 @@ import { cn } from '@/lib/utils'
 
 /** One turn's plan, grouped under its goal for the session execution history. */
 export type PlanGroup = {
-  runId: string
+  messageId: string
   prompt: string
   plan: PlanTodo[]
   status: TaskStatus
-  startedAt: number
+  createdAt: number
 }
 
 type Props = { groups: PlanGroup[] }
@@ -108,7 +108,7 @@ export function PlanPanel({ groups }: Props): React.JSX.Element {
       ) : (
         <div className="flex flex-col gap-2 px-3 py-4">
           {groups.map((g) => (
-            <PlanGroupBlock group={g} key={g.runId} />
+            <PlanGroupBlock group={g} key={g.messageId} />
           ))}
         </div>
       )}

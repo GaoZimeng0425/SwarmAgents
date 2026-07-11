@@ -9,7 +9,7 @@ const baseInputs: BuildInputs = {
     { id: 's1', title: 'Gmail 摘要', lastActiveAt: 1, agentType: 'ceo' },
     { id: 's2', title: 'Bilibili 分析', lastActiveAt: 2 },
   ],
-  runningRuns: [
+  runningMessages: [
     {
       id: 'r1',
       sessionId: 's1',

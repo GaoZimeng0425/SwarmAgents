@@ -76,7 +76,7 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       }
       case 'submitPrompt': {
         // The method name stays (ServiceMethod stability for the renderer API),
-        // but the call maps to SessionService.submitPrompt and returns { runId }.
+        // but the call maps to SessionService.submitPrompt and returns { messageId }.
         const [sessionId, prompt, attachments, options] = args as [
           string,
           string,
@@ -124,9 +124,9 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         return cfg.researchedRepoNames()
       case 'listSessions':
         return service.listSessions()
-      case 'getRunEvents': {
+      case 'getMessageEvents': {
         const [sessionId] = args as [string]
-        return service.getRunEvents(sessionId)
+        return service.getMessageEvents(sessionId)
       }
       case 'exportSessionMarkdown': {
         const [sessionId] = args as [string]
@@ -162,14 +162,14 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         service.resolvePermission(sessionId, actionId, decision)
         return { ok: true }
       }
-      case 'cancelRun': {
-        const [sessionId, runId] = args as [string, string]
-        service.cancelRun(sessionId, runId)
+      case 'cancelMessage': {
+        const [sessionId, messageId] = args as [string, string]
+        service.cancelMessage(sessionId, messageId)
         return { ok: true }
       }
-      case 'promoteQueuedRun': {
+      case 'promoteQueuedMessage': {
         const [sessionId, taskId] = args as [string, string]
-        service.promoteQueuedRun(sessionId, taskId)
+        service.promoteQueuedMessage(sessionId, taskId)
         return { ok: true }
       }
       case 'setMcpServers': {

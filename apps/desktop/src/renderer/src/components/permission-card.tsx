@@ -42,7 +42,7 @@ export function PermissionCard({ prompt, onDecide, autoFocusDeny = false }: Prop
           <header>
             <h2 className={cn('font-medium text-base', isHigh && 'text-destructive')}>Action requires confirmation</h2>
             <p className="text-muted-foreground text-sm">
-              Run {prompt.runId} · risk: <strong>{prompt.risk}</strong>
+              Run {prompt.messageId} · risk: <strong>{prompt.risk}</strong>
             </p>
           </header>
           <div className="text-sm">{prompt.summary}</div>

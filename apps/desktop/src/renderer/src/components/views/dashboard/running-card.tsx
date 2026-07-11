@@ -7,13 +7,13 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Check, X } from 'lucide-react'
 
-import { useDecidePermission } from '@/hooks/use-runs'
-import type { DashboardRun } from '@/lib/dashboard-runs'
+import { useDecidePermission } from '@/hooks/use-messages'
+import type { DashboardMessage } from '@/lib/dashboard-messages'
 import { formatDuration } from '@/lib/scheduled-rows'
 import { cn } from '@/lib/utils'
 import { usePermissionStore } from '@/stores/permission'
 
-type Props = { run: DashboardRun }
+type Props = { run: DashboardMessage }
 
 export function RunningCard({ run }: Props): React.JSX.Element {
   const navigate = useNavigate()

@@ -36,8 +36,8 @@ vi.mock('../stores/sessions', () => ({
       selectedSessionId: 's1',
     }),
 }))
-vi.mock('./use-runs', () => ({
-  useRuns: () => [
+vi.mock('./use-messages', () => ({
+  useMessages: () => [
     { id: 'r1', sessionId: 's1', prompt: 'g', status: 'running', summary: null, events: [] },
     { id: 'r2', sessionId: 's2', prompt: 'g', status: 'completed', summary: null, events: [] },
     { id: 'r3', sessionId: 's3', prompt: 'g', status: 'pending', summary: null, events: [] },
@@ -87,7 +87,7 @@ describe('usePaletteData', () => {
   it('keeps only running/pending runs', () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => usePaletteData(), { wrapper: makeWrapper(qc) })
-    expect(result.current.runningRuns.map((r) => r.id)).toEqual(['r1', 'r3'])
+    expect(result.current.runningMessages.map((r) => r.id)).toEqual(['r1', 'r3'])
   })
 
   it('maps cron lastRunAt → lastRun and passes through formations/services', () => {

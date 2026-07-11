@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@swarm/ui'
 
 import { minimapItems } from '@/lib/minimap-items'
 import { cn } from '@/lib/utils'
 
-type Props = { tasks: RunRecord[] }
+type Props = { tasks: MessageRecord[] }
 
 // A left-edge vertical rail: one tick per user turn. Click a tick to jump to
 // that turn; hover to preview its text; the in-view turn's tick is highlighted.
@@ -13,13 +13,13 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
   const items = useMemo(() => minimapItems(tasks), [tasks])
   const [activeId, setActiveId] = useState<string | null>(null)
   // Stable dep: only changes when a turn is added/removed, not on every stream tick.
-  const idsKey = useMemo(() => items.map((it) => it.runId).join('|'), [items])
+  const idsKey = useMemo(() => items.map((it) => it.messageId).join('|'), [items])
 
   useEffect(() => {
     const ids = idsKey ? idsKey.split('|') : []
     if (ids.length < 2) return
     const els = ids
-      .map((id) => document.querySelector<HTMLElement>(`[data-task-id="${id}"]`))
+      .map((id) => document.querySelector<HTMLElement>(`[data-message-id="${id}"]`))
       .filter((el): el is HTMLElement => el !== null)
     if (els.length === 0) return
 
@@ -29,7 +29,7 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          const id = e.target.getAttribute('data-task-id')
+          const id = e.target.getAttribute('data-message-id')
           if (!id) continue
           if (e.isIntersecting) tops.set(id, e.boundingClientRect.top)
           else tops.delete(id)
@@ -54,9 +54,9 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
 
   if (items.length < 2) return null
 
-  const jump = (runId: string): void => {
+  const jump = (messageId: string): void => {
     document
-      .querySelector<HTMLElement>(`[data-run-id="${runId}"]`)
+      .querySelector<HTMLElement>(`[data-message-id="${messageId}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 
@@ -67,8 +67,8 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
         className="absolute bottom-8 left-3 z-20 flex max-h-[55%] flex-col justify-end gap-1.5 overflow-hidden rounded-full bg-muted/60 p-2 ring-1 ring-border/50 backdrop-blur-sm"
       >
         {items.map((it) => {
-          const active = it.runId === activeId
-          const label = it.text.trim() ? it.text : '(empty message)'
+          const active = it.messageId === activeId
+          const label = it.text?.trim() ? it.text : '(empty message)'
           const trigger = (
             <button
               aria-label={label.slice(0, 80)}
@@ -76,12 +76,12 @@ export function ConversationMinimap({ tasks }: Props): React.JSX.Element | null 
                 'h-1.5 rounded-full transition-all hover:bg-foreground/70',
                 active ? 'w-7 bg-primary' : 'w-4 bg-muted-foreground/40'
               )}
-              onClick={() => jump(it.runId)}
+              onClick={() => jump(it.messageId)}
               type="button"
             />
           )
           return (
-            <Tooltip key={it.runId}>
+            <Tooltip key={it.messageId}>
               <TooltipTrigger render={trigger} />
               <TooltipContent align="end" side="right">
                 <p className="line-clamp-4 max-w-xs whitespace-pre-wrap">{label}</p>

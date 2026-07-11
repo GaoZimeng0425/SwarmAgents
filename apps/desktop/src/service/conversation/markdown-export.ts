@@ -1,45 +1,45 @@
-// Pure markdown builder for session exports. Turns a session's RunEvent stream
+// Pure markdown builder for session exports. Turns a session's MessageEvent stream
 // into a human-readable transcript: messages as bold role lines, tool calls as
-// fenced code, errors as blockquotes. Child runs nest under their parent. Pure;
+// fenced code, errors as blockquotes. Child messages nest under their parent. Pure;
 // unit-tested. The file-write wrapper lives in session-service.
 //
-// Data shape: each RunEvent's `event` is a UIEvent. The transcript content
-// (llm.message / tool.call / reasoning / error) lives INSIDE run.progress
-// events as a TaskEvent payload (`event.event`). run.tool_call / run.error /
-// run.complete are also rendered at the run level. Pure; unit-tested.
+// Data shape: each MessageEvent's `event` is a UIEvent. The transcript content
+// (llm.message / tool.call / reasoning / error) lives INSIDE message.progress
+// events as a TaskEvent payload (`event.event`). message.tool_call / message.error /
+// message.complete are also rendered at the message level. Pure; unit-tested.
 
-import type { RunEvent, TaskEvent, UIEvent } from '@swarm/protocol'
+import type { MessageEvent, TaskEvent, UIEvent } from '@swarm/protocol'
 
 const PAYLOAD_LIMIT = 2000
 
 /**
- * Build a markdown transcript from a session's run-event rows. Rows must be in
- * insertion order (as returned by ConversationStore.getRunEvents). Top-level
- * runs become `##` sections; child runs indent their contents.
+ * Build a markdown transcript from a session's message-event rows. Rows must be in
+ * insertion order (as returned by ConversationStore.getMessageEvents). Top-level
+ * messages become `##` sections; child messages indent their contents.
  */
-export function buildMarkdown(rows: RunEvent[]): string {
-  const byRun = new Map<string, RunEvent[]>()
+export function buildMarkdown(rows: MessageEvent[]): string {
+  const byRun = new Map<string, MessageEvent[]>()
   const parentOf = new Map<string, string | null>()
   const promptByRun = new Map<string, string>()
   const order: string[] = []
   for (const r of rows) {
-    if (!byRun.has(r.runId)) {
-      byRun.set(r.runId, [])
-      order.push(r.runId)
-      parentOf.set(r.runId, r.parentRunId)
+    if (!byRun.has(r.messageId)) {
+      byRun.set(r.messageId, [])
+      order.push(r.messageId)
+      parentOf.set(r.messageId, r.parentMessageId)
     }
-    // Capture the prompt from run.created for the section heading.
-    if (r.event.kind === 'run.created') promptByRun.set(r.runId, r.event.prompt)
-    byRun.get(r.runId)!.push(r)
+    // Capture the prompt from message.created for the section heading.
+    if (r.event.kind === 'message.created') promptByRun.set(r.messageId, r.event.prompt)
+    byRun.get(r.messageId)!.push(r)
   }
 
   const lines: string[] = ['# SwarmAgents Session Export', '']
 
-  const renderRun = (runId: string, depth: number): void => {
-    const events = byRun.get(runId) ?? []
+  const renderRun = (messageId: string, depth: number): void => {
+    const events = byRun.get(messageId) ?? []
     const prefix = '  '.repeat(depth)
     const heading = '#'.repeat(Math.min(depth + 2, 6))
-    lines.push(`${prefix}${heading} ${promptByRun.get(runId) ?? runId}`, '')
+    lines.push(`${prefix}${heading} ${promptByRun.get(messageId) ?? messageId}`, '')
     for (const { event } of events) {
       for (const body of renderEvent(event)) {
         lines.push(`${prefix}${body}`, '')
@@ -49,12 +49,12 @@ export function buildMarkdown(rows: RunEvent[]): string {
 
   // Render top-level runs first; their children appear nested inline.
   const rendered = new Set<string>()
-  for (const runId of order) {
-    if (parentOf.get(runId) !== null) continue // child — rendered by parent
-    renderRun(runId, 0)
-    rendered.add(runId)
+  for (const messageId of order) {
+    if (parentOf.get(messageId) !== null) continue // child — rendered by parent
+    renderRun(messageId, 0)
+    rendered.add(messageId)
     for (const child of order) {
-      if (parentOf.get(child) === runId && !rendered.has(child)) {
+      if (parentOf.get(child) === messageId && !rendered.has(child)) {
         renderRun(child, 1)
         rendered.add(child)
       }
@@ -64,29 +64,29 @@ export function buildMarkdown(rows: RunEvent[]): string {
   return lines.join('\n').trimEnd() + '\n'
 }
 
-// Yields 0..n markdown lines for a single UIEvent. run.progress events unwrap
-// their nested TaskEvent and render its content; run-level lifecycle events
+// Yields 0..n markdown lines for a single UIEvent. message.progress events unwrap
+// their nested TaskEvent and render its content; message-level lifecycle events
 // render directly. Returns empty for events that aren't transcript-worthy.
 function renderEvent(e: UIEvent): string[] {
   switch (e.kind) {
-    case 'run.progress':
+    case 'message.progress':
       return renderTaskEvent(e.event)
-    case 'run.tool_call':
+    case 'message.tool_call':
       return ['```json', truncate(`tool: ${e.tool}\nargs: ${stringify(e.args)}`), '```']
-    case 'run.error':
+    case 'message.error':
       return [`> ⚠️ ${e.error.message} (${e.error.code})`]
-    case 'run.complete':
+    case 'message.complete':
       return e.summary ? [`_✓ ${truncate(e.summary)}_`] : []
-    case 'run.created':
-    case 'run.dispatched':
-    case 'run.usage':
-    case 'run.plan':
-    case 'run.delegation_plan':
-    case 'run.spawned':
-    case 'run.permission_request':
+    case 'message.created':
+    case 'message.dispatched':
+    case 'message.usage':
+    case 'message.plan':
+    case 'message.delegation_plan':
+    case 'message.spawned':
+    case 'message.permission_request':
       return [] // lifecycle/plumbing — reflected in headings, not transcript body
     default:
-      return [] // session.*/memory.*/gmail.* — not part of a run transcript
+      return [] // session.*/memory.*/gmail.* — not part of a message transcript
   }
 }
 

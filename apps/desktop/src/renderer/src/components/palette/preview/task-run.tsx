@@ -18,17 +18,17 @@ export function TaskRunPreview({ data }: { data: TaskRunPreviewData }): React.JS
 
   const q = useQuery({
     queryKey: ['session-preview', sessionId],
-    queryFn: () => swarmApi.getRunEvents(sessionId),
+    queryFn: () => swarmApi.getMessageEvents(sessionId),
     enabled: !!sessionId,
     staleTime: 5_000,
   })
 
-  // Tail of the live log: run.progress events whose nested TaskEvent is either
+  // Tail of the live log: message.progress events whose nested TaskEvent is either
   // a tool.call or an llm.message, newest 20.
   const log = (q.data ?? [])
     .filter(
       (r) =>
-        r.event.kind === 'run.progress' &&
+        r.event.kind === 'message.progress' &&
         ((r.event as any).event?.kind === 'tool.call' || (r.event as any).event?.kind === 'llm.message')
     )
     .slice(-20)

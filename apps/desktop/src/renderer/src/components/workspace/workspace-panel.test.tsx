@@ -31,7 +31,7 @@ vi.mock('@/lib/workspace/build-timeline', () => ({ buildTimeline: () => [] }))
 import { WorkspacePanel } from './workspace-panel'
 
 const baseProps = {
-  runs: [],
+  messages: [],
   planGroups: [],
   session: { id: 's1', tokensUsed: 1000, cwd: '/cwd' } as never,
   onDecide: vi.fn(),

@@ -8,9 +8,9 @@ import { Inbox } from 'lucide-react'
 
 import { DashboardEmpty } from '@/components/views/dashboard/dashboard-empty'
 import { RunningCard } from '@/components/views/dashboard/running-card'
-import type { DashboardRun } from '@/lib/dashboard-runs'
+import type { DashboardMessage } from '@/lib/dashboard-messages'
 
-type Props = { running: DashboardRun[]; awaiting: DashboardRun[] }
+type Props = { running: DashboardMessage[]; awaiting: DashboardMessage[] }
 
 export function RunningCards({ running, awaiting }: Props): React.JSX.Element | null {
   const total = running.length + awaiting.length

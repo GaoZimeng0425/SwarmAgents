@@ -1,19 +1,20 @@
 // apps/desktop/src/renderer/src/lib/formations/build-agent-activity.test.ts
 
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { SessionSummary } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { buildAgentActivity } from './build-agent-activity'
 
-function mkRun(over: Partial<RunRecord> & Pick<RunRecord, 'id'>): RunRecord {
+function mkRun(over: Partial<MessageRecord> & Pick<MessageRecord, 'id'>): MessageRecord {
   return {
     sessionId: 's1',
     prompt: 'do something',
     status: 'running',
     summary: null,
-    startedAt: 1000,
+    createdAt: 1000,
     attachments: [],
+    order: 0,
     events: [],
     ...over,
   }
@@ -38,7 +39,7 @@ describe('buildAgentActivity', () => {
   })
 
   it('maps a sub-run (with agentDefId) to that agent id', () => {
-    const runs = [mkRun({ id: 'r1', status: 'running', agentDefId: 'engineer', prompt: '修复登录', startedAt: 100 })]
+    const runs = [mkRun({ id: 'r1', status: 'running', agentDefId: 'engineer', prompt: '修复登录', createdAt: 100 })]
     const out = buildAgentActivity(runs, [])
     expect(out.get('engineer')).toMatchObject({ status: 'running', currentTask: '修复登录' })
   })
@@ -95,10 +96,10 @@ describe('buildAgentActivity', () => {
     expect(buildAgentActivity(runs, []).get('a')?.currentTask).toBe(`${'x'.repeat(39)}…`)
   })
 
-  it('keeps only the newest active run per agent (max startedAt)', () => {
+  it('keeps only the newest active run per agent (max createdAt)', () => {
     const runs = [
-      mkRun({ id: 'r1', status: 'running', agentDefId: 'a', prompt: '旧的', startedAt: 100 }),
-      mkRun({ id: 'r2', status: 'running', agentDefId: 'a', prompt: '新的', startedAt: 500 }),
+      mkRun({ id: 'r1', status: 'running', agentDefId: 'a', prompt: '旧的', createdAt: 100 }),
+      mkRun({ id: 'r2', status: 'running', agentDefId: 'a', prompt: '新的', createdAt: 500 }),
     ]
     expect(buildAgentActivity(runs, []).get('a')?.currentTask).toBe('新的')
   })

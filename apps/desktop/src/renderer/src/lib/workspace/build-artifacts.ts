@@ -3,7 +3,7 @@
 // the session's tool_call args (best-effort heuristic) + bilibili analyses from
 // listArtifacts.
 
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { ArtifactEntry } from '@swarm/protocol'
 
 export type ArtifactRow = {
@@ -47,12 +47,12 @@ function extractPathsFromArgs(args: unknown): string[] {
 }
 
 /** Aggregate session-extracted file outputs + bilibili analyses, deduplicated. */
-export function buildArtifacts(runs: RunRecord[], cwdArtifacts: ArtifactEntry[]): ArtifactRow[] {
+export function buildArtifacts(messages: MessageRecord[], cwdArtifacts: ArtifactEntry[]): ArtifactRow[] {
   const seen = new Set<string>()
   const sessionRows: ArtifactRow[] = []
-  for (const run of runs) {
-    for (const e of run.events) {
-      if (e.kind !== 'run.tool_call') continue
+  for (const message of messages) {
+    for (const e of message.events) {
+      if (e.kind !== 'message.tool_call') continue
       for (const p of extractPathsFromArgs((e as { args: unknown }).args)) {
         const norm = normalizePath(p)
         if (seen.has(norm)) continue

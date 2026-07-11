@@ -32,7 +32,7 @@ const AttachmentViewerSheet = lazy(() =>
   import('@/components/attachment-viewer-sheet').then((m) => ({ default: m.AttachmentViewerSheet }))
 )
 
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { Spinner } from '@swarm/ui'
 
 import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
@@ -130,7 +130,7 @@ function SubagentBlock({
   lastKey,
   renderSegment,
 }: {
-  task: RunRecord
+  task: MessageRecord
   segs: Segment[]
   lastKey: string | undefined
   renderSegment: (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element
@@ -276,18 +276,18 @@ function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): 
   )
 }
 
-// Wall-clock end of a run's turn: the ts of its terminal (run.complete /
-// run.error) event once the run reached a terminal status; null while the run is
+// Wall-clock end of a run's turn: the ts of its terminal (message.complete /
+// message.error) event once the message reached a terminal status; null while the message is
 // still in flight (pending / running / awaiting_user), which drives the live
 // timer below to keep ticking.
-function runEndedAt(run: RunRecord): number | null {
-  const done = run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled'
+function messageEndedAt(message: MessageRecord): number | null {
+  const done = message.status === 'completed' || message.status === 'failed' || message.status === 'cancelled'
   if (!done) return null
-  for (let i = run.events.length - 1; i >= 0; i--) {
-    const ev = run.events[i]
-    if (ev.kind === 'run.complete' || ev.kind === 'run.error') return ev.ts
+  for (let i = message.events.length - 1; i >= 0; i--) {
+    const ev = message.events[i]
+    if (ev.kind === 'message.complete' || ev.kind === 'message.error') return ev.ts
   }
-  return run.events[run.events.length - 1]?.ts ?? null
+  return message.events[message.events.length - 1]?.ts ?? null
 }
 
 // Elapsed seconds, compact: "12s" under a minute, "2m 05s" beyond.
@@ -299,10 +299,10 @@ function formatElapsed(secs: number): string {
 }
 
 // Live elapsed counter shown above an assistant reply: counts up from 0 the
-// moment the agent received the turn (run.startedAt) and freezes at the total
+// moment the agent received the turn (message.createdAt) and freezes at the total
 // once the turn completes (endedAt set). While running (endedAt null) it ticks
 // once per second; the interval is torn down as soon as endedAt arrives.
-function ElapsedTimer({ startedAt, endedAt }: { startedAt: number; endedAt: number | null }): React.JSX.Element {
+function ElapsedTimer({ createdAt, endedAt }: { createdAt: number; endedAt: number | null }): React.JSX.Element {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (endedAt != null) return
@@ -310,7 +310,7 @@ function ElapsedTimer({ startedAt, endedAt }: { startedAt: number; endedAt: numb
     return () => clearInterval(id)
   }, [endedAt])
   const end = endedAt ?? now
-  const secs = Math.max(0, Math.floor((end - safeTs(startedAt)) / 1000))
+  const secs = Math.max(0, Math.floor((end - safeTs(createdAt)) / 1000))
   return (
     <span className="flex items-center gap-1 px-1 text-[10px] text-muted-foreground/50 tabular-nums">
       <Timer className="size-3" />
@@ -328,18 +328,18 @@ function ElapsedTimer({ startedAt, endedAt }: { startedAt: number; endedAt: numb
 // Top-level single tools render as SingleToolBlock to match the Thinking row.
 function createSegmentRenderer(opts: {
   busy: boolean
-  tasks: RunRecord[]
+  tasks: MessageRecord[]
   onSend?: (text: string) => void
   onCopy: (text: string) => void
-  onDelete?: (runId: string) => void
+  onDelete?: (messageId: string) => void
   onOpenFile?: (file: ViewerFile) => void
 }): (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element {
   const { busy, tasks, onSend, onCopy, onDelete, onOpenFile } = opts
-  const runById = new Map(tasks.map((t) => [t.id, t]))
+  const messageById = new Map(tasks.map((t) => [t.id, t]))
 
   // Time + copy/delete on one row: time always visible, actions revealed on
   // hover. User messages right-align the whole row.
-  const messageFooter = (text: string, runId: string, ts: number): React.JSX.Element => (
+  const messageFooter = (text: string, messageId: string, ts: number): React.JSX.Element => (
     <div className="flex items-center gap-2 px-1 group-[.is-user]:justify-end">
       <time className="text-[10px] text-muted-foreground/50 tabular-nums" dateTime={new Date(safeTs(ts)).toISOString()}>
         {formatMessageTime(ts)}
@@ -349,7 +349,7 @@ function createSegmentRenderer(opts: {
           <Copy className="size-3.5" />
         </MessageAction>
         {onDelete && (
-          <MessageAction label="Delete" onClick={() => onDelete(runId)} tooltip="Delete message">
+          <MessageAction label="Delete" onClick={() => onDelete(messageId)} tooltip="Delete message">
             <Trash2 className="size-3.5" />
           </MessageAction>
         )}
@@ -363,7 +363,7 @@ function createSegmentRenderer(opts: {
     }
     if (seg.kind === 'user') {
       return (
-        <Message className="group" data-run-id={seg.runId} from="user" key={seg.key}>
+        <Message className="group" data-message-id={seg.messageId} from="user" key={seg.key}>
           <MessageContent>
             {seg.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -379,23 +379,23 @@ function createSegmentRenderer(opts: {
             )}
             <span className="whitespace-pre-wrap">{seg.text}</span>
           </MessageContent>
-          {messageFooter(seg.text, seg.runId, seg.ts)}
+          {messageFooter(seg.text, seg.messageId, seg.ts)}
         </Message>
       )
     }
     if (seg.kind === 'assistant') {
       const images = extractImagePaths(seg.text)
-      const run = runById.get(seg.runId)
+      const message = messageById.get(seg.messageId)
       return (
-        <Message className="group" data-run-id={seg.runId} from="assistant" key={seg.key}>
-          {run && <ElapsedTimer endedAt={runEndedAt(run)} startedAt={run.startedAt} />}
+        <Message className="group" data-message-id={seg.messageId} from="assistant" key={seg.key}>
+          {message && <ElapsedTimer createdAt={message.createdAt} endedAt={messageEndedAt(message)} />}
           <MessageContent>
             <MessageResponse>{seg.text}</MessageResponse>
             {images.map((p) => (
               <ToolImage key={p} path={p} showName={false} />
             ))}
           </MessageContent>
-          {messageFooter(seg.text, seg.runId, seg.ts)}
+          {messageFooter(seg.text, seg.messageId, seg.ts)}
         </Message>
       )
     }
@@ -458,11 +458,11 @@ function createSegmentRenderer(opts: {
 }
 
 type TaskTimelineProps = {
-  tasks: RunRecord[]
+  tasks: MessageRecord[]
   busy: boolean
   onSend?: (text: string) => void
   onCopy: (text: string) => void
-  onDelete?: (runId: string) => void
+  onDelete?: (messageId: string) => void
   showDayDividers?: boolean
 }
 
@@ -471,10 +471,10 @@ type TaskTimelineProps = {
 // chat thread so neither duplicates the viewerFile wiring.
 export function useTimelineRenderer(opts: {
   busy: boolean
-  tasks: RunRecord[]
+  tasks: MessageRecord[]
   onSend?: (text: string) => void
   onCopy: (text: string) => void
-  onDelete?: (runId: string) => void
+  onDelete?: (messageId: string) => void
 }): { renderSegment: ReturnType<typeof createSegmentRenderer>; sheet: React.JSX.Element | null } {
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
   const renderSegment = createSegmentRenderer({ ...opts, onOpenFile: setViewerFile })
@@ -490,7 +490,7 @@ export function useTimelineRenderer(opts: {
 // ToolGroupBlock / DayDivider) so both TaskTimeline and the chat thread share
 // one render path. `renderSegment` comes from useTimelineRenderer.
 export function buildThreadItems(
-  tasks: RunRecord[],
+  tasks: MessageRecord[],
   renderSegment: ReturnType<typeof createSegmentRenderer>,
   opts: { busy: boolean; showDayDividers?: boolean }
 ): TimelineItem[] {

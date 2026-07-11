@@ -4,7 +4,7 @@
 // events keyed by repoName. The agent streams a natural-language markdown
 // briefing (shown live) and emits its structured fields via a
 // render_ui({type:'analysis', props:{...}}) tool call, captured with
-// readAnalysisCard. On run.complete a valid card caches the research back to the
+// readAnalysisCard. On message.complete a valid card caches the research back to the
 // research store (re-viewable, like article's analysis cache); no valid card
 // degrades to researchError.
 //
@@ -20,8 +20,8 @@ import { ulid } from 'ulid'
 
 import type { AgentStore } from '../agents/store'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { RunEmitPorts } from '../run-engine/emit'
-import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
+import type { MessageEmitPorts } from '../message-engine/emit'
+import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
 import { createPermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry } from '../tools/registry'
 import { readAnalysisCard } from '../tools/render-ui'
@@ -40,7 +40,7 @@ export type ResearchDeps = {
   toolRegistry: ToolRegistry
   getBudgetConfig(): BudgetConfig
   /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchRun
+  launch?: typeof launchMessage
 }
 
 // Validate the render_ui analysis card props into a RepoResearch. Returns null
@@ -85,7 +85,7 @@ function buildResearchPrompt(repo: ResearchRepoRequest['repo'], period: Trending
 }
 
 export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoRequest) => ResearchRepoResult {
-  const run = deps.launch ?? launchRun
+  const run = deps.launch ?? launchMessage
   return (req) => {
     if (!req.provider) {
       return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
@@ -99,19 +99,19 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
     // PRIVATE emit ports: a silent seq (no session/store), no persistence, no
     // terminal registry — the research lives entirely in the broadcast stream.
     // The broadcast port translates the run.* wire into trending.research*
-    // events: run.progress llm.message → researchDelta (streamed prose),
+    // events: message.progress llm.message → researchDelta (streamed prose),
     // run.progress tool.call (analysis card) → capture RepoResearch,
-    // run.complete → save→researchComplete (or researchError if no valid card),
-    // run.error → researchError.
+    // message.complete → save→researchComplete (or researchError if no valid card),
+    // message.error → researchError.
     let card: RepoResearch | null = null
 
     let seq = 0
-    const emitPorts: RunEmitPorts = {
+    const emitPorts: MessageEmitPorts = {
       nextSeq: () => seq++,
       appendEvent: () => undefined,
       markTerminal: () => undefined,
       broadcast: (evt) => {
-        if (evt.kind === 'run.progress') {
+        if (evt.kind === 'message.progress') {
           const ev = evt.event
           if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
             deps.broadcaster.broadcast('trending.researchDelta', {
@@ -123,7 +123,7 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
           }
           const props = readAnalysisCard(evt)
           if (props) card = toRepoResearch(props)
-        } else if (evt.kind === 'run.complete') {
+        } else if (evt.kind === 'message.complete') {
           if (card) {
             deps.store.save(repoName, card)
             deps.broadcaster.broadcast('trending.researchComplete', {
@@ -139,7 +139,7 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
               ts: Date.now(),
             })
           }
-        } else if (evt.kind === 'run.error') {
+        } else if (evt.kind === 'message.error') {
           deps.broadcaster.broadcast('trending.researchError', {
             repoName,
             error: evt.error?.message ?? 'research failed',
@@ -161,7 +161,7 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
       unregisterAbort: () => undefined,
     }
 
-    const spec: RunSpec = {
+    const spec: MessageSpec = {
       kind: 'work',
       sessionId: `research-repo:${ulid()}`,
       agent: def,
@@ -174,7 +174,7 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
 
     const t0 = Date.now()
     log.info({ msg: 'repo research started', repoName, period: req.period })
-    // launchRun never rejects: every failure path emits run.error, which the
+    // launchMessage never rejects: every failure path emits message.error, which the
     // broadcast port already forwards as researchError. The catch is purely
     // defensive (log-only, no double broadcast).
     void run(spec, ports)

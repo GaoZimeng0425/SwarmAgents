@@ -1,7 +1,7 @@
 // 300px four-tab workspace (plan/timeline/artifacts/approval) replacing RightPanel.
 
 import { useState } from 'react'
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { PermissionDecision, SessionSummary } from '@swarm/protocol'
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@swarm/ui'
 import { PanelRightClose, PanelRightOpen } from 'lucide-react'
@@ -15,18 +15,18 @@ import { ArtifactsTab } from './artifacts-tab'
 import { TimelineTab } from './timeline-tab'
 
 type Props = {
-  runs: RunRecord[]
+  messages: MessageRecord[]
   planGroups: PlanGroup[]
   session?: SessionSummary
   onDecide: (actionId: string, decision: PermissionDecision) => void
 }
 
-export function WorkspacePanel({ runs, planGroups, session, onDecide }: Props): React.JSX.Element {
+export function WorkspacePanel({ messages, planGroups, session, onDecide }: Props): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const [tab, setTab] = useState<'plan' | 'timeline' | 'artifacts' | 'approval'>('plan')
   const queue = usePermissionStore((s) => s.queue)
   const pendingCount = session ? queue.filter((p) => p.sessionId === session.id).length : 0
-  const timelineRows = buildTimeline(runs)
+  const timelineRows = buildTimeline(messages)
 
   if (collapsed) {
     return (
@@ -96,7 +96,7 @@ export function WorkspacePanel({ runs, planGroups, session, onDecide }: Props): 
           <TimelineTab rows={timelineRows} />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="artifacts">
-          <ArtifactsTab runs={runs} />
+          <ArtifactsTab messages={messages} />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="approval">
           <ApprovalTab onDecide={onDecide} sessionId={session?.id ?? null} />

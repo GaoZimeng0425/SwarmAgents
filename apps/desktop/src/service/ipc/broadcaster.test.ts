@@ -6,12 +6,12 @@ describe('broadcaster', () => {
   it('forwards broadcasts to the sink', () => {
     const sink = vi.fn()
     const b = createBroadcaster(sink)
-    b.broadcast('run.complete', { runId: 'x' })
-    expect(sink).toHaveBeenCalledWith('run.complete', { runId: 'x' })
+    b.broadcast('message.complete', { messageId: 'x' })
+    expect(sink).toHaveBeenCalledWith('message.complete', { messageId: 'x' })
   })
 
   it('defaults to a no-op sink', () => {
     const b = createBroadcaster()
-    expect(() => b.broadcast('run.progress', { runId: 'y' })).not.toThrow()
+    expect(() => b.broadcast('message.progress', { messageId: 'y' })).not.toThrow()
   })
 })

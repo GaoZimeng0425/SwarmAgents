@@ -6,7 +6,7 @@ describe('PermissionGate (skeleton — no UI yet)', () => {
   it('low-risk requests are auto-granted', async () => {
     const gate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
     const decision = await gate.evaluate({
-      runId: 't1',
+      messageId: 't1',
       actionId: 'a1',
       risk: 'low',
       summary: 'reading screen',
@@ -19,7 +19,7 @@ describe('PermissionGate (skeleton — no UI yet)', () => {
     const gate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
     gate.setPromptHandler(async () => 'grant')
     const decision = await gate.evaluate({
-      runId: 't1',
+      messageId: 't1',
       actionId: 'a2',
       risk: 'medium',
       summary: 'click button',
@@ -32,7 +32,7 @@ describe('PermissionGate (skeleton — no UI yet)', () => {
     const gate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
     gate.setPromptHandler(async () => 'deny')
     const decision = await gate.evaluate({
-      runId: 't1',
+      messageId: 't1',
       actionId: 'a3',
       risk: 'high',
       summary: 'quit app',
@@ -44,7 +44,7 @@ describe('PermissionGate (skeleton — no UI yet)', () => {
   it('throws if prompt handler is required but unset', async () => {
     const gate = createPermissionGate({ defaultPolicy: 'prompt-on-medium-and-high' })
     await expect(
-      gate.evaluate({ runId: 't1', actionId: 'a4', risk: 'medium', summary: 's', payload: {} })
+      gate.evaluate({ messageId: 't1', actionId: 'a4', risk: 'medium', summary: 's', payload: {} })
     ).rejects.toThrow(/no prompt handler/i)
   })
 })

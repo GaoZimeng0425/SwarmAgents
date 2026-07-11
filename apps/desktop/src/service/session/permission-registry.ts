@@ -67,7 +67,7 @@ export function createPermissionRegistry(broadcast: (event: string, data: unknow
         signal?.addEventListener('abort', onAbort, { once: true })
         pending.set(actionId, { toolName: req.toolName, resolve, cleanup })
         log.info({ msg: 'permission requested', actionId, taskId: req.taskId, toolName: req.toolName, risk: req.risk })
-        broadcast('run.permission_request', { actionId, ...req })
+        broadcast('message.permission_request', { actionId, ...req })
       })
     },
 

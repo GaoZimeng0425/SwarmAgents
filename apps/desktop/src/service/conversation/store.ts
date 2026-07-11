@@ -60,23 +60,23 @@ export type ConversationStore = {
   deleteSession(id: string): void
   saveAgentSnapshot(sessionId: string, messages: AgentMessage[]): void
   getAgentSnapshot(sessionId: string): AgentMessage[]
-  /** Persist a run-lifecycle UIEvent on the session run stream. */
-  appendRunEvent(
+  /** Persist a message-lifecycle UIEvent on the session message stream. */
+  appendMessageEvent(
     sessionId: string,
-    runId: string,
-    parentRunId: string | null,
+    messageId: string,
+    parentMessageId: string | null,
     event: import('@swarm/protocol').UIEvent
   ): void
-  /** Read a session's run events in insertion order. */
-  getRunEvents(sessionId: string): {
-    runId: string
-    parentRunId: string | null
+  /** Read a session's message events in insertion order. */
+  getMessageEvents(sessionId: string): {
+    messageId: string
+    parentMessageId: string | null
     seq: number
     ts: number
     event: import('@swarm/protocol').UIEvent
   }[]
-  /** The last terminal status per runId across ALL sessions (for registry boot). */
-  getTerminalRunStatuses(): Array<{ runId: string; status: 'completed' | 'failed' | 'cancelled' }>
+  /** The last terminal status per messageId across ALL sessions (for registry boot). */
+  getTerminalMessageStatuses(): Array<{ messageId: string; status: 'completed' | 'failed' | 'cancelled' }>
   getUsageStats(rangeDays: number): UsageStats
   saveToolState(sessionId: string, key: string, value: unknown): void
   getToolState(sessionId: string, key: string): unknown
@@ -137,16 +137,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
       execution_mode    TEXT,
       agent_type        TEXT
     );
-    CREATE TABLE IF NOT EXISTS run_events (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id    TEXT NOT NULL,
-      run_id        TEXT NOT NULL,
-      parent_run_id TEXT,
-      seq           INTEGER NOT NULL,
-      ts            INTEGER NOT NULL,
-      event         TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS message_events (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id         TEXT NOT NULL,
+      message_id         TEXT NOT NULL,
+      parent_message_id  TEXT,
+      seq                INTEGER NOT NULL,
+      ts                 INTEGER NOT NULL,
+      event              TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_run_events_session ON run_events(session_id, id);
+    CREATE INDEX IF NOT EXISTS idx_message_events_session ON message_events(session_id, id);
     CREATE TABLE IF NOT EXISTS tool_state_snapshots (
       session_id  TEXT NOT NULL REFERENCES sessions(id),
       key         TEXT NOT NULL,
@@ -278,6 +278,49 @@ export function createConversationStore(dbPath: string): ConversationStore {
       else db.prepare('INSERT INTO schema_meta (version) VALUES (4)').run()
     })
     migrateToV4()
+  }
+
+  // ---- Migration v5: run.* → message.* single-vocabulary switchover ---------
+  // Renames the table + columns and rewrites the JSON event kind and the
+  // identity keys (runId/parentRunId/childRunId). On a fresh DB the table is
+  // already message_events (CREATE TABLE above), so this migration is guarded
+  // by schema_meta.version and only fires on a DB last opened at v4. The v2-v4
+  // migrations above still reference run_events — on an old DB that table IS
+  // run_events until v5 renames it; on a fresh DB they're skipped (version jumps
+  // straight to 5), so they never touch the absent run_events. Same
+  // guard/transaction shape as v2-v4: one tx, version written last.
+  const versionRowV5 = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as { version: number } | undefined
+  if ((versionRowV5?.version ?? 0) < 5) {
+    const migrateToV5 = db.transaction(() => {
+      // 1. Table + column renames.
+      db.exec('ALTER TABLE run_events RENAME TO message_events')
+      db.exec('ALTER TABLE message_events RENAME COLUMN run_id TO message_id')
+      db.exec('ALTER TABLE message_events RENAME COLUMN parent_run_id TO parent_message_id')
+      // 2. Index swap (drop old, create new) — the old index follows the old
+      // table name, so it must be dropped under its original name.
+      db.exec('DROP INDEX IF EXISTS idx_run_events_session')
+      db.exec('CREATE INDEX IF NOT EXISTS idx_message_events_session ON message_events(session_id, id)')
+      // 3. Kind rewrite: run.<rest> → message.<rest> (substr skips the 'run.'
+      //    prefix at offset 5 and replaces it with 'message.').
+      db.exec(
+        `UPDATE message_events SET event = json_set(event, '$.kind', 'message.' || substr(json_extract(event, '$.kind'), 5)) WHERE json_extract(event, '$.kind') LIKE 'run.%'`
+      )
+      // 4. Identity-key renames. json_set would otherwise write an explicit
+      //    null when the source key is absent, so each rewrite is guarded by a
+      //    WHERE on the old key's presence (same pattern as v2).
+      db.exec(
+        `UPDATE message_events SET event = json_remove(json_set(event, '$.messageId', json_extract(event, '$.runId')), '$.runId') WHERE json_extract(event, '$.runId') IS NOT NULL`
+      )
+      db.exec(
+        `UPDATE message_events SET event = json_remove(json_set(event, '$.parentMessageId', json_extract(event, '$.parentRunId')), '$.parentRunId') WHERE json_extract(event, '$.parentRunId') IS NOT NULL`
+      )
+      db.exec(
+        `UPDATE message_events SET event = json_remove(json_set(event, '$.childMessageId', json_extract(event, '$.childRunId')), '$.childRunId') WHERE json_extract(event, '$.childRunId') IS NOT NULL`
+      )
+      if (versionRowV5) db.prepare('UPDATE schema_meta SET version = 5').run()
+      else db.prepare('INSERT INTO schema_meta (version) VALUES (5)').run()
+    })
+    migrateToV5()
   }
 
   for (const stmt of [
@@ -412,51 +455,59 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtSetSortOrder = db.prepare('UPDATE sessions SET sort_order = ? WHERE id = ?')
   const stmtSetSnapshot = db.prepare('UPDATE sessions SET agent_snapshot = ? WHERE id = ?')
   const stmtGetSnapshot = db.prepare('SELECT agent_snapshot FROM sessions WHERE id = ?')
-  const stmtInsertRunEvent = db.prepare(
-    'INSERT INTO run_events (session_id, run_id, parent_run_id, seq, ts, event) VALUES (?, ?, ?, ?, ?, ?)'
+  const stmtInsertMessageEvent = db.prepare(
+    'INSERT INTO message_events (session_id, message_id, parent_message_id, seq, ts, event) VALUES (?, ?, ?, ?, ?, ?)'
   )
-  const stmtGetRunEvents = db.prepare(
-    'SELECT run_id AS runId, parent_run_id AS parentRunId, seq, ts, event FROM run_events WHERE session_id = ? ORDER BY id'
+  const stmtGetMessageEvents = db.prepare(
+    'SELECT message_id AS messageId, parent_message_id AS parentMessageId, seq, ts, event FROM message_events WHERE session_id = ? ORDER BY id'
   )
-  // Last terminal event per runId across all sessions — boots the session
-  // manager's terminal registry at construction (one scan of run_events).
-  const stmtGetTerminalRunStatuses = db.prepare(
-    `SELECT run_id AS runId,
+  // Last terminal event per messageId across all sessions — boots the session
+  // manager's terminal registry at construction (one scan of message_events).
+  const stmtGetTerminalMessageStatuses = db.prepare(
+    `SELECT message_id AS messageId,
        CASE
-         WHEN json_extract(event, '$.kind') = 'run.complete' THEN 'completed'
+         WHEN json_extract(event, '$.kind') = 'message.complete' THEN 'completed'
          WHEN json_extract(event, '$.error.code') = 'cancelled' THEN 'cancelled'
          ELSE 'failed'
        END AS status
-     FROM run_events
-     WHERE id IN (SELECT MAX(id) FROM run_events
-                   WHERE json_extract(event, '$.kind') IN ('run.complete', 'run.error')
-                   GROUP BY run_id)`
+     FROM message_events
+     WHERE id IN (SELECT MAX(id) FROM message_events
+                   WHERE json_extract(event, '$.kind') IN ('message.complete', 'message.error')
+                   GROUP BY message_id)`
   )
 
   const stmtListSessions = db.prepare(
-    // tokensUsed / usdCents sum the LATEST run.usage per run_id in the session
-    // (each run emits usage at every turn boundary; the last is the final
-    // snapshot). Post-W4 the store holds ONLY run.* kinds (migration v2), so
-    // this reads a single vocabulary — conversation turns also emit run.usage
-    // via makeRunEmit, so they're already included. Sub-agent runs emit their
-    // own run.usage (their parent's snapshot does NOT include child cost), so
-    // every run_id — top-level, conversation, and sub-agent — contributes.
+    // tokensUsed / usdCents sum the LATEST message.usage per message_id in the session
+    // (each message emits usage at every turn boundary; the last is the final
+    // snapshot). contextTokens / contextWindow come from the latest TOP-LEVEL
+    // message's usage event (sub-agent messages don't carry meaningful context
+    // for the composer ring). Post-W5 the store holds ONLY message.* kinds.
     `WITH latest_usage AS (
-        SELECT session_id, run_id,
+        SELECT session_id, message_id,
                json_extract(event, '$.used.tokens')   AS tokens,
-               json_extract(event, '$.used.usdCents') AS usdCents
-          FROM run_events
-         WHERE json_extract(event, '$.kind') = 'run.usage'
-           AND id IN (SELECT MAX(id) FROM run_events
-                       WHERE json_extract(event, '$.kind') = 'run.usage'
-                       GROUP BY run_id)
+               json_extract(event, '$.used.usdCents') AS usdCents,
+               json_extract(event, '$.contextTokens') AS contextTokens,
+               json_extract(event, '$.contextWindow') AS contextWindow
+          FROM message_events
+         WHERE json_extract(event, '$.kind') = 'message.usage'
+           AND id IN (SELECT MAX(id) FROM message_events
+                       WHERE json_extract(event, '$.kind') = 'message.usage'
+                       GROUP BY message_id)
      )
      SELECT s.id, s.title, s.status, s.pinned, s.sort_order AS sortOrder, s.last_active_at AS lastActiveAt,
             s.cwd, s.permission_mode AS permissionMode, s.execution_mode AS executionMode,
             s.agent_type AS agentType,
-            (SELECT COUNT(DISTINCT run_id) FROM run_events re WHERE re.session_id = s.id) AS taskCount,
+            (SELECT COUNT(DISTINCT message_id) FROM message_events re WHERE re.session_id = s.id) AS taskCount,
             COALESCE((SELECT SUM(lu.tokens)   FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS tokensUsed,
-            COALESCE((SELECT SUM(lu.usdCents) FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS usdCents
+            COALESCE((SELECT SUM(lu.usdCents) FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS usdCents,
+            (SELECT lu.contextTokens FROM latest_usage lu
+              JOIN message_events me ON me.message_id = lu.message_id
+             WHERE lu.session_id = s.id AND me.parent_message_id IS NULL
+             ORDER BY me.id DESC LIMIT 1) AS contextTokens,
+            (SELECT lu.contextWindow FROM latest_usage lu
+              JOIN message_events me ON me.message_id = lu.message_id
+             WHERE lu.session_id = s.id AND me.parent_message_id IS NULL
+             ORDER BY me.id DESC LIMIT 1) AS contextWindow
        FROM sessions s
       WHERE s.status != 'ended'
       ORDER BY s.pinned DESC, s.sort_order ASC`
@@ -476,7 +527,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     db.prepare('DELETE FROM cron_runs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
-    db.prepare('DELETE FROM run_events WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM message_events WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
 
@@ -574,31 +625,38 @@ export function createConversationStore(dbPath: string): ConversationStore {
       const row = stmtGetSnapshot.get(sessionId) as { agent_snapshot: string } | undefined
       return row ? (JSON.parse(row.agent_snapshot) as AgentMessage[]) : []
     },
-    appendRunEvent(sessionId, runId, parentRunId, event) {
-      // seq is stamped upstream by makeRunEmit; fall back to 0 if absent.
+    appendMessageEvent(sessionId, messageId, parentMessageId, event) {
+      // seq is stamped upstream by makeMessageEmit; fall back to 0 if absent.
       const seq = typeof (event as { seq?: number }).seq === 'number' ? (event as { seq: number }).seq : 0
-      stmtInsertRunEvent.run(sessionId, runId, parentRunId, seq, event.ts ?? Date.now(), JSON.stringify(event))
+      stmtInsertMessageEvent.run(
+        sessionId,
+        messageId,
+        parentMessageId,
+        seq,
+        event.ts ?? Date.now(),
+        JSON.stringify(event)
+      )
     },
-    getRunEvents(sessionId) {
+    getMessageEvents(sessionId) {
       return (
-        stmtGetRunEvents.all(sessionId) as {
-          runId: string
-          parentRunId: string | null
+        stmtGetMessageEvents.all(sessionId) as {
+          messageId: string
+          parentMessageId: string | null
           seq: number
           ts: number
           event: string
         }[]
       ).map((r) => ({
-        runId: r.runId,
-        parentRunId: r.parentRunId,
+        messageId: r.messageId,
+        parentMessageId: r.parentMessageId,
         seq: r.seq,
         ts: r.ts,
         event: JSON.parse(r.event) as import('@swarm/protocol').UIEvent,
       }))
     },
-    getTerminalRunStatuses() {
-      return stmtGetTerminalRunStatuses.all() as Array<{
-        runId: string
+    getTerminalMessageStatuses() {
+      return stmtGetTerminalMessageStatuses.all() as Array<{
+        messageId: string
         status: 'completed' | 'failed' | 'cancelled'
       }>
     },
@@ -611,12 +669,12 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const cutoff = rangeCutoffMs(now, range)
         const heatmapCutoff = rangeCutoffMs(now, HEATMAP_DAYS)
 
-        // Latest run.usage per run_id across all time (no range filter — we
-        // slice by ts in JS). Post-W4 the store holds ONLY run.* kinds
-        // (migration v2), so this is the single source of truth for both work
-        // runs and conversation turns (both emit run.usage via makeRunEmit).
-        // Sub-agent runs emit their own usage (the parent's snapshot does NOT
-        // include child cost), so every run_id — top-level, conversation, and
+        // Latest message.usage per message_id across all time (no range filter — we
+        // slice by ts in JS). Post-W5 the store holds ONLY message.* kinds, so
+        // this is the single source of truth for both work messages and
+        // conversation turns (both emit message.usage via makeMessageEmit).
+        // Sub-agent messages emit their own usage (the parent's snapshot does NOT
+        // include child cost), so every message_id — top-level, conversation, and
         // sub-agent — contributes.
         const usageRows = db
           .prepare(
@@ -626,11 +684,11 @@ export function createConversationStore(dbPath: string): ConversationStore {
                     json_extract(re.event, '$.model')          AS model,
                     re.session_id                               AS sessionId,
                     re.ts                                        AS ts
-               FROM run_events re
-              WHERE json_extract(re.event, '$.kind') = 'run.usage'
-                AND re.id IN (SELECT MAX(id) FROM run_events
-                               WHERE json_extract(event, '$.kind') = 'run.usage'
-                               GROUP BY run_id)`
+               FROM message_events re
+              WHERE json_extract(re.event, '$.kind') = 'message.usage'
+                AND re.id IN (SELECT MAX(id) FROM message_events
+                               WHERE json_extract(event, '$.kind') = 'message.usage'
+                               GROUP BY message_id)`
           )
           .all() as Array<{
           tokens: number
@@ -641,22 +699,22 @@ export function createConversationStore(dbPath: string): ConversationStore {
           ts: number
         }>
 
-        // Messages: one unified count over run_events. Work + conversation
-        // both surface as run.progress wrapping an llm.message inner event.
+        // Messages: one unified count over message_events. Work + conversation
+        // both surface as message.progress wrapping an llm.message inner event.
         const messagesRow = db
           .prepare(
-            `SELECT COUNT(*) AS n FROM run_events
-              WHERE ts >= ? AND json_extract(event, '$.kind') = 'run.progress'
+            `SELECT COUNT(*) AS n FROM message_events
+              WHERE ts >= ? AND json_extract(event, '$.kind') = 'message.progress'
                 AND json_extract(event, '$.event.kind') = 'llm.message'`
           )
           .get(cutoff) as { n: number }
 
-        // Active days (any run_events run.usage, all time) for currentStreak.
+        // Active days (any message_events message.usage, all time) for currentStreak.
         const activeDateRows = db
           .prepare(
             `SELECT DISTINCT date(ts/1000, 'unixepoch', 'localtime') AS date
-               FROM run_events
-              WHERE json_extract(event, '$.kind') = 'run.usage'`
+               FROM message_events
+              WHERE json_extract(event, '$.kind') = 'message.usage'`
           )
           .all() as { date: string }[]
         const activeKeys = new Set(activeDateRows.map((r) => r.date))
@@ -668,7 +726,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         const totalCacheRead = inRange.reduce((s, r) => s + (r.cacheRead ?? 0), 0)
         const totalUsd = inRange.reduce((s, r) => s + (r.usdCents ?? 0), 0)
 
-        // byModel: group inRange rows by run.usage.model (fallback 'unknown'); tokens > 0 only.
+        // byModel: group inRange rows by message.usage.model (fallback 'unknown'); tokens > 0 only.
         const byModelMap = new Map<string, { tokens: number; usdCents: number }>()
         for (const r of inRange) {
           const key = r.model ?? 'unknown'

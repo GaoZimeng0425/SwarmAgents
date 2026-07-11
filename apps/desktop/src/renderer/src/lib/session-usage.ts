@@ -1,4 +1,4 @@
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { ConsumedResources } from '@swarm/protocol'
 
 /**
@@ -9,11 +9,11 @@ import type { ConsumedResources } from '@swarm/protocol'
  * is rehydrated from disk on restart. Returns the most recent top-level task, or
  * undefined if the session has none yet.
  */
-export function latestTopLevelTask(records: RunRecord[]): RunRecord | undefined {
-  let latest: RunRecord | undefined
+export function latestTopLevelTask(records: MessageRecord[]): MessageRecord | undefined {
+  let latest: MessageRecord | undefined
   for (const r of records) {
-    if (r.parentRunId) continue
-    if (!latest || r.startedAt > latest.startedAt) latest = r
+    if (r.parentMessageId) continue
+    if (!latest || r.createdAt > latest.createdAt) latest = r
   }
   return latest
 }
@@ -29,14 +29,14 @@ export function latestTopLevelTask(records: RunRecord[]): RunRecord | undefined 
  *    persist zeroed usage, so summing top-level turns equals summing every task.
  * Returns undefined when the session has no top-level turn yet.
  */
-export function sessionDisplayUsage(records: RunRecord[]): ConsumedResources | undefined {
+export function sessionDisplayUsage(records: MessageRecord[]): ConsumedResources | undefined {
   const latest = latestTopLevelTask(records)
   if (!latest) return undefined
   let usdCents = 0
   let calls = 0
   let wallMs = 0
   for (const r of records) {
-    if (r.parentRunId || !r.used) continue
+    if (r.parentMessageId || !r.used) continue
     usdCents += r.used.usdCents
     calls += r.used.calls
     wallMs += r.used.wallMs

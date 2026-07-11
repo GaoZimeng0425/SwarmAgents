@@ -4,8 +4,8 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 
 import { ChatInput } from '@/components/chat-input'
 import { useTeamOptions } from '@/hooks/use-agents'
+import { useSubmitPrompt } from '@/hooks/use-messages'
 import { useProviders } from '@/hooks/use-providers'
-import { useSubmitPrompt } from '@/hooks/use-runs'
 import { useComposerDefaults } from '@/stores/composer-defaults'
 import { useSessionsStore } from '@/stores/sessions'
 

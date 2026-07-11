@@ -12,7 +12,7 @@ import { useSessionsStore } from '../stores/sessions'
 import { useTeamOptions } from './use-agents'
 import { useAllCronJobs } from './use-cron'
 import { useMemory } from './use-memory'
-import { useRuns } from './use-runs'
+import { useMessages } from './use-messages'
 import { useSkills } from './use-skills'
 
 // The mixed 「快捷入口」 group navigates to the four service routes. Hardcoded
@@ -33,7 +33,7 @@ const SERVICES = [
 export function usePaletteData(open = false): BuildInputs {
   const sessions = useSessionsStore((s) => s.sessions)
   const currentSessionId = useSessionsStore((s) => s.selectedSessionId)
-  const allRuns = useRuns()
+  const allMessages = useMessages()
   const cron = useAllCronJobs()
   const formations = useTeamOptions()
   const memory = useMemory()
@@ -88,7 +88,7 @@ export function usePaletteData(open = false): BuildInputs {
       currentSessionId,
       // 继续未完成 surfaces any live run: running/pending plus awaiting_user
       // (paused for input). Clicking navigates to the session to continue it.
-      runningRuns: allRuns
+      runningMessages: allMessages
         .filter((r) => r.status === 'running' || r.status === 'pending' || r.status === 'awaiting_user')
         .map((r) => ({
           id: r.id,
@@ -132,7 +132,7 @@ export function usePaletteData(open = false): BuildInputs {
     [
       sessions,
       currentSessionId,
-      allRuns,
+      allMessages,
       cron.data,
       formations,
       memory.entries,

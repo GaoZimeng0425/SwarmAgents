@@ -44,12 +44,12 @@ const seedLegacyDb = (path: string): void => {
   )
   const row = (
     sessionId: string,
-    runId: string,
-    parentRunId: string | null,
+    messageId: string,
+    parentMessageId: string | null,
     seq: number,
     ts: number,
     event: Record<string, unknown>
-  ) => insert.run(sessionId, runId, parentRunId, seq, ts, JSON.stringify(event))
+  ) => insert.run(sessionId, messageId, parentMessageId, seq, ts, JSON.stringify(event))
 
   // Every legacy kind, all on run r1 (the ordering below is just fixture
   // convenience — the migration keys off json, not row order).
@@ -116,7 +116,7 @@ const seedLegacyDb = (path: string): void => {
     ts: 9,
     seq: 9,
   })
-  // Two more runs to exercise every getTerminalRunStatuses branch post-migration.
+  // Two more runs to exercise every getTerminalMessageStatuses branch post-migration.
   row('ses-1', 'r3', null, 1, 10, {
     kind: 'task.error',
     sessionId: 'ses-1',
@@ -166,7 +166,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const inspect = new Database(dbPath)
     const row = inspect.prepare('SELECT version FROM schema_meta').get() as { version: number }
     inspect.close()
-    expect(row.version).toBe(4)
+    expect(row.version).toBe(5)
   })
 
   it('renames a legacy cron_jobs.goal column to prompt, keeping the data', () => {
@@ -224,10 +224,10 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
   it('migration v4 renames goal to prompt inside delegation-plan items', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
-    const rows = store.getRunEvents('ses-1')
+    const rows = store.getMessageEvents('ses-1')
     store.close()
 
-    const plan = rows.find((r) => r.event.kind === 'run.delegation_plan') as
+    const plan = rows.find((r) => r.event.kind === 'message.delegation_plan') as
       | { event: { plan: Array<Record<string, unknown>> } }
       | undefined
     expect(plan?.event.plan).toEqual([{ id: 'd1', prompt: 'sub work', dependsOn: [] }])
@@ -236,10 +236,12 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
   it('migration v3 renames the run.created goal key to prompt', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
-    const rows = store.getRunEvents('ses-1')
+    const rows = store.getMessageEvents('ses-1')
     store.close()
 
-    const created = rows.find((r) => r.event.kind === 'run.created') as { event: Record<string, unknown> } | undefined
+    const created = rows.find((r) => r.event.kind === 'message.created') as
+      | { event: Record<string, unknown> }
+      | undefined
     expect(created?.event.prompt).toBe('g')
     expect('goal' in (created?.event ?? {})).toBe(false)
   })
@@ -247,12 +249,12 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
   it('sweeps orphan rows whose session no longer exists', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
-    expect(store.getRunEvents('ses-gone')).toEqual([])
+    expect(store.getMessageEvents('ses-gone')).toEqual([])
     store.close()
 
     const inspect = new Database(dbPath)
     const n = (
-      inspect.prepare(`SELECT COUNT(*) AS n FROM run_events WHERE session_id = 'ses-gone'`).get() as { n: number }
+      inspect.prepare(`SELECT COUNT(*) AS n FROM message_events WHERE session_id = 'ses-gone'`).get() as { n: number }
     ).n
     inspect.close()
     expect(n).toBe(0)
@@ -261,7 +263,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
   it('drops task.handoff.completed rows entirely', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
-    const rows = store.getRunEvents('ses-1')
+    const rows = store.getMessageEvents('ses-1')
     store.close()
 
     expect(rows.some((r) => (r.event as { kind: string }).kind === 'task.handoff.completed')).toBe(false)
@@ -270,35 +272,36 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     expect(rows).toHaveLength(10)
   })
 
-  it('renames every legacy kind to its run.* equivalent, with no task.* survivors', () => {
+  it('renames every legacy kind to its message.* equivalent, with no task.* survivors', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
-    const rows = store.getRunEvents('ses-1')
+    const rows = store.getMessageEvents('ses-1')
     store.close()
 
     const kinds = rows.map((r) => r.event.kind).sort()
     expect(kinds).toEqual(
       [
-        'run.complete',
-        'run.created',
-        'run.delegation_plan',
-        'run.dispatched',
-        'run.error',
-        'run.error',
-        'run.plan',
-        'run.progress',
-        'run.spawned',
-        'run.usage',
+        'message.complete',
+        'message.created',
+        'message.delegation_plan',
+        'message.dispatched',
+        'message.error',
+        'message.error',
+        'message.plan',
+        'message.progress',
+        'message.spawned',
+        'message.usage',
       ].sort()
     )
-    expect(kinds.every((k) => k.startsWith('run.'))).toBe(true)
+    expect(kinds.every((k) => k.startsWith('message.'))).toBe(true)
     expect(kinds.some((k) => k.startsWith('task.'))).toBe(false)
+    expect(kinds.some((k) => k.startsWith('run.'))).toBe(false)
   })
 
   it('renames taskId/parentTaskId/childTaskId keys and drops workerId, leaving no old keys', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
-    const rows = store.getRunEvents('ses-1')
+    const rows = store.getMessageEvents('ses-1')
     store.close()
 
     for (const r of rows) {
@@ -309,24 +312,28 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
       expect(raw.workerId).toBeUndefined()
     }
 
-    const created = rows.find((r) => r.event.kind === 'run.created') as { event: Record<string, unknown> } | undefined
-    expect(created?.event.runId).toBe('r1')
-
-    const spawned = rows.find((r) => r.event.kind === 'run.spawned') as { event: Record<string, unknown> } | undefined
-    expect(spawned?.event.parentRunId).toBe('r1')
-    expect(spawned?.event.childRunId).toBe('r2')
-
-    const dispatched = rows.find((r) => r.event.kind === 'run.dispatched') as
+    const created = rows.find((r) => r.event.kind === 'message.created') as
       | { event: Record<string, unknown> }
       | undefined
-    expect(dispatched?.event.runId).toBe('r1')
+    expect(created?.event.messageId).toBe('r1')
+
+    const spawned = rows.find((r) => r.event.kind === 'message.spawned') as
+      | { event: Record<string, unknown> }
+      | undefined
+    expect(spawned?.event.parentMessageId).toBe('r1')
+    expect(spawned?.event.childMessageId).toBe('r2')
+
+    const dispatched = rows.find((r) => r.event.kind === 'message.dispatched') as
+      | { event: Record<string, unknown> }
+      | undefined
+    expect(dispatched?.event.messageId).toBe('r1')
     expect('workerId' in (dispatched?.event ?? {})).toBe(false)
   })
 
-  it('classifies migrated terminal events correctly via getTerminalRunStatuses', () => {
+  it('classifies migrated terminal events correctly via getTerminalMessageStatuses', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
-    const statuses = new Map(store.getTerminalRunStatuses().map((r) => [r.runId, r.status]))
+    const statuses = new Map(store.getTerminalMessageStatuses().map((r) => [r.messageId, r.status]))
     store.close()
 
     expect(statuses.get('r1')).toBe('completed')
@@ -337,11 +344,11 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
   it('is idempotent: a second open leaves version, row count, and content unchanged', () => {
     seedLegacyDb(dbPath)
     const store1 = createConversationStore(dbPath)
-    const rowsAfterFirstOpen = store1.getRunEvents('ses-1')
+    const rowsAfterFirstOpen = store1.getMessageEvents('ses-1')
     store1.close()
 
     const store2 = createConversationStore(dbPath)
-    const rowsAfterSecondOpen = store2.getRunEvents('ses-1')
+    const rowsAfterSecondOpen = store2.getMessageEvents('ses-1')
     store2.close()
 
     const inspect = new Database(dbPath)
@@ -349,8 +356,8 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const metaRowCount = (inspect.prepare('SELECT COUNT(*) AS n FROM schema_meta').get() as { n: number }).n
     inspect.close()
 
-    expect(version).toBe(4)
+    expect(version).toBe(5)
     expect(metaRowCount).toBe(1) // no duplicate version row inserted on reopen
-    expect(rowsAfterSecondOpen).toEqual(rowsAfterFirstOpen) // no double-rewrite (e.g. no 'run.run.*')
+    expect(rowsAfterSecondOpen).toEqual(rowsAfterFirstOpen) // no double-rewrite (e.g. no 'message.message.*')
   })
 })

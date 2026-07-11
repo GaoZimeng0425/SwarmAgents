@@ -27,16 +27,16 @@ export interface ToolRunContext {
    * relative paths against it and shell runs there; absent → the user's home.
    */
   cwd?: string
-  // parentRunId is bound externally when constructing the context (see launch runCtx).
-  // Delegate a focused child run to a sub-agent; the child's terminal `status`
+  // parentMessageId is bound externally when constructing the context (see launch runCtx).
+  // Delegate a focused child message to a sub-agent; the child's terminal `status`
   // (spec §4, ledger #6) rides on the result so the delegate tool can surface a
   // failed/cancelled child instead of reading its partial summary as success.
   spawnChild(
     prompt: string,
     opts?: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
-  ): Promise<DelegateResult & { runId: string }>
-  /** Agent-authored work: run a top-level work run (single-shot) and return its result. Absent outside conversation turns. */
-  createTask?(prompt: string, agentType?: string): Promise<DelegateResult & { runId: string }>
+  ): Promise<DelegateResult & { messageId: string }>
+  /** Agent-authored work: run a top-level work message (single-shot) and return its result. Absent outside conversation turns. */
+  createTask?(prompt: string, agentType?: string): Promise<DelegateResult & { messageId: string }>
   requestPermission: (args: {
     toolName: string
     risk: ToolRisk

@@ -1,4 +1,4 @@
-// Thread-level analysis: clones analyze.ts's run-engine pattern but keys
+// Thread-level analysis: clones analyze.ts's message-engine pattern but keys
 // broadcasts by threadId. The agent streams a natural-language markdown summary
 // (shown to the user) and emits its structured fields via a
 // render_ui({type:'analysis', props:{todos, suggest}}) tool call, which the
@@ -12,8 +12,8 @@ import { ulid } from 'ulid'
 
 import type { AgentStore } from '../agents/store'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { RunEmitPorts } from '../run-engine/emit'
-import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
+import type { MessageEmitPorts } from '../message-engine/emit'
+import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
 import { createPermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry } from '../tools/registry'
 import { readAnalysisCard } from '../tools/render-ui'
@@ -28,11 +28,11 @@ export type AnalyzeThreadDeps = {
   toolRegistry: ToolRegistry
   getBudgetConfig(): BudgetConfig
   /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchRun
+  launch?: typeof launchMessage
 }
 
 export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThreadRequest) => AnalyzeThreadResult {
-  const run = deps.launch ?? launchRun
+  const run = deps.launch ?? launchMessage
   return (req) => {
     if (!req.provider) {
       return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
@@ -53,19 +53,19 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
     // Accumulate the streamed markdown as the summary and capture the structured
     // fields from the render_ui analysis card. The broadcast port translates the
     // run.* wire into gmail.threadAnalysis* events keyed by threadId:
-    // run.progress llm.message → threadAnalysisDelta (+ accumulate),
+    // message.progress llm.message → threadAnalysisDelta (+ accumulate),
     // run.progress tool.call (analysis card) → capture todos/suggest,
-    // run.complete → threadAnalysisComplete, run.error → threadAnalysisError.
+    // message.complete → threadAnalysisComplete, message.error → threadAnalysisError.
     let accumulated = ''
     let card: { todos: Todo[]; suggest: string } | null = null
 
     let seq = 0
-    const emitPorts: RunEmitPorts = {
+    const emitPorts: MessageEmitPorts = {
       nextSeq: () => seq++,
       appendEvent: () => undefined,
       markTerminal: () => undefined,
       broadcast: (evt) => {
-        if (evt.kind === 'run.progress') {
+        if (evt.kind === 'message.progress') {
           const ev = evt.event
           if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
             accumulated += ev.content
@@ -79,7 +79,7 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
               suggest: typeof props.suggest === 'string' ? props.suggest : '',
             }
           }
-        } else if (evt.kind === 'run.complete') {
+        } else if (evt.kind === 'message.complete') {
           // summary = the streamed markdown; todos/suggest = the captured card
           // (empty when the agent emitted no card).
           deps.broadcaster.broadcast('gmail.threadAnalysisComplete', {
@@ -89,7 +89,7 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
             suggest: card?.suggest ?? '',
             ts: Date.now(),
           })
-        } else if (evt.kind === 'run.error') {
+        } else if (evt.kind === 'message.error') {
           deps.broadcaster.broadcast('gmail.threadAnalysisError', {
             threadId,
             error: evt.error?.message ?? 'thread analysis failed',
@@ -117,7 +117,7 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
       .join('\n\n')
     const prompt = `分析下面这个邮件线程。\n\nSubject: ${req.subject}\n\n${threadText}`
 
-    const spec: RunSpec = {
+    const spec: MessageSpec = {
       kind: 'work',
       sessionId: `analyze-thread:${ulid()}`,
       agent: def,
@@ -129,7 +129,7 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
     }
 
     const t0 = Date.now()
-    // launchRun never rejects: every failure path emits run.error, which the
+    // launchMessage never rejects: every failure path emits message.error, which the
     // broadcast port already forwards as threadAnalysisError. The catch is
     // purely defensive (log-only, no double broadcast).
     void run(spec, ports)

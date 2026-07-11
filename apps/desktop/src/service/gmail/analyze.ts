@@ -1,8 +1,8 @@
 // One-shot, tool-less analysis of a single email's bodyText. Rebuilt on
-// launchRun (the ONE way a run starts) with a PRIVATE LaunchPorts binding: a
+// launchMessage (the ONE way a message starts) with a PRIVATE LaunchPorts binding: a
 // silent seq, no store append, no-op slot/abort ports (the vision-run precedent
-// in run-engine/launch.ts buildAnalyzeImage), and a broadcast adapter that
-// translates the run.* stream into gmail.analysis* events keyed by messageId so
+// in message-engine/launch.ts buildAnalyzeImage), and a broadcast adapter that
+// translates the message.* stream into gmail.analysis* events keyed by messageId so
 // the renderer's MessageAnalysis panel can stream. The gmail-analyst agent (a
 // visible builtin) supplies the Chinese structured-Markdown prompt.
 import { createLogger } from '@shared/logger'
@@ -12,8 +12,8 @@ import { ulid } from 'ulid'
 
 import type { AgentStore } from '../agents/store'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { RunEmitPorts } from '../run-engine/emit'
-import { type LaunchPorts, launchRun, type RunSpec } from '../run-engine/launch'
+import type { MessageEmitPorts } from '../message-engine/emit'
+import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
 import { createPermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry } from '../tools/registry'
 
@@ -27,11 +27,11 @@ export type AnalyzeDeps = {
   toolRegistry: ToolRegistry
   getBudgetConfig(): BudgetConfig
   /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchRun
+  launch?: typeof launchMessage
 }
 
 export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest) => AnalyzeEmailResult {
-  const run = deps.launch ?? launchRun
+  const run = deps.launch ?? launchMessage
   return (req) => {
     if (!req.provider) {
       return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
@@ -50,23 +50,23 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
 
     // PRIVATE emit ports: a silent seq (no session/store), no persistence, no
     // terminal registry — the analysis lives entirely in the broadcast stream.
-    // The broadcast port translates the run.* wire into gmail.analysis* events:
-    // run.progress llm.message → analysisDelta, run.complete → analysisComplete,
-    // run.error → analysisError. Tool/reasoning events are dropped (tool-less).
+    // The broadcast port translates the message.* wire into gmail.analysis* events:
+    // message.progress llm.message → analysisDelta, message.complete → analysisComplete,
+    // message.error → analysisError. Tool/reasoning events are dropped (tool-less).
     let seq = 0
-    const emitPorts: RunEmitPorts = {
+    const emitPorts: MessageEmitPorts = {
       nextSeq: () => seq++,
       appendEvent: () => undefined,
       markTerminal: () => undefined,
       broadcast: (evt) => {
-        if (evt.kind === 'run.progress') {
+        if (evt.kind === 'message.progress') {
           const ev = evt.event
           if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
             deps.broadcaster.broadcast('gmail.analysisDelta', { messageId, text: ev.content, ts: Date.now() })
           }
-        } else if (evt.kind === 'run.complete') {
+        } else if (evt.kind === 'message.complete') {
           deps.broadcaster.broadcast('gmail.analysisComplete', { messageId, markdown: evt.summary, ts: Date.now() })
-        } else if (evt.kind === 'run.error') {
+        } else if (evt.kind === 'message.error') {
           deps.broadcaster.broadcast('gmail.analysisError', {
             messageId,
             error: evt.error?.message ?? 'analysis failed',
@@ -88,7 +88,7 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
     }
 
     const analyzePrompt = `分析下面这封邮件。\n\nSubject: ${req.subject}\nFrom: ${req.from}\n\n${req.content}`
-    const spec: RunSpec = {
+    const spec: MessageSpec = {
       kind: 'work',
       sessionId: `analyze:${ulid()}`,
       agent: def,
@@ -100,7 +100,7 @@ export function createAnalyzeEmail(deps: AnalyzeDeps): (req: AnalyzeEmailRequest
     }
 
     const t0 = Date.now()
-    // launchRun never rejects: every failure path emits run.error, which the
+    // launchMessage never rejects: every failure path emits message.error, which the
     // broadcast port already forwards as analysisError. The catch is purely
     // defensive (log-only, no double broadcast).
     void run(spec, ports)

@@ -1,10 +1,10 @@
-import { applyEvent, type RunRecord } from '@shared/lib/apply-event'
+import { applyEvent, type MessageRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
-const baseEvent = { ts: 1, seq: 1, runId: 't1' as const, sessionId: 'ses-1' }
+const baseEvent = { ts: 1, seq: 1, messageId: 't1' as const, sessionId: 'ses-1' }
 
-// A seeded run record in a given status, mirroring what run.created would build.
-function seed(status: RunRecord['status'], over: Partial<RunRecord> = {}): RunRecord[] {
+// A seeded message record in a given status, mirroring what message.created would build.
+function seed(status: MessageRecord['status'], over: Partial<MessageRecord> = {}): MessageRecord[] {
   return [
     {
       id: 't1',
@@ -12,8 +12,9 @@ function seed(status: RunRecord['status'], over: Partial<RunRecord> = {}): RunRe
       prompt: 'g',
       status,
       summary: null,
-      startedAt: 1,
+      createdAt: 1,
       attachments: [],
+      order: 1,
       events: [],
       ...over,
     },
@@ -21,64 +22,69 @@ function seed(status: RunRecord['status'], over: Partial<RunRecord> = {}): RunRe
 }
 
 describe('applyEvent', () => {
-  it('creates a run on run.created', () => {
-    const next = applyEvent([], { kind: 'run.created', ...baseEvent, prompt: 'do x' })
+  it('creates a message on message.created', () => {
+    const next = applyEvent([], { kind: 'message.created', ...baseEvent, prompt: 'do x' })
     expect(next).toHaveLength(1)
     expect(next[0]).toMatchObject({ id: 't1', prompt: 'do x', status: 'pending' })
   })
 
-  it('carries parentRunId + agentDefId for a spawned sub-agent run.created', () => {
+  it('stamps order from e.seq on message.created', () => {
+    const next = applyEvent([], { kind: 'message.created', ...baseEvent, seq: 42, prompt: 'do x' })
+    expect(next[0].order).toBe(42)
+  })
+
+  it('carries parentMessageId + agentDefId for a spawned sub-agent message.created', () => {
     const next = applyEvent([], {
-      kind: 'run.created',
+      kind: 'message.created',
       ...baseEvent,
-      parentRunId: 'parent-1',
+      parentMessageId: 'parent-1',
       prompt: 'sub goal',
       agentDefId: 'researcher',
     })
-    expect(next[0]).toMatchObject({ id: 't1', parentRunId: 'parent-1', agentDefId: 'researcher' })
+    expect(next[0]).toMatchObject({ id: 't1', parentMessageId: 'parent-1', agentDefId: 'researcher' })
   })
 
-  it('marks running on run.dispatched', () => {
-    const next = applyEvent(seed('pending'), { kind: 'run.dispatched', ...baseEvent })
+  it('marks running on message.dispatched', () => {
+    const next = applyEvent(seed('pending'), { kind: 'message.dispatched', ...baseEvent })
     expect(next[0].status).toBe('running')
   })
 
-  it('sets summary + completed on run.complete', () => {
-    const next = applyEvent(seed('running'), { kind: 'run.complete', ...baseEvent, summary: 'done' })
+  it('sets summary + completed on message.complete', () => {
+    const next = applyEvent(seed('running'), { kind: 'message.complete', ...baseEvent, summary: 'done' })
     expect(next[0].status).toBe('completed')
     expect(next[0].summary).toBe('done')
   })
 
-  it('flips to failed on run.error', () => {
+  it('flips to failed on message.error', () => {
     const next = applyEvent(seed('running'), {
-      kind: 'run.error',
+      kind: 'message.error',
       ...baseEvent,
       error: { code: 'x', message: 'm', tier: 'fatal' },
     })
     expect(next[0].status).toBe('failed')
   })
 
-  it('flips to cancelled on run.error with code "cancelled"', () => {
+  it('flips to cancelled on message.error with code "cancelled"', () => {
     const next = applyEvent(seed('running'), {
-      kind: 'run.error',
+      kind: 'message.error',
       ...baseEvent,
       error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
     })
     expect(next[0].status).toBe('cancelled')
   })
 
-  it('stays failed on run.error with a non-cancelled code', () => {
+  it('stays failed on message.error with a non-cancelled code', () => {
     const next = applyEvent(seed('running'), {
-      kind: 'run.error',
+      kind: 'message.error',
       ...baseEvent,
       error: { code: 'budget_exhausted', message: 'm', tier: 'gave_up' },
     })
     expect(next[0].status).toBe('failed')
   })
 
-  it('flips to awaiting_user on run.permission_request', () => {
+  it('flips to awaiting_user on message.permission_request', () => {
     const next = applyEvent(seed('running'), {
-      kind: 'run.permission_request',
+      kind: 'message.permission_request',
       ...baseEvent,
       actionId: 'a1',
       risk: 'medium',
@@ -88,59 +94,62 @@ describe('applyEvent', () => {
     expect(next[0].status).toBe('awaiting_user')
   })
 
-  it('resets awaiting_user back to running on the next run.progress', () => {
+  it('resets awaiting_user back to running on the next message.progress', () => {
     const next = applyEvent(seed('awaiting_user'), {
-      kind: 'run.progress',
+      kind: 'message.progress',
       ...baseEvent,
       event: { kind: 'tool.result', ok: true, payload: {}, ts: 2 },
     })
     expect(next[0].status).toBe('running')
   })
 
-  it('does not resurrect a finished run on a late run.progress', () => {
+  it('does not resurrect a finished message on a late message.progress', () => {
     const next = applyEvent(seed('completed', { summary: 'done' }), {
-      kind: 'run.progress',
+      kind: 'message.progress',
       ...baseEvent,
       event: { kind: 'tool.result', ok: true, payload: {}, ts: 2 },
     })
     expect(next[0].status).toBe('completed')
   })
 
-  it('keeps unknown runId events as stubs', () => {
-    const next = applyEvent([], { kind: 'run.dispatched', ...baseEvent })
+  it('keeps unknown messageId events as stubs', () => {
+    const next = applyEvent([], { kind: 'message.dispatched', ...baseEvent })
     expect(next).toHaveLength(1)
     expect(next[0].id).toBe('t1')
   })
 
-  it('applies a terminal event to a freshly-stubbed unknown run (no stuck running)', () => {
-    const next = applyEvent([], { kind: 'run.complete', ...baseEvent, summary: 'done' })
+  it('applies a terminal event to a freshly-stubbed unknown message (no stuck running)', () => {
+    const next = applyEvent([], { kind: 'message.complete', ...baseEvent, summary: 'done' })
     expect(next).toHaveLength(1)
     expect(next[0]).toMatchObject({ id: 't1', status: 'completed', summary: 'done' })
   })
 
+  it('stamps order from e.seq on an unknown-message stub', () => {
+    const next = applyEvent([], { kind: 'message.dispatched', ...baseEvent, seq: 7 })
+    expect(next[0].order).toBe(7)
+  })
+
   it('stamps sessionId onto the created record', () => {
-    const out = applyEvent([], { kind: 'run.created', ...baseEvent, prompt: 'g' })
+    const out = applyEvent([], { kind: 'message.created', ...baseEvent, prompt: 'g' })
     expect(out[0].sessionId).toBe('ses-1')
   })
 
-  it('records resource usage on run.usage without changing status', () => {
+  it('records resource usage on message.usage without changing status', () => {
     const used = { tokens: 900, calls: 2, wallMs: 1500, usdCents: 3, cacheRead: 0, cacheWrite: 0 }
     const next = applyEvent(seed('running', { prompt: 'do x' }), {
-      kind: 'run.usage',
+      kind: 'message.usage',
       ...baseEvent,
       used,
       contextTokens: 1200,
       contextWindow: 200_000,
     })
     expect(next[0].used).toEqual(used)
-    expect(next[0].contextTokens).toBe(1200)
-    expect(next[0].contextWindow).toBe(200_000)
     expect(next[0].status).toBe('running')
   })
 
-  it('stores the plan on run.plan and replaces it wholesale on the next plan', () => {
+  it('stores the plan on message.plan and replaces it wholesale on the next plan', () => {
     const first = applyEvent(seed('running', { prompt: 'do x' }), {
-      kind: 'run.plan',
+      kind: 'message.plan',
       ...baseEvent,
       todos: [{ content: 'step one', status: 'in_progress' }],
     })
@@ -148,7 +157,7 @@ describe('applyEvent', () => {
     expect(first[0].status).toBe('running')
 
     const second = applyEvent(first, {
-      kind: 'run.plan',
+      kind: 'message.plan',
       ...baseEvent,
       todos: [
         { content: 'step one', status: 'completed' },
@@ -159,23 +168,24 @@ describe('applyEvent', () => {
     expect(second[0].plan?.[0]).toEqual({ content: 'step one', status: 'completed' })
   })
 
-  it('records run.spawned append-only on the parent without changing status', () => {
-    const next = applyEvent(seed('running'), { kind: 'run.spawned', ...baseEvent, childRunId: 'child-1' })
+  it('records message.spawned append-only on the parent without changing status', () => {
+    const next = applyEvent(seed('running'), { kind: 'message.spawned', ...baseEvent, childMessageId: 'child-1' })
     expect(next[0].status).toBe('running')
     expect(next[0].events).toHaveLength(1)
-    expect(next[0].events[0]).toMatchObject({ kind: 'run.spawned', childRunId: 'child-1' })
+    expect(next[0].events[0]).toMatchObject({ kind: 'message.spawned', childMessageId: 'child-1' })
   })
 
-  it('stubs + appends for a conversation turn (run.progress under a fresh runId)', () => {
-    // A live conversation turn arrives as run.progress with runId: turnId and
-    // no preceding run.created (there is no run row). The unknown-run fallback
-    // must stub a record so the inner event renders, and a later progress event
-    // for the same turn appends to the same record (run-id namespace).
+  it('stubs + appends for a conversation turn (message.progress under a fresh messageId)', () => {
+    // A live conversation turn arrives as message.progress with messageId:
+    // turnId and no preceding message.created (there is no message row). The
+    // unknown-message fallback must stub a record so the inner event renders,
+    // and a later progress event for the same turn appends to the same record
+    // (message-id namespace).
     const ev1 = applyEvent([], {
-      kind: 'run.progress',
+      kind: 'message.progress',
       ts: 1,
       seq: 1,
-      runId: 'turn-1',
+      messageId: 'turn-1',
       sessionId: 'ses-1',
       event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 1 },
     })
@@ -183,10 +193,10 @@ describe('applyEvent', () => {
     expect(ev1[0].id).toBe('turn-1')
     expect(ev1[0].events).toHaveLength(1)
     const ev2 = applyEvent(ev1, {
-      kind: 'run.progress',
+      kind: 'message.progress',
       ts: 2,
       seq: 2,
-      runId: 'turn-1',
+      messageId: 'turn-1',
       sessionId: 'ses-1',
       event: { kind: 'llm.message', role: 'assistant', content: 'yo', ts: 2 },
     })

@@ -13,8 +13,8 @@ describe('terminal registry', () => {
 
   it('loads initial statuses from run_events at construction', () => {
     const reg = createTerminalRegistry([
-      { runId: 'r1', status: 'completed' },
-      { runId: 'r2', status: 'failed' },
+      { messageId: 'r1', status: 'completed' },
+      { messageId: 'r2', status: 'failed' },
     ])
     expect(reg.isTerminal('r1')).toBe(true)
     expect(reg.isTerminal('r2')).toBe(true)

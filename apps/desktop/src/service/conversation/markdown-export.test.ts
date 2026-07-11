@@ -1,42 +1,42 @@
-import type { RunEvent, TaskEvent, UIEvent } from '@swarm/protocol'
+import type { MessageEvent, TaskEvent, UIEvent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { buildMarkdown } from './markdown-export'
 
-// A RunEvent row whose event is a run.* wire event. The markdown builder reads
-// the session's RunEvent stream (UIEvent-shaped); messages/tools/errors live
+// A MessageEvent row whose event is a run.* wire event. The markdown builder reads
+// the session's MessageEvent stream (UIEvent-shaped); messages/tools/errors live
 // inside run.progress events as TaskEvent payloads.
-const runRow = (runId: string, event: UIEvent, parentRunId: string | null = null): RunEvent => ({
-  runId,
-  parentRunId,
+const runRow = (messageId: string, event: UIEvent, parentMessageId: string | null = null): MessageEvent => ({
+  messageId,
+  parentMessageId,
   seq: 1,
   ts: 1000,
   event,
 })
 
 // A run.progress event wrapping a TaskEvent (the actual transcript content).
-const progress = (runId: string, taskEvent: TaskEvent): RunEvent =>
-  runRow(runId, {
-    kind: 'run.progress',
+const progress = (messageId: string, taskEvent: TaskEvent): MessageEvent =>
+  runRow(messageId, {
+    kind: 'message.progress',
     sessionId: 's',
-    runId,
+    messageId,
     seq: 1,
     ts: 1000,
     event: taskEvent,
   })
 
-const created = (runId: string, prompt: string, parentRunId?: string): RunEvent =>
+const created = (messageId: string, prompt: string, parentMessageId?: string): MessageEvent =>
   runRow(
-    runId,
+    messageId,
     {
-      kind: 'run.created',
+      kind: 'message.created',
       sessionId: 's',
-      runId,
+      messageId,
       seq: 1,
       ts: 1,
       prompt,
     },
-    parentRunId ?? null
+    parentMessageId ?? null
   )
 
 describe('buildMarkdown', () => {
@@ -71,9 +71,9 @@ describe('buildMarkdown', () => {
     const out = buildMarkdown([
       created('r1', 'g'),
       runRow('r1', {
-        kind: 'run.error',
+        kind: 'message.error',
         sessionId: 's',
-        runId: 'r1',
+        messageId: 'r1',
         seq: 2,
         ts: 2,
         error: { code: 'boom', message: 'it broke', tier: 'recoverable' },

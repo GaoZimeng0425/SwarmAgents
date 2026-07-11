@@ -365,16 +365,17 @@ const swarm: SwarmBridge = {
     ipcRenderer.invoke('swarm:analyzeEmail', input) as Promise<import('@swarm/protocol').AnalyzeEmailResult>,
   analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) =>
     ipcRenderer.invoke('swarm:analyzeThread', input) as Promise<import('@swarm/protocol').AnalyzeThreadResult>,
-  cancelRun: (sessionId, runId) => ipcRenderer.invoke('swarm:cancelRun', sessionId, runId) as Promise<void>,
-  promoteQueuedRun: (sessionId, runId) =>
-    ipcRenderer.invoke('swarm:promoteQueuedRun', sessionId, runId) as Promise<void>,
+  cancelMessage: (sessionId, messageId) =>
+    ipcRenderer.invoke('swarm:cancelMessage', sessionId, messageId) as Promise<void>,
+  promoteQueuedMessage: (sessionId, messageId) =>
+    ipcRenderer.invoke('swarm:promoteQueuedMessage', sessionId, messageId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
   sessions: {
     list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('@swarm/protocol').SessionSummary[]>,
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
-    getRunEvents: (sessionId: string) =>
-      ipcRenderer.invoke('swarm:getRunEvents', sessionId) as Promise<import('@swarm/protocol').RunEvent[]>,
+    getMessageEvents: (sessionId: string) =>
+      ipcRenderer.invoke('swarm:getMessageEvents', sessionId) as Promise<import('@swarm/protocol').MessageEvent[]>,
     delete: (sessionId: string) => ipcRenderer.invoke('swarm:deleteSession', sessionId) as Promise<void>,
     rename: (sessionId: string, title: string) =>
       ipcRenderer.invoke('swarm:renameSession', sessionId, title) as Promise<void>,

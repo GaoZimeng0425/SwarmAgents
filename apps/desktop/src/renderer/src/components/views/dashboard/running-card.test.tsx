@@ -3,21 +3,21 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { DashboardRun } from '@/lib/dashboard-runs'
+import type { DashboardMessage } from '@/lib/dashboard-messages'
 
 // Mutable permission queue, shared with the store mock via vi.hoisted so the
 // factory (hoisted above imports) can read it lazily on each render.
 const h = vi.hoisted(() => ({ queue: [] as Array<Record<string, unknown>> }))
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
-vi.mock('@/hooks/use-runs', () => ({ useDecidePermission: () => ({ mutate: vi.fn(), isPending: false }) }))
+vi.mock('@/hooks/use-messages', () => ({ useDecidePermission: () => ({ mutate: vi.fn(), isPending: false }) }))
 vi.mock('@/stores/permission', () => ({
   usePermissionStore: (sel: (s: { queue: unknown[] }) => unknown) => sel({ queue: h.queue }),
 }))
 
 const { RunningCard } = await import('./running-card')
 
-const base: DashboardRun = {
+const base: DashboardMessage = {
   id: '1',
   sessionId: 's1',
   prompt: '修复登录 token 刷新竞态',
@@ -50,7 +50,7 @@ describe('RunningCard', () => {
       {
         actionId: 'a1',
         sessionId: 's1',
-        runId: '1',
+        messageId: '1',
         risk: 'medium',
         summary: '执行 rm -rf out/ && pnpm build',
         payload: {},

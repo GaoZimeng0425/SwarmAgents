@@ -42,7 +42,7 @@ const fakeProvider = { id: 'p', model: 'test', apiStyle: 'anthropic', apiKey: 'k
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 30))
 
 const isProgressRole = (r: { event: { kind?: string } }, role: string): boolean =>
-  (r.event as { kind?: string }).kind === 'run.progress' &&
+  (r.event as { kind?: string }).kind === 'message.progress' &&
   (r.event as { event?: { kind?: string; role?: string } }).event?.kind === 'llm.message' &&
   (r.event as { event?: { role?: string } }).event?.role === role
 
@@ -58,11 +58,11 @@ describe('conversation off task', () => {
     })
     const { sessionId } = service.createSession(fakeProvider)
 
-    const { runId: turnId } = service.submitPrompt(sessionId, '你好')
+    const { messageId: turnId } = service.submitPrompt(sessionId, '你好')
     await flush()
 
     // The run stream carries the user + assistant messages, no verification.
-    const rows = store.getRunEvents(sessionId)
+    const rows = store.getMessageEvents(sessionId)
     expect(rows.some((r) => isProgressRole(r, 'user'))).toBe(true)
     expect(rows.some((r) => isProgressRole(r, 'assistant'))).toBe(true)
     expect(rows.some((r) => (r.event as { event?: { kind?: string } }).event?.kind === 'verification')).toBe(false)
@@ -71,7 +71,7 @@ describe('conversation off task', () => {
 
     // Agent-authored work via runWork is a top-level run on the run-event stream.
     const work = await service.runWork(sessionId, 'build it')
-    expect(store.getRunEvents(sessionId).some((r) => r.runId === work.runId)).toBe(true)
+    expect(store.getMessageEvents(sessionId).some((r) => r.messageId === work.messageId)).toBe(true)
 
     store.close()
   })

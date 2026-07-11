@@ -94,7 +94,7 @@ const offArticleWatch = articleStore.watch(() => broadcaster.broadcast('articles
 // config. MCP servers keep their own enable flag (see mcpManager).
 const toolToggles = createToolTogglesStore({ filePath: join(dirname(skillsPath), 'tool-toggles.json') })
 // Claude-Code-style hooks: read-only config of event name → command, fired
-// alongside the wire broadcast of each run.* event.
+// alongside the wire broadcast of each message.* event.
 const hooksPath = process.env.SWARM_SERVICE_HOOKS_PATH ?? join(dirname(skillsPath), 'hooks.json')
 const hookDispatcher = createHookDispatcher({ store: createHooksStore({ filePath: hooksPath }) })
 
@@ -128,23 +128,23 @@ const service = createSessionService({
 const scheduler = createCronScheduler({
   store,
   fire: (sessionId, prompt, onComplete) => {
-    // submitPrompt returns { runId }; the scheduler records it as its task id.
-    const { runId } = service.submitPrompt(sessionId, prompt, [], onComplete)
-    return { taskId: runId }
+    // submitPrompt returns { messageId }; the scheduler records it as its task id.
+    const { messageId } = service.submitPrompt(sessionId, prompt, [], onComplete)
+    return { taskId: messageId }
   },
   // Cron jobs are global: own + fire them in the dedicated system session, not
   // the conversation that issued schedule_task, so every session sees them and
   // they survive that conversation's deletion.
   resolveJobSession: (fromSessionId) => service.ensureSystemSession(fromSessionId),
-  isRunTerminal: (runId) => service.terminalRegistry.isTerminal(runId),
-  runTerminalStatus: (runId) => service.terminalRegistry.getStatus(runId),
+  isRunTerminal: (messageId) => service.terminalRegistry.isTerminal(messageId),
+  runTerminalStatus: (messageId) => service.terminalRegistry.getStatus(messageId),
 })
 // Drives Claude Code sessions the agent operates via cc_* tools. The SDK is
 // loaded lazily on first cc_start, so constructing it here is cheap.
 const claudeCode = createClaudeCodeManager()
 
-// Close out runs dispatched-but-never-terminal from a previous process: append
-// a synthetic task.error to run_events (replay reaches terminal) and mark each
+// Close out messages dispatched-but-never-terminal from a previous process: append
+// a synthetic message.error to message_events (replay reaches terminal) and mark each
 // terminal in the registry.
 service.markInterruptedRunsTerminal()
 

@@ -2,7 +2,7 @@
 // slim top bar, the hero composer (reusing <ChatInput> unchanged inside a new
 // shell), and the three live sections — 进行中 card wall, 定时任务, 最近完成.
 //
-// All data comes from existing caches (useRuns, useAllCronJobs, useAllCronRuns)
+// All data comes from existing caches (useMessages, useAllCronJobs, useAllCronRuns)
 // and the sessions store; the dashboard itself owns no new fetch. The single
 // useNow tick drives elapsed wall time + cron countdowns at 30s granularity.
 
@@ -17,12 +17,12 @@ import { ScheduledList } from '@/components/views/dashboard/scheduled-list'
 import { WeatherCard } from '@/components/views/dashboard/weather-card'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useAllCronJobs, useAllCronRuns } from '@/hooks/use-cron'
+import { useMessages, useSubmitPrompt } from '@/hooks/use-messages'
 import { useNow } from '@/hooks/use-now'
 import { useProviders } from '@/hooks/use-providers'
-import { useRuns, useSubmitPrompt } from '@/hooks/use-runs'
 import { selectDashboardCron } from '@/lib/dashboard-cron'
+import { selectDashboardMessages } from '@/lib/dashboard-messages'
 import { selectDashboardRecent } from '@/lib/dashboard-recent'
-import { selectDashboardRuns } from '@/lib/dashboard-runs'
 import { useComposerDefaults } from '@/stores/composer-defaults'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -45,12 +45,12 @@ export function HomeDashboard(): React.JSX.Element {
   const teamOptions = useTeamOptions()
 
   // Dashboard data.
-  const runs = useRuns()
+  const messages = useMessages()
   const sessions = useSessionsStore((s) => s.sessions)
   const cronJobs = useAllCronJobs().data ?? []
   const cronRuns = useAllCronRuns().data ?? []
 
-  const { running, awaiting } = selectDashboardRuns(runs, sessions, teamOptions, now)
+  const { running, awaiting } = selectDashboardMessages(messages, sessions, teamOptions, now)
   const { rows: cronRows } = selectDashboardCron(cronJobs, cronRuns, now)
   const { rows: recentRows } = selectDashboardRecent(sessions)
 

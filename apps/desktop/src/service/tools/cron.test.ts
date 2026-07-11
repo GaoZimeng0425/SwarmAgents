@@ -7,7 +7,7 @@ import type { ToolRunContext } from './registry'
 const ctx: ToolRunContext = {
   sessionId: 'ses-1',
   taskId: 't',
-  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: '', artifacts: [] }),
+  spawnChild: async () => ({ messageId: 'c', status: 'completed', summary: '', artifacts: [] }),
   requestPermission: async () => 'grant',
   findPeers: () => [],
 }

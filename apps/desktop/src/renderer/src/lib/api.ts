@@ -49,9 +49,10 @@ export const swarmApi = {
     attachments?: Attachment[],
     options?: RunOptions
   ): Promise<SubmitPromptResult> => window.swarm.submitPrompt(sessionId, prompt, attachments, options),
-  cancelRun: (sessionId: string, runId: string): Promise<void> => window.swarm.cancelRun(sessionId, runId),
-  promoteQueuedRun: (sessionId: string, runId: string): Promise<void> =>
-    window.swarm.promoteQueuedRun(sessionId, runId),
+  cancelMessage: (sessionId: string, messageId: string): Promise<void> =>
+    window.swarm.cancelMessage(sessionId, messageId),
+  promoteQueuedMessage: (sessionId: string, messageId: string): Promise<void> =>
+    window.swarm.promoteQueuedMessage(sessionId, messageId),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),
@@ -60,8 +61,8 @@ export const swarmApi = {
   consumePendingDeepLink: (): Promise<{ sessionId: string } | null> => window.swarm.consumePendingDeepLink(),
   listSessions: (): Promise<SessionSummary[]> => window.swarm.sessions.list(),
   createSession: (): Promise<{ sessionId: string }> => window.swarm.sessions.create(),
-  getRunEvents: (sessionId: string): Promise<import('@swarm/protocol').RunEvent[]> =>
-    window.swarm.sessions.getRunEvents(sessionId),
+  getMessageEvents: (sessionId: string): Promise<import('@swarm/protocol').MessageEvent[]> =>
+    window.swarm.sessions.getMessageEvents(sessionId),
   deleteSession: (sessionId: string): Promise<void> => window.swarm.sessions.delete(sessionId),
   renameSession: (sessionId: string, title: string): Promise<void> => window.swarm.sessions.rename(sessionId, title),
   setSessionPinned: (sessionId: string, pinned: boolean): Promise<void> =>

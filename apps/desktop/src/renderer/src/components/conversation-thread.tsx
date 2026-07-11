@@ -1,19 +1,18 @@
 import { useEffect, useMemo } from 'react'
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { Button, Spinner } from '@swarm/ui'
 import { useQueryClient } from '@tanstack/react-query'
-import { sortBy } from 'es-toolkit'
 import { ArrowDown, MessagesSquare } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ConversationMinimap } from '@/components/conversation-minimap'
 import { buildThreadItems, useTimelineRenderer } from '@/components/task-transcript'
 import { StickToBottomList, useStickToBottomList } from '@/components/viewers/stick-to-bottom-list'
-import { RUNS_KEY } from '@/hooks/use-runs'
+import { MESSAGES_KEY } from '@/hooks/use-messages'
 import type { TimelineItem } from '@/lib/build-timeline-items'
 
 type Props = {
-  tasks: RunRecord[]
+  tasks: MessageRecord[]
   /** Start a new user turn with the given text (used by interactive UI cards). */
   onSend?: (text: string) => void
   /** Deep-link target: scroll to and briefly highlight this task's turn (e.g. a scheduled run). */
@@ -45,7 +44,7 @@ function FocusProbe({ focusTaskId }: { focusTaskId?: string }) {
     if (!focusTaskId) return
     scrollToKey(`${focusTaskId}-prompt`)
     const id = window.setTimeout(() => {
-      const el = document.querySelector<HTMLElement>(`[data-task-id="${focusTaskId}"]`)
+      const el = document.querySelector<HTMLElement>(`[data-message-id="${focusTaskId}"]`)
       if (!el) return
       el.scrollIntoView({ block: 'center', behavior: 'smooth' })
       el.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background', 'rounded-lg')
@@ -65,13 +64,15 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
     void navigator.clipboard.writeText(text)
     toast.success('Message copied to clipboard')
   }
-  const onDelete = (runId: string): void => {
-    qc.setQueryData<RunRecord[]>(RUNS_KEY, (prev = []) => prev.filter((t) => t.id !== runId))
+  const onDelete = (messageId: string): void => {
+    qc.setQueryData<MessageRecord[]>(MESSAGES_KEY, (prev = []) => prev.filter((t) => t.id !== messageId))
     toast.info('Message removed from view')
   }
 
-  const ordered = sortBy(tasks, ['startedAt'])
-  const last = ordered[ordered.length - 1]
+  // buildTimelineItems / minimapItems sort internally by seq; here we only need
+  // the last message (the live tail) to drive the busy spinner. Find it by seq
+  // instead of a redundant sortBy on startedAt.
+  const last = tasks.length === 0 ? undefined : tasks.reduce((a, b) => (b.order > a.order ? b : a))
   // Optional-chain: hooks (useTimelineRenderer/useMemo) run before the empty-state
   // early return, so `busy` must tolerate tasks=[] (last undefined → busy false).
   const busy = last?.status === 'running' || last?.status === 'pending'
@@ -89,7 +90,7 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
       </div>
     ) : null
     return footer
-      ? [...thread, { key: '__footer', node: footer, seq: Number.MAX_SAFE_INTEGER, ts: Date.now() }]
+      ? [...thread, { key: '__footer', node: footer, order: Number.MAX_SAFE_INTEGER, ts: Date.now() }]
       : thread
   }, [tasks, renderSegment, busy, last])
 

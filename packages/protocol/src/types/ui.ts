@@ -29,8 +29,8 @@ import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './c
 import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } from './gmail'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
+import type { MessageWireEvent } from './message'
 import type { ApiStyle, ModelThinkingLevel, ProviderInjection, ProvidersStateView } from './provider'
-import type { RunWireEvent } from './run'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, DelegateResult, ExecutionMode, PermissionMode, RunOptions, TaskEvent } from './task'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
@@ -90,7 +90,7 @@ export type ThreadAnalysisPayload = {
 export type GmailThreadAnalysis = ThreadAnalysisPayload & { updatedAt: number }
 
 export type UIEvent =
-  | RunWireEvent
+  | MessageWireEvent
   | { kind: 'session.created'; sessionId: string; title: string | null; ts: number; seq?: number }
   | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number; seq?: number }
   | { kind: 'memory.changed'; ts: number; seq?: number }
@@ -129,6 +129,11 @@ export type SessionSummary = {
    * listSessions; absent on optimistically-created session rows (treat as 0). */
   tokensUsed?: number
   usdCents?: number
+  /** Current context occupancy (latest top-level message's snapshot, not cumulative).
+   *  Drives the composer's context-fill ring. Absent on sessions with no usage yet. */
+  contextTokens?: number
+  /** Model context window size for the latest top-level message. Absent until first usage. */
+  contextWindow?: number
   pinned: boolean
   sortOrder: number
   /** True only for the dedicated system session that owns all global cron jobs. */
@@ -201,7 +206,7 @@ export type ArtifactEntry = {
   origin: string
 }
 
-export type SubmitPromptResult = { runId: string }
+export type SubmitPromptResult = { messageId: string }
 
 export type ProvidersSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
@@ -459,13 +464,13 @@ export type SwarmBridge = {
   ): Promise<SubmitPromptResult>
   analyzeEmail(input: AnalyzeEmailInput): Promise<AnalyzeEmailResult>
   analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
-  cancelRun(sessionId: string, runId: string): Promise<void>
-  promoteQueuedRun(sessionId: string, runId: string): Promise<void>
+  cancelMessage(sessionId: string, messageId: string): Promise<void>
+  promoteQueuedMessage(sessionId: string, messageId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>
     create(): Promise<{ sessionId: string }>
-    getRunEvents(sessionId: string): Promise<import('./task').RunEvent[]>
+    getMessageEvents(sessionId: string): Promise<import('./task').MessageEvent[]>
     delete(sessionId: string): Promise<void>
     rename(sessionId: string, title: string): Promise<void>
     setPinned(sessionId: string, pinned: boolean): Promise<void>

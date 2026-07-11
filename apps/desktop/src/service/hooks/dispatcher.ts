@@ -1,8 +1,8 @@
-// Claude-Code-style hook dispatcher: when a run.* event fires, look up any
+// Claude-Code-style hook dispatcher: when a message.* event fires, look up any
 // matching command hooks in hooks.json and spawn them (fire-and-forget), with
 // the event payload piped to stdin as a single-line JSON document. Pure
 // notification semantics — a hook's exit code / output never influences the
-// run; failures are warn-logged and swallowed (a broken notification must not
+// message; failures are warn-logged and swallowed (a broken notification must not
 // break the agent loop).
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
 import { homedir } from 'node:os'
@@ -16,26 +16,26 @@ const log = createLogger({ process: 'service' }).child({ component: 'hooks-dispa
 const HOOK_TIMEOUT_MS = 30_000
 const MAX_OUTPUT = 16_000
 
-// Maps an internal run.* kind to the Claude-Code-style event name(s) it should
+// Maps an internal message.* kind to the Claude-Code-style event name(s) it should
 // fire. A function (not a static list) so terminal events can route to Stop vs
-// SubagentStop based on whether the run is a child (has parentRunId). Verified
+// SubagentStop based on whether the message is a child (has parentMessageId). Verified
 // against the official hook reference (code.claude.com/docs/en/hooks):
-//   - UserPromptSubmit: "user submits a prompt"        → run.created (turn)
-//   - PostToolUse:      "after a tool is called"        → run.tool_call
-//   - Notification:     "requires user attention"       → run.permission_request
-//   - PermissionRequest:"a permission request is made"  → run.permission_request
-//   - Stop:             "Claude finishes responding"    → terminal of a top-level run
-//   - SubagentStart:    (child run spawned)             → run.spawned
-//   - SubagentStop:     (child run finished)            → terminal of a child run
+//   - UserPromptSubmit: "user submits a prompt"        → message.created (turn)
+//   - PostToolUse:      "after a tool is called"        → message.tool_call
+//   - Notification:     "requires user attention"       → message.permission_request
+//   - PermissionRequest:"a permission request is made"  → message.permission_request
+//   - Stop:             "Claude finishes responding"    → terminal of a top-level message
+//   - SubagentStart:    (child message spawned)         → message.spawned
+//   - SubagentStop:     (child message finished)        → terminal of a child message
 // Events with no clean lifecycle counterpart here (SessionStart/SessionEnd,
 // PreCompact, …) are intentionally NOT mapped — see docs/design notes.
-const RUN_KIND_TO_CLAUDE: Record<string, (ctx: { parentRunId?: string }) => string[]> = {
-  'run.created': () => ['UserPromptSubmit'],
-  'run.tool_call': () => ['PostToolUse'],
-  'run.permission_request': () => ['Notification', 'PermissionRequest'],
-  'run.spawned': () => ['SubagentStart'],
-  'run.complete': (ctx) => [ctx.parentRunId ? 'SubagentStop' : 'Stop'],
-  'run.error': (ctx) => [ctx.parentRunId ? 'SubagentStop' : 'Stop'],
+const MESSAGE_KIND_TO_CLAUDE: Record<string, (ctx: { parentMessageId?: string }) => string[]> = {
+  'message.created': () => ['UserPromptSubmit'],
+  'message.tool_call': () => ['PostToolUse'],
+  'message.permission_request': () => ['Notification', 'PermissionRequest'],
+  'message.spawned': () => ['SubagentStart'],
+  'message.complete': (ctx) => [ctx.parentMessageId ? 'SubagentStop' : 'Stop'],
+  'message.error': (ctx) => [ctx.parentMessageId ? 'SubagentStop' : 'Stop'],
 }
 
 export type HookDispatcher = (eventName: string, payload: unknown) => void
@@ -43,22 +43,22 @@ export type HookDispatcher = (eventName: string, payload: unknown) => void
 export function createHookDispatcher(opts: { store: HooksStore }): HookDispatcher {
   const { store } = opts
   return (eventName, payload) => {
-    // eventName here is the internal run.* kind; resolve the Claude names it
+    // eventName here is the internal message.* kind; resolve the Claude names it
     // should trigger. Terminal kinds route to Stop vs SubagentStop via the
-    // parentRunId-aware mapper below.
-    const mapFor = RUN_KIND_TO_CLAUDE[eventName]
+    // parentMessageId-aware mapper below.
+    const mapFor = MESSAGE_KIND_TO_CLAUDE[eventName]
     if (!mapFor) return
 
     const config: HooksFile = store.get()
     const obj = (payload && typeof payload === 'object' ? { ...(payload as Record<string, unknown>) } : {}) as {
       sessionId?: string
-      runId?: string
-      parentRunId?: string
+      messageId?: string
+      parentMessageId?: string
       seq?: number
       ts?: number
       kind?: string
     }
-    const claudeNames = mapFor({ parentRunId: obj.parentRunId })
+    const claudeNames = mapFor({ parentMessageId: obj.parentMessageId })
     if (claudeNames.length === 0) return
 
     for (const claudeName of claudeNames) {
@@ -96,18 +96,18 @@ async function runHookCommand(
   hookEventName: string,
   ctx: {
     sessionId?: string
-    runId?: string
-    parentRunId?: string
+    messageId?: string
+    parentMessageId?: string
     seq?: number
     ts?: number
     kind?: string
   }
 ): Promise<void> {
   // The stdin payload mirrors Claude Code's shape: the Claude event name plus
-  // the full internal run.* event under hookEventName, with identity fields
+  // the full internal message.* event under hookEventName, with identity fields
   // promoted to the top level for easy access in shell scripts. `event` is
   // always the Claude name (it wins over any payload field of the same name,
-  // e.g. run.progress's nested TaskEvent `event`).
+  // e.g. message.progress's nested TaskEvent `event`).
   const stdinPayload = { ...ctx, event: claudeName, hookEventName }
   const stdinJson = JSON.stringify(stdinPayload)
 
@@ -117,7 +117,7 @@ async function runHookCommand(
     hookEventName,
     command,
     sessionId: ctx.sessionId,
-    runId: ctx.runId,
+    messageId: ctx.messageId,
   })
 
   return new Promise<void>((resolve) => {

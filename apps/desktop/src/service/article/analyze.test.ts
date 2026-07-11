@@ -62,11 +62,11 @@ describe('createAnalyzeArticle broadcast', () => {
     // summary, then run.complete — the adapter builds the summary from the card.
     const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
       ports.emit.broadcast({
-        kind: 'run.progress',
+        kind: 'message.progress',
         event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props: summary } },
       })
-      ports.emit.broadcast({ kind: 'run.complete', summary: 'streamed prose' })
-      return Promise.resolve({ status: 'complete', runId: 'r' })
+      ports.emit.broadcast({ kind: 'message.complete', summary: 'streamed prose' })
+      return Promise.resolve({ status: 'complete', messageId: 'r' })
     })
 
     const store = fakeStore()
@@ -102,8 +102,8 @@ describe('createAnalyzeArticle broadcast', () => {
   it('broadcasts analysisError when the agent emits no valid analysis card', async () => {
     const broadcaster = fakeBroadcaster()
     const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
-      ports.emit.broadcast({ kind: 'run.complete', summary: 'prose without a card' })
-      return Promise.resolve({ status: 'complete', runId: 'r' })
+      ports.emit.broadcast({ kind: 'message.complete', summary: 'prose without a card' })
+      return Promise.resolve({ status: 'complete', messageId: 'r' })
     })
     const store = fakeStore()
     const analyze = createAnalyzeArticle({

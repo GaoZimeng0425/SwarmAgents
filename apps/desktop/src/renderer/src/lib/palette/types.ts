@@ -67,7 +67,7 @@ export type PreviewData =
         status: string
         plan?: { content: string; status: 'pending' | 'in_progress' | 'completed' }[]
       }
-      /** Session the run belongs to; used to fetch the live log via getRunEvents. */
+      /** Session the message belongs to; used to fetch the live log via getMessageEvents. */
       sessionId: string
     }
   | {

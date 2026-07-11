@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 
 import { TasksView } from '@/components/views/tasks-view'
-import { hydrateSession } from '@/hooks/use-runs'
+import { hydrateSession } from '@/hooks/use-messages'
 import { useSessionsStore } from '@/stores/sessions'
 
 export const Route = createFileRoute('/session/$sessionId')({

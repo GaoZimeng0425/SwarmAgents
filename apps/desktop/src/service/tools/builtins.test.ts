@@ -17,7 +17,7 @@ const fakeMemoryStore: MemoryStore = {
 const ctx: ToolRunContext = {
   sessionId: 's',
   taskId: 't',
-  spawnChild: async () => ({ runId: 'c', status: 'completed', summary: 'done', artifacts: [] }),
+  spawnChild: async () => ({ messageId: 'c', status: 'completed', summary: 'done', artifacts: [] }),
   requestPermission: async () => 'grant',
   findPeers: () => [],
 }

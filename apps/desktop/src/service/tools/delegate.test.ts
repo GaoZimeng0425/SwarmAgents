@@ -7,21 +7,25 @@ const build = (overrides: Record<string, unknown>) => delegateSpec().build(ctx(o
 
 describe('delegate', () => {
   it('topLevel=true routes to ctx.createTask (top-level work run)', async () => {
-    const createTask = vi.fn().mockResolvedValue({ runId: 'r1', status: 'completed', summary: 'done', artifacts: [] })
+    const createTask = vi
+      .fn()
+      .mockResolvedValue({ messageId: 'r1', status: 'completed', summary: 'done', artifacts: [] })
     const tool = build({ createTask, spawnChild: vi.fn() })
     await tool.execute('c1', { prompt: 'build it', topLevel: true })
     expect(createTask).toHaveBeenCalledWith('build it', undefined)
   })
 
   it('topLevel=true forwards agentType to ctx.createTask', async () => {
-    const createTask = vi.fn().mockResolvedValue({ runId: 'r1', status: 'completed', summary: 'done', artifacts: [] })
+    const createTask = vi
+      .fn()
+      .mockResolvedValue({ messageId: 'r1', status: 'completed', summary: 'done', artifacts: [] })
     const tool = build({ createTask, spawnChild: vi.fn() })
     await tool.execute('c1', { prompt: 'build it', topLevel: true, agentType: 'pm' })
     expect(createTask).toHaveBeenCalledWith('build it', 'pm')
   })
 
   it('default (no topLevel) routes to ctx.spawnChild with an options object', async () => {
-    const spawnChild = vi.fn().mockResolvedValue({ runId: 'c1', status: 'completed', summary: 'ok', artifacts: [] })
+    const spawnChild = vi.fn().mockResolvedValue({ messageId: 'c1', status: 'completed', summary: 'ok', artifacts: [] })
     const tool = build({ createTask: vi.fn(), spawnChild })
     await tool.execute('c1', {
       prompt: 'research',
@@ -37,7 +41,7 @@ describe('delegate', () => {
   })
 
   it('topLevel omitted defaults to the spawn path', async () => {
-    const spawnChild = vi.fn().mockResolvedValue({ runId: 'c1', status: 'completed', summary: 'ok', artifacts: [] })
+    const spawnChild = vi.fn().mockResolvedValue({ messageId: 'c1', status: 'completed', summary: 'ok', artifacts: [] })
     const tool = build({ createTask: vi.fn(), spawnChild })
     await tool.execute('c1', { prompt: 'do it' })
     expect(spawnChild).toHaveBeenCalledWith('do it', {
@@ -47,28 +51,30 @@ describe('delegate', () => {
     })
   })
 
-  it('returns summary text and { runId, status, summary } details on the top-level path', async () => {
-    const createTask = vi.fn().mockResolvedValue({ runId: 't1', status: 'completed', summary: 'done', artifacts: [] })
+  it('returns summary text and { messageId, status, summary } details on the top-level path', async () => {
+    const createTask = vi
+      .fn()
+      .mockResolvedValue({ messageId: 't1', status: 'completed', summary: 'done', artifacts: [] })
     const tool = build({ createTask, spawnChild: vi.fn() })
     const res = await tool.execute('id', { prompt: 'build it', topLevel: true })
     const first = res.content[0]
     expect(first.type === 'text' && first.text).toBe('done')
-    expect(res.details).toMatchObject({ runId: 't1', status: 'completed', summary: 'done' })
+    expect(res.details).toMatchObject({ messageId: 't1', status: 'completed', summary: 'done' })
   })
 
-  it('returns summary text and { runId, status, summary } details on the spawn path', async () => {
-    const spawnChild = vi.fn().mockResolvedValue({ runId: 'c1', status: 'completed', summary: 'ok', artifacts: [] })
+  it('returns summary text and { messageId, status, summary } details on the spawn path', async () => {
+    const spawnChild = vi.fn().mockResolvedValue({ messageId: 'c1', status: 'completed', summary: 'ok', artifacts: [] })
     const tool = build({ createTask: vi.fn(), spawnChild })
     const res = await tool.execute('id', { prompt: 'do it' })
     const first = res.content[0]
     expect(first.type === 'text' && first.text).toBe('ok')
-    expect(res.details).toMatchObject({ runId: 'c1', status: 'completed', summary: 'ok' })
+    expect(res.details).toMatchObject({ messageId: 'c1', status: 'completed', summary: 'ok' })
   })
 
   it('prefixes the summary with [failed] when the child run failed', async () => {
     const spawnChild = vi
       .fn()
-      .mockResolvedValue({ runId: 'c1', status: 'failed', summary: 'ran out of budget', artifacts: [] })
+      .mockResolvedValue({ messageId: 'c1', status: 'failed', summary: 'ran out of budget', artifacts: [] })
     const tool = build({ createTask: vi.fn(), spawnChild })
     const res = await tool.execute('id', { prompt: 'do it' })
     const first = res.content[0]
@@ -79,7 +85,7 @@ describe('delegate', () => {
   it('prefixes the summary with [cancelled] when the child run was cancelled', async () => {
     const createTask = vi
       .fn()
-      .mockResolvedValue({ runId: 't1', status: 'cancelled', summary: 'stopped', artifacts: [] })
+      .mockResolvedValue({ messageId: 't1', status: 'cancelled', summary: 'stopped', artifacts: [] })
     const tool = build({ createTask, spawnChild: vi.fn() })
     const res = await tool.execute('id', { prompt: 'x', topLevel: true })
     const first = res.content[0]

@@ -31,12 +31,12 @@ function fakeStore(initial: StoredCronJob[] = []) {
       saveCronRun: (r: StoredCronRun) => {
         runs.set(r.id, r)
       },
-      attachCronRunTask: (runId: string, taskId: string) => {
-        const r = runs.get(runId)
+      attachCronRunTask: (messageId: string, taskId: string) => {
+        const r = runs.get(messageId)
         if (r) r.taskId = taskId
       },
-      finishCronRun: (runId: string, o: { status: string; error: string | null; endedAt: number }) => {
-        const r = runs.get(runId)
+      finishCronRun: (messageId: string, o: { status: string; error: string | null; endedAt: number }) => {
+        const r = runs.get(messageId)
         if (r) Object.assign(r, o)
       },
       listCronRunsForJob: (jobId: string) =>
@@ -274,8 +274,8 @@ describe('createCronScheduler', () => {
     const sched = createCronScheduler({
       store,
       fire: vi.fn().mockReturnValue({ taskId: 't' }),
-      isRunTerminal: (runId) => terminal.has(runId),
-      runTerminalStatus: (runId) => terminal.get(runId),
+      isRunTerminal: (messageId) => terminal.has(messageId),
+      runTerminalStatus: (messageId) => terminal.get(messageId),
     })
     sched.start()
 

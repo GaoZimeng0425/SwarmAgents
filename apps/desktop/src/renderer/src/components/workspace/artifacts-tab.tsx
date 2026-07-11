@@ -1,7 +1,7 @@
 // apps/desktop/src/renderer/src/components/workspace/artifacts-tab.tsx
 // Artifacts tab — session-extracted file outputs + bilibili analyses.
 
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, Film } from 'lucide-react'
 
@@ -11,7 +11,7 @@ import { formatRelativeTime } from '@/lib/format-time'
 import { type ArtifactRow, buildArtifacts } from '@/lib/workspace/build-artifacts'
 
 type Props = {
-  runs: RunRecord[]
+  messages: MessageRecord[]
 }
 
 function open(row: ArtifactRow): void {
@@ -19,14 +19,14 @@ function open(row: ArtifactRow): void {
   else void window.swarm.openPath(row.ref)
 }
 
-export function ArtifactsTab({ runs }: Props): React.JSX.Element {
+export function ArtifactsTab({ messages }: Props): React.JSX.Element {
   const now = useNow()
   const { data: cwdArtifacts } = useQuery({
     queryKey: ['workspace', 'artifacts'],
     queryFn: () => swarmApi.listArtifacts({ limit: 50 }),
     staleTime: 60_000,
   })
-  const rows = buildArtifacts(runs, cwdArtifacts ?? [])
+  const rows = buildArtifacts(messages, cwdArtifacts ?? [])
 
   if (rows.length === 0) {
     return <div className="p-4 text-muted-foreground text-sm">暂无产出物</div>

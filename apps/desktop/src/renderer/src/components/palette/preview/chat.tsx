@@ -1,6 +1,6 @@
 // apps/desktop/src/renderer/src/components/palette/preview/chat.tsx
 // Lazy preview of the last ~20 chat messages for a session. Fetches the raw
-// RunEvent[] via swarmApi.getRunEvents and filters to run.progress events whose
+// MessageEvent[] via swarmApi.getMessageEvents and filters to message.progress events whose
 // nested TaskEvent is an llm.message. Assistant messages are rendered as
 // markdown (code blocks, lists, emphasis) via the shared Markdown component;
 // user/tool messages stay plain text since they rarely contain markdown.
@@ -15,7 +15,7 @@ export type ChatPreviewData = Extract<PreviewData, { type: 'chat' }>
 export function ChatPreview({ data }: { data: ChatPreviewData }): React.JSX.Element {
   const q = useQuery({
     queryKey: ['session-preview', data.sessionId],
-    queryFn: () => swarmApi.getRunEvents(data.sessionId),
+    queryFn: () => swarmApi.getMessageEvents(data.sessionId),
     enabled: !!data.sessionId,
     staleTime: 30_000,
   })
@@ -24,10 +24,10 @@ export function ChatPreview({ data }: { data: ChatPreviewData }): React.JSX.Elem
     return <div className="p-4 text-muted-foreground text-xs">加载中…</div>
   }
 
-  // RunEvent.event is a UIEvent; when its kind is 'run.progress' it carries a
+  // MessageEvent.event is a UIEvent; when its kind is 'message.progress' it carries a
   // nested TaskEvent on `.event`, which for llm.message holds {role, content}.
   const msgs = (q.data ?? [])
-    .filter((r) => r.event.kind === 'run.progress' && (r.event as any).event?.kind === 'llm.message')
+    .filter((r) => r.event.kind === 'message.progress' && (r.event as any).event?.kind === 'llm.message')
     .slice(-20)
 
   return (

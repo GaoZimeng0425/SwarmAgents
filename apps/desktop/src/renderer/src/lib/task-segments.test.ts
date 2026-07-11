@@ -1,22 +1,23 @@
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import { describe, expect, it } from 'vitest'
 
 import { taskSegments } from './task-segments'
 
-function rec(events: RunRecord['events'], attachments: RunRecord['attachments'] = []): RunRecord {
+function rec(events: MessageRecord['events'], attachments: MessageRecord['attachments'] = []): MessageRecord {
   return {
     id: 't1',
     sessionId: 's1',
     prompt: 'do x',
     status: 'running',
     summary: null,
-    startedAt: 1,
+    createdAt: 1,
     attachments,
+    order: 1,
     events,
   }
 }
 const prog = (event: unknown) =>
-  ({ kind: 'run.progress', sessionId: 's1', runId: 't1', event, ts: 1 }) as RunRecord['events'][number]
+  ({ kind: 'message.progress', sessionId: 's1', messageId: 't1', event, ts: 1 }) as MessageRecord['events'][number]
 
 describe('taskSegments', () => {
   it('emits the goal as the first user segment when there is no user-message event (sub-agent path)', () => {
@@ -74,21 +75,21 @@ describe('taskSegments', () => {
     const segs = taskSegments(
       rec([
         {
-          kind: 'run.progress',
+          kind: 'message.progress',
           sessionId: 's1',
-          runId: 't1',
+          messageId: 't1',
           event: { kind: 'llm.message', role: 'user', content: 'hello', ts: 5 },
           ts: 5,
           seq: 7,
-        } as RunRecord['events'][number],
+        } as MessageRecord['events'][number],
       ])
     )
     const users = segs.filter((s) => s.kind === 'user')
     // No synthetic goal bubble (task.prompt is 'do x'); the single user segment is
-    // the real event, carrying the event's seq (7), not the startedAt fallback (1).
+    // the real event, carrying the event's seq (7), not the createdAt fallback (1).
     expect(users).toHaveLength(1)
     expect(users[0]).toMatchObject({ kind: 'user', text: 'hello' })
-    expect((users[0] as unknown as { seq: number }).seq).toBe(7)
+    expect((users[0] as unknown as { order: number }).order).toBe(7)
   })
 
   it('carries task attachments on the first (event-derived) user segment', () => {
@@ -157,9 +158,9 @@ describe('taskSegments', () => {
     const stopped = taskSegments(
       rec([
         {
-          kind: 'run.error',
+          kind: 'message.error',
           sessionId: 's1',
-          runId: 't1',
+          messageId: 't1',
           error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' },
           ts: 1,
           seq: 1,
@@ -171,9 +172,9 @@ describe('taskSegments', () => {
     const failed = taskSegments(
       rec([
         {
-          kind: 'run.error',
+          kind: 'message.error',
           sessionId: 's1',
-          runId: 't1',
+          messageId: 't1',
           error: { code: 'boom', message: 'nope', tier: 'fatal' },
           ts: 1,
           seq: 1,
@@ -199,9 +200,9 @@ describe('taskSegments', () => {
     const segs = taskSegments(
       rec([
         {
-          kind: 'run.permission_request',
+          kind: 'message.permission_request',
           sessionId: 's1',
-          runId: 't1',
+          messageId: 't1',
           actionId: 'a',
           risk: 'medium',
           summary: 'run rm',
@@ -286,37 +287,40 @@ describe('taskSegments', () => {
   })
 })
 
-describe('taskSegments seq', () => {
-  it('carries seq from the UIEvent onto the segment', () => {
+describe('taskSegments order', () => {
+  it('carries order from the UIEvent seq onto the segment', () => {
     const segs = taskSegments(
       rec([
         {
-          kind: 'run.progress',
+          kind: 'message.progress',
           sessionId: 's1',
-          runId: 't1',
+          messageId: 't1',
           event: { kind: 'tool.call', server: 'fs', tool: 'read_file', args: {}, ts: 5 },
           ts: 1,
           seq: 42,
-        } as RunRecord['events'][number],
+        } as MessageRecord['events'][number],
       ])
     )
-    const tool = segs.find((s) => s.kind === 'tool') as unknown as { seq?: number }
-    expect(tool.seq).toBe(42)
+    const tool = segs.find((s) => s.kind === 'tool') as unknown as { order?: number }
+    expect(tool.order).toBe(42)
   })
 
-  it('gives the goal segment the task.created seq', () => {
-    const segs = taskSegments(
-      rec([
+  it('gives the goal segment the message.created order', () => {
+    // MessageRecord.order is stamped once from message.created (see applyEvent);
+    // the goal bubble takes task.order, so they match.
+    const segs = taskSegments({
+      ...rec([
         {
-          kind: 'run.created',
+          kind: 'message.created',
           sessionId: 's1',
-          runId: 't1',
+          messageId: 't1',
           prompt: 'do x',
           ts: 10,
           seq: 7,
-        } as RunRecord['events'][number],
-      ])
-    )
-    expect((segs[0] as unknown as { seq?: number }).seq).toBe(7)
+        } as MessageRecord['events'][number],
+      ]),
+      order: 7,
+    })
+    expect((segs[0] as unknown as { order?: number }).order).toBe(7)
   })
 })

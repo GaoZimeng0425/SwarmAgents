@@ -3,7 +3,7 @@ import { closestCenter, DndContext, type DragEndEvent, PointerSensor, useSensor,
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { SessionSummary } from '@swarm/protocol'
 import {
   AlertDialog,
@@ -26,8 +26,8 @@ import { CalendarClock, ChevronRight, Folder, Loader2, Pencil, Pin, PinOff, Plus
 import { toast } from 'sonner'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useMessages } from '@/hooks/use-messages'
 import { useNow } from '@/hooks/use-now'
-import { useRuns } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format-time'
 import { formatTokens } from '@/lib/format-usage'
@@ -111,7 +111,7 @@ export function SessionList(): React.JSX.Element {
   const removeFromStore = useSessionsStore((s) => s.remove)
   const reorder = useSessionsStore((s) => s.reorder)
   const navigate = useNavigate()
-  const tasks = useRuns()
+  const tasks = useMessages()
   const now = useNow(30_000)
   const openSearch = useSearchDialog((s) => s.openSearch)
 
@@ -143,13 +143,13 @@ export function SessionList(): React.JSX.Element {
   // Step progress for running sessions (Hi-fi 3b: "运行中 · N/M 步"). Take the
   // latest running top-level turn that has a plan and count completed steps.
   const progressBySession = useMemo(() => {
-    const best = new Map<string, RunRecord>()
+    const best = new Map<string, MessageRecord>()
     for (const t of tasks) {
-      if (t.parentRunId) continue
+      if (t.parentMessageId) continue
       if (t.status !== 'running' && t.status !== 'pending') continue
       if (!t.plan || t.plan.length === 0) continue
       const cur = best.get(t.sessionId)
-      if (!cur || (t.startedAt ?? 0) > (cur.startedAt ?? 0)) best.set(t.sessionId, t)
+      if (!cur || (t.createdAt ?? 0) > (cur.createdAt ?? 0)) best.set(t.sessionId, t)
     }
     const m = new Map<string, { done: number; total: number }>()
     for (const [sid, t] of best) {
