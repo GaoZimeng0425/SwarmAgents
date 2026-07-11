@@ -11,9 +11,12 @@ type WebSocketLike = {
 // Adapt a React Native WebSocket to @swarm/protocol's ServiceTransport.
 // The token is passed as a Sec-WebSocket-Protocol subprotocol (swarm.<token>),
 // matching the desktop WS host's auth check. `ready` resolves on socket open.
+// `onClose`, if provided, is invoked when the socket closes or errors (e.g. the
+// desktop quits or Wi-Fi drops) so the caller can update connection state.
 export function createWsTransport(
   config: ConnectionConfig,
-  WsImpl: WebSocketLike = globalThis.WebSocket
+  WsImpl: WebSocketLike = globalThis.WebSocket,
+  onClose?: () => void
 ): {
   transport: ServiceTransport
   ready: Promise<void>
@@ -43,6 +46,15 @@ export function createWsTransport(
   }
 
   ws.addEventListener('message', onMessage as (...args: unknown[]) => void)
+
+  // Surface socket termination to the caller so the UI can leave the `connected`
+  // state when the desktop quits or the network drops. Registering both `close`
+  // and `error` is safer than relying on either alone — errors usually precede
+  // close, but not always.
+  if (onClose) {
+    ws.addEventListener('close', () => onClose())
+    ws.addEventListener('error', () => onClose())
+  }
 
   const ready = new Promise<void>((resolve) => {
     // readyState 1 = OPEN

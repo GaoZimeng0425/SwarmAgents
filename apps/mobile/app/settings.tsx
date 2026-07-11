@@ -53,7 +53,7 @@ export default function SettingsScreen(): React.JSX.Element {
           )}
 
           <VStack className="gap-2">
-            <Button isDisabled={status !== 'connected'} onPress={handleReconnect}>
+            <Button isDisabled={status === 'connecting' || !config} onPress={handleReconnect}>
               <ButtonText>重新连接</ButtonText>
             </Button>
             <Button onPress={handleDisconnect} variant="outline">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MessageEvent, MessageWireEvent } from '@swarm/protocol'
 import { useLocalSearchParams } from 'expo-router'
 import {
@@ -36,6 +36,10 @@ export default function SessionDetailScreen(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<PermissionPrompt[]>([])
+  // Tracks how many events from the `events` buffer have already been processed
+  // into messages/permissions, so a render batch carrying multiple events isn't
+  // reduced to just the last one.
+  const processedCountRef = useRef(0)
 
   // Subscribe to message.* events for this session.
   const filter = useMemo(() => (event: string) => event.startsWith('message.'), [])
@@ -56,36 +60,48 @@ export default function SessionDetailScreen(): React.JSX.Element {
     })()
   }, [client, sessionId])
 
+  // Reset the processed-events cursor when switching sessions so the new
+  // session starts processing from the beginning of its event stream.
+  useEffect(() => {
+    processedCountRef.current = 0
+  }, [sessionId])
+
   // Append live events to messages and extract permission prompts.
+  // Process every new event since the last-processed index, not just the last
+  // one — a single render batch may carry several events.
   useEffect(() => {
     if (events.length === 0) return
-    const latest = events[events.length - 1]
-    if (!latest.event.startsWith('message.')) return
-    const wireEvent = latest.data as MessageWireEvent
-    if (wireEvent.sessionId !== sessionId) return
+    const newEvents = events.slice(processedCountRef.current)
+    processedCountRef.current = events.length
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        messageId: wireEvent.messageId,
-        parentMessageId: wireEvent.parentMessageId ?? null,
-        seq: wireEvent.seq,
-        ts: wireEvent.ts,
-        event: wireEvent,
-      },
-    ])
+    for (const latest of newEvents) {
+      if (!latest.event.startsWith('message.')) continue
+      const wireEvent = latest.data as MessageWireEvent
+      if (wireEvent.sessionId !== sessionId) continue
 
-    // Extract permission requests.
-    if (wireEvent.kind === 'message.permission_request') {
-      setPermissions((prev) => [
+      setMessages((prev) => [
         ...prev,
         {
           messageId: wireEvent.messageId,
-          actionId: wireEvent.actionId,
-          risk: wireEvent.risk,
-          summary: wireEvent.summary,
+          parentMessageId: wireEvent.parentMessageId ?? null,
+          seq: wireEvent.seq,
+          ts: wireEvent.ts,
+          event: wireEvent,
         },
       ])
+
+      // Extract permission requests.
+      if (wireEvent.kind === 'message.permission_request') {
+        setPermissions((prev) => [
+          ...prev,
+          {
+            messageId: wireEvent.messageId,
+            actionId: wireEvent.actionId,
+            risk: wireEvent.risk,
+            summary: wireEvent.summary,
+          },
+        ])
+      }
     }
   }, [events, sessionId])
 

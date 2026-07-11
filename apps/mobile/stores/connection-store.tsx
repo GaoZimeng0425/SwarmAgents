@@ -65,7 +65,16 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     setStatus('connecting')
     setError(null)
     try {
-      const { transport, ready, close } = createWsTransport(cfg)
+      const { transport, ready, close } = createWsTransport(cfg, undefined, () => {
+        // Socket closed unexpectedly — update state so UI shows disconnected.
+        // The saved config (configRef) is intentionally preserved so the user
+        // can reconnect from the settings screen.
+        clientRef.current = null
+        closeRef.current = null
+        setClient(null)
+        setStatus('error')
+        setError('连接断开')
+      })
       closeRef.current = close
 
       const sc = createServiceClient({

@@ -48,6 +48,12 @@ class MockWebSocket {
       fn({ data: JSON.stringify(data) })
     })
   }
+
+  _error(): void {
+    this.listeners.error?.forEach((fn) => {
+      fn()
+    })
+  }
 }
 
 describe('createWsTransport', () => {
@@ -97,5 +103,29 @@ describe('createWsTransport', () => {
     const mock = MockWebSocket.instances[0]
     close()
     expect(mock.readyState).toBe(3)
+  })
+
+  it('invokes onClose when the socket closes', () => {
+    const onClose = jest.fn()
+    createWsTransport({ host: '192.168.1.1', port: 47777, token: 'abc' }, MockWebSocket, onClose)
+    const mock = MockWebSocket.instances[0]
+    expect(onClose).not.toHaveBeenCalled()
+    mock.close()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('invokes onClose when the socket errors', () => {
+    const onClose = jest.fn()
+    createWsTransport({ host: '192.168.1.1', port: 47777, token: 'abc' }, MockWebSocket, onClose)
+    const mock = MockWebSocket.instances[0]
+    mock._error()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not invoke onClose when no callback is provided', () => {
+    createWsTransport({ host: '192.168.1.1', port: 47777, token: 'abc' }, MockWebSocket)
+    const mock = MockWebSocket.instances[0]
+    // Should not throw even though no onClose was passed.
+    expect(() => mock.close()).not.toThrow()
   })
 })

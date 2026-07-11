@@ -24,7 +24,12 @@ export function useEvents(filter?: (event: string) => boolean): ReceivedEvent[] 
       const eventName = envelope.event
       const eventData = envelope.data
       if (filterRef.current && !filterRef.current(eventName)) return
-      setEvents((prev) => [...prev, { event: eventName, data: eventData, ts: Date.now() }])
+      setEvents((prev) => {
+        const next = [...prev, { event: eventName, data: eventData, ts: Date.now() }]
+        // Cap the buffer to the last 100 events so it can't grow unboundedly
+        // over a long-lived connection.
+        return next.length > 100 ? next.slice(-100) : next
+      })
     }
 
     return eventEmitter.on('*', handler)
