@@ -5,12 +5,15 @@
 // the same TaskDialog. Filtering is pure renderer state (BoardFilter).
 import { useMemo, useState } from 'react'
 import {
+  type CollisionDetection,
   closestCorners,
   DndContext,
   type DragEndEvent,
   DragOverlay,
   type DragStartEvent,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useDroppable,
   useSensor,
   useSensors,
@@ -26,6 +29,7 @@ import type { Priority, WorkbenchColumn, WorkbenchTask } from '@swarm/protocol'
 import {
   Badge,
   Button,
+  Calendar,
   Checkbox,
   Dialog,
   DialogContent,
@@ -42,7 +46,8 @@ import {
   PopoverTrigger,
   Textarea,
 } from '@swarm/ui'
-import { CalendarClock, Filter, MoreVertical, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react'
+import { zhCN } from 'date-fns/locale'
+import { CalendarClock, CalendarDays, Filter, MoreVertical, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react'
 
 import {
   useAddColumn,
@@ -88,6 +93,31 @@ function formatDeadline(iso: string | null): string | null {
     ...(sameYear ? {} : { year: 'numeric' }),
   })
   return fmt.format(d)
+}
+
+/** Date-only format for the date picker display (no hour/minute). */
+function formatDate(iso: string | null): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  const now = new Date()
+  const sameYear = d.getFullYear() === now.getFullYear()
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(d)
+}
+
+/** Parse an ISO string into a Date for Calendar's `selected` prop. */
+function toDate(iso: string | null): Date | undefined {
+  if (!iso) return undefined
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? undefined : d
+}
+
+/** Convert a Date back to an ISO string for storage. */
+function toISODate(date: Date | undefined): string {
+  return date ? date.toISOString() : ''
 }
 
 function isOverdue(iso: string | null): boolean {
@@ -361,6 +391,31 @@ function PillButton(props: { label: string; color: string; active: boolean; onCl
 //                              Board DnD area                                   //
 // =========================================================================== //
 
+/**
+ * Custom collision detection for the kanban board. The board mixes horizontal
+ * column reordering with vertical/cross-column card drops, and empty columns
+ * have no sortable children for closestCorners to latch onto — so a pure
+ * closestCorners strategy skips empty columns and drops cards into the wrong
+ * column. We resolve this in two stages:
+ *  1. pointerWithin — what is the pointer actually inside? This reliably hits
+ *     empty-column droppables (id = `col:<id>`) because it tests the pointer
+ *     against the full droppable rect, not just sortable children.
+ *  2. closestCorners — if pointerWithin returns nothing (e.g. pointer moved
+ *     outside every droppable during a fast drag), fall back to corner distance.
+ */
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const pointerHits = pointerWithin(args)
+  if (pointerHits.length > 0) {
+    // Prefer a column droppable hit (so empty columns are drop targets); if
+    // only task sortable items were hit, closestCorners among them gives
+    // better intra-column positioning.
+    const colHit = pointerHits.find((h) => String(h.id).startsWith('col:'))
+    if (colHit) return [colHit]
+    return closestCorners({ ...args, droppableContainers: args.droppableContainers })
+  }
+  return rectIntersection(args)
+}
+
 function BoardArea(props: {
   columns: WorkbenchColumn[]
   filteredTasks: WorkbenchTask[]
@@ -383,8 +438,7 @@ function BoardArea(props: {
     onCardDragEnd(e)
   }
 
-  const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
-  const cardSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const onColumnDragEnd = (e: DragEndEvent): void => {
     const { active, over } = e
@@ -440,10 +494,10 @@ function BoardArea(props: {
     // (vertical + cross-column) drag. Nested DndContexts break cross-column
     // card drops, so both dimensions share one context.
     <DndContext
-      collisionDetection={closestCorners}
+      collisionDetection={boardCollisionDetection}
       onDragEnd={onDragEndInternal}
       onDragStart={onDragStart}
-      sensors={[...columnSensors, ...cardSensors]}
+      sensors={sensors}
     >
       <SortableContext items={columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
         <div className="cmdscroll flex min-h-0 flex-1 gap-3 overflow-x-auto p-4">
@@ -568,8 +622,10 @@ function SortableColumn(props: {
 
       {/* Task list (card-level DnD via the shared DndContext in BoardArea).
           The droppable ref makes the whole list area a drop target so cards
-          can be dropped here even when the column is empty. */}
-      <div className="cmdscroll flex min-h-0 flex-1 flex-col p-2" ref={setDropRef}>
+          can be dropped here even when the column is empty. min-h-0 + flex-1
+          fills the column height; min-h-[80px] ensures empty columns keep a
+          usable drop target. */}
+      <div className="cmdscroll flex min-h-[80px] flex-1 flex-col p-2" ref={setDropRef}>
         <SortableContext items={columnTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-1.5">
             {columnTasks.map((task) => (
@@ -593,6 +649,7 @@ function SortableTaskCard(props: { task: WorkbenchTask; onEdit: () => void }): R
 
   const overdue = !task.isCompleted && isOverdue(task.deadline)
   const deadlineStr = formatDeadline(task.deadline)
+  const startDateStr = formatDate(task.startDate)
 
   return (
     <div
@@ -643,8 +700,14 @@ function SortableTaskCard(props: { task: WorkbenchTask; onEdit: () => void }): R
       </div>
 
       {/* Badges */}
-      {(deadlineStr || task.tags.length > 0) && (
+      {(startDateStr || deadlineStr || task.tags.length > 0) && (
         <div className="flex flex-wrap items-center gap-1 pl-6">
+          {startDateStr && (
+            <Badge className="text-muted-foreground" variant="outline">
+              <CalendarDays className="mr-1 size-3" />
+              {startDateStr}
+            </Badge>
+          )}
           {deadlineStr && (
             <Badge className={overdue ? 'text-destructive' : 'text-muted-foreground'} variant="outline">
               <CalendarClock className="mr-1 size-3" />
@@ -720,6 +783,55 @@ function AddColumnButton(): React.JSX.Element {
   )
 }
 
+// --- Date picker field (Popover + Calendar, date-only, clearable) ------------
+
+function DatePickerField(props: {
+  label: string
+  value: string
+  onChange: (iso: string) => void
+  placeholder?: string
+}): React.JSX.Element {
+  const { label, value, onChange, placeholder = '留空' } = props
+  const [open, setOpen] = useState(false)
+  const selected = toDate(value)
+  const display = formatDate(value)
+
+  return (
+    <div className="flex-1">
+      <span className="mb-1 block text-muted-foreground text-xs">{label}</span>
+      <div className="flex gap-1">
+        <Popover onOpenChange={setOpen} open={open}>
+          <PopoverTrigger
+            render={
+              <Button className="flex-1 justify-start font-normal" type="button" variant="outline">
+                <CalendarDays className="mr-1 size-3.5 text-muted-foreground" />
+                {display ?? <span className="text-muted-foreground">{placeholder}</span>}
+              </Button>
+            }
+          />
+          <PopoverContent align="start" className="w-auto p-0">
+            <Calendar
+              captionLayout="dropdown"
+              locale={zhCN}
+              mode="single"
+              onSelect={(date) => {
+                onChange(toISODate(date ?? undefined))
+                setOpen(false)
+              }}
+              selected={selected}
+            />
+          </PopoverContent>
+        </Popover>
+        {value && (
+          <Button className="shrink-0" onClick={() => onChange('')} size="icon" type="button" variant="outline">
+            <X className="size-3.5" />
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // --- Task Dialog (unified create + edit) -------------------------------------
 
 function TaskDialog(props: { state: NonNullable<DialogState>; onClose: () => void }): React.JSX.Element {
@@ -734,12 +846,15 @@ function TaskDialog(props: { state: NonNullable<DialogState>; onClose: () => voi
   const [notes, setNotes] = useState(existing?.notes ?? '')
   const [priority, setPriority] = useState<Priority>(existing?.priority ?? 'medium')
   const [deadline, setDeadline] = useState(existing?.deadline ?? '')
+  const [startDate, setStartDate] = useState(existing?.startDate ?? '')
   const [tagsText, setTagsText] = useState(existing?.tags.join(' ') ?? '')
 
   const parsed = title ? parseInput(title) : null
   const effectivePriority = isEdit ? priority : (parsed?.priority ?? priority)
   const effectiveTags = isEdit ? tagsText : parsed && parsed.tags.length > 0 ? parsed.tags.join(' ') : tagsText
-  const effectiveDeadline = isEdit ? deadline : (parsed?.deadline ?? deadline)
+  // In create mode the parsed deadline is the default, but a manual picker
+  // selection (deadline state) takes precedence once the user picks one.
+  const effectiveDeadline = isEdit ? deadline : deadline || parsed?.deadline || ''
 
   const save = (): void => {
     const trimmedTitle = title.trim()
@@ -753,6 +868,7 @@ function TaskDialog(props: { state: NonNullable<DialogState>; onClose: () => voi
           notes,
           priority,
           deadline: deadline || null,
+          startDate: startDate || null,
           tags: tagsText.split(/\s+/).filter(Boolean),
         },
       })
@@ -760,7 +876,8 @@ function TaskDialog(props: { state: NonNullable<DialogState>; onClose: () => voi
       createTask.mutate({
         title: parsed?.title || trimmedTitle,
         notes,
-        deadline: parsed?.deadline ?? (deadline || null),
+        deadline: deadline || parsed?.deadline || null,
+        startDate: startDate || null,
         priority: effectivePriority,
         tags: (isEdit ? tagsText : effectiveTags).split(/\s+/).filter(Boolean),
         columnId: state.mode === 'create' ? state.columnId : null,
@@ -840,17 +957,10 @@ function TaskDialog(props: { state: NonNullable<DialogState>; onClose: () => voi
                 ))}
               </div>
             </div>
-            <div className="flex-1">
-              <span className="mb-1 block text-muted-foreground text-xs">截止时间</span>
-              <Input
-                onChange={(e) => {
-                  if (isEdit) setDeadline(e.target.value)
-                }}
-                placeholder="留空"
-                type="datetime-local"
-                value={effectiveDeadline ? new Date(effectiveDeadline).toISOString().slice(0, 16) : ''}
-              />
-            </div>
+          </div>
+          <div className="flex gap-3">
+            <DatePickerField label="开始日期" onChange={setStartDate} value={startDate} />
+            <DatePickerField label="截止日期" onChange={setDeadline} value={effectiveDeadline} />
           </div>
           <div>
             <span className="mb-1 block text-muted-foreground text-xs">标签 (空格分隔)</span>

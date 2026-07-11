@@ -10,6 +10,7 @@ import {
   emptyWorkbenchData,
   type MoveTaskInput,
   type UpdateTaskInput,
+  type WorkbenchData,
 } from '@swarm/protocol'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -84,6 +85,35 @@ export function useMoveTask() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: MoveTaskInput) => window.swarm.workbench.moveTask(input),
+    // Optimistic update: move the card in the cache immediately so the UI
+    // reflects the drop without waiting for the IPC round-trip. This prevents
+    // the card from flashing back in its old column during the async gap.
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: QUERY_KEY })
+      const prev = qc.getQueryData<WorkbenchData>(QUERY_KEY)
+      if (!prev) return {}
+      const tasks = prev.tasks.map((t) => ({ ...t }))
+      const task = tasks.find((t) => t.id === input.taskId)
+      if (task) {
+        const movingWithin = task.columnId === input.columnId
+        const oldOrder = task.boardOrder
+        task.columnId = input.columnId
+        const siblings = tasks
+          .filter((t) => !t.isCompleted && t.columnId === input.columnId && t.id !== input.taskId)
+          .sort((a, b) => a.boardOrder - b.boardOrder)
+        let target = input.index
+        if (movingWithin && oldOrder < input.index) target -= 1
+        target = Math.max(0, Math.min(target, siblings.length))
+        siblings.splice(target, 0, task)
+        for (let i = 0; i < siblings.length; i++) siblings[i].boardOrder = i
+        task.modifiedAt = new Date().toISOString()
+      }
+      qc.setQueryData<WorkbenchData>(QUERY_KEY, { ...prev, tasks })
+      return { prev }
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) qc.setQueryData(QUERY_KEY, ctx.prev)
+    },
     onSuccess: () => void qc.invalidateQueries({ queryKey: QUERY_KEY }),
   })
 }
