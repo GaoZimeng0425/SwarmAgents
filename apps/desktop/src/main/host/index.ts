@@ -2,6 +2,7 @@ import type { ServiceTransport } from '@swarm/protocol'
 
 import { loadOrCreateHostConfig } from './auth'
 import { attachBridge, createConnRegistry } from './bridge'
+import { getLanIp } from './lan-ip'
 import { startWsServer } from './ws-server'
 
 export type StartWsHost = {
@@ -14,7 +15,9 @@ export type StartWsHost = {
 // server, and attach a bridge on each authenticated peer. One ConnRegistry is
 // shared across every peer connection so responses route to the peer that
 // asked, never to a different one. Returns dispose().
-export async function startWsHost(cfg: StartWsHost): Promise<{ port: number; token: string; dispose: () => void }> {
+export async function startWsHost(
+  cfg: StartWsHost
+): Promise<{ port: number; token: string; lanIp: string | null; dispose: () => void }> {
   const { port, token } = loadOrCreateHostConfig(cfg.userDataDir)
   const registry = createConnRegistry()
   const started = await startWsServer({
@@ -26,6 +29,7 @@ export async function startWsHost(cfg: StartWsHost): Promise<{ port: number; tok
       peer.on('close', () => detach())
     },
   })
-  cfg.log.info({ msg: 'ws-host started', port: started.port })
-  return { port: started.port, token, dispose: started.close }
+  const lanIp = getLanIp()
+  cfg.log.info({ msg: 'ws-host started', port: started.port, lanIp })
+  return { port: started.port, token, lanIp, dispose: started.close }
 }

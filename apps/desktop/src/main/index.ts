@@ -114,7 +114,7 @@ app.whenReady().then(async () => {
   })
 
   let serviceClient: ReturnType<typeof createServiceClient>
-  let wsHost: { port: number; token: string; dispose: () => void } | null = null
+  let wsHost: { port: number; token: string; lanIp: string | null; dispose: () => void } | null = null
   try {
     serviceProcess.stderr?.on('data', (c: Buffer) => log.warn({ msg: 'service stderr', data: c.toString().trim() }))
 
@@ -173,10 +173,12 @@ app.whenReady().then(async () => {
     })
     wireArticleIpc({ serviceClient, providers: providers.service })
     wireTrendingResearchIpc({ serviceClient, providers: providers.service })
-    // Surface the WS host config (port + token) to the renderer so Settings →
-    // 远程连接 can display the token for the user to copy into the extension.
-    // wsHost is assigned at line 150 once the server is up; null before that.
-    ipcMain.handle('system:getWsHostConfig', () => (wsHost ? { port: wsHost.port, token: wsHost.token } : null))
+    // Surface the WS host config (port + token + LAN IP) to the renderer so
+    // Settings → 远程连接 can display the token and a QR for the phone. wsHost
+    // is assigned at line 150 once the server is up; null before that.
+    ipcMain.handle('system:getWsHostConfig', () =>
+      wsHost ? { port: wsHost.port, token: wsHost.token, lanIp: wsHost.lanIp } : null
+    )
     log.info({ msg: 'core services up' })
   } catch (err) {
     log.error({ msg: 'Agent Service failed to start', err: String(err) })

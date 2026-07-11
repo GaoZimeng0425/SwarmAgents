@@ -459,7 +459,11 @@ const swarm: SwarmBridge = {
   getMacPermissions: () => ipcRenderer.invoke('system:getMacPermissions') as Promise<MacPermissions>,
   openPrivacySettings: (pane) => ipcRenderer.invoke('system:openPrivacySettings', pane) as Promise<void>,
   getWsHostConfig: () =>
-    ipcRenderer.invoke('system:getWsHostConfig') as Promise<{ port: number; token: string } | null>,
+    ipcRenderer.invoke('system:getWsHostConfig') as Promise<{
+      port: number
+      token: string
+      lanIp: string | null
+    } | null>,
   readImageFile: (path: string) =>
     ipcRenderer.invoke('system:readImageFile', path) as Promise<{ mimeType: string; data: string } | null>,
   readDocumentFile: (path: string) =>

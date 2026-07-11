@@ -9,14 +9,15 @@ export type StartWsServer = {
   log: WsServerLog
 }
 
-// Bind 127.0.0.1 only; require the token as a Sec-WebSocket-Protocol subprotocol
-// (swarm.<token>) so it never appears in URLs/logs. Allow one peer at a time.
+// Bind 0.0.0.0 so LAN devices (phone on Wi-Fi) can reach the host. The token
+// travels as a Sec-WebSocket-Protocol subprotocol (swarm.<token>), never in
+// URLs/logs. One peer at a time; unauthorized connections are rejected with 1008.
 export async function startWsServer(
   cfg: StartWsServer
 ): Promise<{ server: WebSocketServer; port: number; close: () => void }> {
   let peer: WebSocket | null = null
   const server = new WebSocketServer({
-    host: '127.0.0.1',
+    host: '0.0.0.0',
     port: cfg.port,
     // Accept any offered protocol; the connection handler enforces the token
     // and closes with 1008 if it's wrong. (Returning false here makes ws abort

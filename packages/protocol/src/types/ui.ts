@@ -520,8 +520,8 @@ export type SwarmBridge = {
   getMacPermissions(): Promise<MacPermissions>
   /** Open the relevant macOS Privacy & Security settings pane. No-op off macOS. */
   openPrivacySettings(pane: 'screen' | 'accessibility'): Promise<void>
-  /** The loopback WS host config (port + token) for the browser extension / RN client to connect. Null if the host isn't up yet. */
-  getWsHostConfig(): Promise<{ port: number; token: string } | null>
+  /** The WS host config (port + token + LAN IP) for the browser extension / RN client to connect. Null if the host isn't up yet. */
+  getWsHostConfig(): Promise<{ port: number; token: string; lanIp: string | null } | null>
   /** Read a local image file as base64 for inline preview. Returns null if missing or not an image. */
   readImageFile(path: string): Promise<{ mimeType: string; data: string } | null>
   /** Read a local document file (pdf/docx/xlsx/csv) as base64 for inline preview. Returns null if missing, too large, or unsupported. */
