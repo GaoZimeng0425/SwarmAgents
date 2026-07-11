@@ -292,8 +292,19 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const versionRowV5 = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as { version: number } | undefined
   if ((versionRowV5?.version ?? 0) < 5) {
     const migrateToV5 = db.transaction(() => {
-      // 1. Table + column renames.
-      db.exec('ALTER TABLE run_events RENAME TO message_events')
+      // 1. Table + column renames. On a v4 DB, run_events holds the real data
+      // and message_events is an empty placeholder created by CREATE TABLE IF
+      // NOT EXISTS above — drop the placeholder before renaming, otherwise
+      // RENAME fails with "there is already another table or index with this
+      // name: message_events". Safe: the placeholder has zero rows (all writes
+      // went to run_events while version < 5).
+      const hasRunEvents = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='run_events'")
+        .get() as { name: string } | undefined
+      if (hasRunEvents) {
+        db.exec('DROP TABLE IF EXISTS message_events')
+        db.exec('ALTER TABLE run_events RENAME TO message_events')
+      }
       db.exec('ALTER TABLE message_events RENAME COLUMN run_id TO message_id')
       db.exec('ALTER TABLE message_events RENAME COLUMN parent_run_id TO parent_message_id')
       // 2. Index swap (drop old, create new) — the old index follows the old
