@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useContext, useRef, useState } from 'react'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { createServiceClient, type ServiceClient } from '@swarm/protocol'
 
 import type { ConnectionConfig } from '@/lib/parse-qr'
@@ -96,7 +96,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
 
       // Persist pairing for auto-reconnect on next launch. Fire-and-forget:
       // a failure to persist shouldn't break an otherwise-good connection.
-      void AsyncStorage.setItem(PAIRING_KEY, JSON.stringify(cfg))
+      void SecureStore.setItemAsync(PAIRING_KEY, JSON.stringify(cfg))
 
       return true
     } catch (err) {
@@ -127,7 +127,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
 
   const loadSavedPairing = async (): Promise<ConnectionConfig | null> => {
     try {
-      const raw = await AsyncStorage.getItem(PAIRING_KEY)
+      const raw = await SecureStore.getItemAsync(PAIRING_KEY)
       if (!raw) return null
       return JSON.parse(raw) as ConnectionConfig
     } catch {

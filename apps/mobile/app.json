@@ -11,7 +11,12 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.starterkitexpo"
     },
     "web": {
       "bundler": "metro",
@@ -26,11 +31,12 @@
       "expo-splash-screen",
       "expo-status-bar",
       [
-        "expo-camera",
+        "expo-barcode-scanner",
         {
           "cameraPermission": "允许 Swarm Agents 访问相机以扫描配对二维码。"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { CameraView, useCameraPermissions } from 'expo-camera'
+import { useEffect, useState } from 'react'
+import { BarCodeScanner } from 'expo-barcode-scanner'
 import { router } from 'expo-router'
 import { SafeAreaView, Text, View } from 'react-native'
 
@@ -12,9 +12,17 @@ import { useConnection } from '@/stores/connection-store'
 
 export default function PairScreen(): React.JSX.Element {
   const { connect, error, status } = useConnection()
-  const [permission, requestPermission] = useCameraPermissions()
   const [scanned, setScanned] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
+
+  // Request camera permission on mount.
+  useEffect(() => {
+    void (async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync()
+      setHasPermission(status === 'granted')
+    })()
+  }, [])
 
   const handleScan = async ({ data }: { data: string }): Promise<void> => {
     if (scanned) return
@@ -34,8 +42,19 @@ export default function PairScreen(): React.JSX.Element {
     }
   }
 
-  // Permission not granted yet — show a request button.
-  if (!permission?.granted) {
+  // Permission not determined yet — show loading.
+  if (hasPermission === null) {
+    return (
+      <SafeAreaView style={{ flex: 1 }}>
+        <Box className="flex-1 items-center justify-center">
+          <Text className="text-typography-400">正在请求相机权限…</Text>
+        </Box>
+      </SafeAreaView>
+    )
+  }
+
+  // Permission not granted — show a request button.
+  if (!hasPermission) {
     return (
       <SafeAreaView style={{ flex: 1 }}>
         <Box className="flex-1 items-center justify-center gap-6 px-6">
@@ -45,7 +64,13 @@ export default function PairScreen(): React.JSX.Element {
               在桌面端打开「设置 → 远程连接」,用手机扫描显示的 QR 码。
             </Text>
           </VStack>
-          <Button onPress={() => requestPermission()}>
+          <Button
+            onPress={() => {
+              void BarCodeScanner.requestPermissionsAsync().then(({ status }) =>
+                setHasPermission(status === 'granted')
+              )
+            }}
+          >
             <ButtonText>授权相机</ButtonText>
           </Button>
           {localError && <Text className="text-error-500 text-sm">{localError}</Text>}
@@ -57,10 +82,9 @@ export default function PairScreen(): React.JSX.Element {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <View style={{ flex: 1 }}>
-        <CameraView
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-          facing="back"
-          onBarcodeScanned={scanned ? undefined : handleScan}
+        <BarCodeScanner
+          barCodeTypes={['qr']}
+          onBarCodeScanned={scanned ? undefined : handleScan}
           style={{ flex: 1 }}
         />
         <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' }}>
