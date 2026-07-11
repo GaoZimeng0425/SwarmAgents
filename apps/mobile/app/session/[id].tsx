@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MessageEvent, MessageWireEvent } from '@swarm/protocol'
-import { useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, router } from 'expo-router'
+import { ChevronLeft } from 'lucide-react-native'
 import Markdown from 'react-native-markdown-display'
 import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { markdownRules } from '@/components/ui/chat-ai/message'
-import { Box } from '@/components/ui/box'
-import { Button, ButtonText } from '@/components/ui/button'
-import { Heading } from '@/components/ui/heading'
-import { HStack } from '@/components/ui/hstack'
-import { Input, InputField } from '@/components/ui/input'
 import { useEvents } from '@/hooks/use-events'
-import { type Segment, buildSegments } from '@/lib/task-segments'
 import { useConnection } from '@/stores/connection-store'
+import { type Segment, applyEvent, buildSegments, type MessageRecord } from '@swarm/shared'
 
 type PermissionPrompt = {
   messageId: string
@@ -31,41 +29,43 @@ type PermissionPrompt = {
 export default function SessionDetailScreen(): React.JSX.Element {
   const { id: sessionId } = useLocalSearchParams<{ id: string }>()
   const { client } = useConnection()
-  const [messages, setMessages] = useState<MessageEvent[]>([])
+  const [records, setRecords] = useState<MessageRecord[]>([])
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<PermissionPrompt[]>([])
-  // Tracks how many events from the `events` buffer have already been processed
-  // into messages/permissions, so a render batch carrying multiple events isn't
-  // reduced to just the last one.
   const processedCountRef = useRef(0)
 
-  // Subscribe to message.* events for this session.
   const filter = useMemo(() => (event: string) => event.startsWith('message.'), [])
   const events = useEvents(filter)
 
-  // Flatten raw events into render segments (assistant chunks coalesced, tools paired, etc.)
-  const segments = useMemo(() => buildSegments(messages), [messages])
+  // Flatten all MessageRecords into render segments, ordered by `order`.
+  const segments = useMemo(() => {
+    const sorted = [...records].sort((a, b) => b.order - a.order)
+    return sorted.flatMap((r) => buildSegments(r.events))
+  }, [records])
 
-  // Load history on mount.
+  // Load history on mount — reduce raw events into MessageRecord[] via applyEvent.
   useEffect(() => {
     if (!client || !sessionId) return
     void (async () => {
       try {
         const history = await client.getMessageEvents(sessionId)
-        setMessages(history)
+        const sorted = [...history].sort((a, b) => a.seq - b.seq)
+        const reduced = sorted.reduce<MessageRecord[]>((acc, r) => applyEvent(acc, r.event), [])
+        setRecords(reduced)
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       }
     })()
   }, [client, sessionId])
 
-  // Reset the processed-events cursor when switching sessions.
+  // Reset when switching sessions.
   useEffect(() => {
     processedCountRef.current = 0
+    setRecords([])
   }, [sessionId])
 
-  // Append live events to messages and extract permission prompts.
+  // Append live events — apply each to the records via applyEvent.
   useEffect(() => {
     if (events.length === 0) return
     const newEvents = events.slice(processedCountRef.current)
@@ -76,16 +76,7 @@ export default function SessionDetailScreen(): React.JSX.Element {
       const wireEvent = latest.data as MessageWireEvent
       if (wireEvent.sessionId !== sessionId) continue
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          messageId: wireEvent.messageId,
-          parentMessageId: wireEvent.parentMessageId ?? null,
-          seq: wireEvent.seq,
-          ts: wireEvent.ts,
-          event: wireEvent,
-        },
-      ])
+      setRecords((prev) => applyEvent(prev, wireEvent))
 
       if (wireEvent.kind === 'message.permission_request') {
         setPermissions((prev) => [
@@ -126,74 +117,88 @@ export default function SessionDetailScreen(): React.JSX.Element {
     switch (item.kind) {
       case 'user':
         return (
-          <Box className="mx-4 my-1 flex flex-row justify-end">
-            <Box className="max-w-[85%] rounded-lg bg-muted/60 px-3 py-2">
-              <Text className="text-sm text-typography-900">{item.text}</Text>
-            </Box>
-          </Box>
+          <View style={{ marginHorizontal: 16, marginVertical: 4, flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <View style={{ maxWidth: '85%', borderRadius: 12, backgroundColor: '#2a2a2e', paddingHorizontal: 12, paddingVertical: 8 }}>
+              <Text style={{ color: '#e0e0e0', fontSize: 15 }}>{item.text}</Text>
+            </View>
+          </View>
         )
 
       case 'assistant':
         return (
-          <Box className="mx-4 my-1 max-w-[90%]">
+          <View style={{ marginHorizontal: 16, marginVertical: 4, maxWidth: '90%' }}>
             <Markdown rules={markdownRules}>{item.text}</Markdown>
-          </Box>
+          </View>
         )
 
       case 'reasoning':
         return (
-          <Box className="mx-4 my-1 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
-            <Text className="text-xs italic text-typography-400">{item.text}</Text>
-          </Box>
+          <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#1e1e22', paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={{ color: '#888', fontSize: 13, fontStyle: 'italic' }}>{item.text}</Text>
+          </View>
         )
 
       case 'tool':
         return (
-          <Box className="mx-4 my-1 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
-            <Text className="text-xs font-medium text-typography-600">
+          <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#1e1e22', paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={{ color: '#aaa', fontSize: 13, fontWeight: '500' }}>
               🔧 {item.tool}
               {item.ok === null ? ' ⋯' : item.ok ? ' ✓' : ' ✗'}
             </Text>
             {item.output && (
-              <Text className="mt-1 font-mono text-xs text-typography-400" numberOfLines={5}>
+              <Text style={{ marginTop: 4, color: '#777', fontSize: 12, fontFamily: 'monospace' }} numberOfLines={5}>
                 {item.output}
               </Text>
             )}
-          </Box>
+          </View>
         )
 
       case 'error':
         return (
-          <Box className="mx-4 my-1 rounded-lg bg-error-50 px-3 py-2">
-            <Text className="text-sm text-error-600">
+          <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, backgroundColor: '#3a1518', paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={{ color: '#ef4444', fontSize: 14 }}>
               {item.label === 'stopped' ? '⏹' : '⚠'} {item.detail}
             </Text>
-          </Box>
+          </View>
         )
 
       case 'event':
         return (
-          <Box className="mx-4 my-1">
-            <Text className="text-xs text-typography-400">
+          <View style={{ marginHorizontal: 16, marginVertical: 4 }}>
+            <Text style={{ color: '#666', fontSize: 12 }}>
               {item.label}: {item.detail}
             </Text>
-          </Box>
+          </View>
         )
     }
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#151718' }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <Box className="flex-1">
-          <Box className="border-b border-border px-4 py-2">
-            <Heading size="sm">会话</Heading>
-          </Box>
+        <View style={{ flex: 1 }}>
+          {/* Header */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: '#2a2a2a',
+            }}
+          >
+            <TouchableOpacity hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} onPress={() => router.back()}>
+              <ChevronLeft color="#e0e0e0" size={24} />
+            </TouchableOpacity>
+            <Text style={{ color: '#e0e0e0', fontSize: 17, fontWeight: '600' }}>会话详情</Text>
+          </View>
 
           {error && (
-            <Box className="px-4 py-1">
-              <Text className="text-xs text-error-500">{error}</Text>
-            </Box>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 4 }}>
+              <Text style={{ color: '#ef4444', fontSize: 12 }}>{error}</Text>
+            </View>
           )}
 
           <FlatList
@@ -204,39 +209,62 @@ export default function SessionDetailScreen(): React.JSX.Element {
 
           {/* Permission cards */}
           {permissions.length > 0 && (
-            <Box className="gap-2 border-t border-border px-4 py-3">
+            <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingHorizontal: 16, paddingVertical: 12 }}>
               {permissions.map((perm) => (
-                <Box className="rounded-lg border border-warning-300 bg-warning-50 p-3" key={perm.actionId}>
-                  <Text className="text-sm font-medium text-warning-900">{perm.risk} 风险操作 · 需要审批</Text>
-                  <Text className="mt-1 text-xs text-typography-700">{perm.summary}</Text>
-                  <HStack className="mt-2 gap-2">
-                    <Button onPress={() => void handlePermission(perm, 'grant')} size="sm">
-                      <ButtonText>批准</ButtonText>
-                    </Button>
-                    <Button onPress={() => void handlePermission(perm, 'deny')} size="sm" variant="outline">
-                      <ButtonText>拒绝</ButtonText>
-                    </Button>
-                  </HStack>
-                </Box>
+                <View key={perm.actionId} style={{ borderRadius: 8, borderWidth: 1, borderColor: '#856404', backgroundColor: '#1e1a0e', padding: 12 }}>
+                  <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '500' }}>{perm.risk} 风险操作 · 需要审批</Text>
+                  <Text style={{ marginTop: 4, color: '#aaa', fontSize: 12 }}>{perm.summary}</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => void handlePermission(perm, 'grant')}
+                      style={{ backgroundColor: '#3b82f6', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 6 }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 14 }}>批准</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => void handlePermission(perm, 'deny')}
+                      style={{ borderWidth: 1, borderColor: '#555', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 6 }}
+                    >
+                      <Text style={{ color: '#ccc', fontSize: 14 }}>拒绝</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               ))}
-            </Box>
+            </View>
           )}
 
           {/* Input bar */}
-          <HStack className="items-center gap-2 border-t border-border px-4 py-2">
-            <Input className="flex-1">
-              <InputField
-                onChangeText={setInput}
-                onSubmitEditing={() => void handleSend()}
-                placeholder="输入消息…"
-                value={input}
-              />
-            </Input>
-            <Button isDisabled={!input.trim()} onPress={() => void handleSend()}>
-              <ButtonText>发送</ButtonText>
-            </Button>
-          </HStack>
-        </Box>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingHorizontal: 16, paddingVertical: 8 }}>
+            <TextInput
+              style={{
+                flex: 1,
+                color: '#e0e0e0',
+                backgroundColor: '#2a2a2e',
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                fontSize: 15,
+              }}
+              placeholder="输入消息…"
+              placeholderTextColor="#666"
+              value={input}
+              onChangeText={setInput}
+              onSubmitEditing={() => void handleSend()}
+            />
+            <TouchableOpacity
+              disabled={!input.trim()}
+              onPress={() => void handleSend()}
+              style={{
+                backgroundColor: input.trim() ? '#3b82f6' : '#1e3a5f',
+                borderRadius: 8,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 15 }}>发送</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )

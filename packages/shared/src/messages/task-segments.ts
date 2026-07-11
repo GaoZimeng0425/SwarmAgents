@@ -1,10 +1,11 @@
-import type { MessageEvent, MessageWireEvent, TaskEvent } from '@swarm/protocol'
+import type { MessageWireEvent, TaskEvent, UIEvent } from '@swarm/protocol'
 
-// A render segment is the mobile equivalent of the desktop's task-segments.ts
-// Segment union — one user/assistant/reasoning/tool/error/event block in the
-// conversation timeline. Segments are produced by flattening the raw
-// MessageEvent[] (wire events) so that consecutive assistant chunks coalesce
-// into one bubble, tool calls pair with their results, etc.
+import type { MessageRecord } from './apply-event'
+
+// A render segment is one user/assistant/reasoning/tool/error/event block in
+// the conversation timeline. Segments are produced by flattening a message's
+// UIEvent[] so that consecutive assistant chunks coalesce into one bubble,
+// tool calls pair with their results, etc.
 export type Segment =
   | { kind: 'user'; text: string; key: string; ts: number }
   | { kind: 'assistant'; text: string; key: string; ts: number }
@@ -31,18 +32,15 @@ function contentToString(content: unknown): string {
 }
 
 /**
- * Flatten a list of MessageEvents (wire events) into ordered render segments.
+ * Flatten a message's UIEvent[] into ordered render segments.
  *
- * Events are grouped by messageId; within each group the TaskEvents carried by
- * message.progress are flattened into segments following the same rules as the
- * desktop's task-segments.ts:
- * - Consecutive assistant llm.message chunks coalesce into one assistant segment.
- * - Consecutive reasoning chunks coalesce into one reasoning segment.
- * - tool.call and tool.result are paired by callId (preferred) or FIFO.
- * - message.complete does not produce a segment (the assistant text IS the content).
- * - message.permission_request produces an event segment (also rendered as a card).
+ * Consecutive assistant llm.message chunks coalesce into one assistant segment.
+ * Consecutive reasoning chunks coalesce into one reasoning segment.
+ * tool.call and tool.result are paired by callId (preferred) or FIFO.
+ * message.complete does not produce a segment (the assistant text IS the content).
+ * message.permission_request produces an event segment.
  */
-export function buildSegments(events: MessageEvent[]): Segment[] {
+export function buildSegments(events: UIEvent[]): Segment[] {
   const out: Segment[] = []
   let segIdx = 0
 
@@ -65,7 +63,7 @@ export function buildSegments(events: MessageEvent[]): Segment[] {
   const pendingFifo: Extract<Segment, { kind: 'tool' }>[] = []
 
   for (const evt of events) {
-    const wire = evt.event as MessageWireEvent
+    const wire = evt as MessageWireEvent
 
     if (wire.kind === 'message.created') {
       out.push({ kind: 'user', text: wire.prompt, key: nextKey(), ts: wire.ts })
@@ -139,4 +137,12 @@ export function buildSegments(events: MessageEvent[]): Segment[] {
   }
 
   return out
+}
+
+/**
+ * Convenience: flatten a MessageRecord's events into render segments.
+ * Equivalent to `buildSegments(record.events)`.
+ */
+export function segmentsForMessage(record: MessageRecord): Segment[] {
+  return buildSegments(record.events)
 }
