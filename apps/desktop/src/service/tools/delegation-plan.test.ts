@@ -18,18 +18,18 @@ describe('set_delegation_plan tool', () => {
     const tool = delegationPlanSpec().build(c)
     const res = (await tool.execute('id', {
       items: [
-        { goal: 'build api', ownerAgentType: 'engineer' },
-        { goal: 'review api', dependsOn: ['d1'] },
+        { prompt: 'build api', ownerAgentType: 'engineer' },
+        { prompt: 'review api', dependsOn: ['d1'] },
       ],
     })) as { details: { plan?: unknown } }
     expect(c.setDelegationPlan).toHaveBeenCalledWith([
       {
         id: 'd1',
-        goal: 'build api',
+        prompt: 'build api',
         ownerAgentType: 'engineer',
         dependsOn: [],
       },
-      { id: 'd2', goal: 'review api', dependsOn: ['d1'] },
+      { id: 'd2', prompt: 'review api', dependsOn: ['d1'] },
     ])
     expect((res.details.plan as unknown[]).length).toBe(2)
   })
@@ -50,7 +50,7 @@ describe('set_delegation_plan tool', () => {
 
   it('rejects a dependsOn referencing an unknown item', async () => {
     const tool = delegationPlanSpec().build(ctx())
-    const res = (await tool.execute('id', { items: [{ goal: 'a', dependsOn: ['nope'] }] })) as {
+    const res = (await tool.execute('id', { items: [{ prompt: 'a', dependsOn: ['nope'] }] })) as {
       details: { error?: string }
     }
     expect(res.details.error).toMatch(/unknown id/)

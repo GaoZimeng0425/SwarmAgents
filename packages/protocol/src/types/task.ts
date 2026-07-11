@@ -76,7 +76,7 @@ export type PlanStatus = (typeof planStatusValues)[number]
 // waves ordered by dependsOn). Recorded for audit + UI, not mechanically enforced.
 export const DelegationItemSchema = z.object({
   id: z.string().min(1),
-  goal: z.string().min(1),
+  prompt: z.string().min(1),
   // Which sub-agent type to spawn for this item; omitted → default agent.
   ownerAgentType: z.string().optional(),
   // Sibling item ids that must finish before this item is unblocked. Empty (= no

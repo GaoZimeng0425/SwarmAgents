@@ -52,7 +52,7 @@ vi.mock('../../hooks/use-runs', () => ({
   useSubmitPrompt: () => ({
     mutateAsync: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
   }),
-  useRuns: () => [{ id: 'r1', sessionId: 's1', goal: 'g', status: 'running', summary: null, events: [] }],
+  useRuns: () => [{ id: 'r1', sessionId: 's1', prompt: 'g', status: 'running', summary: null, events: [] }],
 }))
 
 vi.mock('../../hooks/use-cron', () => ({
@@ -70,7 +70,7 @@ vi.mock('../../hooks/use-cron', () => ({
         sessionTitle: null,
         originSessionTitle: null,
         createdAt: 0,
-        goal: '',
+        prompt: '',
       },
     ],
   }),

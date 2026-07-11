@@ -23,7 +23,7 @@ describe('buildTimeline', () => {
     expect(buildTimeline([mkRun({ id: 'r1' })])).toEqual([])
   })
 
-  it('maps run.created → start row with the goal', () => {
+  it('maps run.created → start row with the prompt', () => {
     const run = mkRun({
       id: 'r1',
       events: [

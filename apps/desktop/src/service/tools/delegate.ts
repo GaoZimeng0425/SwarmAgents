@@ -5,7 +5,7 @@ import type { DelegateResult } from '@swarm/protocol'
 import type { ToolRunContext, ToolSpec } from './registry'
 
 const DelegateParams = Type.Object({
-  goal: Type.String({ description: 'The concrete goal of the run.' }),
+  prompt: Type.String({ description: 'The prompt for the run — the concrete task it must accomplish.' }),
   topLevel: Type.Optional(
     Type.Boolean({
       description:
@@ -43,11 +43,11 @@ export function delegateSpec(): ToolSpec {
       name: 'delegate',
       label: 'Delegate',
       description:
-        'Run a goal as a separate single-shot run. Default: a child run nested under you, delegated to a focused sub-agent (optionally a specialized agentType). topLevel: true = a prominent top-level run you own and do yourself (main budget). Review the returned summary yourself before reporting done.',
+        'Run a prompt as a separate single-shot run. Default: a child run nested under you, delegated to a focused sub-agent (optionally a specialized agentType). topLevel: true = a prominent top-level run you own and do yourself (main budget). Review the returned summary yourself before reporting done.',
       parameters: DelegateParams,
       execute: async (_toolCallId: string, params: unknown) => {
         const p = params as {
-          goal: string
+          prompt: string
           topLevel?: boolean
           agentType?: string
           suggestedTools?: string[]
@@ -60,7 +60,7 @@ export function delegateSpec(): ToolSpec {
               details: { error: 'not_wired' },
             }
           }
-          const { runId, status, summary } = await ctx.createTask(p.goal, p.agentType)
+          const { runId, status, summary } = await ctx.createTask(p.prompt, p.agentType)
           return delegateResult(runId, status, summary)
         }
         if (!ctx.spawnChild) {
@@ -69,7 +69,7 @@ export function delegateSpec(): ToolSpec {
             details: { error: 'not_wired' },
           }
         }
-        const { runId, status, summary } = await ctx.spawnChild(p.goal, {
+        const { runId, status, summary } = await ctx.spawnChild(p.prompt, {
           suggestedTools: p.suggestedTools,
           providerKey: p.providerKey,
           agentType: p.agentType,

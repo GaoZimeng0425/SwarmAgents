@@ -92,7 +92,7 @@ export type SessionService = {
   ): { runId: string }
   runWork(
     sessionId: string,
-    goal: string,
+    prompt: string,
     options?: RunOptions
   ): Promise<{ runId: string; status: string; summary: string }>
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
@@ -347,9 +347,9 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     registerAbort: (id, abort) => aborts.set(id, abort),
     unregisterAbort: (id) => aborts.delete(id),
     waitTurn,
-    delegate: (parentRunId, goal, opts) => delegate(session, parentRunId, goal, opts),
-    createTask: (goal, agentType) =>
-      runWork(session.id, goal, agentType ? { agentType } : {}).then((r) => ({
+    delegate: (parentRunId, prompt, opts) => delegate(session, parentRunId, prompt, opts),
+    createTask: (prompt, agentType) =>
+      runWork(session.id, prompt, agentType ? { agentType } : {}).then((r) => ({
         runId: r.runId,
         status: r.status,
         summary: r.summary,
@@ -368,7 +368,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   const delegate = async (
     session: SessionState,
     parentRunId: string,
-    goal: string,
+    prompt: string,
     opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
   ): Promise<DelegateResult & { runId: string }> => {
     const { agentType, providerKey, suggestedTools } = opts
@@ -392,7 +392,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         parentRunId,
         agent: withPrompt(def),
         provider: resolvedProvider,
-        prompt: goal,
+        prompt,
         budget: budgets().sub,
         tools: suggestedTools ?? allowlistForAgent(def),
         // A sub-agent inherits the session's live permission mode: once the user
@@ -410,7 +410,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   // budget and a plan-mode-aware allowlist.
   const runWork = async (
     sessionId: string,
-    goal: string,
+    prompt: string,
     options: RunOptions = {}
   ): Promise<{ runId: string; status: 'completed' | 'failed' | 'cancelled'; summary: string }> => {
     const session = getOrRehydrate(sessionId)
@@ -421,14 +421,14 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     }
     const agentDef = resolvedByType ?? DEFAULT_AGENT_DEF
     const tools = options.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
-    log.info({ msg: 'work run started', sessionId, agentDefId: agentDef.id, goalLen: goal.length })
+    log.info({ msg: 'work run started', sessionId, agentDefId: agentDef.id, promptLen: prompt.length })
     const r = await launchRun(
       {
         kind: 'work',
         sessionId,
         agent: withPrompt(agentDef),
         provider: session.provider,
-        prompt: goal,
+        prompt,
         budget: budgets().main,
         tools,
         cwd: options.cwd,
@@ -603,7 +603,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         })
         store.updateSessionLastActive(sessionId)
 
-        // First goal titles the session.
+        // First prompt titles the session.
         if (!store.getSession(sessionId)?.title) {
           const title = prompt.slice(0, 60)
           store.setSessionTitle(sessionId, title)
@@ -645,8 +645,8 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       return { runId }
     },
 
-    runWork(sessionId, goal, options) {
-      return runWork(sessionId, goal, options)
+    runWork(sessionId, prompt, options) {
+      return runWork(sessionId, prompt, options)
     },
 
     resolvePermission(sessionId, actionId, decision) {

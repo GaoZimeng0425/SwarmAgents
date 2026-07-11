@@ -251,6 +251,35 @@ export function createConversationStore(dbPath: string): ConversationStore {
     migrateToV3()
   }
 
+  // ---- Migration v4: delegation-plan items `goal` → `prompt` --------------
+  // run.delegation_plan payloads carry a nested plan array; SQLite json_set
+  // can't rewrite a key inside every array element, so this one loops in JS.
+  const versionRowV4 = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as { version: number } | undefined
+  if ((versionRowV4?.version ?? 0) < 4) {
+    const migrateToV4 = db.transaction(() => {
+      const rows = db
+        .prepare(`SELECT id, event FROM run_events WHERE json_extract(event, '$.kind') = 'run.delegation_plan'`)
+        .all() as Array<{ id: number; event: string }>
+      const update = db.prepare('UPDATE run_events SET event = ? WHERE id = ?')
+      for (const r of rows) {
+        const e = JSON.parse(r.event) as { plan?: Array<Record<string, unknown>> }
+        if (!Array.isArray(e.plan)) continue
+        let changed = false
+        for (const item of e.plan) {
+          if ('goal' in item) {
+            item.prompt = item.goal
+            delete item.goal
+            changed = true
+          }
+        }
+        if (changed) update.run(JSON.stringify(e), r.id)
+      }
+      if (versionRowV4) db.prepare('UPDATE schema_meta SET version = 4').run()
+      else db.prepare('INSERT INTO schema_meta (version) VALUES (4)').run()
+    })
+    migrateToV4()
+  }
+
   for (const stmt of [
     'ALTER TABLE sessions ADD COLUMN title TEXT',
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,

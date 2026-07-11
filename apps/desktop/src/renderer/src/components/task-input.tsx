@@ -85,7 +85,7 @@ export function TaskInput({ onSubmit, disabled }: Props): React.JSX.Element {
         className="flex-1"
         disabled={disabled}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Give the swarm a goal — e.g., 整理桌面文件 / Summarize today's slack threads"
+        placeholder="Give the swarm a task — e.g., 整理桌面文件 / Summarize today's slack threads"
         ref={ref}
         type="text"
         value={value}

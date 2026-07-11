@@ -82,9 +82,9 @@ function installAgent(onDelegateResults: (ok: ToolExecResult, fail: ToolExecResu
       sub = fn
     }
     this.abort = (): void => undefined
-    this.prompt = async (goal: string): Promise<void> => {
+    this.prompt = async (prompt: string): Promise<void> => {
       const msgs = (this.state as { messages: Array<Record<string, unknown>> }).messages
-      msgs.push({ role: 'user', content: goal })
+      msgs.push({ role: 'user', content: prompt })
 
       if (systemPrompt.includes(CEO_MARK)) {
         // Concurrent delegation: both spawnChild calls fire before either is
@@ -92,8 +92,8 @@ function installAgent(onDelegateResults: (ok: ToolExecResult, fail: ToolExecResu
         // (launch.ts's yieldDepth counting) while both children run.
         const delegate = findDelegateTool(tools)
         const [okResult, failResult] = await Promise.all([
-          delegate.execute('call-ok', { goal: 'do the ok child work', agentType: 'child-ok-test' }),
-          delegate.execute('call-fail', { goal: 'do the failing child work', agentType: 'child-fail-test' }),
+          delegate.execute('call-ok', { prompt: 'do the ok child work', agentType: 'child-ok-test' }),
+          delegate.execute('call-fail', { prompt: 'do the failing child work', agentType: 'child-fail-test' }),
         ])
         onDelegateResults(okResult, failResult)
         const ok = { role: 'assistant', content: [{ type: 'text', text: 'delegated both' }], stopReason: 'end_turn' }

@@ -28,7 +28,7 @@ export function buildMarkdown(rows: RunEvent[]): string {
       order.push(r.runId)
       parentOf.set(r.runId, r.parentRunId)
     }
-    // Capture the goal from run.created for the section heading.
+    // Capture the prompt from run.created for the section heading.
     if (r.event.kind === 'run.created') promptByRun.set(r.runId, r.event.prompt)
     byRun.get(r.runId)!.push(r)
   }

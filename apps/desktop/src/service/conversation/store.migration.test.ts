@@ -92,7 +92,7 @@ const seedLegacyDb = (path: string): void => {
     kind: 'task.delegation_plan',
     sessionId: 'ses-1',
     taskId: 'r1',
-    plan: [],
+    plan: [{ id: 'd1', goal: 'sub work', dependsOn: [] }],
     ts: 7,
     seq: 7,
   })
@@ -166,7 +166,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const inspect = new Database(dbPath)
     const row = inspect.prepare('SELECT version FROM schema_meta').get() as { version: number }
     inspect.close()
-    expect(row.version).toBe(3)
+    expect(row.version).toBe(4)
   })
 
   it('renames a legacy cron_jobs.goal column to prompt, keeping the data', () => {
@@ -219,6 +219,18 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const settings = store2.getSessionSettings('ses-em')
     store2.close()
     expect(settings?.executionMode).toBe('direct')
+  })
+
+  it('migration v4 renames goal to prompt inside delegation-plan items', () => {
+    seedLegacyDb(dbPath)
+    const store = createConversationStore(dbPath)
+    const rows = store.getRunEvents('ses-1')
+    store.close()
+
+    const plan = rows.find((r) => r.event.kind === 'run.delegation_plan') as
+      | { event: { plan: Array<Record<string, unknown>> } }
+      | undefined
+    expect(plan?.event.plan).toEqual([{ id: 'd1', prompt: 'sub work', dependsOn: [] }])
   })
 
   it('migration v3 renames the run.created goal key to prompt', () => {
@@ -337,7 +349,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const metaRowCount = (inspect.prepare('SELECT COUNT(*) AS n FROM schema_meta').get() as { n: number }).n
     inspect.close()
 
-    expect(version).toBe(3)
+    expect(version).toBe(4)
     expect(metaRowCount).toBe(1) // no duplicate version row inserted on reopen
     expect(rowsAfterSecondOpen).toEqual(rowsAfterFirstOpen) // no double-rewrite (e.g. no 'run.run.*')
   })

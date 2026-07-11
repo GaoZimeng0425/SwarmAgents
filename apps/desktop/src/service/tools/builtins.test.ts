@@ -90,7 +90,7 @@ describe('registerBuiltinTools', () => {
     const { tools } = make().resolve(['agent.*'], ctx)
     const delegate = tools.find((t) => t.name === 'delegate')
     expect(delegate).toBeDefined()
-    const result = await delegate!.execute('call-1', { goal: 'do a thing' })
+    const result = await delegate!.execute('call-1', { prompt: 'do a thing' })
     expect(result.content[0]).toEqual({ type: 'text', text: 'done' })
   })
 

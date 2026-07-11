@@ -38,9 +38,9 @@ vi.mock('../stores/sessions', () => ({
 }))
 vi.mock('./use-runs', () => ({
   useRuns: () => [
-    { id: 'r1', sessionId: 's1', goal: 'g', status: 'running', summary: null, events: [] },
-    { id: 'r2', sessionId: 's2', goal: 'g', status: 'completed', summary: null, events: [] },
-    { id: 'r3', sessionId: 's3', goal: 'g', status: 'pending', summary: null, events: [] },
+    { id: 'r1', sessionId: 's1', prompt: 'g', status: 'running', summary: null, events: [] },
+    { id: 'r2', sessionId: 's2', prompt: 'g', status: 'completed', summary: null, events: [] },
+    { id: 'r3', sessionId: 's3', prompt: 'g', status: 'pending', summary: null, events: [] },
   ],
 }))
 vi.mock('./use-cron', () => ({
@@ -58,7 +58,7 @@ vi.mock('./use-cron', () => ({
         sessionTitle: null,
         originSessionTitle: null,
         createdAt: 0,
-        goal: '',
+        prompt: '',
       },
     ],
   }),

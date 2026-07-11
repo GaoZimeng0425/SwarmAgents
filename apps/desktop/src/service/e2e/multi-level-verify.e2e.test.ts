@@ -32,8 +32,8 @@ function installAgent(reply = 'done'): void {
       sub = fn
     }
     this.abort = (): void => undefined
-    this.prompt = async (goal: string): Promise<void> => {
-      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: goal })
+    this.prompt = async (prompt: string): Promise<void> => {
+      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: prompt })
       const ok = { role: 'assistant', content: [{ type: 'text', text: reply }], stopReason: 'end_turn' }
       ;(this.state as { messages: unknown[] }).messages.push(ok)
       sub?.({ type: 'turn_end', message: { usage: undefined } })
@@ -82,12 +82,12 @@ describe('CEO → Leader → subagent pipeline (single-shot, agent-driven)', () 
     // then spawns one leaf engineer (level 3).
     const leadA = await ceoCtx.spawnChild('lead dev', { agentType: 'engineering-lead' })
     const leadACtx = ctxs[ctxs.length - 1]
-    leadACtx.setDelegationPlan!([{ id: 'd1', goal: 'leaf work', dependsOn: [] }])
+    leadACtx.setDelegationPlan!([{ id: 'd1', prompt: 'leaf work', dependsOn: [] }])
     const leafA = await leadACtx.spawnChild('leaf work', { agentType: 'engineer' })
 
     const leadB = await ceoCtx.spawnChild('lead qa', { agentType: 'qa-lead' })
     const leadBCtx = ctxs[ctxs.length - 1]
-    leadBCtx.setDelegationPlan!([{ id: 'd2', goal: 'leaf work', dependsOn: [] }])
+    leadBCtx.setDelegationPlan!([{ id: 'd2', prompt: 'leaf work', dependsOn: [] }])
     const leafB = await leadBCtx.spawnChild('leaf work', { agentType: 'engineer' })
     await flush()
 

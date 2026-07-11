@@ -25,7 +25,7 @@ describe('Task types', () => {
 
 describe('delegation plan schemas', () => {
   it('parses a minimal item and defaults dependsOn to []', () => {
-    const item = DelegationItemSchema.parse({ id: 'd1', goal: 'do X' })
+    const item = DelegationItemSchema.parse({ id: 'd1', prompt: 'do X' })
     expect(item.dependsOn).toEqual([])
     expect(item.ownerAgentType).toBeUndefined()
   })
@@ -33,7 +33,7 @@ describe('delegation plan schemas', () => {
   it('parses a full item with owner and dependsOn', () => {
     const item = DelegationItemSchema.parse({
       id: 'd2',
-      goal: 'do Y',
+      prompt: 'do Y',
       ownerAgentType: 'engineer',
       dependsOn: ['d1'],
     })

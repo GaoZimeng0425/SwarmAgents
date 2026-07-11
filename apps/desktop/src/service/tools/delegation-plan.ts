@@ -14,7 +14,7 @@ const err = (message: string): Result => ok(`error: ${message}`, { error: messag
 const Params = Type.Object({
   items: Type.Array(
     Type.Object({
-      goal: Type.String({ description: 'The sub-goal this delegation item accomplishes.' }),
+      prompt: Type.String({ description: 'The sub-task this delegation item accomplishes.' }),
       ownerAgentType: Type.Optional(
         Type.String({ description: 'Sub-agent type to spawn for this item (from your prompt). Omit for default.' })
       ),
@@ -46,7 +46,7 @@ export function delegationPlanSpec(): ToolSpec {
       name: 'set_delegation_plan',
       label: 'Set delegation plan',
       description:
-        'Declare how you will delegate this task to sub-agents: a DAG of items, each with a sub-goal, an owner agent type, optional dependsOn (sibling ids). Dispatch items in dependency waves — all items whose dependencies are met, spawned in parallel this turn; the next wave when they return. Call this before dispatching.',
+        'Declare how you will delegate this task to sub-agents: a DAG of items, each with a sub-task prompt, an owner agent type, optional dependsOn (sibling ids). Dispatch items in dependency waves — all items whose dependencies are met, spawned in parallel this turn; the next wave when they return. Call this before dispatching.',
       parameters: Params,
       execute: async (_id: string, params: unknown) => {
         const raw = (params as { items?: unknown }).items
@@ -55,12 +55,12 @@ export function delegationPlanSpec(): ToolSpec {
         const items: DelegationItem[] = []
         for (let i = 0; i < raw.length; i++) {
           const item = raw[i] as {
-            goal?: unknown
+            prompt?: unknown
             ownerAgentType?: unknown
             dependsOn?: unknown
           }
-          if (typeof item.goal !== 'string' || item.goal.trim().length === 0) {
-            return err(`item ${i + 1} needs a non-empty goal`)
+          if (typeof item.prompt !== 'string' || item.prompt.trim().length === 0) {
+            return err(`item ${i + 1} needs a non-empty prompt`)
           }
           const id = `d${i + 1}`
           let deps: string[] = []
@@ -73,7 +73,7 @@ export function delegationPlanSpec(): ToolSpec {
           }
           const entry: DelegationItem = {
             id,
-            goal: item.goal.trim(),
+            prompt: item.prompt.trim(),
             dependsOn: deps,
             ...(item.ownerAgentType ? { ownerAgentType: String(item.ownerAgentType) } : {}),
           }
@@ -84,7 +84,7 @@ export function delegationPlanSpec(): ToolSpec {
         ctx.setDelegationPlan(items)
         const lines = items.map(
           (it) =>
-            `- ${it.id}: ${it.goal}${it.ownerAgentType ? ` [${it.ownerAgentType}]` : ''}${it.dependsOn.length ? ` (after ${it.dependsOn.join(',')})` : ''}`
+            `- ${it.id}: ${it.prompt}${it.ownerAgentType ? ` [${it.ownerAgentType}]` : ''}${it.dependsOn.length ? ` (after ${it.dependsOn.join(',')})` : ''}`
         )
         return ok(`Delegation plan recorded (${items.length}):\n${lines.join('\n')}`, { plan: items })
       },

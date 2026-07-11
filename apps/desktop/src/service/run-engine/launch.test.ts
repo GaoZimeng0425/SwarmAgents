@@ -22,8 +22,8 @@ function installAgent(reply = 'done.') {
       sub = fn
     }
     this.abort = () => undefined
-    this.prompt = async (goal: string) => {
-      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: goal })
+    this.prompt = async (prompt: string) => {
+      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: prompt })
       if (holdPrompt) await new Promise<void>((r) => (resolveHeldPrompt = r))
       const ok = { role: 'assistant', content: [{ type: 'text', text: reply }], stopReason: 'end_turn' }
       ;(this.state as { messages: unknown[] }).messages.push(ok)
@@ -221,7 +221,7 @@ describe('launchRun', () => {
     const { ports, getCtx } = makePorts(s)
     const p = launchRun(spec({ onDelegationPlan }), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
-    const plan = [{ id: 'a', goal: 'g', dependsOn: [] }]
+    const plan = [{ id: 'a', prompt: 'g', dependsOn: [] }]
     getCtx().setDelegationPlan?.(plan as never)
     expect(s.events.some((e) => e.kind === 'run.delegation_plan')).toBe(true)
     expect(onDelegationPlan).toHaveBeenCalledWith(plan)
