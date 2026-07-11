@@ -25,7 +25,7 @@ function fakeTransport() {
 // Drain microtasks until the request -> response promise chain resolves. The
 // handler runs inside a Promise.resolve().then(...).then(...) chain, and async
 // handlers add their own ticks, so a single await is not enough. Mirrors the
-// flush() helper in service-client.mainrpc.test.ts for the same reason.
+// flush() helper in service-client.handlers.test.ts for the same reason.
 async function flush(): Promise<void> {
   for (let i = 0; i < 10; i++) {
     // eslint-disable-next-line no-await-in-loop

@@ -16,7 +16,7 @@ export type ScheduledRow = {
 }
 
 // Map system-session top-level tasks to result rows, newest first. The cron job
-// name (preferred over the raw goal) and the run error are joined via the
+// name (preferred over the raw prompt) and the run error are joined via the
 // cron_run whose taskId matches; a missing/null name falls back to task.prompt so
 // manual or legacy tasks still render.
 export function buildScheduledRows(

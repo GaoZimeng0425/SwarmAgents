@@ -94,10 +94,10 @@ function installAutoAgent(reply = 'done.') {
       sub = fn
     }
     this.abort = () => undefined
-    this.prompt = async (goal: string) => {
+    this.prompt = async (prompt: string) => {
       promptCalls++
       const msgs = this.state as { messages: Array<Record<string, unknown>> }
-      msgs.messages.push({ role: 'user', content: goal })
+      msgs.messages.push({ role: 'user', content: prompt })
       if (promptCalls <= failTimes) {
         const failure = { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'transient 503' }
         msgs.messages.push(failure)

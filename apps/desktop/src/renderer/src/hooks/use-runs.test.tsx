@@ -120,7 +120,9 @@ describe('useSubmitPrompt', () => {
     })
 
     vi.spyOn(api.swarmApi, 'createSession').mockImplementation(() => mockCreate())
-    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, goal) => mockSubmitPrompt(sessionId, goal))
+    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, prompt) =>
+      mockSubmitPrompt(sessionId, prompt)
+    )
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => useSubmitPrompt(), { wrapper: makeWrapper(qc) })
@@ -139,7 +141,9 @@ describe('useSubmitPrompt', () => {
     useSessionsStore.getState().select('ses-existing')
 
     const mockSubmitPrompt = vi.fn().mockResolvedValue({ runId: 'task-2' })
-    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, goal) => mockSubmitPrompt(sessionId, goal))
+    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, prompt) =>
+      mockSubmitPrompt(sessionId, prompt)
+    )
     const mockCreate = vi.fn()
     vi.spyOn(api.swarmApi, 'createSession').mockImplementation(mockCreate)
 

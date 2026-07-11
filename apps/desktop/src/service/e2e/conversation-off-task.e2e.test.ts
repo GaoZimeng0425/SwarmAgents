@@ -26,8 +26,8 @@ function installAgent(reply = 'hi there'): void {
       sub = fn
     }
     this.abort = (): void => undefined
-    this.prompt = async (goal: string): Promise<void> => {
-      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: goal })
+    this.prompt = async (prompt: string): Promise<void> => {
+      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: prompt })
       const ok = { role: 'assistant', content: [{ type: 'text', text: reply }], stopReason: 'end_turn' }
       ;(this.state as { messages: unknown[] }).messages.push(ok)
       // A flushed assistant delta → run.progress llm.message role assistant.

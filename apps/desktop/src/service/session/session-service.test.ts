@@ -47,8 +47,8 @@ function installAgent(reply = 'done.'): void {
         r()
       }
     }
-    this.prompt = async (goal: string): Promise<void> => {
-      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: goal })
+    this.prompt = async (prompt: string): Promise<void> => {
+      ;(this.state as { messages: unknown[] }).messages.push({ role: 'user', content: prompt })
       if (simulateTool) await opts.beforeToolCall?.({ toolCall: { name: simulateTool }, args: {} })
       if (holdPrompt) {
         await new Promise<void>((r) => {
@@ -368,7 +368,7 @@ describe('SessionService', () => {
       kind: 'run.created',
       sessionId: 's-run',
       runId: 'r-new',
-      goal: 'g',
+      prompt: 'g',
       seq: 1,
       ts: 1,
     } as unknown as UIEvent)

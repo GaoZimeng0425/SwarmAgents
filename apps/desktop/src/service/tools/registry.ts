@@ -32,11 +32,11 @@ export interface ToolRunContext {
   // (spec §4, ledger #6) rides on the result so the delegate tool can surface a
   // failed/cancelled child instead of reading its partial summary as success.
   spawnChild(
-    goal: string,
+    prompt: string,
     opts?: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
   ): Promise<DelegateResult & { runId: string }>
   /** Agent-authored work: run a top-level work run (single-shot) and return its result. Absent outside conversation turns. */
-  createTask?(goal: string, agentType?: string): Promise<DelegateResult & { runId: string }>
+  createTask?(prompt: string, agentType?: string): Promise<DelegateResult & { runId: string }>
   requestPermission: (args: {
     toolName: string
     risk: ToolRisk

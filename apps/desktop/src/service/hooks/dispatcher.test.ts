@@ -48,7 +48,7 @@ describe('hook dispatcher', () => {
       UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
     })
     try {
-      dispatch('run.created', { kind: 'run.created', sessionId: 's', runId: 'r', goal: 'hi', seq: 1, ts: 1 })
+      dispatch('run.created', { kind: 'run.created', sessionId: 's', runId: 'r', prompt: 'hi', seq: 1, ts: 1 })
       await waitForOutfile(out)
       const parsed = JSON.parse(readFileSync(out, 'utf8'))
       expect(parsed.event).toBe('UserPromptSubmit')
