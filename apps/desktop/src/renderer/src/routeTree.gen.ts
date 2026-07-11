@@ -9,11 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkbenchRouteImport } from './routes/workbench'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as TrendingRouteImport } from './routes/trending'
 import { Route as SessionRouteImport } from './routes/session'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as GmailRouteImport } from './routes/gmail'
+import { Route as GlassRouteImport } from './routes/glass'
 import { Route as FormationsRouteImport } from './routes/formations'
 import { Route as BilibiliRouteImport } from './routes/bilibili'
 import { Route as ArticlesRouteImport } from './routes/articles'
@@ -21,6 +23,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionIndexRouteImport } from './routes/session.index'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
 
+const WorkbenchRoute = WorkbenchRouteImport.update({
+  id: '/workbench',
+  path: '/workbench',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsageRoute = UsageRouteImport.update({
   id: '/usage',
   path: '/usage',
@@ -44,6 +51,11 @@ const ScheduledRoute = ScheduledRouteImport.update({
 const GmailRoute = GmailRouteImport.update({
   id: '/gmail',
   path: '/gmail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GlassRoute = GlassRouteImport.update({
+  id: '/glass',
+  path: '/glass',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FormationsRoute = FormationsRouteImport.update({
@@ -82,11 +94,13 @@ export interface FileRoutesByFullPath {
   '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
+  '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/session': typeof SessionRouteWithChildren
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
+  '/workbench': typeof WorkbenchRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
   '/session/': typeof SessionIndexRoute
 }
@@ -95,10 +109,12 @@ export interface FileRoutesByTo {
   '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
+  '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
+  '/workbench': typeof WorkbenchRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
   '/session': typeof SessionIndexRoute
 }
@@ -108,11 +124,13 @@ export interface FileRoutesById {
   '/articles': typeof ArticlesRoute
   '/bilibili': typeof BilibiliRoute
   '/formations': typeof FormationsRoute
+  '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
   '/scheduled': typeof ScheduledRoute
   '/session': typeof SessionRouteWithChildren
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
+  '/workbench': typeof WorkbenchRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
   '/session/': typeof SessionIndexRoute
 }
@@ -123,11 +141,13 @@ export interface FileRouteTypes {
     | '/articles'
     | '/bilibili'
     | '/formations'
+    | '/glass'
     | '/gmail'
     | '/scheduled'
     | '/session'
     | '/trending'
     | '/usage'
+    | '/workbench'
     | '/session/$sessionId'
     | '/session/'
   fileRoutesByTo: FileRoutesByTo
@@ -136,10 +156,12 @@ export interface FileRouteTypes {
     | '/articles'
     | '/bilibili'
     | '/formations'
+    | '/glass'
     | '/gmail'
     | '/scheduled'
     | '/trending'
     | '/usage'
+    | '/workbench'
     | '/session/$sessionId'
     | '/session'
   id:
@@ -148,11 +170,13 @@ export interface FileRouteTypes {
     | '/articles'
     | '/bilibili'
     | '/formations'
+    | '/glass'
     | '/gmail'
     | '/scheduled'
     | '/session'
     | '/trending'
     | '/usage'
+    | '/workbench'
     | '/session/$sessionId'
     | '/session/'
   fileRoutesById: FileRoutesById
@@ -162,15 +186,24 @@ export interface RootRouteChildren {
   ArticlesRoute: typeof ArticlesRoute
   BilibiliRoute: typeof BilibiliRoute
   FormationsRoute: typeof FormationsRoute
+  GlassRoute: typeof GlassRoute
   GmailRoute: typeof GmailRoute
   ScheduledRoute: typeof ScheduledRoute
   SessionRoute: typeof SessionRouteWithChildren
   TrendingRoute: typeof TrendingRoute
   UsageRoute: typeof UsageRoute
+  WorkbenchRoute: typeof WorkbenchRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workbench': {
+      id: '/workbench'
+      path: '/workbench'
+      fullPath: '/workbench'
+      preLoaderRoute: typeof WorkbenchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/usage': {
       id: '/usage'
       path: '/usage'
@@ -204,6 +237,13 @@ declare module '@tanstack/react-router' {
       path: '/gmail'
       fullPath: '/gmail'
       preLoaderRoute: typeof GmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/glass': {
+      id: '/glass'
+      path: '/glass'
+      fullPath: '/glass'
+      preLoaderRoute: typeof GlassRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/formations': {
@@ -269,11 +309,13 @@ const rootRouteChildren: RootRouteChildren = {
   ArticlesRoute: ArticlesRoute,
   BilibiliRoute: BilibiliRoute,
   FormationsRoute: FormationsRoute,
+  GlassRoute: GlassRoute,
   GmailRoute: GmailRoute,
   ScheduledRoute: ScheduledRoute,
   SessionRoute: SessionRouteWithChildren,
   TrendingRoute: TrendingRoute,
   UsageRoute: UsageRoute,
+  WorkbenchRoute: WorkbenchRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

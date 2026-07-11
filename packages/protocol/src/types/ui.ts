@@ -37,6 +37,15 @@ import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { RepoResearch } from './trending'
 import type { WeatherConfig, WeatherConfigView, WeatherForecast } from './weather'
 import type { WebSearchConfigView, WebSearchProviderId } from './web-search'
+import type {
+  AddColumnInput,
+  CreateTaskInput,
+  MoveTaskInput,
+  RenameColumnInput,
+  UpdateTaskInput,
+  WorkbenchData,
+  WorkbenchMutationResult,
+} from './workbench'
 
 /** Renderer→Main: analyze one email. Main injects the active provider before
  *  forwarding to the service, so the renderer never handles a provider here. */
@@ -386,6 +395,21 @@ export type BudgetsBridge = {
   onStateChanged(cb: (c: BudgetConfig) => void): () => void
 }
 
+export type WorkbenchBridge = {
+  getAll(): Promise<WorkbenchData>
+  createTask(input: CreateTaskInput): Promise<WorkbenchMutationResult>
+  updateTask(id: string, patch: UpdateTaskInput): Promise<WorkbenchMutationResult>
+  completeTask(id: string): Promise<WorkbenchMutationResult>
+  reopenTask(id: string): Promise<WorkbenchMutationResult>
+  deleteTask(id: string): Promise<WorkbenchMutationResult>
+  moveTask(input: MoveTaskInput): Promise<WorkbenchMutationResult>
+  addColumn(input: AddColumnInput): Promise<WorkbenchMutationResult>
+  renameColumn(input: RenameColumnInput): Promise<WorkbenchMutationResult>
+  deleteColumn(id: string): Promise<WorkbenchMutationResult>
+  reorderColumns(orderedIds: string[]): Promise<WorkbenchMutationResult>
+  onStateChanged(cb: (data: WorkbenchData) => void): () => void
+}
+
 export type SkillBridge = {
   list(): Promise<Skill[]>
   save(skill: Skill): Promise<SkillMutationResult>
@@ -517,6 +541,7 @@ export type SwarmBridge = {
   bilibili: BilibiliBridge
   gmail: GmailBridge
   calendar: CalendarBridge
+  workbench: WorkbenchBridge
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.
