@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { SessionSummary } from '@swarm/protocol'
 import { router } from 'expo-router'
-import { FlatList, RefreshControl, SafeAreaView, Text, TouchableOpacity } from 'react-native'
+import { FlatList, RefreshControl, SafeAreaView, Text, TouchableOpacity, View } from 'react-native'
 
 import { Box } from '@/components/ui/box'
+import { Button, ButtonIcon } from '@/components/ui/button'
 import { Heading } from '@/components/ui/heading'
 import { HStack } from '@/components/ui/hstack'
+import { SettingsIcon } from '@/components/ui/icon'
 import { VStack } from '@/components/ui/vstack'
 import { useConnection } from '@/stores/connection-store'
 
@@ -54,8 +56,11 @@ export default function SessionsScreen(): React.JSX.Element {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <Box className="flex-1">
-        <Box className="px-4 py-3">
+        <Box className="flex-row items-center justify-between px-4 py-3">
           <Heading size="md">会话列表</Heading>
+          <Button onPress={() => router.push('/settings')} variant="link">
+            <ButtonIcon as={SettingsIcon} />
+          </Button>
         </Box>
         {error && (
           <Box className="px-4 py-2">
