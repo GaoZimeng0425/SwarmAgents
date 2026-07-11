@@ -422,7 +422,7 @@ const swarm: SwarmBridge = {
   },
   exportSessionMarkdown: (sessionId: string) =>
     ipcRenderer.invoke('swarm:exportSessionMarkdown', sessionId) as Promise<{ path: string }>,
-  listArtifacts: (opts?: { cwd?: string; query?: string; limit?: number }) =>
+  listArtifacts: (opts?: { query?: string; limit?: number }) =>
     ipcRenderer.invoke('swarm:listArtifacts', opts) as Promise<import('@swarm/protocol').ArtifactEntry[]>,
   subscribeEvents: (cb) => {
     const listener = (_: Electron.IpcRendererEvent, payload: UIEvent): void => cb(payload)

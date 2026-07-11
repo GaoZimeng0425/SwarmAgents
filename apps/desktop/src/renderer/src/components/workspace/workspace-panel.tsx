@@ -96,7 +96,7 @@ export function WorkspacePanel({ runs, planGroups, session, onDecide }: Props): 
           <TimelineTab rows={timelineRows} />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="artifacts">
-          <ArtifactsTab cwd={session?.cwd} runs={runs} />
+          <ArtifactsTab runs={runs} />
         </TabsContent>
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="approval">
           <ApprovalTab onDecide={onDecide} sessionId={session?.id ?? null} />

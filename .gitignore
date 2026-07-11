@@ -7,6 +7,7 @@ out
 .superpowers/
 .codegraph/
 .claude/worktrees/
+.zcode/
 screenshot_*.png
 *.tsbuildinfo
 references

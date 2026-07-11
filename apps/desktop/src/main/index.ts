@@ -154,13 +154,12 @@ app.whenReady().then(async () => {
     calendar.registerRpcHandlers(serviceClient)
     weather.registerRpcHandlers(serviceClient)
 
-    // Command palette artifacts: scan cwd-recent-files + join bilibili analyses.
+    // Command palette artifacts: join bilibili analyses.
     // The analysis store is re-created from the same on-disk file the bilibili
     // subsystem writes to (read-only here; bilibili owns writes). Video titles
     // aren't stored on the analysis, so they fall back to the bvid.
     const analysisStore = createAnalysisStore({ filePath: paths.bilibiliAnalysis() })
     const cmdPalette = initCmdPaletteArtifacts({
-      defaultCwd: app.getPath('home'),
       bilibiliSource: async () => toBilibiliArtifacts(analysisStore.bvids().map((bvid) => ({ bvid }))),
     })
 
