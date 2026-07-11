@@ -11,6 +11,8 @@ import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
+import { ConnectionProvider } from '@/stores/connection-store'
+
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
@@ -36,7 +38,9 @@ export default function RootLayout() {
   }, [loaded])
   return (
     <ColorModeProvider>
-      <RootLayoutNav />
+      <ConnectionProvider>
+        <RootLayoutNav />
+      </ConnectionProvider>
     </ColorModeProvider>
   )
 }
@@ -59,6 +63,10 @@ function RootLayoutNav() {
             }}
           >
             <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="pair" options={{ title: '配对', headerShown: false }} />
+            <Stack.Screen name="sessions" options={{ title: '会话' }} />
+            <Stack.Screen name="session/[id]" options={{ title: '会话详情' }} />
+            <Stack.Screen name="settings" options={{ title: '设置' }} />
             <Stack.Screen name="details" options={{ headerShown: false }} />
           </Stack>
           {pathname === '/' && (

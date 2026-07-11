@@ -1,32 +1,43 @@
-import { Link } from 'expo-router'
+import { type ReactNode, useEffect, useState } from 'react'
+import { router } from 'expo-router'
+import { ActivityIndicator, View } from 'react-native'
 
-import Logo from '@/assets/icons/Logo'
-import { Box } from '@/components/ui/box'
-import { Button, ButtonIcon, ButtonText } from '@/components/ui/button'
-import { ArrowRightIcon } from '@/components/ui/icon'
-import { Text } from '@/components/ui/text'
-import { VStack } from '@/components/ui/vstack'
+import { useConnection } from '@/stores/connection-store'
 
-export default function Home() {
+type RouteState = 'loading' | 'pair' | 'sessions'
+
+export default function Home(): ReactNode {
+  const { status, loadSavedPairing, connect } = useConnection()
+  const [route, setRoute] = useState<RouteState>('loading')
+
+  useEffect(() => {
+    // On first launch, try to auto-connect with saved pairing.
+    void (async () => {
+      const saved = await loadSavedPairing()
+      if (saved) {
+        const ok = await connect(saved)
+        setRoute(ok ? 'sessions' : 'pair')
+      } else {
+        setRoute('pair')
+      }
+    })()
+  }, [loadSavedPairing, connect])
+
+  // When connection status changes externally, follow it.
+  useEffect(() => {
+    if (route === 'loading') return
+    if (status === 'connected') setRoute('sessions')
+    else if (status === 'idle' || status === 'error') setRoute('pair')
+  }, [status, route])
+
+  useEffect(() => {
+    if (route === 'pair') router.replace('/pair')
+    else if (route === 'sessions') router.replace('/sessions')
+  }, [route])
+
   return (
-    <Box className="flex-1 bg-background">
-      <VStack className="flex-1 items-center justify-center gap-8 px-6">
-        <Logo />
-
-        <VStack className="items-center gap-2">
-          <Text className="font-bold text-2xl">Swarm Agents</Text>
-          <Text className="text-center text-typography-400">
-            Mobile app is running. Edit app/index.tsx to get started.
-          </Text>
-        </VStack>
-
-        <Link asChild href="/details">
-          <Button size="lg" variant="default">
-            <ButtonText>View details</ButtonText>
-            <ButtonIcon as={ArrowRightIcon} />
-          </Button>
-        </Link>
-      </VStack>
-    </Box>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator size="large" />
+    </View>
   )
 }
