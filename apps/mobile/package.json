@@ -31,6 +31,7 @@
     "@react-native-community/datetimepicker": "9.1.0",
     "@swarm/protocol": "workspace:*",
     "@swarm/shared": "workspace:*",
+    "@tanstack/react-query": "^5.101.2",
     "ai": "^7.0.18",
     "babel-plugin-module-resolver": "^5.0.3",
     "buffer": "^6.0.3",

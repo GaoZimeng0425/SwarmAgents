@@ -7,5 +7,13 @@
   "types": "./src/index.ts",
   "dependencies": {
     "@swarm/protocol": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": { "optional": true },
+    "react": { "optional": true }
   }
 }

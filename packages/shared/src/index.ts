@@ -1,4 +1,5 @@
-// @swarm/shared — platform-neutral pure logic. No Node/electron/react deps.
+// @swarm/shared — platform-neutral pure logic. No Node/electron deps.
+// React hooks require react + @tanstack/react-query as peer deps.
 
 export * from './agents/default-prompt'
 export * from './agents/delegation'
@@ -6,6 +7,7 @@ export * from './agents/model-override'
 export * from './agents/org-tree'
 export * from './constants/agents'
 export * from './constants/models'
+export * from './hooks'
 export * from './messages'
 export * from './system-session'
 export * from './tokens'

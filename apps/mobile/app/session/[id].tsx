@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { MessageEvent, MessageWireEvent } from '@swarm/protocol'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocalSearchParams, router } from 'expo-router'
 import { ChevronLeft } from 'lucide-react-native'
 import Markdown from 'react-native-markdown-display'
@@ -13,11 +12,17 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { markdownRules } from '@/components/ui/chat-ai/message'
-import { useEvents } from '@/hooks/use-events'
 import { useConnection } from '@/stores/connection-store'
-import { type Segment, applyEvent, buildSegments, type MessageRecord } from '@swarm/shared'
+import {
+  type Segment,
+  buildSegments,
+  hydrateSession,
+  useMessages,
+} from '@swarm/shared'
+import type { MessageWireEvent } from '@swarm/protocol'
 
 type PermissionPrompt = {
   messageId: string
@@ -29,68 +34,46 @@ type PermissionPrompt = {
 export default function SessionDetailScreen(): React.JSX.Element {
   const { id: sessionId } = useLocalSearchParams<{ id: string }>()
   const { client } = useConnection()
-  const [records, setRecords] = useState<MessageRecord[]>([])
+  const qc = useQueryClient()
+  const messages = useMessages()
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<PermissionPrompt[]>([])
-  const processedCountRef = useRef(0)
 
-  const filter = useMemo(() => (event: string) => event.startsWith('message.'), [])
-  const events = useEvents(filter)
-
-  // Flatten all MessageRecords into render segments, ordered by `order`.
-  const segments = useMemo(() => {
-    const sorted = [...records].sort((a, b) => b.order - a.order)
-    return sorted.flatMap((r) => buildSegments(r.events))
-  }, [records])
-
-  // Load history on mount — reduce raw events into MessageRecord[] via applyEvent.
+  // Hydrate history on mount / session switch.
   useEffect(() => {
     if (!client || !sessionId) return
-    void (async () => {
-      try {
-        const history = await client.getMessageEvents(sessionId)
-        const sorted = [...history].sort((a, b) => a.seq - b.seq)
-        const reduced = sorted.reduce<MessageRecord[]>((acc, r) => applyEvent(acc, r.event), [])
-        setRecords(reduced)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
-      }
-    })()
-  }, [client, sessionId])
+    void hydrateSession(qc, { getMessageEvents: (sid) => client.getMessageEvents(sid), subscribeEvents: () => () => {} }, sessionId)
+  }, [client, sessionId, qc])
 
-  // Reset when switching sessions.
+  // Watch for permission_request events in the message records.
   useEffect(() => {
-    processedCountRef.current = 0
-    setRecords([])
-  }, [sessionId])
-
-  // Append live events — apply each to the records via applyEvent.
-  useEffect(() => {
-    if (events.length === 0) return
-    const newEvents = events.slice(processedCountRef.current)
-    processedCountRef.current = events.length
-
-    for (const latest of newEvents) {
-      if (!latest.event.startsWith('message.')) continue
-      const wireEvent = latest.data as MessageWireEvent
-      if (wireEvent.sessionId !== sessionId) continue
-
-      setRecords((prev) => applyEvent(prev, wireEvent))
-
-      if (wireEvent.kind === 'message.permission_request') {
-        setPermissions((prev) => [
-          ...prev,
-          {
-            messageId: wireEvent.messageId,
-            actionId: wireEvent.actionId,
-            risk: wireEvent.risk,
-            summary: wireEvent.summary,
-          },
-        ])
+    if (!sessionId) return
+    const sessionMessages = messages.filter((m) => m.sessionId === sessionId)
+    const perms: PermissionPrompt[] = []
+    for (const msg of sessionMessages) {
+      for (const evt of msg.events) {
+        const wire = evt as MessageWireEvent
+        if (wire.kind === 'message.permission_request' && wire.sessionId === sessionId) {
+          perms.push({
+            messageId: wire.messageId,
+            actionId: wire.actionId,
+            risk: wire.risk,
+            summary: wire.summary,
+          })
+        }
       }
     }
-  }, [events, sessionId])
+    setPermissions(perms)
+  }, [messages, sessionId])
+
+  // Flatten all MessageRecords for this session into render segments.
+  const segments = useMemo(() => {
+    const sessionMessages = messages
+      .filter((m) => m.sessionId === sessionId)
+      .sort((a, b) => b.order - a.order)
+    return sessionMessages.flatMap((r) => buildSegments(r.events))
+  }, [messages, sessionId])
 
   const handleSend = async (): Promise<void> => {
     if (!client || !sessionId || !input.trim()) return
@@ -123,21 +106,18 @@ export default function SessionDetailScreen(): React.JSX.Element {
             </View>
           </View>
         )
-
       case 'assistant':
         return (
           <View style={{ marginHorizontal: 16, marginVertical: 4, maxWidth: '90%' }}>
             <Markdown rules={markdownRules}>{item.text}</Markdown>
           </View>
         )
-
       case 'reasoning':
         return (
           <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#1e1e22', paddingHorizontal: 12, paddingVertical: 8 }}>
             <Text style={{ color: '#888', fontSize: 13, fontStyle: 'italic' }}>{item.text}</Text>
           </View>
         )
-
       case 'tool':
         return (
           <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#1e1e22', paddingHorizontal: 12, paddingVertical: 8 }}>
@@ -152,7 +132,6 @@ export default function SessionDetailScreen(): React.JSX.Element {
             )}
           </View>
         )
-
       case 'error':
         return (
           <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, backgroundColor: '#3a1518', paddingHorizontal: 12, paddingVertical: 8 }}>
@@ -161,7 +140,6 @@ export default function SessionDetailScreen(): React.JSX.Element {
             </Text>
           </View>
         )
-
       case 'event':
         return (
           <View style={{ marginHorizontal: 16, marginVertical: 4 }}>
@@ -175,7 +153,10 @@ export default function SessionDetailScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#151718' }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
         <View style={{ flex: 1 }}>
           {/* Header */}
           <View

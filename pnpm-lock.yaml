@@ -606,6 +606,9 @@ importers:
       '@swarm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@tanstack/react-query':
+        specifier: ^5.101.2
+        version: 5.101.2(react@19.2.3)
       ai:
         specifier: ^7.0.18
         version: 7.0.18(zod@4.4.3)
@@ -769,6 +772,12 @@ importers:
       '@swarm/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@tanstack/react-query':
+        specifier: '>=5.0.0'
+        version: 5.101.2(react@19.2.3)
+      react:
+        specifier: '>=18.0.0'
+        version: 19.2.3
 
   packages/ui:
     dependencies:
@@ -15596,6 +15605,11 @@ snapshots:
       '@tanstack/query-devtools': 5.101.2
       '@tanstack/react-query': 5.101.2(react@19.2.7)
       react: 19.2.7
+
+  '@tanstack/react-query@5.101.2(react@19.2.3)':
+    dependencies:
+      '@tanstack/query-core': 5.101.2
+      react: 19.2.3
 
   '@tanstack/react-query@5.101.2(react@19.2.7)':
     dependencies:

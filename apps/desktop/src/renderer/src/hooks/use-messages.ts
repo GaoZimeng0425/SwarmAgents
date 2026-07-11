@@ -1,4 +1,4 @@
-import { applyEvent, type MessageRecord } from '@shared/lib/apply-event'
+import { applyEvent, type MessageRecord, MESSAGES_KEY } from '@swarm/shared'
 import type { PermissionDecision } from '@swarm/protocol'
 import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
 
@@ -6,7 +6,10 @@ import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
-export const MESSAGES_KEY = ['messages'] as const
+// Re-export the shared constants so all existing desktop imports resolve
+// to the same keys/types used by mobile.
+export { MESSAGES_KEY }
+export type { MessageRecord }
 
 export function useMessages(): MessageRecord[] {
   const { data } = useQuery<MessageRecord[]>({
