@@ -29,7 +29,7 @@ export type BuildInputs = {
   }[]
   /** Formation/team options for the dispatch picker. */
   formations: { id: string; label: string }[]
-  /** Phase 3a artifacts for the `/` scope. */
+  /** Artifacts for the `/` scope. */
   artifacts: { kind: 'file' | 'bilibili-analysis'; name: string; ref: string; origin: string; modifiedAt?: number }[]
   /** Memory entries. */
   memory: { id: string; key: string; namespace: string; category: string; content: string; timestamp: number }[]

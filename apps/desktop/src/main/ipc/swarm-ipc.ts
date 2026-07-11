@@ -274,7 +274,7 @@ export function wireSwarmIpc(args: {
     serviceClient.exportSessionMarkdown(sessionId)
   )
   if (cmdPalette) {
-    ipcMain.handle('swarm:listArtifacts', (_e, opts?: { cwd?: string; query?: string; limit?: number }) =>
+    ipcMain.handle('swarm:listArtifacts', (_e, opts?: { query?: string; limit?: number }) =>
       cmdPalette.listArtifacts(opts ?? {})
     )
   }

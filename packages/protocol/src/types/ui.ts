@@ -187,9 +187,9 @@ export type CronRun = {
 // 'grant'.
 export type PermissionDecision = 'grant' | 'deny' | 'skip' | 'grant_always'
 
-/** One entry in the command palette's `/` 文件 & 产出 scope. */
+/** One entry in the command palette's `/` 产出 scope. */
 export type ArtifactEntry = {
-  /** Source of the entry. `file` = cwd-recent-file; `bilibili-analysis` = a saved Bilibili summary. */
+  /** Source of the entry. `file` = a filesystem file; `bilibili-analysis` = a saved Bilibili summary. */
   kind: 'file' | 'bilibili-analysis'
   /** Display name: filename for `file`; video title for `bilibili-analysis`. */
   name: string
@@ -498,8 +498,8 @@ export type SwarmBridge = {
   }
   /** Build a markdown transcript of a session and write it to the exports dir. */
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
-  /** Command palette `/` scope: cwd-recent-files + bilibili analyses. */
-  listArtifacts(opts?: { cwd?: string; query?: string; limit?: number }): Promise<ArtifactEntry[]>
+  /** Command palette `/` scope: bilibili analyses. */
+  listArtifacts(opts?: { query?: string; limit?: number }): Promise<ArtifactEntry[]>
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** A swarmagents://chat/<id> deep link routes here. Pushed when the app is already running. */
   onNavigateToSession(cb: (sessionId: string) => void): () => void

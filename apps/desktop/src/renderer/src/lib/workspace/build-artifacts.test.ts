@@ -112,18 +112,16 @@ describe('buildArtifacts', () => {
     expect(buildArtifacts([run], []).map((r) => r.name)).toEqual(['report.md'])
   })
 
-  it('merges cwd artifacts, tagged with their origin', () => {
-    const cwd: ArtifactEntry[] = [
-      { kind: 'file', name: 'notes.md', ref: '/cwd/notes.md', origin: '/cwd', modifiedAt: 50 },
+  it('includes bilibili artifacts from cwdArtifacts, tagged with their origin', () => {
+    const cwdArtifacts: ArtifactEntry[] = [
       { kind: 'bilibili-analysis', name: 'BV1xx', ref: 'BV1xx', origin: 'Bilibili', modifiedAt: 40 },
     ]
-    const rows = buildArtifacts([], cwd)
-    expect(rows.map((r) => r.name)).toEqual(['notes.md', 'BV1xx'])
-    expect(rows[0].origin).toBe('/cwd')
-    expect(rows[1].origin).toBe('Bilibili')
+    const rows = buildArtifacts([], cwdArtifacts)
+    expect(rows.map((r) => r.name)).toEqual(['BV1xx'])
+    expect(rows[0].origin).toBe('Bilibili')
   })
 
-  it('session outputs come first, then cwd recents', () => {
+  it('session outputs come first, then bilibili artifacts', () => {
     const run = mkRun({
       id: 'r1',
       events: [
@@ -139,35 +137,11 @@ describe('buildArtifacts', () => {
         } as any,
       ],
     })
-    const cwd: ArtifactEntry[] = [
-      { kind: 'file', name: 'cwd-file.md', ref: '/cwd/cwd-file.md', origin: '/cwd', modifiedAt: 100 },
+    const cwdArtifacts: ArtifactEntry[] = [
+      { kind: 'bilibili-analysis', name: 'BV1yy', ref: 'BV1yy', origin: 'Bilibili', modifiedAt: 100 },
     ]
-    const rows = buildArtifacts([run], cwd)
-    expect(rows.map((r) => r.name)).toEqual(['session.md', 'cwd-file.md'])
-  })
-
-  it('deduplicates across sources (session wins)', () => {
-    const run = mkRun({
-      id: 'r1',
-      events: [
-        // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        {
-          kind: 'run.tool_call',
-          sessionId: 's1',
-          runId: 'r1',
-          seq: 1,
-          ts: 1,
-          tool: 'x',
-          args: { p: '/shared/dup.md' },
-        } as any,
-      ],
-    })
-    const cwd: ArtifactEntry[] = [
-      { kind: 'file', name: 'dup.md', ref: '/shared/dup.md', origin: '/shared', modifiedAt: 1 },
-    ]
-    const rows = buildArtifacts([run], cwd)
-    expect(rows).toHaveLength(1)
-    expect(rows[0].origin).toBe('session')
+    const rows = buildArtifacts([run], cwdArtifacts)
+    expect(rows.map((r) => r.name)).toEqual(['session.md', 'BV1yy'])
   })
 
   it('returns empty when neither source has anything', () => {

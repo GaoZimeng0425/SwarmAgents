@@ -132,6 +132,6 @@ export const swarmApi = {
   cancelCronJob: (id: string): Promise<void> => window.swarm.cron.cancel(id),
   exportSessionMarkdown: (sessionId: string): Promise<{ path: string }> =>
     window.swarm.exportSessionMarkdown(sessionId),
-  listArtifacts: (opts?: { cwd?: string; query?: string; limit?: number }): Promise<ArtifactEntry[]> =>
+  listArtifacts: (opts?: { query?: string; limit?: number }): Promise<ArtifactEntry[]> =>
     window.swarm.listArtifacts(opts),
 }

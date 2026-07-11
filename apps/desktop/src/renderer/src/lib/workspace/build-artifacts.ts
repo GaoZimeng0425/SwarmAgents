@@ -1,7 +1,7 @@
 // apps/desktop/src/renderer/src/lib/workspace/build-artifacts.ts
 // Pure builder: aggregates artifacts from two sources — file paths extracted from
-// the session's tool_call args (best-effort heuristic) + Phase 3a's
-// listArtifacts cwd recents — deduplicated by normalized path.
+// the session's tool_call args (best-effort heuristic) + bilibili analyses from
+// listArtifacts.
 
 import type { RunRecord } from '@shared/lib/apply-event'
 import type { ArtifactEntry } from '@swarm/protocol'
@@ -11,7 +11,7 @@ export type ArtifactRow = {
   name: string
   /** Filesystem path (file) or bvid (bilibili). Passed to openPath/bilibili.open. */
   ref: string
-  /** 'session' for extracted outputs, or the cwd / 'Bilibili' label for recents. */
+  /** 'session' for extracted outputs, or the 'Bilibili' label for analyses. */
   origin: string
   modifiedAt?: number
 }
@@ -46,7 +46,7 @@ function extractPathsFromArgs(args: unknown): string[] {
   return out
 }
 
-/** Aggregate session-extracted file outputs + cwd recents, deduplicated. */
+/** Aggregate session-extracted file outputs + bilibili analyses, deduplicated. */
 export function buildArtifacts(runs: RunRecord[], cwdArtifacts: ArtifactEntry[]): ArtifactRow[] {
   const seen = new Set<string>()
   const sessionRows: ArtifactRow[] = []
@@ -63,22 +63,13 @@ export function buildArtifacts(runs: RunRecord[], cwdArtifacts: ArtifactEntry[])
     }
   }
 
-  const cwdRows: ArtifactRow[] = cwdArtifacts
-    .map((a) => ({
-      id: `cwd:${a.ref}`,
-      name: a.name,
-      ref: a.ref,
-      origin: a.origin,
-      modifiedAt: a.modifiedAt,
-    }))
-    .filter((r) => {
-      // Only file kinds carry a path to dedupe against; bilibili refs (bvid) never collide.
-      if (r.ref.startsWith('BV') || r.ref.startsWith('bv')) return true
-      const norm = normalizePath(r.ref)
-      if (seen.has(norm)) return false
-      seen.add(norm)
-      return true
-    })
+  const cwdRows: ArtifactRow[] = cwdArtifacts.map((a) => ({
+    id: `bilibili:${a.ref}`,
+    name: a.name,
+    ref: a.ref,
+    origin: a.origin,
+    modifiedAt: a.modifiedAt,
+  }))
 
   return [...sessionRows, ...cwdRows]
 }

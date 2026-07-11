@@ -1,5 +1,5 @@
 // apps/desktop/src/renderer/src/components/workspace/artifacts-tab.tsx
-// Artifacts tab — session-extracted file outputs + cwd recents (Phase 3a listArtifacts).
+// Artifacts tab — session-extracted file outputs + bilibili analyses.
 
 import type { RunRecord } from '@shared/lib/apply-event'
 import { useQuery } from '@tanstack/react-query'
@@ -12,7 +12,6 @@ import { type ArtifactRow, buildArtifacts } from '@/lib/workspace/build-artifact
 
 type Props = {
   runs: RunRecord[]
-  cwd?: string
 }
 
 function open(row: ArtifactRow): void {
@@ -20,12 +19,11 @@ function open(row: ArtifactRow): void {
   else void window.swarm.openPath(row.ref)
 }
 
-export function ArtifactsTab({ runs, cwd }: Props): React.JSX.Element {
+export function ArtifactsTab({ runs }: Props): React.JSX.Element {
   const now = useNow()
   const { data: cwdArtifacts } = useQuery({
-    queryKey: ['workspace', 'artifacts', cwd ?? ''],
-    queryFn: () => swarmApi.listArtifacts({ cwd, limit: 50 }),
-    enabled: !!cwd,
+    queryKey: ['workspace', 'artifacts'],
+    queryFn: () => swarmApi.listArtifacts({ limit: 50 }),
     staleTime: 60_000,
   })
   const rows = buildArtifacts(runs, cwdArtifacts ?? [])

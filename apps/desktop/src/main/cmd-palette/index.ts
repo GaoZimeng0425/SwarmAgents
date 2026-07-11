@@ -1,5 +1,5 @@
 // Main-process wiring for the command-palette backend. Owns the artifacts
-// service (cwd scan + bilibili) and exposes a handle the IPC layer calls into.
+// service (bilibili) and exposes a handle the IPC layer calls into.
 // The bilibili source is injected so it can read the same analysis store the
 // bilibili subsystem writes to, without coupling to its internals.
 
@@ -8,22 +8,14 @@ import type { ArtifactEntry } from '@swarm/protocol'
 import { type BilibiliArtifact, type BilibiliSource, listArtifacts } from './artifacts-service'
 
 export type CmdPaletteHandle = {
-  /** Returns artifacts matching the optional query, scanning the given cwd. */
-  listArtifacts(opts: { cwd?: string; query?: string; limit?: number }): Promise<ArtifactEntry[]>
+  /** Returns artifacts matching the optional query (bilibili analyses). */
+  listArtifacts(opts: { query?: string; limit?: number }): Promise<ArtifactEntry[]>
 }
 
-export function initCmdPaletteArtifacts(opts: {
-  defaultCwd: string
-  bilibiliSource: BilibiliSource
-}): CmdPaletteHandle {
+export function initCmdPaletteArtifacts(opts: { bilibiliSource: BilibiliSource }): CmdPaletteHandle {
   return {
-    async listArtifacts({ cwd, query, limit }) {
-      return listArtifacts({
-        cwd: cwd ?? opts.defaultCwd,
-        bilibiliSource: opts.bilibiliSource,
-        query,
-        limit,
-      })
+    async listArtifacts({ query, limit }) {
+      return listArtifacts({ bilibiliSource: opts.bilibiliSource, query, limit })
     },
   }
 }
