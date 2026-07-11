@@ -10,5 +10,5 @@ export function minimapItems(tasks: RunRecord[]): MinimapItem[] {
   return sortBy(
     tasks.filter((t) => !t.parentRunId),
     ['startedAt']
-  ).map((t) => ({ runId: t.id, text: t.goal, ts: t.startedAt }))
+  ).map((t) => ({ runId: t.id, text: t.prompt, ts: t.startedAt }))
 }

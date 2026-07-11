@@ -5,7 +5,7 @@ export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'awaiti
 export type RunRecord = {
   id: string
   sessionId: string
-  goal: string
+  prompt: string
   status: RunStatus
   summary: string | null
   startedAt: number
@@ -35,7 +35,7 @@ export function applyEvent(runs: RunRecord[], e: UIEvent): RunRecord[] {
     const created: RunRecord = {
       id: e.runId,
       sessionId: e.sessionId,
-      goal: e.goal,
+      prompt: e.prompt,
       status: 'pending',
       summary: null,
       startedAt: e.ts,
@@ -59,7 +59,7 @@ export function applyEvent(runs: RunRecord[], e: UIEvent): RunRecord[] {
     const stub: RunRecord = {
       id: runId,
       sessionId: e.sessionId,
-      goal: '(unknown run)',
+      prompt: '(unknown run)',
       status: 'running',
       summary: null,
       startedAt: e.ts,

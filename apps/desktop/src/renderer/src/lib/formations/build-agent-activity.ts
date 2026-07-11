@@ -8,7 +8,7 @@ import type { SessionSummary } from '@swarm/protocol'
 
 export type AgentActivity = {
   status: 'running' | 'idle'
-  /** Newest active run's goal, truncated to 40 chars. */
+  /** Newest active run's prompt, truncated to 40 chars. */
   currentTask?: string
   /** "n/m 步" from that run's plan; omitted when the run has no plan. */
   stepProgress?: string
@@ -48,7 +48,7 @@ export function buildAgentActivity(runs: RunRecord[], sessions: SessionSummary[]
   for (const [aid, r] of newest) {
     out.set(aid, {
       status: 'running',
-      currentTask: truncate(r.goal),
+      currentTask: truncate(r.prompt),
       stepProgress: stepProgressOf(r.plan),
     })
   }

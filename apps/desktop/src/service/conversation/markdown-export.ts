@@ -20,7 +20,7 @@ const PAYLOAD_LIMIT = 2000
 export function buildMarkdown(rows: RunEvent[]): string {
   const byRun = new Map<string, RunEvent[]>()
   const parentOf = new Map<string, string | null>()
-  const goalByRun = new Map<string, string>()
+  const promptByRun = new Map<string, string>()
   const order: string[] = []
   for (const r of rows) {
     if (!byRun.has(r.runId)) {
@@ -29,7 +29,7 @@ export function buildMarkdown(rows: RunEvent[]): string {
       parentOf.set(r.runId, r.parentRunId)
     }
     // Capture the goal from run.created for the section heading.
-    if (r.event.kind === 'run.created') goalByRun.set(r.runId, r.event.goal)
+    if (r.event.kind === 'run.created') promptByRun.set(r.runId, r.event.prompt)
     byRun.get(r.runId)!.push(r)
   }
 
@@ -39,7 +39,7 @@ export function buildMarkdown(rows: RunEvent[]): string {
     const events = byRun.get(runId) ?? []
     const prefix = '  '.repeat(depth)
     const heading = '#'.repeat(Math.min(depth + 2, 6))
-    lines.push(`${prefix}${heading} ${goalByRun.get(runId) ?? runId}`, '')
+    lines.push(`${prefix}${heading} ${promptByRun.get(runId) ?? runId}`, '')
     for (const { event } of events) {
       for (const body of renderEvent(event)) {
         lines.push(`${prefix}${body}`, '')

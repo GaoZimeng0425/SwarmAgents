@@ -9,7 +9,7 @@ function seed(status: RunRecord['status'], over: Partial<RunRecord> = {}): RunRe
     {
       id: 't1',
       sessionId: 'ses-1',
-      goal: 'g',
+      prompt: 'g',
       status,
       summary: null,
       startedAt: 1,
@@ -22,9 +22,9 @@ function seed(status: RunRecord['status'], over: Partial<RunRecord> = {}): RunRe
 
 describe('applyEvent', () => {
   it('creates a run on run.created', () => {
-    const next = applyEvent([], { kind: 'run.created', ...baseEvent, goal: 'do x' })
+    const next = applyEvent([], { kind: 'run.created', ...baseEvent, prompt: 'do x' })
     expect(next).toHaveLength(1)
-    expect(next[0]).toMatchObject({ id: 't1', goal: 'do x', status: 'pending' })
+    expect(next[0]).toMatchObject({ id: 't1', prompt: 'do x', status: 'pending' })
   })
 
   it('carries parentRunId + agentDefId for a spawned sub-agent run.created', () => {
@@ -32,7 +32,7 @@ describe('applyEvent', () => {
       kind: 'run.created',
       ...baseEvent,
       parentRunId: 'parent-1',
-      goal: 'sub goal',
+      prompt: 'sub goal',
       agentDefId: 'researcher',
     })
     expect(next[0]).toMatchObject({ id: 't1', parentRunId: 'parent-1', agentDefId: 'researcher' })
@@ -119,13 +119,13 @@ describe('applyEvent', () => {
   })
 
   it('stamps sessionId onto the created record', () => {
-    const out = applyEvent([], { kind: 'run.created', ...baseEvent, goal: 'g' })
+    const out = applyEvent([], { kind: 'run.created', ...baseEvent, prompt: 'g' })
     expect(out[0].sessionId).toBe('ses-1')
   })
 
   it('records resource usage on run.usage without changing status', () => {
     const used = { tokens: 900, calls: 2, wallMs: 1500, usdCents: 3, cacheRead: 0, cacheWrite: 0 }
-    const next = applyEvent(seed('running', { goal: 'do x' }), {
+    const next = applyEvent(seed('running', { prompt: 'do x' }), {
       kind: 'run.usage',
       ...baseEvent,
       used,
@@ -139,7 +139,7 @@ describe('applyEvent', () => {
   })
 
   it('stores the plan on run.plan and replaces it wholesale on the next plan', () => {
-    const first = applyEvent(seed('running', { goal: 'do x' }), {
+    const first = applyEvent(seed('running', { prompt: 'do x' }), {
       kind: 'run.plan',
       ...baseEvent,
       todos: [{ content: 'step one', status: 'in_progress' }],

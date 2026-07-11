@@ -93,7 +93,7 @@ export function usePaletteData(open = false): BuildInputs {
         .map((r) => ({
           id: r.id,
           sessionId: r.sessionId,
-          goal: r.goal,
+          prompt: r.prompt,
           status: r.status,
           summary: r.summary,
           plan: r.plan?.map((p) => ({ content: p.content, status: p.status })),

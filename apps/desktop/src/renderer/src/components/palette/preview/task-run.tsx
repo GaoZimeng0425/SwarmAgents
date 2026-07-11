@@ -35,7 +35,7 @@ export function TaskRunPreview({ data }: { data: TaskRunPreviewData }): React.JS
 
   return (
     <div className="p-4">
-      <h4 className="font-semibold text-sm">{run.goal}</h4>
+      <h4 className="font-semibold text-sm">{run.prompt}</h4>
       {run.summary && <p className="mt-1 text-muted-foreground text-xs">{run.summary}</p>}
 
       {/* Progress bar: only meaningful when the plan has steps. */}

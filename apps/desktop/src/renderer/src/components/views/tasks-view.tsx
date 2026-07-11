@@ -49,7 +49,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const planGroups = sortBy(
     sessionTasks.filter((t) => !t.parentRunId && t.plan && t.plan.length > 0),
     ['startedAt']
-  ).map((t) => ({ runId: t.id, goal: t.goal, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
+  ).map((t) => ({ runId: t.id, prompt: t.prompt, plan: t.plan ?? [], status: t.status, startedAt: t.startedAt }))
   // The composer's inline todo strip shows only the in-flight turn's plan
   // (the latest group) — a live "what's happening now" strip, not history.
   const activePlan = planGroups[planGroups.length - 1]?.plan
@@ -155,7 +155,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
                 if (selectedSessionId) promoteQueuedRun.mutate({ sessionId: selectedSessionId, runId })
               }}
               prompts={sessionPrompts}
-              queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}
+              queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, prompt: t.prompt }))}
               running={!!runningTask}
               todos={activePlan ?? []}
             />

@@ -10,7 +10,7 @@ function task(over: Partial<RunRecord>): RunRecord {
   return {
     id: 't',
     sessionId: 's1',
-    goal: 'g',
+    prompt: 'g',
     status: 'completed',
     summary: null,
     startedAt: 0,
@@ -27,9 +27,9 @@ describe('ConversationMinimap', () => {
     render(
       <ConversationMinimap
         tasks={[
-          task({ id: 'a', goal: 'first', startedAt: 1 }),
-          task({ id: 'b', goal: 'second', startedAt: 2 }),
-          task({ id: 'sub', goal: 'nested', startedAt: 3, parentRunId: 'a' }),
+          task({ id: 'a', prompt: 'first', startedAt: 1 }),
+          task({ id: 'b', prompt: 'second', startedAt: 2 }),
+          task({ id: 'sub', prompt: 'nested', startedAt: 3, parentRunId: 'a' }),
         ]}
       />
     )

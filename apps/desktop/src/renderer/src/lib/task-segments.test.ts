@@ -7,7 +7,7 @@ function rec(events: RunRecord['events'], attachments: RunRecord['attachments'] 
   return {
     id: 't1',
     sessionId: 's1',
-    goal: 'do x',
+    prompt: 'do x',
     status: 'running',
     summary: null,
     startedAt: 1,
@@ -84,7 +84,7 @@ describe('taskSegments', () => {
       ])
     )
     const users = segs.filter((s) => s.kind === 'user')
-    // No synthetic goal bubble (task.goal is 'do x'); the single user segment is
+    // No synthetic goal bubble (task.prompt is 'do x'); the single user segment is
     // the real event, carrying the event's seq (7), not the startedAt fallback (1).
     expect(users).toHaveLength(1)
     expect(users[0]).toMatchObject({ kind: 'user', text: 'hello' })
@@ -311,7 +311,7 @@ describe('taskSegments seq', () => {
           kind: 'run.created',
           sessionId: 's1',
           runId: 't1',
-          goal: 'do x',
+          prompt: 'do x',
           ts: 10,
           seq: 7,
         } as RunRecord['events'][number],

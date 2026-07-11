@@ -63,7 +63,7 @@ describe('use-tasks + use-events-subscription', () => {
     await waitFor(() => expect(view.result.current).toEqual([]))
 
     await act(async () => {
-      emit({ kind: 'run.created', sessionId: 'ses-1', runId: 't1', goal: 'do x', ts: 1, seq: 1 })
+      emit({ kind: 'run.created', sessionId: 'ses-1', runId: 't1', prompt: 'do x', ts: 1, seq: 1 })
     })
 
     await waitFor(() => expect(view.result.current).toHaveLength(1))
@@ -179,7 +179,7 @@ describe('hydrateSession', () => {
         parentRunId: null,
         seq: 1,
         ts: 1,
-        event: { kind: 'run.created', sessionId: 's', runId: 'r1', goal: 'hi', ts: 1, seq: 1 },
+        event: { kind: 'run.created', sessionId: 's', runId: 'r1', prompt: 'hi', ts: 1, seq: 1 },
       },
       {
         runId: 'r1',
@@ -200,6 +200,6 @@ describe('hydrateSession', () => {
 
     const records = qc.getQueryData<import('@shared/lib/apply-event').RunRecord[]>(RUNS_KEY) ?? []
     expect(records.find((r) => r.id === 'r1')?.status).toBe('completed')
-    expect(records.find((r) => r.id === 'r1')?.goal).toBe('hi')
+    expect(records.find((r) => r.id === 'r1')?.prompt).toBe('hi')
   })
 })

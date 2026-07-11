@@ -17,7 +17,7 @@ export type ScheduledRow = {
 
 // Map system-session top-level tasks to result rows, newest first. The cron job
 // name (preferred over the raw goal) and the run error are joined via the
-// cron_run whose taskId matches; a missing/null name falls back to task.goal so
+// cron_run whose taskId matches; a missing/null name falls back to task.prompt so
 // manual or legacy tasks still render.
 export function buildScheduledRows(
   tasks: RunRecord[],
@@ -32,7 +32,7 @@ export function buildScheduledRows(
     .filter((t) => !t.parentRunId)
     .map((t) => {
       const run = runByTaskId.get(t.id)
-      const name = (run ? jobName.get(run.jobId) : undefined) ?? t.goal
+      const name = (run ? jobName.get(run.jobId) : undefined) ?? t.prompt
       return {
         runId: t.id,
         name,

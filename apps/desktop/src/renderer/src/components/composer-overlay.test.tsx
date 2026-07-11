@@ -67,8 +67,8 @@ describe('ComposerOverlay', () => {
   })
 
   const queued = [
-    { id: 'q1', sessionId: 'sess-1', goal: '修复登录 bug' },
-    { id: 'q2', sessionId: 'sess-1', goal: '加个导航' },
+    { id: 'q1', sessionId: 'sess-1', prompt: '修复登录 bug' },
+    { id: 'q2', sessionId: 'sess-1', prompt: '加个导航' },
   ]
 
   it('renders one queued card per pending task with cancel + interrupt', () => {

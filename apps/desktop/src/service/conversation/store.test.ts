@@ -134,7 +134,7 @@ describe('ConversationStore', () => {
       kind: 'run.created',
       sessionId: 'ses-b',
       runId: 'r-b',
-      goal: 'g',
+      prompt: 'g',
       ts: now,
       seq: 1,
     })
@@ -262,7 +262,7 @@ describe('ConversationStore', () => {
         kind: 'run.created',
         sessionId: 's1',
         runId: 'r2',
-        goal: 'child',
+        prompt: 'child',
         parentRunId: 'r1',
         ts: 3,
         seq: 3,
@@ -374,7 +374,7 @@ describe('ConversationStore', () => {
       kind: 'run.created',
       sessionId: 'ses-d',
       runId: 'r-d',
-      goal: 'g',
+      prompt: 'g',
       ts: 1,
       seq: 1,
     })

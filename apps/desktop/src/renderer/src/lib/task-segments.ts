@@ -48,9 +48,9 @@ export function taskSegments(task: RunRecord): Segment[] {
   if (!hasUserMessage) {
     out.push({
       kind: 'user',
-      text: task.goal,
+      text: task.prompt,
       attachments: task.attachments ?? [],
-      key: `${task.id}-goal`,
+      key: `${task.id}-prompt`,
       runId: task.id,
       ts: task.startedAt,
       // The goal bubble takes task.created's seq (events[0]) so it sorts at the

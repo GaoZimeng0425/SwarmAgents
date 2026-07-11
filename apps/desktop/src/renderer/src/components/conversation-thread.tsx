@@ -43,7 +43,7 @@ function FocusProbe({ focusTaskId }: { focusTaskId?: string }) {
   const { scrollToKey } = useStickToBottomList()
   useEffect(() => {
     if (!focusTaskId) return
-    scrollToKey(`${focusTaskId}-goal`)
+    scrollToKey(`${focusTaskId}-prompt`)
     const id = window.setTimeout(() => {
       const el = document.querySelector<HTMLElement>(`[data-task-id="${focusTaskId}"]`)
       if (!el) return

@@ -9,7 +9,7 @@ import { buildArtifacts } from './build-artifacts'
 function mkRun(over: Partial<RunRecord> & Pick<RunRecord, 'id'>): RunRecord {
   return {
     sessionId: 's1',
-    goal: 'g',
+    prompt: 'g',
     status: 'running',
     summary: null,
     startedAt: 1,

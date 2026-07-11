@@ -6,7 +6,7 @@ import { classifyComposerTurns } from './composer-turns'
 const rec = (over: Partial<RunRecord>): RunRecord => ({
   id: 'x',
   sessionId: 's',
-  goal: 'g',
+  prompt: 'g',
   status: 'completed',
   summary: null,
   startedAt: 0,

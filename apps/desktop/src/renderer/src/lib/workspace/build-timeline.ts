@@ -30,7 +30,7 @@ function label(e: UIEvent & { ts: number }): string {
   // Narrow per kind; the KEEP guard above guarantees these members.
   switch (e.kind) {
     case 'run.created':
-      return e.goal
+      return e.prompt
     case 'run.dispatched':
       return '派发'
     case 'run.tool_call':

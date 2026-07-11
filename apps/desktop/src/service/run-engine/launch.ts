@@ -31,7 +31,7 @@ export type RunSpec = {
   agent: AgentDefinition
   provider: ProviderInjection
   fallbackProviders?: ProviderInjection[]
-  /** The user-facing goal; also the run.created goal. */
+  /** The user-facing prompt text; also the run.created prompt. */
   prompt: string
   /** Prior context ONLY — never contains the prompt (spec D4). */
   history?: AgentMessage[]
@@ -69,11 +69,11 @@ export type LaunchPorts = {
   /** Recursive child launch (SessionService binds this in W3 to a nested launchRun). */
   delegate?: (
     parentRunId: string,
-    goal: string,
+    prompt: string,
     opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
   ) => Promise<DelegateResult & { runId: string }>
   /** Agent-authored top-level work run (SessionService binds this to runWork for EVERY run). */
-  createTask?: (goal: string, agentType?: string) => Promise<DelegateResult & { runId: string }>
+  createTask?: (prompt: string, agentType?: string) => Promise<DelegateResult & { runId: string }>
   writeAgent?: ToolRunContext['writeAgent']
   writeSkill?: ToolRunContext['writeSkill']
   findAgents?: ToolRunContext['findPeers']
@@ -159,7 +159,7 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
     ports.registerAbort(runId, () => ac.abort())
     emit({
       kind: 'run.created',
-      goal: spec.prompt,
+      prompt: spec.prompt,
       ...(spec.attachments?.length ? { attachments: spec.attachments } : {}),
       ...(spec.kind === 'child' ? { agentDefId: spec.agent.id } : {}),
     })
@@ -192,15 +192,15 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
       sessionId: spec.sessionId,
       taskId: runId,
       cwd: spec.cwd,
-      spawnChild: (goal, opts) => {
+      spawnChild: (prompt, opts) => {
         if (!ports.delegate) return Promise.reject(new Error('delegate is not available in this run'))
-        return withSlotReleased(() => ports.delegate!(runId, goal, opts ?? {}))
+        return withSlotReleased(() => ports.delegate!(runId, prompt, opts ?? {}))
       },
       // Joins spawnChild in yielding the parent slot while it awaits (ledger #5):
       // uniform wiring means delegate topLevel is available on EVERY run,
       // so without this a full pool of parents could wedge on each other.
       createTask: ports.createTask
-        ? (goal, agentType) => withSlotReleased(() => ports.createTask!(goal, agentType))
+        ? (prompt, agentType) => withSlotReleased(() => ports.createTask!(prompt, agentType))
         : undefined,
       // Tools must NOT self-gate: permission is enforced centrally in the engine.
       requestPermission: () => Promise.resolve('grant' as const),

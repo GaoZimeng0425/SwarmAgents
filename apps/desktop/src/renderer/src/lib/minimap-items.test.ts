@@ -9,7 +9,7 @@ function task(over: Partial<RunRecord>): RunRecord {
   return {
     id: 't',
     sessionId: 's1',
-    goal: 'g',
+    prompt: 'g',
     status: 'completed',
     summary: null,
     startedAt: 0,
@@ -26,8 +26,8 @@ describe('minimapItems', () => {
 
   it('maps top-level tasks to {runId, text, ts} ordered by startedAt', () => {
     const items = minimapItems([
-      task({ id: 'b', goal: 'second', startedAt: 20 }),
-      task({ id: 'a', goal: 'first', startedAt: 10 }),
+      task({ id: 'b', prompt: 'second', startedAt: 20 }),
+      task({ id: 'a', prompt: 'first', startedAt: 10 }),
     ])
     expect(items).toEqual([
       { runId: 'a', text: 'first', ts: 10 },

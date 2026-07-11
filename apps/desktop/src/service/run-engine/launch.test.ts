@@ -102,7 +102,7 @@ describe('launchRun', () => {
     const r = await launchRun(spec(), ports)
     expect(r.status).toBe('completed')
     expect(kinds(s)).toEqual(['run.created', 'run.dispatched', 'run.progress', 'run.complete'])
-    expect(s.events[0]).toMatchObject({ kind: 'run.created', goal: 'go', sessionId: 's1', runId: r.runId })
+    expect(s.events[0]).toMatchObject({ kind: 'run.created', prompt: 'go', sessionId: 's1', runId: r.runId })
     expect('parentRunId' in s.events[0]).toBe(false)
   })
 

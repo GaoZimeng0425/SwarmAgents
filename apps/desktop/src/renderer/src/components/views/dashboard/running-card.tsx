@@ -74,7 +74,7 @@ export function RunningCard({ run }: Props): React.JSX.Element {
         </span>
       </div>
 
-      <h3 className="line-clamp-1 font-semibold text-[14px] text-foreground">{run.goal}</h3>
+      <h3 className="line-clamp-1 font-semibold text-[14px] text-foreground">{run.prompt}</h3>
 
       {!awaiting && run.activity && (
         // Latest tool activity — a mono one-liner (▸ tool + arg) in a subtle inset,

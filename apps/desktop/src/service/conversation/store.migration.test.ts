@@ -158,7 +158,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     } catch {}
   })
 
-  it('bumps schema_meta to version 2 on first open', () => {
+  it('bumps schema_meta to the latest version on first open', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
     store.close()
@@ -166,7 +166,18 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const inspect = new Database(dbPath)
     const row = inspect.prepare('SELECT version FROM schema_meta').get() as { version: number }
     inspect.close()
-    expect(row.version).toBe(2)
+    expect(row.version).toBe(3)
+  })
+
+  it('migration v3 renames the run.created goal key to prompt', () => {
+    seedLegacyDb(dbPath)
+    const store = createConversationStore(dbPath)
+    const rows = store.getRunEvents('ses-1')
+    store.close()
+
+    const created = rows.find((r) => r.event.kind === 'run.created') as { event: Record<string, unknown> } | undefined
+    expect(created?.event.prompt).toBe('g')
+    expect('goal' in (created?.event ?? {})).toBe(false)
   })
 
   it('sweeps orphan rows whose session no longer exists', () => {
@@ -274,7 +285,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const metaRowCount = (inspect.prepare('SELECT COUNT(*) AS n FROM schema_meta').get() as { n: number }).n
     inspect.close()
 
-    expect(version).toBe(2)
+    expect(version).toBe(3)
     expect(metaRowCount).toBe(1) // no duplicate version row inserted on reopen
     expect(rowsAfterSecondOpen).toEqual(rowsAfterFirstOpen) // no double-rewrite (e.g. no 'run.run.*')
   })

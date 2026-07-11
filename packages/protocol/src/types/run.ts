@@ -32,7 +32,7 @@ export type RunEventBase = {
 export type RunWireEvent =
   | (RunEventBase & {
       kind: 'run.created'
-      goal: string
+      prompt: string
       attachments?: Attachment[]
       /** Agent definition id (e.g. 'researcher'), labels child-run blocks. */
       agentDefId?: string

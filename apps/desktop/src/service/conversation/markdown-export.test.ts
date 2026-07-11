@@ -25,7 +25,7 @@ const progress = (runId: string, taskEvent: TaskEvent): RunEvent =>
     event: taskEvent,
   })
 
-const created = (runId: string, goal: string, parentRunId?: string): RunEvent =>
+const created = (runId: string, prompt: string, parentRunId?: string): RunEvent =>
   runRow(
     runId,
     {
@@ -34,7 +34,7 @@ const created = (runId: string, goal: string, parentRunId?: string): RunEvent =>
       runId,
       seq: 1,
       ts: 1,
-      goal,
+      prompt,
     },
     parentRunId ?? null
   )

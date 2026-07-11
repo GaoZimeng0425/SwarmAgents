@@ -10,7 +10,7 @@ const task = (id: string, events: RunRecord['events'], startedAt = 1): RunRecord
   ({
     id,
     sessionId: 's',
-    goal: `goal-${id}`,
+    prompt: `goal-${id}`,
     status: 'running',
     summary: null,
     startedAt,
@@ -33,7 +33,7 @@ describe('buildTimelineItems', () => {
     // Within one task: an assistant (high seq, low ts) and a tool (low seq, high ts).
     // Output must follow seq (tool before assistant), not ts (assistant before tool).
     const t = task('t1', [
-      { kind: 'run.created', sessionId: 's', runId: 't1', goal: 'g', ts: 1, seq: 1 } as RunRecord['events'][number],
+      { kind: 'run.created', sessionId: 's', runId: 't1', prompt: 'g', ts: 1, seq: 1 } as RunRecord['events'][number],
       {
         kind: 'run.progress',
         sessionId: 's',
@@ -59,10 +59,10 @@ describe('buildTimelineItems', () => {
 
   it('interleaves two tasks by seq regardless of array order', () => {
     const a = task('ta', [
-      { kind: 'run.created', sessionId: 's', runId: 'ta', goal: 'a', ts: 1, seq: 5 } as RunRecord['events'][number],
+      { kind: 'run.created', sessionId: 's', runId: 'ta', prompt: 'a', ts: 1, seq: 5 } as RunRecord['events'][number],
     ])
     const b = task('tb', [
-      { kind: 'run.created', sessionId: 's', runId: 'tb', goal: 'b', ts: 1, seq: 1 } as RunRecord['events'][number],
+      { kind: 'run.created', sessionId: 's', runId: 'tb', prompt: 'b', ts: 1, seq: 1 } as RunRecord['events'][number],
     ])
     // Pass in "wrong" array order (a before b); output follows seq (b before a).
     const items = buildTimelineItems([a, b], render, { busy: false, showDayDividers: false })
@@ -72,7 +72,7 @@ describe('buildTimelineItems', () => {
   it('renders the first user message before the assistant reply (first-message-order bug)', () => {
     // A top-level turn: the user message is a real event with the smallest seq.
     const t = task('t1', [
-      { kind: 'run.created', sessionId: 's', runId: 't1', goal: 'hi', ts: 1 } as RunRecord['events'][number],
+      { kind: 'run.created', sessionId: 's', runId: 't1', prompt: 'hi', ts: 1 } as RunRecord['events'][number],
       {
         kind: 'run.progress',
         sessionId: 's',

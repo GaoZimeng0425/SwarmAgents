@@ -6,7 +6,7 @@ import { latestActivity, selectDashboardRuns } from '@/lib/dashboard-runs'
 
 const NOW = 1_000_000
 const run = (over: Partial<RunRecord> & Pick<RunRecord, 'id' | 'sessionId' | 'status'>): RunRecord => ({
-  goal: 'g',
+  prompt: 'g',
   summary: null,
   startedAt: NOW - 60_000,
   attachments: [],

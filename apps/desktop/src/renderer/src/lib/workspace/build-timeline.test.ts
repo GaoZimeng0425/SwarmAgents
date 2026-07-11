@@ -8,7 +8,7 @@ import { buildTimeline } from './build-timeline'
 function mkRun(over: Partial<RunRecord> & Pick<RunRecord, 'id'>): RunRecord {
   return {
     sessionId: 's1',
-    goal: 'g',
+    prompt: 'g',
     status: 'running',
     summary: null,
     startedAt: 1000,
@@ -28,7 +28,7 @@ describe('buildTimeline', () => {
       id: 'r1',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'run.created', sessionId: 's1', runId: 'r1', seq: 1, ts: 100, goal: '修复登录' } as any,
+        { kind: 'run.created', sessionId: 's1', runId: 'r1', seq: 1, ts: 100, prompt: '修复登录' } as any,
       ],
     })
     const rows = buildTimeline([run])
@@ -140,14 +140,14 @@ describe('buildTimeline', () => {
       id: 'r1',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'run.created', sessionId: 's1', runId: 'r1', seq: 1, ts: 300, goal: '晚的' } as any,
+        { kind: 'run.created', sessionId: 's1', runId: 'r1', seq: 1, ts: 300, prompt: '晚的' } as any,
       ],
     })
     const r2 = mkRun({
       id: 'r2',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'run.created', sessionId: 's1', runId: 'r2', seq: 1, ts: 100, goal: '早的' } as any,
+        { kind: 'run.created', sessionId: 's1', runId: 'r2', seq: 1, ts: 100, prompt: '早的' } as any,
       ],
     })
     const rows = buildTimeline([r1, r2])
@@ -159,7 +159,7 @@ describe('buildTimeline', () => {
       id: 'r1',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'run.created', sessionId: 's1', runId: 'r1', seq: 1, ts: 100, goal: 'a' } as any,
+        { kind: 'run.created', sessionId: 's1', runId: 'r1', seq: 1, ts: 100, prompt: 'a' } as any,
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         { kind: 'run.complete', sessionId: 's1', runId: 'r1', seq: 2, ts: 200, summary: 'b' } as any,
       ],

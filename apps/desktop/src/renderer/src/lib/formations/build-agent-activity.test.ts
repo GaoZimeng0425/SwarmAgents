@@ -9,7 +9,7 @@ import { buildAgentActivity } from './build-agent-activity'
 function mkRun(over: Partial<RunRecord> & Pick<RunRecord, 'id'>): RunRecord {
   return {
     sessionId: 's1',
-    goal: 'do something',
+    prompt: 'do something',
     status: 'running',
     summary: null,
     startedAt: 1000,
@@ -38,20 +38,20 @@ describe('buildAgentActivity', () => {
   })
 
   it('maps a sub-run (with agentDefId) to that agent id', () => {
-    const runs = [mkRun({ id: 'r1', status: 'running', agentDefId: 'engineer', goal: '修复登录', startedAt: 100 })]
+    const runs = [mkRun({ id: 'r1', status: 'running', agentDefId: 'engineer', prompt: '修复登录', startedAt: 100 })]
     const out = buildAgentActivity(runs, [])
     expect(out.get('engineer')).toMatchObject({ status: 'running', currentTask: '修复登录' })
   })
 
   it('maps a top-level run (no agentDefId) via the session agentType', () => {
-    const runs = [mkRun({ id: 'r1', status: 'running', sessionId: 'sX', goal: '发布产品' })]
+    const runs = [mkRun({ id: 'r1', status: 'running', sessionId: 'sX', prompt: '发布产品' })]
     const sessions = [mkSession({ id: 'sX', agentType: 'ceo' })]
     const out = buildAgentActivity(runs, sessions)
     expect(out.get('ceo')).toMatchObject({ status: 'running', currentTask: '发布产品' })
   })
 
   it('skips runs whose agent resolves to undefined', () => {
-    const runs = [mkRun({ id: 'r1', status: 'running', sessionId: 'sX', goal: 'g' })] // no agentDefId
+    const runs = [mkRun({ id: 'r1', status: 'running', sessionId: 'sX', prompt: 'g' })] // no agentDefId
     const sessions = [mkSession({ id: 'sX' })] // no agentType
     expect(buildAgentActivity(runs, sessions)).toEqual(new Map())
   })
@@ -91,14 +91,14 @@ describe('buildAgentActivity', () => {
 
   it('truncates currentTask to 40 chars', () => {
     const long = 'x'.repeat(80)
-    const runs = [mkRun({ id: 'r1', status: 'running', agentDefId: 'a', goal: long })]
+    const runs = [mkRun({ id: 'r1', status: 'running', agentDefId: 'a', prompt: long })]
     expect(buildAgentActivity(runs, []).get('a')?.currentTask).toBe(`${'x'.repeat(39)}…`)
   })
 
   it('keeps only the newest active run per agent (max startedAt)', () => {
     const runs = [
-      mkRun({ id: 'r1', status: 'running', agentDefId: 'a', goal: '旧的', startedAt: 100 }),
-      mkRun({ id: 'r2', status: 'running', agentDefId: 'a', goal: '新的', startedAt: 500 }),
+      mkRun({ id: 'r1', status: 'running', agentDefId: 'a', prompt: '旧的', startedAt: 100 }),
+      mkRun({ id: 'r2', status: 'running', agentDefId: 'a', prompt: '新的', startedAt: 500 }),
     ]
     expect(buildAgentActivity(runs, []).get('a')?.currentTask).toBe('新的')
   })

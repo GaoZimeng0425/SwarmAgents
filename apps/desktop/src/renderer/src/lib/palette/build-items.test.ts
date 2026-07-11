@@ -13,7 +13,7 @@ const baseInputs: BuildInputs = {
     {
       id: 'r1',
       sessionId: 's1',
-      goal: '抓取邮件',
+      prompt: '抓取邮件',
       status: 'running',
       summary: null,
       plan: [

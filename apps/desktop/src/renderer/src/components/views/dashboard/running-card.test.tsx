@@ -20,7 +20,7 @@ const { RunningCard } = await import('./running-card')
 const base: DashboardRun = {
   id: '1',
   sessionId: 's1',
-  goal: '修复登录 token 刷新竞态',
+  prompt: '修复登录 token 刷新竞态',
   status: 'running',
   wallMs: 60_000,
   cwd: '~/repo/desktop',

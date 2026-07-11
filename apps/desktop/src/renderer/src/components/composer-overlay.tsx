@@ -7,7 +7,7 @@ import { PermissionCard } from '@/components/permission-card'
 import { PlanStatusBar } from '@/components/plan-status-bar'
 import type { PermissionPrompt } from '@/stores/permission'
 
-type QueuedItem = { id: string; sessionId: string; goal: string }
+type QueuedItem = { id: string; sessionId: string; prompt: string }
 
 type Props = {
   prompts: PermissionPrompt[]
@@ -66,7 +66,7 @@ export function ComposerOverlay({
             <span aria-hidden={true} className="text-muted-foreground">
               ⏳
             </span>
-            <span className="truncate">{q.goal}</span>
+            <span className="truncate">{q.prompt}</span>
           </span>
           <span className="flex shrink-0 items-center gap-1">
             <Button aria-label="打断" onClick={() => onInterrupt?.(q.id)} size="icon-sm" variant="ghost">

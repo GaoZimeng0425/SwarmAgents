@@ -16,7 +16,7 @@ export type { TeamOption }
 export type DashboardRun = {
   id: string
   sessionId: string
-  goal: string
+  prompt: string
   status: RunStatus
   /** Elapsed wall time in ms (now - startedAt); ticks via useNow. */
   wallMs: number
@@ -47,7 +47,7 @@ export function selectDashboardRuns(
     return {
       id: r.id,
       sessionId: r.sessionId,
-      goal: r.goal,
+      prompt: r.prompt,
       status: r.status,
       wallMs: now - r.startedAt,
       cwd: cwdBySession.get(r.sessionId),

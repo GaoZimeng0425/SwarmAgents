@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 /** One turn's plan, grouped under its goal for the session execution history. */
 export type PlanGroup = {
   runId: string
-  goal: string
+  prompt: string
   plan: PlanTodo[]
   status: TaskStatus
   startedAt: number
@@ -75,7 +75,7 @@ function PlanGroupBlock({ group }: { group: PlanGroup }): React.JSX.Element {
         ) : (
           <Check className="size-3.5 shrink-0 text-emerald-600" />
         )}
-        <span className="min-w-0 flex-1 truncate text-[13px] text-foreground/90">{group.goal}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] text-foreground/90">{group.prompt}</span>
         <span className="shrink-0 font-medium text-[11px] text-muted-foreground/70 tabular-nums">
           {done}/{group.plan.length}
         </span>

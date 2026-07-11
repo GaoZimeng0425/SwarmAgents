@@ -19,7 +19,7 @@ function task(overrides: Partial<RunRecord> = {}): RunRecord {
   return {
     id: 't1',
     sessionId: 's1',
-    goal: 'do x',
+    prompt: 'do x',
     status: 'running',
     summary: null,
     startedAt: 1,

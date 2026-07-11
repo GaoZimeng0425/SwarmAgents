@@ -6,7 +6,7 @@ import { buildScheduledRows, collectSubtree, formatDuration } from './scheduled-
 
 const task = (over: Partial<RunRecord> & { id: string }): RunRecord => ({
   sessionId: '__system__',
-  goal: 'goal',
+  prompt: 'goal',
   status: 'completed',
   summary: null,
   startedAt: 0,
@@ -26,7 +26,7 @@ const run = (over: Partial<CronRun> & { id: string; jobId: string; taskId: strin
 
 describe('buildScheduledRows', () => {
   it('uses the cron job name when a run links the task to a named job', () => {
-    const tasks = [task({ id: 't1', goal: 'raw goal', startedAt: 100, summary: 'done' })]
+    const tasks = [task({ id: 't1', prompt: 'raw goal', startedAt: 100, summary: 'done' })]
     const runs = [run({ id: 'r1', jobId: 'j1', taskId: 't1' })]
     const jobs = [{ id: 'j1', name: 'Daily report' }]
     const rows = buildScheduledRows(tasks, runs, jobs)
@@ -34,8 +34,8 @@ describe('buildScheduledRows', () => {
     expect(rows[0]).toMatchObject({ runId: 't1', name: 'Daily report', status: 'completed', summary: 'done' })
   })
 
-  it('falls back to task.goal when there is no run, no job, or a null job name', () => {
-    const tasks = [task({ id: 't1', goal: 'fallback goal' })]
+  it('falls back to task.prompt when there is no run, no job, or a null job name', () => {
+    const tasks = [task({ id: 't1', prompt: 'fallback goal' })]
     expect(buildScheduledRows(tasks, [], []).at(0)?.name).toBe('fallback goal')
     const runs = [run({ id: 'r1', jobId: 'j1', taskId: 't1' })]
     expect(buildScheduledRows(tasks, runs, [{ id: 'j1', name: null }]).at(0)?.name).toBe('fallback goal')

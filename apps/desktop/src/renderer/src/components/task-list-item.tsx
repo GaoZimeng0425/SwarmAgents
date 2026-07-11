@@ -29,7 +29,7 @@ export function TaskListItem({ task, selected, onSelect }: Props): React.JSX.Ele
     >
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between gap-2 text-sm">
-          <span className="truncate">{task.goal}</span>
+          <span className="truncate">{task.prompt}</span>
           <Badge variant={STATUS_VARIANT[task.status]}>{task.status}</Badge>
         </CardTitle>
       </CardHeader>

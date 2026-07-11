@@ -62,7 +62,7 @@ export type PreviewData =
       type: 'taskRun'
       run: {
         id: string
-        goal: string
+        prompt: string
         summary: string | null
         status: string
         plan?: { content: string; status: 'pending' | 'in_progress' | 'completed' }[]

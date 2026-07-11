@@ -228,6 +228,21 @@ export function createConversationStore(dbPath: string): ConversationStore {
     migrateToV2()
   }
 
+  // ---- Migration v3: run.created `goal` key → `prompt` --------------------
+  // Part of retiring the goal vocabulary; run.created is the only wire event
+  // with a top-level goal key. Same guard/transaction shape as v2.
+  const versionRowV3 = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as { version: number } | undefined
+  if ((versionRowV3?.version ?? 0) < 3) {
+    const migrateToV3 = db.transaction(() => {
+      db.exec(
+        `UPDATE run_events SET event = json_remove(json_set(event, '$.prompt', json_extract(event, '$.goal')), '$.goal') WHERE json_extract(event, '$.goal') IS NOT NULL`
+      )
+      if (versionRowV3) db.prepare('UPDATE schema_meta SET version = 3').run()
+      else db.prepare('INSERT INTO schema_meta (version) VALUES (3)').run()
+    })
+    migrateToV3()
+  }
+
   for (const stmt of [
     'ALTER TABLE sessions ADD COLUMN title TEXT',
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,

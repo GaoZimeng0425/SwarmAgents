@@ -12,7 +12,7 @@ export type BuildInputs = {
   runningRuns: {
     id: string
     sessionId: string
-    goal: string
+    prompt: string
     status: string
     summary: string | null
     plan?: { content: string; status: 'pending' | 'in_progress' | 'completed' }[]
@@ -169,16 +169,16 @@ function taskRunItems(runs: BuildInputs['runningRuns'], cb: Callbacks): PaletteI
     return {
       id: `run:${r.id}`,
       kind: 'taskRun',
-      title: r.goal,
+      title: r.prompt,
       subtitle: r.summary ?? undefined,
       badge: r.status,
       progress,
       icon: 'LoaderCircle',
       run: () => cb.navigate(`/session/${r.sessionId}`),
-      searchText: `${r.goal} ${r.summary ?? ''} ${r.status}`,
+      searchText: `${r.prompt} ${r.summary ?? ''} ${r.status}`,
       preview: {
         type: 'taskRun',
-        run: { id: r.id, goal: r.goal, summary: r.summary, status: r.status, plan: r.plan },
+        run: { id: r.id, prompt: r.prompt, summary: r.summary, status: r.status, plan: r.plan },
         sessionId: r.sessionId,
       },
     }
@@ -360,7 +360,7 @@ function heroItem(trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteI
     subtitle: trimmed || undefined,
     icon: 'Rocket',
     run: async () => {
-      // Empty-goal guard: in the mixed-empty state the hero is the default
+      // Empty-prompt guard: in the mixed-empty state the hero is the default
       // selection (flat[0]), so a bare Enter must NOT submit a blank goal and
       // navigate to a dead new session. Only dispatch when there is a term.
       if (!trimmed) return
