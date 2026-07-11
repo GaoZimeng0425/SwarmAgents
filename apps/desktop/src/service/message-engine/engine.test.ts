@@ -4,21 +4,21 @@ const MockAgent = vi.hoisted(() => vi.fn())
 
 vi.mock('@earendil-works/pi-agent-core', () => ({ Agent: MockAgent }))
 
-import type { RunEmitInput } from './emit'
+import type { MessageEmitInput } from './emit'
 import { createEngine, type EngineDeps, EngineSetupError } from './engine'
 
-type Emitted = RunEmitInput[]
+type Emitted = MessageEmitInput[]
 
-const collect = (): { out: Emitted; emit: (i: RunEmitInput) => void } => {
+const collect = (): { out: Emitted; emit: (i: MessageEmitInput) => void } => {
   const out: Emitted = []
   return { out, emit: (i) => out.push(i) }
 }
 
-const terminals = (out: Emitted) => out.filter((e) => e.kind === 'run.complete' || e.kind === 'run.error')
+const terminals = (out: Emitted) => out.filter((e) => e.kind === 'message.complete' || e.kind === 'message.error')
 
-const baseDeps = (emit: (i: RunEmitInput) => void, over: Partial<EngineDeps> = {}): EngineDeps =>
+const baseDeps = (emit: (i: MessageEmitInput) => void, over: Partial<EngineDeps> = {}): EngineDeps =>
   ({
-    runId: 'r1',
+    messageId: 'r1',
     sessionId: 's1',
     agentDefinition: {
       id: 'default',
@@ -146,7 +146,7 @@ describe('engine gates — each aborted run emits exactly ONE terminal', () => {
     expect(r.status).toBe('failed')
     const t = terminals(out)
     expect(t).toHaveLength(1)
-    expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'budget_exhausted' } })
+    expect(t[0]).toMatchObject({ kind: 'message.error', error: { code: 'budget_exhausted' } })
   })
 
   it('terminates with context_window_full when the snapshot exceeds the window', async () => {
@@ -179,7 +179,7 @@ describe('engine gates — each aborted run emits exactly ONE terminal', () => {
     const r = await p
     expect(r.status).toBe('failed')
     expect(terminals(out)).toHaveLength(1)
-    expect(terminals(out)[0]).toMatchObject({ kind: 'run.error', error: { code: 'context_window_full' } })
+    expect(terminals(out)[0]).toMatchObject({ kind: 'message.error', error: { code: 'context_window_full' } })
   })
 
   it('terminates with max_iterations when the turn cap trips — even on a natural-finish turn without an aborted stamp', async () => {
@@ -215,7 +215,7 @@ describe('engine gates — each aborted run emits exactly ONE terminal', () => {
       expect(r.status).toBe('failed')
       const t = terminals(out)
       expect(t).toHaveLength(1)
-      expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'max_iterations' } })
+      expect(t[0]).toMatchObject({ kind: 'message.error', error: { code: 'max_iterations' } })
     }
   })
 
@@ -234,7 +234,7 @@ describe('engine gates — each aborted run emits exactly ONE terminal', () => {
     expect(r.status).toBe('cancelled')
     const t = terminals(out)
     expect(t).toHaveLength(1)
-    expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'cancelled' } })
+    expect(t[0]).toMatchObject({ kind: 'message.error', error: { code: 'cancelled' } })
   })
 
   it('treats an externally aborted run with no recorded cause as cancelled (precedence rule 3)', async () => {
@@ -321,7 +321,7 @@ describe('engine gates — each aborted run emits exactly ONE terminal', () => {
       },
       toolResults: [],
     })
-    const usage = out.find((e) => e.kind === 'run.usage') as
+    const usage = out.find((e) => e.kind === 'message.usage') as
       | { used: { tokens: number; usdCents: number }; model?: string }
       | undefined
     expect(usage).toBeDefined()
@@ -340,7 +340,7 @@ describe('engine gates — each aborted run emits exactly ONE terminal', () => {
     const engine = createEngine(baseDeps(emit))
     engine.chargeExternalUsd(0.5)
     expect(engine.getUsed().usdCents).toBe(50)
-    expect(out.some((e) => e.kind === 'run.usage')).toBe(true)
+    expect(out.some((e) => e.kind === 'message.usage')).toBe(true)
   })
 
   it('rewrites the generic "Operation aborted" tool result to the real stop cause (carry-over c)', async () => {
@@ -376,12 +376,12 @@ describe('engine retry/fallback', () => {
     expect(promptCalls).toBe(3)
     const notices = out.filter(
       (e) =>
-        e.kind === 'run.progress' &&
+        e.kind === 'message.progress' &&
         (e as { event: { kind: string; error?: { tier?: string } } }).event.kind === 'error'
     )
     expect(notices).toHaveLength(2)
     expect(terminals(out)).toHaveLength(1)
-    expect(terminals(out)[0].kind).toBe('run.complete')
+    expect(terminals(out)[0].kind).toBe('message.complete')
   })
 
   it('gives up after retries exhaust with a single agent_request_failed terminal', async () => {
@@ -394,7 +394,10 @@ describe('engine retry/fallback', () => {
     expect(promptCalls).toBe(3) // 1 + maxRetries(2)
     const t = terminals(out)
     expect(t).toHaveLength(1)
-    expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'agent_request_failed', message: 'transient 503' } })
+    expect(t[0]).toMatchObject({
+      kind: 'message.error',
+      error: { code: 'agent_request_failed', message: 'transient 503' },
+    })
   })
 
   it('advances to the fallback model after exhausting the primary, announcing the switch', async () => {
@@ -412,7 +415,7 @@ describe('engine retry/fallback', () => {
     expect(
       out.some(
         (e) =>
-          e.kind === 'run.progress' &&
+          e.kind === 'message.progress' &&
           (e as { event: { error?: { code?: string } } }).event.error?.code === 'agent_model_fallback'
       )
     ).toBe(true)
@@ -436,7 +439,7 @@ describe('engine summary (carry-over a)', () => {
     const { out, emit } = collect()
     const r = await createEngine(baseDeps(emit)).run('go')
     expect(r.summary).toBe('done.')
-    expect(terminals(out)[0]).toMatchObject({ kind: 'run.complete', summary: 'done.' })
+    expect(terminals(out)[0]).toMatchObject({ kind: 'message.complete', summary: 'done.' })
   })
 
   it('falls back to "Completed run <id>." when the model produced no text', async () => {
@@ -444,7 +447,7 @@ describe('engine summary (carry-over a)', () => {
     const { out, emit } = collect()
     const r = await createEngine(baseDeps(emit)).run('go')
     expect(r.status).toBe('completed')
-    expect(terminals(out)[0]).toMatchObject({ kind: 'run.complete', summary: 'Completed run r1.' })
+    expect(terminals(out)[0]).toMatchObject({ kind: 'message.complete', summary: 'Completed run r1.' })
     expect(r.summary).toBe('Completed run r1.')
   })
 })

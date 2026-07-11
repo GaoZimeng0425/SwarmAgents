@@ -1,4 +1,4 @@
-import { applyEvent, type RunRecord } from '@shared/lib/apply-event'
+import { applyEvent, type MessageRecord } from '@shared/lib/apply-event'
 import type { PermissionDecision } from '@swarm/protocol'
 import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
 
@@ -6,11 +6,11 @@ import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
-export const RUNS_KEY = ['runs'] as const
+export const MESSAGES_KEY = ['messages'] as const
 
-export function useRuns(): RunRecord[] {
-  const { data } = useQuery<RunRecord[]>({
-    queryKey: RUNS_KEY,
+export function useMessages(): MessageRecord[] {
+  const { data } = useQuery<MessageRecord[]>({
+    queryKey: MESSAGES_KEY,
     queryFn: () => [],
     staleTime: Number.POSITIVE_INFINITY,
   })
@@ -70,11 +70,13 @@ export function useLoadSessions() {
   })
 }
 
-/** Replay a session's run_events into RunRecords by reducing UIEvents through applyEvent. */
+/** Replay a session's message_events into MessageRecords by reducing UIEvents through applyEvent. */
 export async function hydrateSession(qc: ReturnType<typeof useQueryClient>, sessionId: string): Promise<void> {
-  const rows = await swarmApi.getRunEvents(sessionId)
-  const records = [...rows].sort((a, b) => a.seq - b.seq).reduce<RunRecord[]>((acc, r) => applyEvent(acc, r.event), [])
-  qc.setQueryData<RunRecord[]>(RUNS_KEY, (prev = []) => {
+  const rows = await swarmApi.getMessageEvents(sessionId)
+  const records = [...rows]
+    .sort((a, b) => a.seq - b.seq)
+    .reduce<MessageRecord[]>((acc, r) => applyEvent(acc, r.event), [])
+  qc.setQueryData<MessageRecord[]>(MESSAGES_KEY, (prev = []) => {
     const known = new Set(prev.map((t) => t.id))
     const fresh = records.filter((r) => !known.has(r.id))
     return [...fresh, ...prev]
@@ -97,17 +99,18 @@ export function useDecidePermission() {
   })
 }
 
-/** Cancel an in-flight run (aborts the agent run server-side). */
-export function useCancelRun() {
+/** Cancel an in-flight message (aborts the agent run server-side). */
+export function useCancelMessage() {
   return useMutation({
-    mutationFn: ({ sessionId, runId }: { sessionId: string; runId: string }) => swarmApi.cancelRun(sessionId, runId),
+    mutationFn: ({ sessionId, messageId }: { sessionId: string; messageId: string }) =>
+      swarmApi.cancelMessage(sessionId, messageId),
   })
 }
 
-/** Interrupt the running run and run a queued run next (promotes it to front). */
-export function usePromoteQueuedRun() {
+/** Interrupt the running message and run a queued message next (promotes it to front). */
+export function usePromoteQueuedMessage() {
   return useMutation({
-    mutationFn: ({ sessionId, runId }: { sessionId: string; runId: string }) =>
-      swarmApi.promoteQueuedRun(sessionId, runId),
+    mutationFn: ({ sessionId, messageId }: { sessionId: string; messageId: string }) =>
+      swarmApi.promoteQueuedMessage(sessionId, messageId),
   })
 }

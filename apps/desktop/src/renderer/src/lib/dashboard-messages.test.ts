@@ -1,15 +1,16 @@
-import type { RunRecord } from '@shared/lib/apply-event'
+import type { MessageRecord } from '@shared/lib/apply-event'
 import type { SessionSummary } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
-import { latestActivity, selectDashboardRuns } from '@/lib/dashboard-runs'
+import { latestActivity, selectDashboardMessages } from '@/lib/dashboard-messages'
 
 const NOW = 1_000_000
-const run = (over: Partial<RunRecord> & Pick<RunRecord, 'id' | 'sessionId' | 'status'>): RunRecord => ({
+const message = (over: Partial<MessageRecord> & Pick<MessageRecord, 'id' | 'sessionId' | 'status'>): MessageRecord => ({
   prompt: 'g',
   summary: null,
-  startedAt: NOW - 60_000,
+  createdAt: NOW - 60_000,
   attachments: [],
+  order: 1,
   events: [],
   ...over,
 })
@@ -24,64 +25,64 @@ const session = (over: Partial<SessionSummary> & Pick<SessionSummary, 'id'>): Se
   ...over,
 })
 
-describe('selectDashboardRuns', () => {
+describe('selectDashboardMessages', () => {
   it('partitions running/pending into `running` and awaiting_user into `awaiting`', () => {
-    const runs = [
-      run({ id: '1', sessionId: 's1', status: 'running' }),
-      run({ id: '2', sessionId: 's2', status: 'pending' }),
-      run({ id: '3', sessionId: 's3', status: 'awaiting_user' }),
-      run({ id: '4', sessionId: 's4', status: 'completed' }),
-      run({ id: '5', sessionId: 's5', status: 'failed' }),
+    const messages = [
+      message({ id: '1', sessionId: 's1', status: 'running' }),
+      message({ id: '2', sessionId: 's2', status: 'pending' }),
+      message({ id: '3', sessionId: 's3', status: 'awaiting_user' }),
+      message({ id: '4', sessionId: 's4', status: 'completed' }),
+      message({ id: '5', sessionId: 's5', status: 'failed' }),
     ]
-    const out = selectDashboardRuns(runs, [], [], NOW)
+    const out = selectDashboardMessages(messages, [], [], NOW)
     expect(out.running.map((r) => r.id)).toEqual(['1', '2'])
     expect(out.awaiting.map((r) => r.id)).toEqual(['3'])
   })
 
-  it('drops sub-agent runs (parentRunId set) — only top-level runs show on the dashboard', () => {
-    const runs = [
-      run({ id: '1', sessionId: 's1', status: 'running' }),
-      run({ id: '2', sessionId: 's1', status: 'running', parentRunId: '1' }),
+  it('drops sub-agent messages (parentMessageId set) — only top-level messages show on the dashboard', () => {
+    const messages = [
+      message({ id: '1', sessionId: 's1', status: 'running' }),
+      message({ id: '2', sessionId: 's1', status: 'running', parentMessageId: '1' }),
     ]
-    const out = selectDashboardRuns(runs, [], [], NOW)
+    const out = selectDashboardMessages(messages, [], [], NOW)
     expect(out.running.map((r) => r.id)).toEqual(['1'])
   })
 
   it('sorts running newest-first by startedAt', () => {
-    const runs = [
-      run({ id: 'old', sessionId: 's1', status: 'running', startedAt: NOW - 10_000 }),
-      run({ id: 'new', sessionId: 's2', status: 'running', startedAt: NOW - 1_000 }),
+    const messages = [
+      message({ id: 'old', sessionId: 's1', status: 'running', startedAt: NOW - 10_000 }),
+      message({ id: 'new', sessionId: 's2', status: 'running', startedAt: NOW - 1_000 }),
     ]
-    const out = selectDashboardRuns(runs, [], [], NOW)
+    const out = selectDashboardMessages(messages, [], [], NOW)
     expect(out.running.map((r) => r.id)).toEqual(['new', 'old'])
   })
 
   it('joins session cwd + agentType and maps agentType via teamOptions', () => {
-    const runs = [run({ id: '1', sessionId: 's1', status: 'running' })]
+    const messages = [message({ id: '1', sessionId: 's1', status: 'running' })]
     const sessions = [session({ id: 's1', cwd: '/repo/x', agentType: 'team-a' })]
     const teamOptions = [
       { id: 'ceo', label: '默认 Agent' },
       { id: 'team-a', label: '团队 A' },
     ]
-    const out = selectDashboardRuns(runs, sessions, teamOptions, NOW)
+    const out = selectDashboardMessages(messages, sessions, teamOptions, NOW)
     expect(out.running[0]).toMatchObject({ cwd: '/repo/x', agentLabel: '团队 A' })
   })
 
   it('falls back to the raw agentType id when no teamOption matches', () => {
-    const runs = [run({ id: '1', sessionId: 's1', status: 'running' })]
+    const messages = [message({ id: '1', sessionId: 's1', status: 'running' })]
     const sessions = [session({ id: 's1', agentType: 'unknown' })]
-    const out = selectDashboardRuns(runs, sessions, [], NOW)
+    const out = selectDashboardMessages(messages, sessions, [], NOW)
     expect(out.running[0].agentLabel).toBe('unknown')
   })
 
   it('computes wallMs from now - startedAt', () => {
-    const runs = [run({ id: '1', sessionId: 's1', status: 'running', startedAt: NOW - 60_000 })]
-    const out = selectDashboardRuns(runs, [], [], NOW)
+    const messages = [message({ id: '1', sessionId: 's1', status: 'running', startedAt: NOW - 60_000 })]
+    const out = selectDashboardMessages(messages, [], [], NOW)
     expect(out.running[0].wallMs).toBe(60_000)
   })
 
   it('derives step progress `${completed}/${total}` from plan, null when no plan', () => {
-    const withPlan = run({
+    const withPlan = message({
       id: '1',
       sessionId: 's1',
       status: 'running',
@@ -89,17 +90,25 @@ describe('selectDashboardRuns', () => {
         { status: 'completed', content: 'a' },
         { status: 'in_progress', content: 'b' },
         { status: 'pending', content: 'c' },
-      ] as RunRecord['plan'],
+      ] as MessageRecord['plan'],
     })
-    const noPlan = run({ id: '2', sessionId: 's2', status: 'running' })
-    const out = selectDashboardRuns([withPlan, noPlan], [], [], NOW)
+    const noPlan = message({ id: '2', sessionId: 's2', status: 'running' })
+    const out = selectDashboardMessages([withPlan, noPlan], [], [], NOW)
     expect(out.running[0].steps).toBe('1/3')
     expect(out.running[1].steps).toBeNull()
   })
 })
 
-const toolCall = (tool: string, args: unknown, seq: number): RunRecord['events'][number] =>
-  ({ kind: 'run.tool_call', sessionId: 's1', runId: '1', seq, ts: seq, tool, args }) as RunRecord['events'][number]
+const toolCall = (tool: string, args: unknown, seq: number): MessageRecord['events'][number] =>
+  ({
+    kind: 'message.tool_call',
+    sessionId: 's1',
+    messageId: '1',
+    seq,
+    ts: seq,
+    tool,
+    args,
+  }) as MessageRecord['events'][number]
 
 describe('latestActivity', () => {
   it('returns null when there are no tool calls', () => {
@@ -123,8 +132,8 @@ describe('latestActivity', () => {
     expect(latestActivity([toolCall('WebFetch', { url: 'https://x.dev' }, 1)])).toBe('WebFetch https://x.dev')
   })
 
-  it('is surfaced on DashboardRun.activity', () => {
-    const r = run({ id: '1', sessionId: 's1', status: 'running', events: [toolCall('Bash', { command: 'ls' }, 1)] })
-    expect(selectDashboardRuns([r], [], [], NOW).running[0].activity).toBe('Bash ls')
+  it('is surfaced on DashboardMessage.activity', () => {
+    const r = message({ id: '1', sessionId: 's1', status: 'running', events: [toolCall('Bash', { command: 'ls' }, 1)] })
+    expect(selectDashboardMessages([r], [], [], NOW).running[0].activity).toBe('Bash ls')
   })
 })

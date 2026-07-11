@@ -9,7 +9,7 @@ import * as api from '../lib/api'
 import { usePermissionStore } from '../stores/permission'
 import { useSessionsStore } from '../stores/sessions'
 import { useEventsSubscription } from './use-events-subscription'
-import { hydrateSession, RUNS_KEY, useDecidePermission, useRuns, useSubmitPrompt } from './use-runs'
+import { hydrateSession, MESSAGES_KEY, useDecidePermission, useMessages, useSubmitPrompt } from './use-messages'
 
 // useEventsSubscription now navigates (toast jump) + toasts on background
 // activity + reads the settings search param via useSettingsNav; stub the
@@ -42,7 +42,7 @@ afterEach(() => {
 })
 
 describe('use-tasks + use-events-subscription', () => {
-  it('a run.created event populates useRuns()', async () => {
+  it('a message.created event populates useMessages()', async () => {
     let emit: (e: UIEvent) => void = () => {}
     vi.spyOn(api.swarmApi, 'subscribeEvents').mockImplementation((cb) => {
       emit = cb
@@ -54,7 +54,7 @@ describe('use-tasks + use-events-subscription', () => {
     const view = renderHook(
       () => {
         useEventsSubscription()
-        return useRuns()
+        return useMessages()
       },
       { wrapper: makeWrapper(qc) }
     )
@@ -63,7 +63,7 @@ describe('use-tasks + use-events-subscription', () => {
     await waitFor(() => expect(view.result.current).toEqual([]))
 
     await act(async () => {
-      emit({ kind: 'run.created', sessionId: 'ses-1', runId: 't1', prompt: 'do x', ts: 1, seq: 1 })
+      emit({ kind: 'message.created', sessionId: 'ses-1', messageId: 't1', prompt: 'do x', ts: 1, seq: 1 })
     })
 
     await waitFor(() => expect(view.result.current).toHaveLength(1))
@@ -83,11 +83,11 @@ describe('use-tasks + use-events-subscription', () => {
 
     act(() => {
       emit({
-        kind: 'run.permission_request',
+        kind: 'message.permission_request',
         ts: 1,
         seq: 1,
         sessionId: 'sess-1',
-        runId: 'task-1',
+        messageId: 'task-1',
         actionId: 'act-9',
         risk: 'high',
         summary: 'rm -rf /tmp/x',
@@ -104,14 +104,14 @@ describe('use-tasks + use-events-subscription', () => {
 describe('useSubmitPrompt', () => {
   it('creates a session first when none is selected, then submits prompt with that sessionId', async () => {
     const mockCreate = vi.fn().mockResolvedValue({ sessionId: 'ses-test' })
-    const mockSubmitPrompt = vi.fn().mockResolvedValue({ runId: 'task-1' })
+    const mockSubmitPrompt = vi.fn().mockResolvedValue({ messageId: 'task-1' })
 
     // Stub window.swarm
     Object.defineProperty(window, 'swarm', {
       value: {
-        sessions: { create: mockCreate, list: vi.fn(), getTasks: vi.fn() },
+        sessions: { create: mockCreate, list: vi.fn(), getMessageEvents: vi.fn() },
         submitPrompt: mockSubmitPrompt,
-        cancelTask: vi.fn(),
+        cancelMessage: vi.fn(),
         decidePermission: vi.fn(),
         subscribeEvents: vi.fn(() => () => {}),
       },
@@ -140,7 +140,7 @@ describe('useSubmitPrompt', () => {
   it('uses the pre-selected session without creating a new one', async () => {
     useSessionsStore.getState().select('ses-existing')
 
-    const mockSubmitPrompt = vi.fn().mockResolvedValue({ runId: 'task-2' })
+    const mockSubmitPrompt = vi.fn().mockResolvedValue({ messageId: 'task-2' })
     vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, prompt) =>
       mockSubmitPrompt(sessionId, prompt)
     )
@@ -176,33 +176,33 @@ describe('useDecidePermission', () => {
 })
 
 describe('hydrateSession', () => {
-  it('replays run_events into RunRecords via applyEvent', async () => {
-    const rows: import('@swarm/protocol').RunEvent[] = [
+  it('replays message_events into MessageRecords via applyEvent', async () => {
+    const rows: import('@swarm/protocol').MessageEvent[] = [
       {
-        runId: 'r1',
-        parentRunId: null,
+        messageId: 'r1',
+        parentMessageId: null,
         seq: 1,
         ts: 1,
-        event: { kind: 'run.created', sessionId: 's', runId: 'r1', prompt: 'hi', ts: 1, seq: 1 },
+        event: { kind: 'message.created', sessionId: 's', messageId: 'r1', prompt: 'hi', ts: 1, seq: 1 },
       },
       {
-        runId: 'r1',
-        parentRunId: null,
+        messageId: 'r1',
+        parentMessageId: null,
         seq: 2,
         ts: 2,
-        event: { kind: 'run.complete', sessionId: 's', runId: 'r1', summary: 'done', ts: 2, seq: 2 },
+        event: { kind: 'message.complete', sessionId: 's', messageId: 'r1', summary: 'done', ts: 2, seq: 2 },
       },
     ]
     const qc = new QueryClient({
       defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } },
     })
     // The old adapter sources return nothing so the test fails on the assertion
-    // (status !== 'completed') until hydrateSession reads getRunEvents.
-    vi.spyOn(api.swarmApi, 'getRunEvents').mockResolvedValue(rows)
+    // (status !== 'completed') until hydrateSession reads getMessageEvents.
+    vi.spyOn(api.swarmApi, 'getMessageEvents').mockResolvedValue(rows)
 
     await hydrateSession(qc, 's')
 
-    const records = qc.getQueryData<import('@shared/lib/apply-event').RunRecord[]>(RUNS_KEY) ?? []
+    const records = qc.getQueryData<import('@shared/lib/apply-event').MessageRecord[]>(MESSAGES_KEY) ?? []
     expect(records.find((r) => r.id === 'r1')?.status).toBe('completed')
     expect(records.find((r) => r.id === 'r1')?.prompt).toBe('hi')
   })

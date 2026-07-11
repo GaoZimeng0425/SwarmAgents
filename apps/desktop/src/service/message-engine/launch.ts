@@ -15,29 +15,29 @@ import { ulid } from 'ulid'
 
 import type { PermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry, ToolRunContext } from '../tools/registry'
-import { createRunEmit, type RunEmit, type RunEmitPorts } from './emit'
+import { createMessageEmit, type MessageEmit, type MessageEmitPorts } from './emit'
 import { createEngine, type EngineRunResult, EngineSetupError } from './engine'
 import { injectionSupportsImages } from './models'
 
-const log = createLogger({ process: 'service' }).child({ component: 'run-launch' })
+const log = createLogger({ process: 'service' }).child({ component: 'message-launch' })
 
-export type RunKind = 'turn' | 'work' | 'child'
+export type MessageKind = 'turn' | 'work' | 'child'
 
-export type RunSpec = {
-  kind: RunKind
+export type MessageSpec = {
+  kind: MessageKind
   /** Minted when absent. */
-  runId?: string
+  messageId?: string
   sessionId: string
   agent: AgentDefinition
   provider: ProviderInjection
   fallbackProviders?: ProviderInjection[]
-  /** The user-facing prompt text; also the run.created prompt. */
+  /** The user-facing prompt text; also the message.created prompt. */
   prompt: string
   /** Prior context ONLY — never contains the prompt (spec D4). */
   history?: AgentMessage[]
   attachments?: Attachment[]
   budget: ResourceBudget
-  parentRunId?: string
+  parentMessageId?: string
   /** Tool allowlist for this run. The CALLER resolves the agent's defaults
    *  (e.g. allowlistForAgent); an empty list resolves NO tools. */
   tools?: string[]
@@ -52,28 +52,28 @@ export type RunSpec = {
 }
 
 export type LaunchPorts = {
-  emit: RunEmitPorts
+  emit: MessageEmitPorts
   toolRegistry: ToolRegistry
   permissionRegistry: PermissionRegistry
-  /** Per-session FIFO ticket for 'turn' runs; resolves when the run may execute. */
-  waitTurn?: (sessionId: string, runId: string, signal: AbortSignal) => Promise<void>
+  /** Per-session FIFO ticket for 'turn' messages; resolves when the message may execute. */
+  waitTurn?: (sessionId: string, messageId: string, signal: AbortSignal) => Promise<void>
   /**
    * Global concurrency pool; resolves with the release fn.
    * CONTRACT: once `signal` aborts, the port MUST resolve promptly (a no-op
    * release is fine) — a parked waiter that ignores the signal wedges the
-   * run and, in W3, its whole session queue. launchRun also defends below.
+   * message and, in W3, its whole session queue. launchMessage also defends below.
    */
   acquireSlot: (signal: AbortSignal) => Promise<() => void>
-  registerAbort: (runId: string, abort: () => void) => void
-  unregisterAbort: (runId: string) => void
-  /** Recursive child launch (SessionService binds this in W3 to a nested launchRun). */
+  registerAbort: (messageId: string, abort: () => void) => void
+  unregisterAbort: (messageId: string) => void
+  /** Recursive child launch (SessionService binds this in W3 to a nested launchMessage). */
   delegate?: (
-    parentRunId: string,
+    parentMessageId: string,
     prompt: string,
     opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
-  ) => Promise<DelegateResult & { runId: string }>
-  /** Agent-authored top-level work run (SessionService binds this to runWork for EVERY run). */
-  createTask?: (prompt: string, agentType?: string) => Promise<DelegateResult & { runId: string }>
+  ) => Promise<DelegateResult & { messageId: string }>
+  /** Agent-authored top-level work message (SessionService binds this to runWork for EVERY message). */
+  createTask?: (prompt: string, agentType?: string) => Promise<DelegateResult & { messageId: string }>
   writeAgent?: ToolRunContext['writeAgent']
   writeSkill?: ToolRunContext['writeSkill']
   findAgents?: ToolRunContext['findPeers']
@@ -83,15 +83,15 @@ export type LaunchPorts = {
 const VISION_SYSTEM_PROMPT =
   'You are a vision and OCR assistant. Look at the provided image and answer the request precisely. For OCR, return only the extracted text, preserving line breaks. Do not add commentary.'
 
-const SILENT_EMIT_PORTS: RunEmitPorts = {
+const SILENT_EMIT_PORTS: MessageEmitPorts = {
   nextSeq: () => 0,
   appendEvent: () => undefined,
   markTerminal: () => undefined,
   broadcast: () => undefined,
 }
 
-const cancelledResult = (runId: string, history: AgentMessage[]): EngineRunResult & { runId: string } => ({
-  runId,
+const cancelledResult = (messageId: string, history: AgentMessage[]): EngineRunResult & { messageId: string } => ({
+  messageId,
   status: 'cancelled',
   summary: '',
   messages: history,
@@ -99,19 +99,22 @@ const cancelledResult = (runId: string, history: AgentMessage[]): EngineRunResul
 })
 
 /**
- * The ONE way any run starts (spec §3). Owns: id mint, run.created/dispatched,
+ * The ONE way any message starts (spec §3). Owns: id mint, message.created/dispatched,
  * abort-before-waits (ledger #4), slot acquisition + delegate slot-yield
  * (ledger #5), uniform tool-context assembly (ledger #11/#12), engine
  * invocation, setup-failure terminals, cleanup. Never rejects.
  */
-export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<EngineRunResult & { runId: string }> {
-  const runId = spec.runId ?? ulid()
-  const emit: RunEmit = createRunEmit(ports.emit, {
+export async function launchMessage(
+  spec: MessageSpec,
+  ports: LaunchPorts
+): Promise<EngineRunResult & { messageId: string }> {
+  const messageId = spec.messageId ?? ulid()
+  const emit: MessageEmit = createMessageEmit(ports.emit, {
     sessionId: spec.sessionId,
-    runId,
-    ...(spec.parentRunId !== undefined ? { parentRunId: spec.parentRunId } : {}),
+    messageId,
+    ...(spec.parentMessageId !== undefined ? { parentMessageId: spec.parentMessageId } : {}),
   })
-  const runLog = log.child({ runId, sessionId: spec.sessionId })
+  const runLog = log.child({ messageId, sessionId: spec.sessionId })
   const ac = new AbortController()
   let release: (() => void) | null = null
   // Depth-counted so parallel delegate tool calls don't double-release/acquire.
@@ -131,7 +134,7 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
   }
 
   const emitCancelled = (): void => {
-    emit({ kind: 'run.error', error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' } })
+    emit({ kind: 'message.error', error: { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' } })
     runLog.info({ msg: 'run cancelled before dispatch' })
   }
 
@@ -155,10 +158,10 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
   try {
     // Register BEFORE any wait: a cancel issued while queued must find the
     // handle (v1's spawnChild registered after the slot — the exact race,
-    // ledger #4). Inside the try so a throwing port cannot reject launchRun.
-    ports.registerAbort(runId, () => ac.abort())
+    // ledger #4). Inside the try so a throwing port cannot reject launchMessage.
+    ports.registerAbort(messageId, () => ac.abort())
     emit({
-      kind: 'run.created',
+      kind: 'message.created',
       prompt: spec.prompt,
       ...(spec.attachments?.length ? { attachments: spec.attachments } : {}),
       ...(spec.kind === 'child' ? { agentDefId: spec.agent.id } : {}),
@@ -167,7 +170,7 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
 
     if (spec.kind === 'turn' && ports.waitTurn) {
       await Promise.race([
-        ports.waitTurn(spec.sessionId, runId, ac.signal),
+        ports.waitTurn(spec.sessionId, messageId, ac.signal),
         new Promise<void>((resolve) => {
           if (ac.signal.aborted) resolve()
           else ac.signal.addEventListener('abort', () => resolve(), { once: true })
@@ -176,25 +179,25 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
     }
     if (ac.signal.aborted) {
       emitCancelled()
-      return cancelledResult(runId, spec.history ?? [])
+      return cancelledResult(messageId, spec.history ?? [])
     }
     release = await raceAcquire()
     if (ac.signal.aborted || !release) {
       emitCancelled()
-      return cancelledResult(runId, spec.history ?? [])
+      return cancelledResult(messageId, spec.history ?? [])
     }
-    emit({ kind: 'run.dispatched' })
+    emit({ kind: 'message.dispatched' })
     runLog.info({ msg: 'run dispatched', kind: spec.kind })
 
     // Uniform tool context — identical for every kind (ledger #11/#12).
     const usageSink = { charge: (_costUsd: number): void => undefined }
     const ctx: ToolRunContext = {
       sessionId: spec.sessionId,
-      taskId: runId,
+      taskId: messageId,
       cwd: spec.cwd,
       spawnChild: (prompt, opts) => {
         if (!ports.delegate) return Promise.reject(new Error('delegate is not available in this run'))
-        return withSlotReleased(() => ports.delegate!(runId, prompt, opts ?? {}))
+        return withSlotReleased(() => ports.delegate!(messageId, prompt, opts ?? {}))
       },
       // Joins spawnChild in yielding the parent slot while it awaits (ledger #5):
       // uniform wiring means delegate topLevel is available on EVERY run,
@@ -208,19 +211,19 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
       writeAgent: ports.writeAgent,
       writeSkill: ports.writeSkill,
       setDelegationPlan: (plan) => {
-        emit({ kind: 'run.delegation_plan', plan })
+        emit({ kind: 'message.delegation_plan', plan })
         spec.onDelegationPlan?.(plan)
       },
       reportExternalUsage: (usage) => {
         if (usage.costUsd && usage.costUsd > 0) usageSink.charge(usage.costUsd)
       },
-      analyzeImage: buildAnalyzeImage(spec, ports, runId, ac.signal),
+      analyzeImage: buildAnalyzeImage(spec, ports, messageId, ac.signal),
     }
     const { tools, riskOf } = ports.toolRegistry.resolve(spec.tools ?? [], ctx)
     if (tools.length === 0) runLog.warn({ msg: 'no tools resolved for run', toolAllowlist: spec.tools ?? [] })
 
     const engine = createEngine({
-      runId,
+      messageId,
       sessionId: spec.sessionId,
       agentDefinition: spec.agent,
       provider: spec.provider,
@@ -245,27 +248,27 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
     const images = (spec.attachments ?? []).map((a) => ({ type: 'image' as const, data: a.data, mimeType: a.mimeType }))
     const r = await engine.run(spec.prompt, images.length > 0 ? images : undefined)
     runLog.info({ msg: 'run finished', status: r.status, summaryLen: r.summary.length })
-    return { runId, ...r }
+    return { messageId, ...r }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const code = err instanceof EngineSetupError ? 'agent_setup_failed' : 'agent_exception'
     runLog.error({ msg: 'run launch failed', code, err: message })
-    // The synthetic terminal itself must not be able to reject launchRun
+    // The synthetic terminal itself must not be able to reject launchMessage
     // (e.g. the same throwing store port that landed us here).
     try {
-      emit({ kind: 'run.error', error: { code, message, tier: 'fatal' } })
+      emit({ kind: 'message.error', error: { code, message, tier: 'fatal' } })
     } catch (emitErr) {
       runLog.error({
         msg: 'synthetic terminal emit failed',
         err: emitErr instanceof Error ? emitErr.message : String(emitErr),
       })
     }
-    return { runId, status: 'failed', summary: '', messages: spec.history ?? [], used: emptyUsed() }
+    return { messageId, status: 'failed', summary: '', messages: spec.history ?? [], used: emptyUsed() }
   } finally {
     try {
       release?.()
     } finally {
-      ports.unregisterAbort(runId)
+      ports.unregisterAbort(messageId)
     }
   }
 }
@@ -277,9 +280,9 @@ export async function launchRun(spec: RunSpec, ports: LaunchPorts): Promise<Engi
  * The nested run shares the parent's cancellation and rides the parent's slot.
  */
 function buildAnalyzeImage(
-  spec: RunSpec,
+  spec: MessageSpec,
   ports: LaunchPorts,
-  parentRunId: string,
+  parentMessageId: string,
   parentSignal: AbortSignal
 ): ToolRunContext['analyzeImage'] {
   const chain = [spec.provider, ...(spec.fallbackProviders ?? spec.provider.fallbackProviders ?? [])].filter(
@@ -291,10 +294,10 @@ function buildAnalyzeImage(
     // Remove the parent-signal listener once the nested run finishes, so
     // repeated analyzeImage calls don't accumulate stale abort listeners.
     let nestedAbort: (() => void) | null = null
-    const r = await launchRun(
+    const r = await launchMessage(
       {
         kind: 'work',
-        runId: `${parentRunId}:vision:${ulid()}`,
+        messageId: `${parentMessageId}:vision:${ulid()}`,
         sessionId: spec.sessionId,
         agent: {
           id: 'vision',

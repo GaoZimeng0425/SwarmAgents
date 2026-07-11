@@ -14,12 +14,12 @@ import type {
 
 import type { PermissionRegistry } from '../session/permission-registry'
 import type { ToolRisk } from '../tools/registry'
-import type { RunEmit } from './emit'
+import type { MessageEmit } from './emit'
 import { composeSystemPrompt, resolveModel } from './models'
 import { abortableDelay, decideNextAttempt, isPermanentModelFailure, MAX_PROMPT_RETRIES, RETRY_DELAY_MS } from './retry'
-import { createRunTranslator } from './translator'
+import { createMessageTranslator } from './translator'
 
-const log = createLogger({ process: 'service' }).child({ component: 'run-engine' })
+const log = createLogger({ process: 'service' }).child({ component: 'message-engine' })
 
 /** Setup failure (missing key, unresolvable model). The engine THROWS this from
  *  createEngine instead of fabricating a fake session (v1's failedSession cast
@@ -27,7 +27,7 @@ const log = createLogger({ process: 'service' }).child({ component: 'run-engine'
 export class EngineSetupError extends Error {}
 
 export type EngineDeps = {
-  runId: string
+  messageId: string
   sessionId: string
   agentDefinition: AgentDefinition
   provider: ProviderInjection
@@ -42,7 +42,7 @@ export type EngineDeps = {
   getPermissionMode?: () => PermissionMode
   tools: AgentTool[]
   riskOf: (name: string, args?: unknown) => ToolRisk
-  emit: RunEmit
+  emit: MessageEmit
   permissionRegistry: PermissionRegistry
   signal?: AbortSignal
   saveSnapshot?: (messages: AgentMessage[], used: ConsumedResources, contextWindow?: number) => void
@@ -67,7 +67,7 @@ export type Engine = {
 type RunErrorShape = { code: string; message: string; tier: 'transient' | 'recoverable' | 'fatal' | 'gave_up' }
 
 export function createEngine(deps: EngineDeps): Engine {
-  const runLog = log.child({ runId: deps.runId, sessionId: deps.sessionId })
+  const runLog = log.child({ messageId: deps.messageId, sessionId: deps.sessionId })
   const maxRetries = deps.retry?.maxRetries ?? MAX_PROMPT_RETRIES
   const retryDelayMs = deps.retry?.delayMs ?? RETRY_DELAY_MS
 
@@ -120,7 +120,7 @@ export function createEngine(deps: EngineDeps): Engine {
 
   const emitUsage = (withContext: boolean): void => {
     deps.emit({
-      kind: 'run.usage',
+      kind: 'message.usage',
       used: snapshotUsed(),
       contextTokens: withContext ? contextTokens : undefined,
       // [2] Always the CURRENT chain entry — v1 froze AgentSession.contextWindow
@@ -217,7 +217,7 @@ export function createEngine(deps: EngineDeps): Engine {
       const permissionMode = deps.getPermissionMode?.() ?? deps.permissionMode ?? 'ask'
       if (permissionMode === 'full') return undefined
       const decision = await deps.permissionRegistry.request(
-        { taskId: deps.runId, toolName: toolCall.name, risk, summary: `Run tool: ${toolCall.name}`, payload: args },
+        { taskId: deps.messageId, toolName: toolCall.name, risk, summary: `Run tool: ${toolCall.name}`, payload: args },
         deps.signal
       )
       if (deps.signal?.aborted) {
@@ -250,7 +250,7 @@ export function createEngine(deps: EngineDeps): Engine {
     }
   }
 
-  const translator = createRunTranslator(deps.emit)
+  const translator = createMessageTranslator(deps.emit)
   agent.subscribe((e) => {
     if (e.type === 'turn_end') {
       const usage = (e as { message?: { usage?: Usage } }).message?.usage
@@ -280,16 +280,16 @@ export function createEngine(deps: EngineDeps): Engine {
 
   const emitTransientNotice = (code: string, message: string): void => {
     const event: TaskEvent = { kind: 'error', error: { code, message, tier: 'transient' }, ts: Date.now() }
-    deps.emit({ kind: 'run.progress', event })
+    deps.emit({ kind: 'message.progress', event })
   }
 
   // The run's SINGLE terminal is emitted here and nowhere else.
   const terminal = (status: EngineRunResult['status'], error: RunErrorShape | null): EngineRunResult => {
     const oc = translator.outcome()
     // [5] Carry-over (a): trimmed summary; empty completions fall back.
-    const summary = status === 'completed' ? oc.summary || `Completed run ${deps.runId}.` : oc.summary
-    if (status === 'completed') deps.emit({ kind: 'run.complete', summary })
-    else deps.emit({ kind: 'run.error', error: error as RunErrorShape })
+    const summary = status === 'completed' ? oc.summary || `Completed run ${deps.messageId}.` : oc.summary
+    if (status === 'completed') deps.emit({ kind: 'message.complete', summary })
+    else deps.emit({ kind: 'message.error', error: error as RunErrorShape })
     runLog.info({ msg: 'run terminal', status, code: error?.code, durationMs: Date.now() - startedAt })
     return { status, summary, messages: agent.state.messages, used: snapshotUsed() }
   }

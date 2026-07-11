@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { RunEmitInput } from './emit'
-import { createRunTranslator } from './translator'
+import type { MessageEmitInput } from './emit'
+import { createMessageTranslator } from './translator'
 
-const collect = (): { out: RunEmitInput[]; emit: (i: RunEmitInput) => void } => {
-  const out: RunEmitInput[] = []
+const collect = (): { out: MessageEmitInput[]; emit: (i: MessageEmitInput) => void } => {
+  const out: MessageEmitInput[] = []
   return { out, emit: (i) => out.push(i) }
 }
 
@@ -14,23 +14,23 @@ const thinkingDelta = (delta: string) => ({
   assistantMessageEvent: { type: 'thinking_delta', delta },
 })
 
-describe('createRunTranslator', () => {
+describe('createMessageTranslator', () => {
   it('buffers text deltas and flushes at a sentence boundary as run.progress llm.message', () => {
     const { out, emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
 
     t.handle(textDelta('Hello ') as never)
     expect(out).toHaveLength(0) // no boundary yet
     t.handle(textDelta('world.') as never)
 
     expect(out).toHaveLength(1)
-    expect(out[0]).toMatchObject({ kind: 'run.progress', event: { kind: 'llm.message', content: 'Hello world.' } })
+    expect(out[0]).toMatchObject({ kind: 'message.progress', event: { kind: 'llm.message', content: 'Hello world.' } })
     expect(t.outcome().summary).toBe('Hello world.')
   })
 
   it('flushes thinking before text so reasoning precedes the answer', () => {
     const { out, emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
 
     t.handle(thinkingDelta('pondering...') as never)
     t.handle(textDelta('Answer.') as never)
@@ -40,7 +40,7 @@ describe('createRunTranslator', () => {
 
   it('emits tool.call / tool.result progress with callId correlation', () => {
     const { out, emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
 
     t.handle({ type: 'tool_execution_start', toolName: 'read_file', args: { p: 1 }, toolCallId: 'c1' } as never)
     t.handle({
@@ -52,18 +52,18 @@ describe('createRunTranslator', () => {
     } as never)
 
     expect(out[0]).toMatchObject({
-      kind: 'run.progress',
+      kind: 'message.progress',
       event: { kind: 'tool.call', tool: 'read_file', callId: 'c1' },
     })
     expect(out[1]).toMatchObject({
-      kind: 'run.progress',
+      kind: 'message.progress',
       event: { kind: 'tool.result', ok: true, callId: 'c1', payload: { kind: 'text', text: 'ok' } },
     })
   })
 
   it('surfaces update_plan structured todos as run.plan', () => {
     const { out, emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
     const todos = [{ content: 'a', status: 'pending' }]
 
     t.handle({
@@ -73,23 +73,23 @@ describe('createRunTranslator', () => {
       result: { content: [{ type: 'text', text: 'Plan' }], details: { todos } },
     } as never)
 
-    expect(out.some((e) => e.kind === 'run.plan' && (e as { todos: unknown }).todos === todos)).toBe(true)
+    expect(out.some((e) => e.kind === 'message.plan' && (e as { todos: unknown }).todos === todos)).toBe(true)
   })
 
   it('NEVER emits a terminal: a clean agent_end yields progress only + a clean outcome', () => {
     const { out, emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
 
     t.handle(textDelta('done.') as never)
     t.handle({ type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'end_turn' }] } as never)
 
-    expect(out.every((e) => e.kind === 'run.progress' || e.kind === 'run.plan')).toBe(true)
+    expect(out.every((e) => e.kind === 'message.progress' || e.kind === 'message.plan')).toBe(true)
     expect(t.outcome()).toEqual({ summary: 'done.', errorMessage: null, sawAborted: false })
   })
 
   it('captures a request failure (stopReason error) into the outcome without emitting run.error', () => {
     const { out, emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
 
     t.handle({ type: 'message_end', message: { stopReason: 'error', errorMessage: 'boom 503' } } as never)
     t.handle({
@@ -98,12 +98,12 @@ describe('createRunTranslator', () => {
     } as never)
 
     expect(t.outcome().errorMessage).toBe('boom 503')
-    expect(out.filter((e) => e.kind !== 'run.progress' && e.kind !== 'run.plan')).toHaveLength(0)
+    expect(out.filter((e) => e.kind !== 'message.progress' && e.kind !== 'message.plan')).toHaveLength(0)
   })
 
   it('records an aborted turn into the outcome and stays silent', () => {
     const { out, emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
 
     t.handle({ type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'aborted' }] } as never)
 
@@ -113,7 +113,7 @@ describe('createRunTranslator', () => {
 
   it('resetTurn clears summary, error, and aborted for the next attempt', () => {
     const { emit } = collect()
-    const t = createRunTranslator(emit)
+    const t = createMessageTranslator(emit)
 
     t.handle(textDelta('partial.') as never)
     t.handle({ type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'error', errorMessage: 'x' }] } as never)

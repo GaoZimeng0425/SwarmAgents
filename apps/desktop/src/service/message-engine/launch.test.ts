@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const MockAgent = vi.hoisted(() => vi.fn())
 vi.mock('@earendil-works/pi-agent-core', () => ({ Agent: MockAgent }))
 
-import type { RunWireEvent } from '@swarm/protocol'
+import type { MessageWireEvent } from '@swarm/protocol'
 
 import type { ToolRunContext } from '../tools/registry'
-import { type LaunchPorts, launchRun, type RunSpec } from './launch'
+import { type LaunchPorts, launchMessage, type MessageSpec } from './launch'
 
 // Auto-completing pi mock (engine runs to a clean completion unless held).
 let holdPrompt = false
@@ -33,9 +33,9 @@ function installAgent(reply = 'done.') {
   })
 }
 
-type Sink = { events: RunWireEvent[]; ports: LaunchPorts['emit'] }
+type Sink = { events: MessageWireEvent[]; ports: LaunchPorts['emit'] }
 const sink = (): Sink => {
-  const events: RunWireEvent[] = []
+  const events: MessageWireEvent[] = []
   let seq = 0
   return {
     events,
@@ -49,7 +49,7 @@ const sink = (): Sink => {
 }
 
 const kinds = (s: Sink) => s.events.map((e) => e.kind)
-const terminals = (s: Sink) => s.events.filter((e) => e.kind === 'run.complete' || e.kind === 'run.error')
+const terminals = (s: Sink) => s.events.filter((e) => e.kind === 'message.complete' || e.kind === 'message.error')
 
 // Fake ports: single-slot pool that records acquire/release, capturing the tool ctx.
 function makePorts(
@@ -78,7 +78,7 @@ function makePorts(
   return { ports, slotLog, getCtx: () => ctx as ToolRunContext }
 }
 
-const spec = (over: Partial<RunSpec> = {}): RunSpec => ({
+const spec = (over: Partial<MessageSpec> = {}): MessageSpec => ({
   kind: 'work',
   sessionId: 's1',
   agent: { id: 'default', name: 'd', description: 'd', systemPrompt: '', toolScope: 'all', maxIterations: 25 } as never,
@@ -94,25 +94,30 @@ beforeEach(() => {
   holdPrompt = false
 })
 
-describe('launchRun', () => {
+describe('launchMessage', () => {
   it('emits created → dispatched → complete in order, stamping identity', async () => {
     installAgent()
     const s = sink()
     const { ports } = makePorts(s)
-    const r = await launchRun(spec(), ports)
+    const r = await launchMessage(spec(), ports)
     expect(r.status).toBe('completed')
-    expect(kinds(s)).toEqual(['run.created', 'run.dispatched', 'run.progress', 'run.complete'])
-    expect(s.events[0]).toMatchObject({ kind: 'run.created', prompt: 'go', sessionId: 's1', runId: r.runId })
-    expect('parentRunId' in s.events[0]).toBe(false)
+    expect(kinds(s)).toEqual(['message.created', 'message.dispatched', 'message.progress', 'message.complete'])
+    expect(s.events[0]).toMatchObject({
+      kind: 'message.created',
+      prompt: 'go',
+      sessionId: 's1',
+      messageId: r.messageId,
+    })
+    expect('parentMessageId' in s.events[0]).toBe(false)
   })
 
-  it('stamps parentRunId + agentDefId for child runs and honors a provided runId', async () => {
+  it('stamps parentMessageId + agentDefId for child runs and honors a provided messageId', async () => {
     installAgent()
     const s = sink()
     const { ports } = makePorts(s)
-    const r = await launchRun(spec({ kind: 'child', runId: 'child-1', parentRunId: 'parent-1' }), ports)
-    expect(r.runId).toBe('child-1')
-    expect(s.events[0]).toMatchObject({ runId: 'child-1', parentRunId: 'parent-1', agentDefId: 'default' })
+    const r = await launchMessage(spec({ kind: 'child', messageId: 'child-1', parentMessageId: 'parent-1' }), ports)
+    expect(r.messageId).toBe('child-1')
+    expect(s.events[0]).toMatchObject({ messageId: 'child-1', parentMessageId: 'parent-1', agentDefId: 'default' })
   })
 
   it('registers the abort handle BEFORE waiting, and a cancel during the turn wait terminates without starting the engine', async () => {
@@ -137,13 +142,13 @@ describe('launchRun', () => {
         },
       } as never,
     })
-    const r = await launchRun(spec({ kind: 'turn' }), ports)
+    const r = await launchMessage(spec({ kind: 'turn' }), ports)
     expect(sawRegisterBeforeWait).toBe(true)
     expect(r.status).toBe('cancelled')
     expect(resolveCapture.ctxResolved).toBe(false) // engine/tools never built
     const t = terminals(s)
     expect(t).toHaveLength(1)
-    expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'cancelled' } })
+    expect(t[0]).toMatchObject({ kind: 'message.error', error: { code: 'cancelled' } })
   })
 
   it('terminates promptly when cancelled during the slot wait, even if the pool port ignores the signal', async () => {
@@ -164,7 +169,7 @@ describe('launchRun', () => {
         },
       } as never,
     })
-    const p = launchRun(spec(), ports)
+    const p = launchMessage(spec(), ports)
     await vi.waitFor(() => expect(registeredAbort).not.toBeNull())
     registeredAbort!()
     const r = await p
@@ -172,21 +177,21 @@ describe('launchRun', () => {
     expect(ctxResolved).toBe(false)
     const t = terminals(s)
     expect(t).toHaveLength(1)
-    expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'cancelled' } })
+    expect(t[0]).toMatchObject({ kind: 'message.error', error: { code: 'cancelled' } })
   })
 
   it('emits agent_setup_failed when the engine cannot be constructed, releasing the slot', async () => {
     installAgent()
     const s = sink()
     const { ports, slotLog } = makePorts(s)
-    const r = await launchRun(
+    const r = await launchMessage(
       spec({ provider: { id: 'c1', model: 'm', apiStyle: 'anthropic', apiKey: '' } as never }),
       ports
     )
     expect(r.status).toBe('failed')
     const t = terminals(s)
     expect(t).toHaveLength(1)
-    expect(t[0]).toMatchObject({ kind: 'run.error', error: { code: 'agent_setup_failed' } })
+    expect(t[0]).toMatchObject({ kind: 'message.error', error: { code: 'agent_setup_failed' } })
     expect(slotLog).toEqual(['acquire', 'release'])
     expect(ports.unregisterAbort).toHaveBeenCalled()
   })
@@ -195,16 +200,16 @@ describe('launchRun', () => {
     installAgent()
     holdPrompt = true
     const s = sink()
-    let finishDelegate: (r: { runId: string; status: 'completed'; summary: string; artifacts: never[] }) => void = () =>
-      undefined
+    let finishDelegate: (r: { messageId: string; status: 'completed'; summary: string; artifacts: never[] }) => void =
+      () => undefined
     const { ports, slotLog, getCtx } = makePorts(s, {
       delegate: () => new Promise((res) => (finishDelegate = res as never)),
     })
-    const p = launchRun(spec(), ports)
+    const p = launchMessage(spec(), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     const childP = getCtx().spawnChild('child goal')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release']))
-    finishDelegate({ runId: 'c1', status: 'completed', summary: 'child done', artifacts: [] })
+    finishDelegate({ messageId: 'c1', status: 'completed', summary: 'child done', artifacts: [] })
     const child = await childP
     expect(child.summary).toBe('child done')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release', 'acquire']))
@@ -219,11 +224,11 @@ describe('launchRun', () => {
     const s = sink()
     const onDelegationPlan = vi.fn()
     const { ports, getCtx } = makePorts(s)
-    const p = launchRun(spec({ onDelegationPlan }), ports)
+    const p = launchMessage(spec({ onDelegationPlan }), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     const plan = [{ id: 'a', prompt: 'g', dependsOn: [] }]
     getCtx().setDelegationPlan?.(plan as never)
-    expect(s.events.some((e) => e.kind === 'run.delegation_plan')).toBe(true)
+    expect(s.events.some((e) => e.kind === 'message.delegation_plan')).toBe(true)
     expect(onDelegationPlan).toHaveBeenCalledWith(plan)
     resolveHeldPrompt()
     await p
@@ -234,13 +239,13 @@ describe('launchRun', () => {
     holdPrompt = true
     const s = sink()
     const createTask = vi.fn(async () => ({
-      runId: 't1',
+      messageId: 't1',
       status: 'completed' as const,
       summary: 'work done',
       artifacts: [],
     }))
     const { ports, getCtx } = makePorts(s, { createTask })
-    const p = launchRun(spec(), ports)
+    const p = launchMessage(spec(), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     expect(getCtx().createTask).toBeDefined()
     const res = await getCtx().createTask!('goal', 'agentType')
@@ -254,16 +259,16 @@ describe('launchRun', () => {
     installAgent()
     holdPrompt = true
     const s = sink()
-    let finishCreateTask: (r: { runId: string; status: 'completed'; summary: string; artifacts: never[] }) => void =
+    let finishCreateTask: (r: { messageId: string; status: 'completed'; summary: string; artifacts: never[] }) => void =
       () => undefined
     const { ports, slotLog, getCtx } = makePorts(s, {
       createTask: () => new Promise((res) => (finishCreateTask = res as never)),
     })
-    const p = launchRun(spec(), ports)
+    const p = launchMessage(spec(), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     const taskP = getCtx().createTask!('child goal')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release']))
-    finishCreateTask({ runId: 't1', status: 'completed', summary: 'work done', artifacts: [] })
+    finishCreateTask({ messageId: 't1', status: 'completed', summary: 'work done', artifacts: [] })
     const res = await taskP
     expect(res.summary).toBe('work done')
     await vi.waitFor(() => expect(slotLog).toEqual(['acquire', 'release', 'acquire']))
@@ -277,7 +282,7 @@ describe('launchRun', () => {
     holdPrompt = true
     const s = sink()
     const { ports, getCtx } = makePorts(s)
-    const p = launchRun(spec(), ports)
+    const p = launchMessage(spec(), ports)
     await vi.waitFor(() => expect(getCtx()).toBeDefined())
     await expect(getCtx().spawnChild('g')).rejects.toThrow('delegate is not available')
     resolveHeldPrompt()
@@ -289,7 +294,7 @@ describe('launchRun', () => {
     const s = sink()
     const { ports, getCtx } = makePorts(s)
     holdPrompt = true
-    const p = launchRun(
+    const p = launchMessage(
       spec({
         provider: {
           id: 'anthropic',
@@ -317,7 +322,7 @@ describe('launchRun', () => {
   })
 
   it('resolves — never rejects — even when the emit port throws from the first event on', async () => {
-    // A throwing store port (e.g. SQLite busy) must not escape launchRun as a
+    // A throwing store port (e.g. SQLite busy) must not escape launchMessage as a
     // rejection: the created emit, the engine path, and the synthetic-terminal
     // emit in the catch are all covered.
     installAgent()
@@ -336,7 +341,7 @@ describe('launchRun', () => {
       registerAbort: () => undefined,
       unregisterAbort: () => undefined,
     }
-    const r = await launchRun(spec(), ports)
+    const r = await launchMessage(spec(), ports)
     expect(r.status).toBe('failed')
   })
 })

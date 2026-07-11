@@ -1,10 +1,10 @@
 import type { AgentEvent } from '@earendil-works/pi-agent-core'
 import type { PlanTodo, TaskEvent } from '@swarm/protocol'
 
-import type { RunEmit } from './emit'
+import type { MessageEmit } from './emit'
 
 /** Per-attempt outcome collected from pi's event stream. The engine — not the
- *  translator — turns this into the run's SINGLE terminal event. */
+ *  translator — turns this into the message's SINGLE terminal event. */
 export type TranslatorOutcome = {
   /** Assembled assistant text for this attempt (the summary candidate). */
   summary: string
@@ -14,7 +14,7 @@ export type TranslatorOutcome = {
   sawAborted: boolean
 }
 
-export type RunTranslator = {
+export type MessageTranslator = {
   handle(e: AgentEvent): void
   outcome(): TranslatorOutcome
   /** Reset per-attempt state before a retry or a new resident-style turn. */
@@ -22,18 +22,18 @@ export type RunTranslator = {
 }
 
 /**
- * Adapts pi AgentEvents to run.* progress emits:
- *   message_update(text_delta)     → run.progress llm.message (buffered; flushed
+ * Adapts pi AgentEvents to message.* progress emits:
+ *   message_update(text_delta)     → message.progress llm.message (buffered; flushed
  *                                    at sentence boundaries or 200 chars)
- *   message_update(thinking_delta) → run.progress reasoning (same buffering)
- *   tool_execution_start/end       → run.progress tool.call / tool.result
- *   update_plan tool result        → run.plan
+ *   message_update(thinking_delta) → message.progress reasoning (same buffering)
+ *   tool_execution_start/end       → message.progress tool.call / tool.result
+ *   update_plan tool result        → message.plan
  *
  * It emits NO terminal and NO usage: pi does not throw on request failure —
  * the failure rides the event stream as stopReason 'error'/'aborted', which is
  * captured into outcome() for the engine's terminal decision.
  */
-export function createRunTranslator(emit: RunEmit): RunTranslator {
+export function createMessageTranslator(emit: MessageEmit): MessageTranslator {
   let textBuffer = ''
   let thinkingBuffer = ''
   let assembledSummary = ''
@@ -44,14 +44,14 @@ export function createRunTranslator(emit: RunEmit): RunTranslator {
     if (!textBuffer) return
     assembledSummary += textBuffer
     const event: TaskEvent = { kind: 'llm.message', role: 'assistant', content: textBuffer, ts: Date.now() }
-    emit({ kind: 'run.progress', event })
+    emit({ kind: 'message.progress', event })
     textBuffer = ''
   }
 
   const flushThinking = (): void => {
     if (!thinkingBuffer) return
     const event: TaskEvent = { kind: 'reasoning', content: thinkingBuffer, ts: Date.now() }
-    emit({ kind: 'run.progress', event })
+    emit({ kind: 'message.progress', event })
     thinkingBuffer = ''
   }
 
@@ -92,7 +92,7 @@ export function createRunTranslator(emit: RunEmit): RunTranslator {
           // Correlates start/end so parallel tool results pair with the right call.
           callId: e.toolCallId,
         }
-        emit({ kind: 'run.progress', event })
+        emit({ kind: 'message.progress', event })
         return
       }
       case 'tool_execution_end': {
@@ -105,7 +105,7 @@ export function createRunTranslator(emit: RunEmit): RunTranslator {
             }
           | undefined
         if (e.toolName === 'update_plan' && Array.isArray(result?.details?.todos)) {
-          emit({ kind: 'run.plan', todos: result.details.todos as PlanTodo[] })
+          emit({ kind: 'message.plan', todos: result.details.todos as PlanTodo[] })
         }
         const imagePath =
           typeof result?.details?.screenshotPath === 'string' ? result.details.screenshotPath : undefined
@@ -117,7 +117,7 @@ export function createRunTranslator(emit: RunEmit): RunTranslator {
           ts: Date.now(),
           callId: e.toolCallId,
         }
-        emit({ kind: 'run.progress', event })
+        emit({ kind: 'message.progress', event })
         return
       }
       case 'agent_end': {
