@@ -2,7 +2,19 @@
 // (see globals.css --glass-* tokens and @utility classes) across common UI
 // surfaces. No business logic, no data fetching — pure visual reference.
 
-import { Badge, Input, Switch } from '@swarm/ui'
+import {
+  Badge,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  Input,
+  Switch,
+} from '@swarm/ui'
 import { Bell, Plus, Search, Settings, Sparkles, Star } from 'lucide-react'
 
 export function GlassDemoView(): React.JSX.Element {
@@ -143,6 +155,39 @@ export function GlassDemoView(): React.JSX.Element {
                 <Badge variant="outline">描边</Badge>
               </div>
             </div>
+          </Section>
+
+          {/* §F Dialog */}
+          <Section subtitle="@swarm/ui Dialog，内容区套 glass-panel" title="弹层">
+            <Dialog>
+              <DialogTrigger
+                render={
+                  <button className="glass-button-accent rounded-full px-4 py-2 font-medium text-sm" type="button">
+                    打开弹窗
+                  </button>
+                }
+              />
+              <DialogContent className="glass-panel rounded-2xl">
+                <DialogHeader>
+                  <DialogTitle>玻璃弹窗</DialogTitle>
+                  <DialogDescription>这是一个套用了 glass-panel 样式的弹窗内容区。</DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-3 py-2">
+                  <p className="text-muted-foreground text-sm">
+                    弹窗内的半透明玻璃面板，同样叠加在窗口原生毛玻璃之上。
+                  </p>
+                </div>
+                <DialogFooter>
+                  <DialogClose
+                    render={
+                      <button className="glass-button rounded-full px-4 py-2 text-foreground text-sm" type="button">
+                        关闭
+                      </button>
+                    }
+                  />
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </Section>
         </div>
       </div>
