@@ -97,7 +97,7 @@ export type SessionService = {
   ): Promise<{ runId: string; status: string; summary: string }>
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelRun(sessionId: string, runId: string): void
-  interruptWith(sessionId: string, runId: string): void
+  promoteQueuedRun(sessionId: string, runId: string): void
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
   setSessionPinned(sessionId: string, pinned: boolean): void
@@ -665,11 +665,11 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       log.warn({ msg: 'cancelRun: unknown or already-finished run', sessionId, runId })
     },
 
-    interruptWith(sessionId, runId) {
+    promoteQueuedRun(sessionId, runId) {
       const st = turnQueues.get(sessionId)
       const idx = st ? st.queue.findIndex((t) => t.runId === runId) : -1
       if (!st || idx === -1) {
-        log.warn({ msg: 'interruptWith: run not in queue', sessionId, runId })
+        log.warn({ msg: 'promoteQueuedRun: run not in queue', sessionId, runId })
         return
       }
       // Promote the chosen ticket to the front of the queue.

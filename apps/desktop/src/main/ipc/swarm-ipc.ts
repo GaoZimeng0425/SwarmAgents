@@ -222,12 +222,12 @@ export function wireSwarmIpc(args: {
     }
   }
 
-  const interruptWith = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, runId: string): Promise<void> => {
+  const promoteQueuedRun = async (_e: Electron.IpcMainInvokeEvent, sessionId: string, runId: string): Promise<void> => {
     try {
-      await serviceClient.interruptWith(sessionId, runId)
-      log.info({ msg: 'interruptWith requested', sessionId, runId })
+      await serviceClient.promoteQueuedRun(sessionId, runId)
+      log.info({ msg: 'promoteQueuedRun requested', sessionId, runId })
     } catch (err) {
-      log.warn({ msg: 'interruptWith failed', sessionId, runId, err: String(err) })
+      log.warn({ msg: 'promoteQueuedRun failed', sessionId, runId, err: String(err) })
     }
   }
 
@@ -262,7 +262,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:reorderSessions', reorderSessions)
   ipcMain.handle('swarm:submitPrompt', submitPrompt)
   ipcMain.handle('swarm:cancelRun', cancelRun)
-  ipcMain.handle('swarm:interruptWith', interruptWith)
+  ipcMain.handle('swarm:promoteQueuedRun', promoteQueuedRun)
   ipcMain.handle('swarm:decidePermission', decidePermission)
   ipcMain.handle('swarm:listCronJobsForSession', listCronJobsForSession)
   ipcMain.handle('swarm:listAllCronJobs', () => listAllCronJobs())
@@ -401,7 +401,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:reorderSessions')
       ipcMain.removeHandler('swarm:submitPrompt')
       ipcMain.removeHandler('swarm:cancelRun')
-      ipcMain.removeHandler('swarm:interruptWith')
+      ipcMain.removeHandler('swarm:promoteQueuedRun')
       ipcMain.removeHandler('swarm:decidePermission')
       ipcMain.removeHandler('swarm:listCronJobsForSession')
       ipcMain.removeHandler('swarm:listAllCronJobs')

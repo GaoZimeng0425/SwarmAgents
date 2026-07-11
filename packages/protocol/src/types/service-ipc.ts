@@ -21,7 +21,7 @@ export type ServiceMethod =
   | 'reorderSessions'
   | 'decidePermission'
   | 'cancelRun'
-  | 'interruptWith'
+  | 'promoteQueuedRun'
   | 'setMcpServers'
   | 'getMcpStatus'
   | 'setWebSearchConfig'

@@ -50,7 +50,8 @@ export const swarmApi = {
     options?: RunOptions
   ): Promise<SubmitPromptResult> => window.swarm.submitPrompt(sessionId, prompt, attachments, options),
   cancelRun: (sessionId: string, runId: string): Promise<void> => window.swarm.cancelRun(sessionId, runId),
-  interruptWith: (sessionId: string, runId: string): Promise<void> => window.swarm.interruptWith(sessionId, runId),
+  promoteQueuedRun: (sessionId: string, runId: string): Promise<void> =>
+    window.swarm.promoteQueuedRun(sessionId, runId),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),

@@ -105,9 +105,9 @@ export function useCancelRun() {
 }
 
 /** Interrupt the running run and run a queued run next (promotes it to front). */
-export function useInterruptWith() {
+export function usePromoteQueuedRun() {
   return useMutation({
     mutationFn: ({ sessionId, runId }: { sessionId: string; runId: string }) =>
-      swarmApi.interruptWith(sessionId, runId),
+      swarmApi.promoteQueuedRun(sessionId, runId),
   })
 }

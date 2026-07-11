@@ -167,9 +167,9 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         service.cancelRun(sessionId, runId)
         return { ok: true }
       }
-      case 'interruptWith': {
+      case 'promoteQueuedRun': {
         const [sessionId, taskId] = args as [string, string]
-        service.interruptWith(sessionId, taskId)
+        service.promoteQueuedRun(sessionId, taskId)
         return { ok: true }
       }
       case 'setMcpServers': {

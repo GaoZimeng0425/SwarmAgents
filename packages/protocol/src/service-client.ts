@@ -53,7 +53,7 @@ export type ServiceClient = {
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   cancelRun(sessionId: string, runId: string): Promise<void>
-  interruptWith(sessionId: string, runId: string): Promise<void>
+  promoteQueuedRun(sessionId: string, runId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
@@ -145,8 +145,8 @@ export function createServiceClient(cfg: {
     async cancelRun(sessionId, runId) {
       await peer.call('cancelRun', [sessionId, runId])
     },
-    async interruptWith(sessionId, runId) {
-      await peer.call('interruptWith', [sessionId, runId])
+    async promoteQueuedRun(sessionId, runId) {
+      await peer.call('promoteQueuedRun', [sessionId, runId])
     },
     async setMcpServers(configs) {
       await peer.call('setMcpServers', [configs])

@@ -286,7 +286,7 @@ describe('SessionService', () => {
     releaseAllHeld()
   })
 
-  it('4. interruptWith: A running (held) + B queued → A cancels, B dispatches next', async () => {
+  it('4. promoteQueuedRun: A running (held) + B queued → A cancels, B dispatches next', async () => {
     holdPrompt = true
     const { service, calls } = makeService()
     const { sessionId } = service.createSession(provider)
@@ -294,7 +294,7 @@ describe('SessionService', () => {
     const b = service.submitPrompt(sessionId, 'B').runId
     await vi.waitFor(() => expect(runKinds(calls)).toContain('run.dispatched')) // A dispatched
 
-    service.interruptWith(sessionId, b)
+    service.promoteQueuedRun(sessionId, b)
     holdPrompt = false // let the promoted B complete
     await vi.waitFor(() => expect(service.terminalRegistry.getStatus(a)).toBe('cancelled'))
     await vi.waitFor(() => expect(service.terminalRegistry.getStatus(b)).toBe('completed'))

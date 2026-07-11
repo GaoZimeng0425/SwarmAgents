@@ -10,7 +10,7 @@ import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
 import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useCancelRun, useDecidePermission, useInterruptWith, useRuns, useSubmitPrompt } from '@/hooks/use-runs'
+import { useCancelRun, useDecidePermission, usePromoteQueuedRun, useRuns, useSubmitPrompt } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
 import { classifyComposerTurns } from '@/lib/composer-turns'
 import { latestTopLevelTask, sessionDisplayUsage } from '@/lib/session-usage'
@@ -26,7 +26,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const submitPrompt = useSubmitPrompt()
   const decide = useDecidePermission()
   const cancelRun = useCancelRun()
-  const interruptWith = useInterruptWith()
+  const promoteQueuedRun = usePromoteQueuedRun()
   const { ready, state } = useProviders()
 
   const sessionTasks = tasks.filter((t) => t.sessionId === selectedSessionId)
@@ -152,7 +152,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
                 decide.mutate({ sessionId: p.sessionId, actionId, decision })
               }}
               onInterrupt={(runId) => {
-                if (selectedSessionId) interruptWith.mutate({ sessionId: selectedSessionId, runId })
+                if (selectedSessionId) promoteQueuedRun.mutate({ sessionId: selectedSessionId, runId })
               }}
               prompts={sessionPrompts}
               queued={queuedTasks.map((t) => ({ id: t.id, sessionId: t.sessionId, goal: t.goal }))}

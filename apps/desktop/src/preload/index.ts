@@ -366,7 +366,8 @@ const swarm: SwarmBridge = {
   analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) =>
     ipcRenderer.invoke('swarm:analyzeThread', input) as Promise<import('@swarm/protocol').AnalyzeThreadResult>,
   cancelRun: (sessionId, runId) => ipcRenderer.invoke('swarm:cancelRun', sessionId, runId) as Promise<void>,
-  interruptWith: (sessionId, runId) => ipcRenderer.invoke('swarm:interruptWith', sessionId, runId) as Promise<void>,
+  promoteQueuedRun: (sessionId, runId) =>
+    ipcRenderer.invoke('swarm:promoteQueuedRun', sessionId, runId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
   sessions: {

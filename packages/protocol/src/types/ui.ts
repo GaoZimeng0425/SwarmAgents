@@ -460,7 +460,7 @@ export type SwarmBridge = {
   analyzeEmail(input: AnalyzeEmailInput): Promise<AnalyzeEmailResult>
   analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
   cancelRun(sessionId: string, runId: string): Promise<void>
-  interruptWith(sessionId: string, runId: string): Promise<void>
+  promoteQueuedRun(sessionId: string, runId: string): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>
