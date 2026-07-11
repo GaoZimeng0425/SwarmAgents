@@ -107,6 +107,28 @@ describe('createRpcPeer', () => {
     expect(received).toEqual([{ e: 'run.progress', d: { runId: 'r1' } }])
   })
 
+  it('disconnect() rejects every in-flight call instead of leaving it hanging', async () => {
+    const t = fakeTransport()
+    const peer = createRpcPeer({ transport: t })
+    await peer.connect()
+    const pA = peer.call('listAgents', [])
+    const pB = peer.call('listSessions', [])
+    peer.disconnect()
+    await expect(pA).rejects.toThrow('rpc peer disconnected')
+    await expect(pB).rejects.toThrow('rpc peer disconnected')
+  })
+
+  it('a response arriving after disconnect() is ignored', async () => {
+    const t = fakeTransport()
+    const peer = createRpcPeer({ transport: t })
+    await peer.connect()
+    const p = peer.call('listAgents', [])
+    const req = t.posted.at(-1) as { id: string }
+    peer.disconnect()
+    t.fire({ kind: 'response', id: req.id, ok: true, result: ['ceo'] })
+    await expect(p).rejects.toThrow('rpc peer disconnected')
+  })
+
   it('two peers sharing one transport never collide on id even from 1', async () => {
     const t = fakeTransport()
     const peerA = createRpcPeer({ transport: t })

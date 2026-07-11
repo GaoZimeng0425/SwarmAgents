@@ -98,6 +98,10 @@ export function createRpcPeer(cfg: RpcPeerConfig): RpcPeer {
     disconnect() {
       if (listener) transport.off('message', listener)
       listener = null
+      // Reject every in-flight call: after disconnect no response can ever
+      // arrive, so leaving them pending would hang the callers forever.
+      for (const p of pending.values()) p.reject(new Error('rpc peer disconnected'))
+      pending.clear()
     },
     call<T>(method: string, args: unknown[]): Promise<T> {
       const id = `${connId}:${nextId++}`
