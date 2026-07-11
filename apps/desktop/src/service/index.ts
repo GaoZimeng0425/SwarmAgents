@@ -127,9 +127,9 @@ const service = createSessionService({
 
 const scheduler = createCronScheduler({
   store,
-  fire: (sessionId, goal, onComplete) => {
+  fire: (sessionId, prompt, onComplete) => {
     // submitPrompt returns { runId }; the scheduler records it as its task id.
-    const { runId } = service.submitPrompt(sessionId, goal, [], onComplete)
+    const { runId } = service.submitPrompt(sessionId, prompt, [], onComplete)
     return { taskId: runId }
   },
   // Cron jobs are global: own + fire them in the dedicated system session, not

@@ -15,7 +15,7 @@ const ScheduleParams = Type.Object({
   cron: Type.String({
     description: 'Standard 5- or 6-field cron expression, e.g. "0 9 * * *" for 9am daily.',
   }),
-  goal: Type.String({ description: 'The goal to run on each fire, as if typed into this session.' }),
+  prompt: Type.String({ description: 'The prompt to run on each fire, as if typed into this session.' }),
   name: Type.Optional(Type.String({ description: 'Optional human-readable label for the job.' })),
 })
 
@@ -40,21 +40,21 @@ function scheduleTool(scheduler: CronScheduler, ctx: ToolRunContext): AgentTool 
     name: 'schedule_task',
     label: 'Schedule task',
     description:
-      'Schedule a goal to run automatically on a recurring cron schedule. The job is global (shared across all sessions) and runs in a dedicated system session, so write a self-contained goal that does not rely on this conversation. Returns the job id and next run time. Use list_scheduled_tasks/cancel_scheduled_task to manage jobs.',
+      'Schedule a prompt to run automatically on a recurring cron schedule. The job is global (shared across all sessions) and runs in a dedicated system session, so write a self-contained prompt that does not rely on this conversation. Returns the job id and next run time. Use list_scheduled_tasks/cancel_scheduled_task to manage jobs.',
     parameters: ScheduleParams,
     execute: async (_id: string, params: unknown) => {
-      const p = params as { cron: string; goal: string; name?: string }
+      const p = params as { cron: string; prompt: string; name?: string }
       if (!p.cron) return err('cron is required')
-      if (!p.goal) return err('goal is required')
+      if (!p.prompt) return err('prompt is required')
       try {
         const { id, nextRun } = scheduler.add({
           sessionId: ctx.sessionId,
           cron: p.cron,
-          goal: p.goal,
+          prompt: p.prompt,
           name: p.name,
         })
         return ok(
-          `scheduled "${p.name ?? p.goal.slice(0, 40)}" (id ${id}); next run ${new Date(nextRun).toISOString()}`,
+          `scheduled "${p.name ?? p.prompt.slice(0, 40)}" (id ${id}); next run ${new Date(nextRun).toISOString()}`,
           {
             id,
             nextRun,
@@ -94,7 +94,7 @@ function listTool(scheduler: CronScheduler): AgentTool {
         const lastRun = scheduler.latestRunForJob(j.id)
         detailJobs.push({ id: j.id, lastRun })
         const next = j.nextRun ? new Date(j.nextRun).toISOString() : 'n/a'
-        return `- [${j.id}] ${j.name ?? '(unnamed)'} | ${j.cron} | next ${next} | ${formatLastRun(lastRun)} | ${j.goal}`
+        return `- [${j.id}] ${j.name ?? '(unnamed)'} | ${j.cron} | next ${next} | ${formatLastRun(lastRun)} | ${j.prompt}`
       })
       return ok(lines.join('\n'), { count: jobs.length, jobs: detailJobs })
     },

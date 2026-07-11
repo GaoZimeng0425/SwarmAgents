@@ -157,7 +157,7 @@ export type CronJobSummary = {
   originSessionId: string | null
   name: string | null
   cron: string
-  goal: string
+  prompt: string
   createdAt: number
   lastRunAt: number | null
   nextRun: number | null

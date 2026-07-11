@@ -396,13 +396,13 @@ describe('ConversationStore', () => {
       originSessionId: 'ses-1',
       name: 'morning',
       cron: '0 9 * * *',
-      goal: 'summarize inbox',
+      prompt: 'summarize inbox',
       createdAt: 1000,
       lastRunAt: null,
     })
 
     expect(store.listCronJobs().length).toBe(1)
-    expect(store.listCronJobsForSession('ses-1')[0].goal).toBe('summarize inbox')
+    expect(store.listCronJobsForSession('ses-1')[0].prompt).toBe('summarize inbox')
 
     store.touchCronJob('job-1', 2000)
     expect(store.listCronJobs()[0].lastRunAt).toBe(2000)
@@ -423,7 +423,7 @@ describe('ConversationStore', () => {
       originSessionId: null,
       name: null,
       cron: '0 9 * * *',
-      goal: 'g',
+      prompt: 'g',
       createdAt: 1000,
       lastRunAt: null,
     })
@@ -446,7 +446,7 @@ describe('ConversationStore', () => {
       originSessionId: 'ses-origin',
       name: null,
       cron: '0 9 * * *',
-      goal: 'g',
+      prompt: 'g',
       createdAt: 1000,
       lastRunAt: null,
     })
@@ -465,7 +465,7 @@ describe('ConversationStore', () => {
       originSessionId: null,
       name: null,
       cron: '0 9 * * *',
-      goal: 'g',
+      prompt: 'g',
       createdAt: 1000,
       lastRunAt: null,
     })
@@ -491,7 +491,7 @@ describe('ConversationStore', () => {
       originSessionId: null,
       name: null,
       cron: '* * * * *',
-      goal: 'g',
+      prompt: 'g',
       createdAt: 1000,
       lastRunAt: null,
     })
@@ -769,7 +769,7 @@ describe('ConversationStore', () => {
       originSessionId: null,
       name: null,
       cron: '0 0 * * *',
-      goal: 'g',
+      prompt: 'g',
       createdAt: 1,
       lastRunAt: null,
     })
@@ -819,7 +819,7 @@ describe('ConversationStore', () => {
         originSessionId: null,
         name: null,
         cron: '0 0 * * *',
-        goal: 'g',
+        prompt: 'g',
         createdAt: 1,
         lastRunAt: null,
       })

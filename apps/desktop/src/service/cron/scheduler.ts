@@ -8,7 +8,7 @@ const log = createLogger({ process: 'service' }).child({ component: 'cron-schedu
 
 export type CronScheduler = {
   /** Create + persist + start a job. Throws on an invalid cron expression. */
-  add(input: { sessionId: string; cron: string; goal: string; name?: string }): { id: string; nextRun: number }
+  add(input: { sessionId: string; cron: string; prompt: string; name?: string }): { id: string; nextRun: number }
   remove(id: string): boolean
   listForSession(sessionId: string): Array<StoredCronJob & { nextRun: number | null }>
   listAll(): Array<StoredCronJob & { nextRun: number | null }>
@@ -25,7 +25,7 @@ export type CronScheduler = {
 
 export function createCronScheduler(deps: {
   store: ConversationStore
-  fire: (sessionId: string, goal: string, onComplete: (status: string, error?: string) => void) => { taskId: string }
+  fire: (sessionId: string, prompt: string, onComplete: (status: string, error?: string) => void) => { taskId: string }
   /**
    * Maps the calling session to the session a new job should be owned by and
    * fired into. Production wires this to the system session so jobs are global
@@ -41,7 +41,7 @@ export function createCronScheduler(deps: {
   const live = new Map<string, CronJob>()
 
   // The body that runs each time a job ticks. Lazy-cleans jobs whose session
-  // was deleted; otherwise records the run and fires the goal.
+  // was deleted; otherwise records the run and fires the prompt.
   const tick = (job: StoredCronJob): void => {
     if (!store.getSession(job.sessionId)) {
       remove(job.id)
@@ -63,7 +63,7 @@ export function createCronScheduler(deps: {
     })
     runLog.info({ msg: 'cron run started', sessionId: job.sessionId })
     try {
-      const { taskId } = fire(job.sessionId, job.goal, (status, error) => {
+      const { taskId } = fire(job.sessionId, job.prompt, (status, error) => {
         store.finishCronRun(runId, { status, error: error ?? null, endedAt: Date.now() })
         runLog.info({
           msg: 'cron run finished',
@@ -151,7 +151,7 @@ export function createCronScheduler(deps: {
   }
 
   return {
-    add({ sessionId, cron, goal, name }) {
+    add({ sessionId, cron, prompt, name }) {
       // Route ownership to the resolved (system) session so the job is global,
       // not tied to the conversation that issued schedule_task.
       const ownerSessionId = resolveJobSession ? resolveJobSession(sessionId) : sessionId
@@ -163,7 +163,7 @@ export function createCronScheduler(deps: {
         originSessionId: sessionId,
         name: name ?? null,
         cron,
-        goal,
+        prompt,
         createdAt: Date.now(),
         lastRunAt: null,
       }

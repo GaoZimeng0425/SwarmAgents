@@ -23,7 +23,7 @@ function fakeScheduler(): CronScheduler {
         originSessionId: 'ses-1',
         name: 'nightly',
         cron: '0 0 * * *',
-        goal: 'g',
+        prompt: 'g',
         createdAt: 1,
         lastRunAt: null,
         nextRun: 1_000_000,
@@ -36,7 +36,7 @@ function fakeScheduler(): CronScheduler {
         originSessionId: 'ses-1',
         name: 'nightly',
         cron: '0 0 * * *',
-        goal: 'g',
+        prompt: 'g',
         createdAt: 1,
         lastRunAt: null,
         nextRun: 1_000_000,
@@ -103,11 +103,11 @@ describe('cronSpecs', () => {
     const tool = cronSpecs(sched)
       .find((s) => s.name === 'schedule_task')!
       .build(ctx)
-    const res = await tool.execute('id', { cron: '0 9 * * *', goal: 'summarize inbox', name: 'am' })
+    const res = await tool.execute('id', { cron: '0 9 * * *', prompt: 'summarize inbox', name: 'am' })
     expect(sched.add).toHaveBeenCalledWith({
       sessionId: 'ses-1',
       cron: '0 9 * * *',
-      goal: 'summarize inbox',
+      prompt: 'summarize inbox',
       name: 'am',
     })
     expect(text(res as never)).toContain('job-1')
@@ -121,7 +121,7 @@ describe('cronSpecs', () => {
     const tool = cronSpecs(sched)
       .find((s) => s.name === 'schedule_task')!
       .build(ctx)
-    const res = await tool.execute('id', { cron: 'nope', goal: 'g' })
+    const res = await tool.execute('id', { cron: 'nope', prompt: 'g' })
     expect(text(res as never)).toContain('error')
   })
 

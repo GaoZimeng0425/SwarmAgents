@@ -11,7 +11,7 @@ const job = (over: Partial<ScheduledTask> & Pick<ScheduledTask, 'id'>): Schedule
   originSessionId: 's1',
   name: 'n',
   cron: '0 9 * * *',
-  goal: 'g',
+  prompt: 'g',
   createdAt: NOW - 10 * DAY,
   lastRunAt: null,
   nextRun: null,

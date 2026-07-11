@@ -26,7 +26,7 @@ export type StoredCronJob = {
   originSessionId: string | null
   name: string | null
   cron: string
-  goal: string
+  prompt: string
   createdAt: number
   lastRunAt: number | null
 }
@@ -160,7 +160,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
       origin_session_id TEXT,
       name              TEXT,
       cron              TEXT NOT NULL,
-      goal              TEXT NOT NULL,
+      prompt            TEXT NOT NULL,
       created_at        INTEGER NOT NULL,
       last_run_at       INTEGER
     );
@@ -179,6 +179,14 @@ export function createConversationStore(dbPath: string): ConversationStore {
     );
     CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(job_id);
   `)
+
+  // cron_jobs.goal → cron_jobs.prompt. Guarded by column presence (not
+  // schema_meta): fresh DBs already create the table with `prompt` above, so
+  // the rename only fires on a pre-rename DB and is a no-op ever after.
+  const cronCols = db.prepare('PRAGMA table_info(cron_jobs)').all() as Array<{ name: string }>
+  if (cronCols.some((c) => c.name === 'goal')) {
+    db.exec('ALTER TABLE cron_jobs RENAME COLUMN goal TO prompt')
+  }
 
   // ---- Migration v2: task.* → run.* single-vocabulary switchover ----------
   // Guarded by schema_meta.version so it runs exactly once across the DB's
@@ -294,7 +302,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     originSessionId: (row.origin_session_id as string | null) ?? null,
     name: (row.name as string | null) ?? null,
     cron: row.cron as string,
-    goal: row.goal as string,
+    prompt: row.prompt as string,
     createdAt: row.created_at as number,
     lastRunAt: (row.last_run_at as number | null) ?? null,
   })
@@ -311,7 +319,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   })
 
   const stmtInsertCronJob = db.prepare(
-    `INSERT OR REPLACE INTO cron_jobs (id, session_id, origin_session_id, name, cron, goal, created_at, last_run_at)
+    `INSERT OR REPLACE INTO cron_jobs (id, session_id, origin_session_id, name, cron, prompt, created_at, last_run_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const stmtListCronJobs = db.prepare('SELECT * FROM cron_jobs')
@@ -716,7 +724,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
         job.originSessionId ?? null,
         job.name ?? null,
         job.cron,
-        job.goal,
+        job.prompt,
         job.createdAt,
         job.lastRunAt ?? null
       )

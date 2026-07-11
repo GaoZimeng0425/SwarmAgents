@@ -54,9 +54,9 @@ type DayItem =
 
 const itemLabel = (it: DayItem): string =>
   it.kind === 'run'
-    ? (it.task?.name ?? it.task?.goal ?? '(已删除任务)')
+    ? (it.task?.name ?? it.task?.prompt ?? '(已删除任务)')
     : it.kind === 'projection'
-      ? (it.task.name ?? it.task.goal)
+      ? (it.task.name ?? it.task.prompt)
       : it.event.title
 
 // Run status → a colored dot / icon. Past actuals show outcome; projections are hollow.
@@ -483,7 +483,7 @@ export function ScheduledCalendarView(): React.JSX.Element {
                 }
                 const task = it.task
                 const jobId = task?.id
-                const goal = task?.goal
+                const prompt = task?.prompt
                 return (
                   <div
                     className="rounded-lg border border-border/60 bg-card/50 p-3 text-[13px] transition-colors hover:bg-accent/40"
@@ -527,7 +527,7 @@ export function ScheduledCalendarView(): React.JSX.Element {
                     {it.kind === 'run' && it.run.error && (
                       <p className="mt-1.5 line-clamp-2 text-[11px] text-destructive">{it.run.error}</p>
                     )}
-                    {goal && <p className="mt-1.5 line-clamp-3 text-foreground/70 text-xs">{goal}</p>}
+                    {prompt && <p className="mt-1.5 line-clamp-3 text-foreground/70 text-xs">{prompt}</p>}
                     <div className="mt-2 flex flex-col gap-1">
                       {it.kind === 'run' && it.run.taskId && (
                         <button

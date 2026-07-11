@@ -169,6 +169,44 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     expect(row.version).toBe(3)
   })
 
+  it('renames a legacy cron_jobs.goal column to prompt, keeping the data', () => {
+    const raw = new Database(dbPath)
+    raw.exec(`
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, last_active_at INTEGER NOT NULL,
+        status TEXT NOT NULL, provider_snapshot TEXT NOT NULL
+      );
+      CREATE TABLE cron_jobs (
+        id                TEXT PRIMARY KEY,
+        session_id        TEXT NOT NULL REFERENCES sessions(id),
+        origin_session_id TEXT,
+        name              TEXT,
+        cron              TEXT NOT NULL,
+        goal              TEXT NOT NULL,
+        created_at        INTEGER NOT NULL,
+        last_run_at       INTEGER
+      );
+    `)
+    raw
+      .prepare(
+        `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot) VALUES (?, ?, ?, 'active', '{}')`
+      )
+      .run('ses-1', 1, 1)
+    raw
+      .prepare(
+        `INSERT INTO cron_jobs (id, session_id, name, cron, goal, created_at) VALUES ('job-1', 'ses-1', 'nightly', '0 0 * * *', 'summarize inbox', 1)`
+      )
+      .run()
+    raw.close()
+
+    const store = createConversationStore(dbPath)
+    const jobs = store.listCronJobs()
+    store.close()
+
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].prompt).toBe('summarize inbox')
+  })
+
   it('migration v3 renames the run.created goal key to prompt', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)

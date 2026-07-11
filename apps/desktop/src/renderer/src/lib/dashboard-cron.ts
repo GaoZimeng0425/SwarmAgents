@@ -9,7 +9,7 @@ export type CronStatusKind = 'success' | 'failed' | 'pending'
 
 export type DashboardCronRow = {
   id: string
-  /** Display name: job.name (preferred) → goal (fallback). */
+  /** Display name: job.name (preferred) → prompt (fallback). */
   name: string
   /** Localized next-run label, e.g. "每天 9:00" / "周一 8:30" / "明天". */
   timeLabel: string
@@ -32,7 +32,7 @@ export function selectDashboardCron(jobs: ScheduledTask[], runs: CronRun[], now:
   const sorted = orderBy(jobs, [(j) => j.nextRun ?? Number.MAX_SAFE_INTEGER], ['asc'])
 
   const rows = sorted.slice(0, 5).map((j): DashboardCronRow => {
-    const name = j.name ?? j.goal
+    const name = j.name ?? j.prompt
     const latest = j.lastRunAt != null ? latestRunByJob.get(j.id) : undefined
     let statusKind: CronStatusKind
     let statusLabel: string

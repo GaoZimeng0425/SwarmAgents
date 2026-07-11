@@ -62,8 +62,8 @@ describe('createCronScheduler', () => {
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
     const sched = createCronScheduler({ store, fire, ...noTerminal })
 
-    const { id, nextRun } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g', name: 'nightly' })
-    expect(jobs.get(id)?.goal).toBe('g')
+    const { id, nextRun } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', prompt: 'g', name: 'nightly' })
+    expect(jobs.get(id)?.prompt).toBe('g')
     expect(nextRun).toBeGreaterThan(0)
     sched.dispose()
   })
@@ -76,7 +76,7 @@ describe('createCronScheduler', () => {
     const resolveJobSession = vi.fn(() => '__system__')
     const sched = createCronScheduler({ store, fire, resolveJobSession, ...noTerminal })
 
-    const { id } = sched.add({ sessionId: 'caller', cron: '0 0 * * *', goal: 'g' })
+    const { id } = sched.add({ sessionId: 'caller', cron: '0 0 * * *', prompt: 'g' })
     expect(resolveJobSession).toHaveBeenCalledWith('caller')
     expect(jobs.get(id)?.sessionId).toBe('__system__')
 
@@ -89,16 +89,16 @@ describe('createCronScheduler', () => {
     const { store, sessions } = fakeStore()
     sessions.add('ses-1')
     const sched = createCronScheduler({ store, fire: vi.fn().mockReturnValue({ taskId: 'task-x' }), ...noTerminal })
-    expect(() => sched.add({ sessionId: 'ses-1', cron: 'not-a-cron', goal: 'g' })).toThrow()
+    expect(() => sched.add({ sessionId: 'ses-1', cron: 'not-a-cron', prompt: 'g' })).toThrow()
     sched.dispose()
   })
 
-  it('fires the goal when the session still exists', () => {
+  it('fires the prompt when the session still exists', () => {
     const { store, sessions } = fakeStore()
     sessions.add('ses-1')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
     const sched = createCronScheduler({ store, fire, ...noTerminal })
-    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'do it' })
+    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', prompt: 'do it' })
     sched.runJobNow(id)
     expect(fire).toHaveBeenCalledWith('ses-1', 'do it', expect.any(Function))
     sched.dispose()
@@ -109,7 +109,7 @@ describe('createCronScheduler', () => {
     sessions.add('ses-1')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
     const sched = createCronScheduler({ store, fire, ...noTerminal })
-    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g' })
+    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', prompt: 'g' })
     sessions.delete('ses-1')
     sched.runJobNow(id)
     expect(fire).not.toHaveBeenCalled()
@@ -123,7 +123,7 @@ describe('createCronScheduler', () => {
       sessionId: 'ses-1',
       name: null,
       cron: '0 0 * * *',
-      goal: 'reload me',
+      prompt: 'reload me',
       createdAt: 1,
       lastRunAt: null,
       originSessionId: 'ses-1',
@@ -145,7 +145,7 @@ describe('createCronScheduler', () => {
       sessionId: 'old-ses',
       name: null,
       cron: '0 0 * * *',
-      goal: 'remind me',
+      prompt: 'remind me',
       createdAt: 1,
       lastRunAt: null,
       originSessionId: 'old-ses',
@@ -175,7 +175,7 @@ describe('createCronScheduler', () => {
       sessionId: 'old-ses',
       name: null,
       cron: '0 0 * * *',
-      goal: 'g',
+      prompt: 'g',
       createdAt: 1,
       lastRunAt: null,
       originSessionId: 'old-ses',
@@ -197,8 +197,8 @@ describe('createCronScheduler', () => {
     sessions.add('ses-2')
     const fire = vi.fn().mockReturnValue({ taskId: 'task-x' })
     const sched = createCronScheduler({ store, fire, ...noTerminal })
-    sched.add({ sessionId: 'ses-1', cron: '0 9 * * *', goal: 'a' })
-    sched.add({ sessionId: 'ses-2', cron: '0 10 * * *', goal: 'b' })
+    sched.add({ sessionId: 'ses-1', cron: '0 9 * * *', prompt: 'a' })
+    sched.add({ sessionId: 'ses-2', cron: '0 10 * * *', prompt: 'b' })
     const all = sched.listAll()
     expect(all).toHaveLength(2)
     expect(all.every((j) => typeof j.nextRun === 'number')).toBe(true)
@@ -209,12 +209,12 @@ describe('createCronScheduler', () => {
     const { store, sessions, runs } = fakeStore()
     sessions.add('ses-1')
     let captured: ((status: string, error?: string) => void) | undefined
-    const fire = vi.fn((_sid: string, _goal: string, onComplete: (s: string, e?: string) => void) => {
+    const fire = vi.fn((_sid: string, _prompt: string, onComplete: (s: string, e?: string) => void) => {
       captured = onComplete
       return { taskId: 'task-1' }
     })
     const sched = createCronScheduler({ store, fire, ...noTerminal })
-    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g' })
+    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', prompt: 'g' })
     sched.runJobNow(id)
 
     const run = [...runs.values()][0]
@@ -233,7 +233,7 @@ describe('createCronScheduler', () => {
       throw new Error('dispatch boom')
     })
     const sched = createCronScheduler({ store, fire, ...noTerminal })
-    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', goal: 'g' })
+    const { id } = sched.add({ sessionId: 'ses-1', cron: '0 0 * * *', prompt: 'g' })
     sched.runJobNow(id)
 
     const run = [...runs.values()][0]

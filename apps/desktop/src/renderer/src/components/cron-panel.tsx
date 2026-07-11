@@ -34,7 +34,7 @@ export function CronPanel({ jobs, isLoading }: Props): React.JSX.Element {
             <p className="mt-1 text-muted-foreground text-xs">
               Next: {j.nextRun ? formatDistanceToNow(j.nextRun, { addSuffix: true }) : 'n/a'}
             </p>
-            <p className="mt-2 line-clamp-2 text-foreground/80 text-xs">{j.goal}</p>
+            <p className="mt-2 line-clamp-2 text-foreground/80 text-xs">{j.prompt}</p>
           </div>
         ))}
       </div>
