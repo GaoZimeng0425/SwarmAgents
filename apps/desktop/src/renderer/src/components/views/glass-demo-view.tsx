@@ -2,6 +2,7 @@
 // (see globals.css --glass-* tokens and @utility classes) across common UI
 // surfaces. No business logic, no data fetching — pure visual reference.
 
+import { Badge, Input, Switch } from '@swarm/ui'
 import { Bell, Plus, Search, Settings, Sparkles, Star } from 'lucide-react'
 
 export function GlassDemoView(): React.JSX.Element {
@@ -100,6 +101,47 @@ export function GlassDemoView(): React.JSX.Element {
             {/* Spacer so the sticky effect is visible when scrolling */}
             <div className="glass-panel flex h-24 items-center justify-center rounded-2xl text-muted-foreground text-xs">
               向上滚动以查看工具栏的吸顶模糊效果
+            </div>
+          </Section>
+
+          {/* §D List */}
+          <Section subtitle="glass-panel 容器内逐行列表项" title="列表">
+            <div className="glass-panel divide-y divide-border/40 rounded-2xl">
+              {[
+                { icon: Star, title: '列表项一', subtitle: '次级说明文字', badge: '活跃' },
+                { icon: Bell, title: '列表项二', subtitle: '次级说明文字', badge: '待办' },
+                { icon: Settings, title: '列表项三', subtitle: '次级说明文字', badge: '完成' },
+              ].map((row) => (
+                <div className="flex items-center gap-3 px-4 py-3" key={row.title}>
+                  <row.icon className="size-5 text-muted-foreground" />
+                  <div className="flex flex-1 flex-col">
+                    <span className="font-medium text-foreground text-sm">{row.title}</span>
+                    <span className="text-muted-foreground text-xs">{row.subtitle}</span>
+                  </div>
+                  <Badge variant="secondary">{row.badge}</Badge>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* §E Form elements */}
+          <Section subtitle="输入框 / 开关 / 标签，套玻璃边框" title="表单元素">
+            <div className="glass-panel flex flex-col gap-4 rounded-2xl p-5">
+              <div className="flex flex-col gap-1.5">
+                <label className="font-medium text-foreground text-sm" htmlFor="glass-input">
+                  输入框
+                </label>
+                <Input className="rounded-xl" id="glass-input" placeholder="输入一些内容…" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-foreground text-sm">通知开关</span>
+                <Switch />
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge>默认</Badge>
+                <Badge variant="secondary">次级</Badge>
+                <Badge variant="outline">描边</Badge>
+              </div>
             </div>
           </Section>
         </div>
