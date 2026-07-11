@@ -88,7 +88,19 @@ export function createServiceClient(cfg: {
   transport: ServiceTransport
   onEvent?: (event: string, data: unknown) => void
 }): ServiceClient {
-  const peer = createRpcPeer({ transport: cfg.transport, onEvent: cfg.onEvent })
+  const peer = createRpcPeer({
+    transport: cfg.transport,
+    onEvent: cfg.onEvent,
+    // A request for a method nobody registered still gets an error response
+    // (RpcPeer would do that on its own), but warn here first so the miss is
+    // visible in this side's logs — a silent wrong-side dispatch is exactly
+    // the bug class that made get_weather fall back to wttr.in. console, not
+    // pino: @swarm/protocol stays logger-free for portability.
+    defaultHandler: (method, _args, id) => {
+      console.warn({ msg: 'no rpc handler', method, id })
+      throw new Error(`no handler for ${method}`)
+    },
+  })
 
   return {
     connect: () => peer.connect(),

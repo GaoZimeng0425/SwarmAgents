@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createServiceClient, type ServiceTransport } from './service-client'
 
@@ -68,5 +68,25 @@ describe('service-client registerHandler routing', () => {
     expect(sent).toEqual([
       { kind: 'response', id: 'peer-1:3', ok: false, error: expect.stringContaining('no handler') },
     ])
+  })
+
+  describe('no-handler logging', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('warns on a request with no registered handler so the miss is visible in logs', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const { t, deliver } = fakeTransport()
+      const client = createServiceClient({ transport: t })
+      await client.connect()
+
+      deliver({ kind: 'request', id: 'peer-1:3', method: 'gmail.list_recent', args: [] })
+      await flush()
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ msg: 'no rpc handler', method: 'gmail.list_recent', id: 'peer-1:3' })
+      )
+    })
   })
 })
