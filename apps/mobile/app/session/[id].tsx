@@ -1,24 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MessageEvent, MessageWireEvent } from '@swarm/protocol'
 import { useLocalSearchParams } from 'expo-router'
+import Markdown from 'react-native-markdown-display'
 import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native'
 
+import { markdownRules } from '@/components/ui/chat-ai/message'
 import { Box } from '@/components/ui/box'
 import { Button, ButtonText } from '@/components/ui/button'
 import { Heading } from '@/components/ui/heading'
 import { HStack } from '@/components/ui/hstack'
 import { Input, InputField } from '@/components/ui/input'
-import { VStack } from '@/components/ui/vstack'
 import { useEvents } from '@/hooks/use-events'
+import { type Segment, buildSegments } from '@/lib/task-segments'
 import { useConnection } from '@/stores/connection-store'
 
 type PermissionPrompt = {
@@ -33,7 +33,6 @@ export default function SessionDetailScreen(): React.JSX.Element {
   const { client } = useConnection()
   const [messages, setMessages] = useState<MessageEvent[]>([])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<PermissionPrompt[]>([])
   // Tracks how many events from the `events` buffer have already been processed
@@ -45,6 +44,9 @@ export default function SessionDetailScreen(): React.JSX.Element {
   const filter = useMemo(() => (event: string) => event.startsWith('message.'), [])
   const events = useEvents(filter)
 
+  // Flatten raw events into render segments (assistant chunks coalesced, tools paired, etc.)
+  const segments = useMemo(() => buildSegments(messages), [messages])
+
   // Load history on mount.
   useEffect(() => {
     if (!client || !sessionId) return
@@ -54,21 +56,16 @@ export default function SessionDetailScreen(): React.JSX.Element {
         setMessages(history)
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
-      } finally {
-        setLoading(false)
       }
     })()
   }, [client, sessionId])
 
-  // Reset the processed-events cursor when switching sessions so the new
-  // session starts processing from the beginning of its event stream.
+  // Reset the processed-events cursor when switching sessions.
   useEffect(() => {
     processedCountRef.current = 0
   }, [sessionId])
 
   // Append live events to messages and extract permission prompts.
-  // Process every new event since the last-processed index, not just the last
-  // one — a single render batch may carry several events.
   useEffect(() => {
     if (events.length === 0) return
     const newEvents = events.slice(processedCountRef.current)
@@ -90,7 +87,6 @@ export default function SessionDetailScreen(): React.JSX.Element {
         },
       ])
 
-      // Extract permission requests.
       if (wireEvent.kind === 'message.permission_request') {
         setPermissions((prev) => [
           ...prev,
@@ -126,73 +122,93 @@ export default function SessionDetailScreen(): React.JSX.Element {
     }
   }
 
-  const renderMessage = ({ item }: { item: MessageEvent }): React.JSX.Element => {
-    const e = item.event as MessageWireEvent
-    if (e.kind === 'message.created') {
-      return (
-        <Box className="mx-4 my-1 rounded-lg bg-muted/40 px-3 py-2">
-          <Text className="text-sm text-typography-900">{e.prompt}</Text>
-        </Box>
-      )
+  const renderSegment = ({ item }: { item: Segment }): React.JSX.Element => {
+    switch (item.kind) {
+      case 'user':
+        return (
+          <Box className="mx-4 my-1 flex flex-row justify-end">
+            <Box className="max-w-[85%] rounded-lg bg-muted/60 px-3 py-2">
+              <Text className="text-sm text-typography-900">{item.text}</Text>
+            </Box>
+          </Box>
+        )
+
+      case 'assistant':
+        return (
+          <Box className="mx-4 my-1 max-w-[90%]">
+            <Markdown rules={markdownRules}>{item.text}</Markdown>
+          </Box>
+        )
+
+      case 'reasoning':
+        return (
+          <Box className="mx-4 my-1 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+            <Text className="text-xs italic text-typography-400">{item.text}</Text>
+          </Box>
+        )
+
+      case 'tool':
+        return (
+          <Box className="mx-4 my-1 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+            <Text className="text-xs font-medium text-typography-600">
+              🔧 {item.tool}
+              {item.ok === null ? ' ⋯' : item.ok ? ' ✓' : ' ✗'}
+            </Text>
+            {item.output && (
+              <Text className="mt-1 font-mono text-xs text-typography-400" numberOfLines={5}>
+                {item.output}
+              </Text>
+            )}
+          </Box>
+        )
+
+      case 'error':
+        return (
+          <Box className="mx-4 my-1 rounded-lg bg-error-50 px-3 py-2">
+            <Text className="text-sm text-error-600">
+              {item.label === 'stopped' ? '⏹' : '⚠'} {item.detail}
+            </Text>
+          </Box>
+        )
+
+      case 'event':
+        return (
+          <Box className="mx-4 my-1">
+            <Text className="text-xs text-typography-400">
+              {item.label}: {item.detail}
+            </Text>
+          </Box>
+        )
     }
-    if (e.kind === 'message.complete') {
-      return (
-        <Box className="mx-4 my-1 rounded-lg bg-primary-50 px-3 py-2">
-          <Text className="text-sm text-typography-900">{e.summary}</Text>
-        </Box>
-      )
-    }
-    if (e.kind === 'message.error') {
-      return (
-        <Box className="mx-4 my-1 rounded-lg bg-error-50 px-3 py-2">
-          <Text className="text-error-600 text-sm">⚠ {e.error.message}</Text>
-        </Box>
-      )
-    }
-    if (e.kind === 'message.progress') {
-      return (
-        <Box className="mx-4 my-1">
-          <Text className="text-typography-400 text-xs italic">{String(e.event)}</Text>
-        </Box>
-      )
-    }
-    if (e.kind === 'message.permission_request') {
-      // Permission prompts are rendered separately as cards at the bottom.
-      return <></>
-    }
-    return <></>
   }
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <Box className="flex-1">
-          <Box className="border-border border-b px-4 py-2">
+          <Box className="border-b border-border px-4 py-2">
             <Heading size="sm">会话</Heading>
           </Box>
 
           {error && (
             <Box className="px-4 py-1">
-              <Text className="text-error-500 text-xs">{error}</Text>
+              <Text className="text-xs text-error-500">{error}</Text>
             </Box>
           )}
 
           <FlatList
-            data={messages}
-            keyExtractor={(item, idx) => `${item.messageId}-${item.seq}-${idx}`}
-            onContentSizeChange={() => {
-              // Auto-scroll would go here with a ref; keeping simple for first phase.
-            }}
-            renderItem={renderMessage}
+            data={segments}
+            keyExtractor={(item) => item.key}
+            renderItem={renderSegment}
           />
 
           {/* Permission cards */}
           {permissions.length > 0 && (
-            <Box className="gap-2 border-border border-t px-4 py-3">
+            <Box className="gap-2 border-t border-border px-4 py-3">
               {permissions.map((perm) => (
                 <Box className="rounded-lg border border-warning-300 bg-warning-50 p-3" key={perm.actionId}>
-                  <Text className="font-medium text-sm text-warning-900">{perm.risk} 风险操作 · 需要审批</Text>
-                  <Text className="mt-1 text-typography-700 text-xs">{perm.summary}</Text>
+                  <Text className="text-sm font-medium text-warning-900">{perm.risk} 风险操作 · 需要审批</Text>
+                  <Text className="mt-1 text-xs text-typography-700">{perm.summary}</Text>
                   <HStack className="mt-2 gap-2">
                     <Button onPress={() => void handlePermission(perm, 'grant')} size="sm">
                       <ButtonText>批准</ButtonText>
@@ -207,7 +223,7 @@ export default function SessionDetailScreen(): React.JSX.Element {
           )}
 
           {/* Input bar */}
-          <HStack className="items-center gap-2 border-border border-t px-4 py-2">
+          <HStack className="items-center gap-2 border-t border-border px-4 py-2">
             <Input className="flex-1">
               <InputField
                 onChangeText={setInput}

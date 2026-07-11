@@ -111,76 +111,79 @@ export const MessageContent = memo(({ children, className }: MessageContentProps
   )
 })
 
-export const MessageResponse = memo(({ message }: { message: UIMessage }) => {
-  const markdownRules = {
-    text: (node, children, parent) => {
-      return (
-        <Text className="text-foreground text-lg" key={node.key}>
-          {node.content}
-        </Text>
-      )
-    },
-
-    ordered_list: (node, children) => {
-      return (
-        <View className="mb-2" key={node.key}>
-          {children}
-        </View>
-      )
-    },
-
-    list_item: (node, children, parent) => {
-      const isOrdered = parent?.type === 'ordered_list'
-      const index = node.index ?? 0
-      return (
-        <View className="mb-1 flex-row items-start" key={node.key}>
-          <Text className="mr-2 text-foreground">{isOrdered ? `${index + 1}.` : '•'}</Text>
-          <View className="flex-1">
-            <View className="flex-1">{children}</View>
-          </View>
-        </View>
-      )
-    },
-
-    paragraph: (node, children) => {
-      return (
-        <View className="" key={node.key}>
-          {children}
-        </View>
-      )
-    },
-
-    strong: (node, children) => (
-      <Text className="font-bold text-foreground" key={node.key}>
-        {children}
-      </Text>
-    ),
-
-    em: (node, children) => (
-      <Text className="text-foreground italic" key={node.key}>
-        {children}
-      </Text>
-    ),
-
-    fence: (node) => (
-      <View className="my-2 rounded-xl bg-muted p-3" key={node.key}>
-        <Text className="font-mono text-sm text-white">{node.content}</Text>
-      </View>
-    ),
-
-    code_block: (node) => (
-      <View className="my-2 rounded-xl bg-slate-900 p-3" key={node.key}>
-        <Text className="font-mono text-sm text-white">{node.content}</Text>
-      </View>
-    ),
-
-    code_inline: (node) => (
-      <Text className="rounded bg-slate-800 px-1 py-0.5 text-white" key={node.key}>
+// Shared markdown rendering rules for react-native-markdown-display.
+// Exported so non-UIMessage consumers (e.g. the session detail screen rendering
+// Segment[] text) can reuse the same styling without depending on UIMessage.
+export const markdownRules = {
+  text: (node, _children, _parent) => {
+    return (
+      <Text className="text-foreground text-lg" key={node.key}>
         {node.content}
       </Text>
-    ),
-  }
+    )
+  },
 
+  ordered_list: (node, children) => {
+    return (
+      <View className="mb-2" key={node.key}>
+        {children}
+      </View>
+    )
+  },
+
+  list_item: (node, children, parent) => {
+    const isOrdered = parent?.type === 'ordered_list'
+    const index = node.index ?? 0
+    return (
+      <View className="mb-1 flex-row items-start" key={node.key}>
+        <Text className="mr-2 text-foreground">{isOrdered ? `${index + 1}.` : '•'}</Text>
+        <View className="flex-1">
+          <View className="flex-1">{children}</View>
+        </View>
+      </View>
+    )
+  },
+
+  paragraph: (node, children) => {
+    return (
+      <View className="" key={node.key}>
+        {children}
+      </View>
+    )
+  },
+
+  strong: (node, children) => (
+    <Text className="font-bold text-foreground" key={node.key}>
+      {children}
+    </Text>
+  ),
+
+  em: (node, children) => (
+    <Text className="text-foreground italic" key={node.key}>
+      {children}
+    </Text>
+  ),
+
+  fence: (node) => (
+    <View className="my-2 rounded-xl bg-muted p-3" key={node.key}>
+      <Text className="font-mono text-sm text-white">{node.content}</Text>
+    </View>
+  ),
+
+  code_block: (node) => (
+    <View className="my-2 rounded-xl bg-slate-900 p-3" key={node.key}>
+      <Text className="font-mono text-sm text-white">{node.content}</Text>
+    </View>
+  ),
+
+  code_inline: (node) => (
+    <Text className="rounded bg-slate-800 px-1 py-0.5 text-white" key={node.key}>
+      {node.content}
+    </Text>
+  ),
+}
+
+export const MessageResponse = memo(({ message }: { message: UIMessage }) => {
   if (!message?.parts) {
     return <Markdown rules={markdownRules}>{message?.content || ''}</Markdown>
   }
