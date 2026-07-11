@@ -24,9 +24,9 @@ const ConnectionContext = createContext<ConnectionState | null>(null)
 
 // Minimal event emitter for broadcasting RPC events to hook subscribers.
 // Module-level singleton: the onEvent callback below forwards every event here,
-// and Task 7's useEventSubscription hook subscribes through `on()`.
-type EventHandler = (data: unknown) => void
-const eventEmitter = {
+// and the useEvents hook subscribes through `on()`.
+export type EventHandler = (data: unknown) => void
+export const eventEmitter = {
   handlers: new Map<string, Set<EventHandler>>(),
   on(event: string, fn: EventHandler): () => void {
     let set = this.handlers.get(event)
