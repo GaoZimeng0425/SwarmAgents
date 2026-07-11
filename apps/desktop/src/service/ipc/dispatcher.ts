@@ -74,16 +74,16 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         registerProvider(provider)
         return service.createSession(provider)
       }
-      case 'submitGoal': {
+      case 'submitPrompt': {
         // The method name stays (ServiceMethod stability for the renderer API),
         // but the call maps to SessionService.submitPrompt and returns { runId }.
-        const [sessionId, goal, attachments, options] = args as [
+        const [sessionId, prompt, attachments, options] = args as [
           string,
           string,
           import('@swarm/protocol').Attachment[] | undefined,
           import('@swarm/protocol').RunOptions | undefined,
         ]
-        return service.submitPrompt(sessionId, goal, attachments, undefined, options)
+        return service.submitPrompt(sessionId, prompt, attachments, undefined, options)
       }
       case 'analyzeEmail': {
         const [req] = args as [import('@swarm/protocol').AnalyzeEmailRequest]

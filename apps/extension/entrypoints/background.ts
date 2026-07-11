@@ -73,7 +73,7 @@ export default defineBackground(() => {
   })
 
   // The side panel probes connectivity via `health` (no provider/secret
-  // needed — submitGoal needs a ProviderInjection the extension doesn't own).
+  // needed — submitPrompt needs a ProviderInjection the extension doesn't own).
   // listAgents is kept for backward compatibility; health wraps the same probe.
   browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if ((msg as { type?: string })?.type === 'health') {

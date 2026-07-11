@@ -39,7 +39,7 @@ export function taskSegments(task: RunRecord): Segment[] {
   const out: Segment[] = []
 
   // A top-level conversation turn carries its user message as a real seq'd event
-  // (manager.submitGoal), rendered by the loop below — no synthetic bubble. A
+  // (manager.submitPrompt), rendered by the loop below — no synthetic bubble. A
   // sub-agent run has no human user event; its objective is shown via the
   // synthetic goal bubble here (SubagentBlock does not render the goal).
   const hasUserMessage = task.events.some(

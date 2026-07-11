@@ -53,7 +53,7 @@ const cb: Callbacks = {
   exportMarkdown: vi.fn(),
   setComposerAgent: vi.fn(),
   openArtifact: vi.fn(),
-  submitGoal: vi.fn().mockResolvedValue({ sessionId: 'new-1' }),
+  submitPrompt: vi.fn().mockResolvedValue({ sessionId: 'new-1' }),
 }
 
 describe('buildItems — command scope', () => {
@@ -172,16 +172,16 @@ describe('buildItems — mixed scope', () => {
     const hero = items.find((i) => i.kind === 'dispatch')!
     expect(hero).toBeTruthy()
     await hero.run()
-    expect(cb.submitGoal).toHaveBeenCalledWith('分析这段视频', 'ceo') // default formation
+    expect(cb.submitPrompt).toHaveBeenCalledWith('分析这段视频', 'ceo') // default formation
     expect(cb.navigate).toHaveBeenCalledWith('/session/new-1')
   })
   it('empty term cannot submit a blank goal — there is no dispatch hero at all', () => {
     // The old empty-goal guard is now structural: the empty home omits the hero,
     // so a bare Enter runs the first real row instead of dispatching an empty goal.
-    vi.mocked(cb.submitGoal).mockClear()
+    vi.mocked(cb.submitPrompt).mockClear()
     const items = buildItems('mixed', '', baseInputs, cb)
     expect(items.some((i) => i.kind === 'dispatch')).toBe(false)
-    expect(cb.submitGoal).not.toHaveBeenCalled()
+    expect(cb.submitPrompt).not.toHaveBeenCalled()
   })
   it('with-query filters sessions/commands by term', () => {
     const items = buildItems('mixed', 'Gmail', baseInputs, cb)
@@ -205,6 +205,6 @@ describe('buildItems — term trimming', () => {
     const items = buildItems('mixed', '  分析这段视频  ', baseInputs, cb)
     const hero = items.find((i) => i.kind === 'dispatch')!
     await hero.run()
-    expect(cb.submitGoal).toHaveBeenCalledWith('分析这段视频', 'ceo')
+    expect(cb.submitPrompt).toHaveBeenCalledWith('分析这段视频', 'ceo')
   })
 })

@@ -8,10 +8,10 @@
 // requests from 1 independently.
 
 // Methods the service process can serve — main calls these on behalf of the
-// renderer (createSession, submitGoal, listAgents, ...).
+// renderer (createSession, submitPrompt, listAgents, ...).
 export type ServiceMethod =
   | 'createSession'
-  | 'submitGoal'
+  | 'submitPrompt'
   | 'listSessions'
   | 'getRunEvents'
   | 'deleteSession'

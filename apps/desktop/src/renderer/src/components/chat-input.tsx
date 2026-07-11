@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils'
 import { useRecentDirs } from '@/stores/recent-dirs'
 
 type Props = {
-  onSubmit: (goal: string, attachments?: Attachment[]) => void | Promise<void>
+  onSubmit: (prompt: string, attachments?: Attachment[]) => void | Promise<void>
   disabled?: boolean
   // A turn is in flight: the submit button flips to a stop control that calls onStop.
   running?: boolean
@@ -312,10 +312,10 @@ export function ChatInput({
 
   const handleSubmit = async (message: PromptInputMessage): Promise<void> => {
     if (disabled) return
-    const goal = message.text.trim()
-    if (!goal) return
+    const prompt = message.text.trim()
+    if (!prompt) return
     const attachments = imageAttachmentsFrom(message.files)
-    await onSubmit(goal, attachments.length > 0 ? attachments : undefined)
+    await onSubmit(prompt, attachments.length > 0 ? attachments : undefined)
   }
 
   // The composer textarea is uncontrolled (read via FormData on submit), so we

@@ -5,7 +5,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ChatInput } from '@/components/chat-input'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useSubmitGoal } from '@/hooks/use-runs'
+import { useSubmitPrompt } from '@/hooks/use-runs'
 import { useComposerDefaults } from '@/stores/composer-defaults'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -13,11 +13,11 @@ export const Route = createFileRoute('/session/')({ component: SessionIndexView 
 
 // Landing for the 对话 rail item: a centered hero composer beside the session
 // list (the list lives in the /session layout route). Submitting the first
-// message creates a session (useSubmitGoal) and navigates to its detail,
+// message creates a session (useSubmitPrompt) and navigates to its detail,
 // mirroring HomeDashboard's hero composer on `/`.
 function SessionIndexView(): React.JSX.Element {
   const navigate = useNavigate()
-  const submitGoal = useSubmitGoal()
+  const submitPrompt = useSubmitPrompt()
   const { ready, state } = useProviders()
 
   const cwd = useComposerDefaults((s) => s.cwd)
@@ -52,10 +52,10 @@ function SessionIndexView(): React.JSX.Element {
         onCwdChange={setCwd}
         onExecutionModeChange={setExecutionMode}
         onPermissionModeChange={setPermissionMode}
-        onSubmit={async (goal, attachments) => {
+        onSubmit={async (prompt, attachments) => {
           if (!ready) return
-          const { sessionId } = await submitGoal.mutateAsync({
-            goal,
+          const { sessionId } = await submitPrompt.mutateAsync({
+            prompt,
             attachments,
             options: { cwd, permissionMode, executionMode, agentType },
           })

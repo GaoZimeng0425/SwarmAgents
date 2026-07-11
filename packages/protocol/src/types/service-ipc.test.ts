@@ -25,9 +25,9 @@ describe('service-ipc unified rpc types', () => {
   })
 
   it('RpcMethod accepts both ServiceMethod and MainMethod values', () => {
-    const a: RpcMethod = 'submitGoal'
+    const a: RpcMethod = 'submitPrompt'
     const b: RpcMethod = 'calendar.list_upcoming'
-    expect(a).toBe('submitGoal')
+    expect(a).toBe('submitPrompt')
     expect(b).toBe('calendar.list_upcoming')
   })
 })

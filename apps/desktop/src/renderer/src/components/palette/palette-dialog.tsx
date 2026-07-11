@@ -19,7 +19,7 @@ import { Sparkles } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { usePaletteData } from '../../hooks/use-palette-data'
-import { useSubmitGoal } from '../../hooks/use-runs'
+import { useSubmitPrompt } from '../../hooks/use-runs'
 import { useSettingsNav } from '../../hooks/use-settings-nav'
 import { swarmApi } from '../../lib/api'
 import type { Callbacks } from '../../lib/palette/build-items'
@@ -83,11 +83,11 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
   const { openSettings } = useSettingsNav()
   const { theme, setTheme } = useTheme()
   const setComposerAgent = useComposerDefaults((s) => s.setAgentType)
-  const submitGoal = useSubmitGoal()
+  const submitPrompt = useSubmitPrompt()
   const inputs = usePaletteData(open)
   const close = useSearchDialog((s) => s.close)
 
-  // `submitGoal` submits with whatever formation the user picked. The picked
+  // `submitPrompt` submits with whatever formation the user picked. The picked
   // value lives in usePaletteState (it needs to rebuild the dispatch item's
   // run()), so we don't reference it here; usePaletteState injects it into the
   // merged `cb` it passes to buildItems.
@@ -119,14 +119,14 @@ export function PaletteDialog({ open }: PaletteDialogProps): React.JSX.Element {
         void window.swarm.openPath(ref)
         close()
       },
-      submitGoal: async (goal, agentType) => {
-        const r = await submitGoal.mutateAsync({ goal, options: { agentType }, forceNew: true })
+      submitPrompt: async (prompt, agentType) => {
+        const r = await submitPrompt.mutateAsync({ prompt, options: { agentType }, forceNew: true })
         close()
         void navigate({ to: '/session/$sessionId', params: { sessionId: r.sessionId } })
         return r
       },
     }),
-    [theme, setTheme, setComposerAgent, submitGoal, openSettings, close, navigate]
+    [theme, setTheme, setComposerAgent, submitPrompt, openSettings, close, navigate]
   )
 
   const state = usePaletteState({ inputs, cb, open, close })

@@ -27,9 +27,9 @@ export type ServiceClient = {
   connect(): Promise<void>
   disconnect(): void
   createSession(provider: ProviderInjection): Promise<{ sessionId: string }>
-  submitGoal(
+  submitPrompt(
     sessionId: string,
-    goal: string,
+    prompt: string,
     attachments?: import('./types/task').Attachment[],
     options?: import('./types/task').RunOptions
   ): Promise<{ runId: string }>
@@ -107,8 +107,8 @@ export function createServiceClient(cfg: {
     disconnect: () => peer.disconnect(),
     registerHandler: (method, fn) => peer.registerHandler(method, fn),
     createSession: (provider) => peer.call('createSession', [provider]),
-    submitGoal: (sessionId, goal, attachments, options) =>
-      peer.call('submitGoal', [sessionId, goal, attachments, options]),
+    submitPrompt: (sessionId, prompt, attachments, options) =>
+      peer.call('submitPrompt', [sessionId, prompt, attachments, options]),
     analyzeEmail: (req) => peer.call('analyzeEmail', [req]),
     analyzeThread: (req) => peer.call('analyzeThread', [req]),
     collectArticle: (input) => peer.call('collectArticle', [input]),

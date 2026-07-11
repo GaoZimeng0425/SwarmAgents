@@ -9,7 +9,7 @@ import * as api from '../lib/api'
 import { usePermissionStore } from '../stores/permission'
 import { useSessionsStore } from '../stores/sessions'
 import { useEventsSubscription } from './use-events-subscription'
-import { hydrateSession, RUNS_KEY, useDecidePermission, useRuns, useSubmitGoal } from './use-runs'
+import { hydrateSession, RUNS_KEY, useDecidePermission, useRuns, useSubmitPrompt } from './use-runs'
 
 // useEventsSubscription now navigates (toast jump) + toasts on background
 // activity + reads the settings search param via useSettingsNav; stub the
@@ -101,16 +101,16 @@ describe('use-tasks + use-events-subscription', () => {
   })
 })
 
-describe('useSubmitGoal', () => {
-  it('creates a session first when none is selected, then submits goal with that sessionId', async () => {
+describe('useSubmitPrompt', () => {
+  it('creates a session first when none is selected, then submits prompt with that sessionId', async () => {
     const mockCreate = vi.fn().mockResolvedValue({ sessionId: 'ses-test' })
-    const mockSubmitGoal = vi.fn().mockResolvedValue({ runId: 'task-1' })
+    const mockSubmitPrompt = vi.fn().mockResolvedValue({ runId: 'task-1' })
 
     // Stub window.swarm
     Object.defineProperty(window, 'swarm', {
       value: {
         sessions: { create: mockCreate, list: vi.fn(), getTasks: vi.fn() },
-        submitGoal: mockSubmitGoal,
+        submitPrompt: mockSubmitPrompt,
         cancelTask: vi.fn(),
         decidePermission: vi.fn(),
         subscribeEvents: vi.fn(() => () => {}),
@@ -120,17 +120,17 @@ describe('useSubmitGoal', () => {
     })
 
     vi.spyOn(api.swarmApi, 'createSession').mockImplementation(() => mockCreate())
-    vi.spyOn(api.swarmApi, 'submitGoal').mockImplementation((sessionId, goal) => mockSubmitGoal(sessionId, goal))
+    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, goal) => mockSubmitPrompt(sessionId, goal))
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const { result } = renderHook(() => useSubmitGoal(), { wrapper: makeWrapper(qc) })
+    const { result } = renderHook(() => useSubmitPrompt(), { wrapper: makeWrapper(qc) })
 
     await act(async () => {
-      await result.current.mutateAsync({ goal: 'my goal' })
+      await result.current.mutateAsync({ prompt: 'my prompt' })
     })
 
     expect(api.swarmApi.createSession).toHaveBeenCalledOnce()
-    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-test', 'my goal', undefined, undefined)
+    expect(api.swarmApi.submitPrompt).toHaveBeenCalledWith('ses-test', 'my prompt', undefined, undefined)
     // Session should now be selected
     expect(useSessionsStore.getState().selectedSessionId).toBe('ses-test')
   })
@@ -138,20 +138,20 @@ describe('useSubmitGoal', () => {
   it('uses the pre-selected session without creating a new one', async () => {
     useSessionsStore.getState().select('ses-existing')
 
-    const mockSubmitGoal = vi.fn().mockResolvedValue({ runId: 'task-2' })
-    vi.spyOn(api.swarmApi, 'submitGoal').mockImplementation((sessionId, goal) => mockSubmitGoal(sessionId, goal))
+    const mockSubmitPrompt = vi.fn().mockResolvedValue({ runId: 'task-2' })
+    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, goal) => mockSubmitPrompt(sessionId, goal))
     const mockCreate = vi.fn()
     vi.spyOn(api.swarmApi, 'createSession').mockImplementation(mockCreate)
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const { result } = renderHook(() => useSubmitGoal(), { wrapper: makeWrapper(qc) })
+    const { result } = renderHook(() => useSubmitPrompt(), { wrapper: makeWrapper(qc) })
 
     await act(async () => {
-      await result.current.mutateAsync({ goal: 'another goal' })
+      await result.current.mutateAsync({ prompt: 'another prompt' })
     })
 
     expect(api.swarmApi.createSession).not.toHaveBeenCalled()
-    expect(api.swarmApi.submitGoal).toHaveBeenCalledWith('ses-existing', 'another goal', undefined, undefined)
+    expect(api.swarmApi.submitPrompt).toHaveBeenCalledWith('ses-existing', 'another prompt', undefined, undefined)
   })
 })
 

@@ -21,5 +21,5 @@ pnpm --filter @swarm/extension run build    # → .output/chrome-mv3/
 
 ## Status
 
-v1 is a connection probe (`listAgents`). `submitGoal` is deferred until provider
+v1 is a connection probe (`listAgents`). `submitPrompt` is deferred until provider
 config is exposed over WS.

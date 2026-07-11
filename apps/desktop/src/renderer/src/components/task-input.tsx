@@ -5,7 +5,7 @@ import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, Select
 import { useProviders } from '@/hooks/use-providers'
 
 type Props = {
-  onSubmit: (goal: string) => void | Promise<void>
+  onSubmit: (prompt: string) => void | Promise<void>
   disabled?: boolean
 }
 
@@ -40,9 +40,9 @@ export function TaskInput({ onSubmit, disabled }: Props): React.JSX.Element {
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    const goal = value.trim()
-    if (!goal) return
-    await onSubmit(goal)
+    const prompt = value.trim()
+    if (!prompt) return
+    await onSubmit(prompt)
     setValue('')
   }
 

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { ResourceBudgetSchema } from './task'
 
 // User-configurable per-task budgets, applied at task creation. `main` caps a
-// top-level (submitGoal) task; `sub` caps each spawned sub-agent task. No secrets,
+// top-level (submitPrompt) task; `sub` caps each spawned sub-agent task. No secrets,
 // so a single shape is used on disk, over IPC, and in the service.
 export const BudgetConfigSchema = z.object({
   main: ResourceBudgetSchema,

@@ -10,7 +10,7 @@ import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
 import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
 import { useProviders } from '@/hooks/use-providers'
-import { useCancelRun, useDecidePermission, useInterruptWith, useRuns, useSubmitGoal } from '@/hooks/use-runs'
+import { useCancelRun, useDecidePermission, useInterruptWith, useRuns, useSubmitPrompt } from '@/hooks/use-runs'
 import { swarmApi } from '@/lib/api'
 import { classifyComposerTurns } from '@/lib/composer-turns'
 import { latestTopLevelTask, sessionDisplayUsage } from '@/lib/session-usage'
@@ -23,7 +23,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
   const sessions = useSessionsStore((s) => s.sessions)
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
-  const submitGoal = useSubmitGoal()
+  const submitPrompt = useSubmitPrompt()
   const decide = useDecidePermission()
   const cancelRun = useCancelRun()
   const interruptWith = useInterruptWith()
@@ -118,7 +118,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           key={selectedSessionId}
           onSend={(text) => {
             if (!ready) return
-            void submitGoal.mutateAsync({ goal: text, options: taskOptions })
+            void submitPrompt.mutateAsync({ prompt: text, options: taskOptions })
           }}
           tasks={transcriptTasks}
         />
@@ -139,7 +139,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
           }}
           onSubmit={async (g, attachments) => {
             if (!ready) return
-            await submitGoal.mutateAsync({ goal: g, attachments, options: taskOptions })
+            await submitPrompt.mutateAsync({ prompt: g, attachments, options: taskOptions })
           }}
           overlay={
             <ComposerOverlay

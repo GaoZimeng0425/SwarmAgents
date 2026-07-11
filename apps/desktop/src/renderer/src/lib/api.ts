@@ -34,7 +34,7 @@ import type {
   ScheduledTask,
   SessionSettings,
   SessionSummary,
-  SubmitGoalResult,
+  SubmitPromptResult,
   TranscriptionConfig,
   TrendingPeriod,
   TrendingRepo,
@@ -43,12 +43,12 @@ import type {
 } from '@swarm/protocol'
 
 export const swarmApi = {
-  submitGoal: (
+  submitPrompt: (
     sessionId: string,
-    goal: string,
+    prompt: string,
     attachments?: Attachment[],
     options?: RunOptions
-  ): Promise<SubmitGoalResult> => window.swarm.submitGoal(sessionId, goal, attachments, options),
+  ): Promise<SubmitPromptResult> => window.swarm.submitPrompt(sessionId, prompt, attachments, options),
   cancelRun: (sessionId: string, runId: string): Promise<void> => window.swarm.cancelRun(sessionId, runId),
   interruptWith: (sessionId: string, runId: string): Promise<void> => window.swarm.interruptWith(sessionId, runId),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>

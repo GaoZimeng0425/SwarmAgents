@@ -19,7 +19,7 @@ import { useTeamOptions } from '@/hooks/use-agents'
 import { useAllCronJobs, useAllCronRuns } from '@/hooks/use-cron'
 import { useNow } from '@/hooks/use-now'
 import { useProviders } from '@/hooks/use-providers'
-import { useRuns, useSubmitGoal } from '@/hooks/use-runs'
+import { useRuns, useSubmitPrompt } from '@/hooks/use-runs'
 import { selectDashboardCron } from '@/lib/dashboard-cron'
 import { selectDashboardRecent } from '@/lib/dashboard-recent'
 import { selectDashboardRuns } from '@/lib/dashboard-runs'
@@ -28,7 +28,7 @@ import { useSessionsStore } from '@/stores/sessions'
 
 export function HomeDashboard(): React.JSX.Element {
   const navigate = useNavigate()
-  const submitGoal = useSubmitGoal()
+  const submitPrompt = useSubmitPrompt()
   const { ready, state } = useProviders()
   const now = useNow(30_000)
 
@@ -75,10 +75,10 @@ export function HomeDashboard(): React.JSX.Element {
               onCwdChange={setCwd}
               onExecutionModeChange={setExecutionMode}
               onPermissionModeChange={setPermissionMode}
-              onSubmit={async (goal, attachments) => {
+              onSubmit={async (prompt, attachments) => {
                 if (!ready) return
-                const { sessionId } = await submitGoal.mutateAsync({
-                  goal,
+                const { sessionId } = await submitPrompt.mutateAsync({
+                  prompt,
                   attachments,
                   options: { cwd, permissionMode, executionMode, agentType },
                 })

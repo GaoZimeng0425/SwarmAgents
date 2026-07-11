@@ -49,7 +49,7 @@ describe('createRpcPeer', () => {
     const t = fakeTransport()
     const peer = createRpcPeer({ transport: t })
     await peer.connect()
-    const p = peer.call('submitGoal', ['s1', 'go'])
+    const p = peer.call('submitPrompt', ['s1', 'go'])
     const req = t.posted.at(-1) as { id: string }
     t.fire({ kind: 'response', id: req.id, ok: false, error: 'boom' })
     await expect(p).rejects.toThrow('boom')

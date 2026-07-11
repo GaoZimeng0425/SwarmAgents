@@ -45,7 +45,7 @@ describe('ServiceClient', () => {
     const t = mockTransport()
     const client = createServiceClient({ transport: t })
     await client.connect()
-    const p = client.submitGoal('ses-1', 'go')
+    const p = client.submitPrompt('ses-1', 'go')
     const req = t.posted.at(-1)!
     t.fire({ kind: 'response', id: req.id, ok: false, error: 'boom' })
     await expect(p).rejects.toThrow('boom')

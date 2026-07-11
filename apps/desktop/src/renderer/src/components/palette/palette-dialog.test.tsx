@@ -47,9 +47,9 @@ vi.mock('../../stores/sessions', () => ({
 }))
 
 vi.mock('../../hooks/use-runs', () => ({
-  // useSubmitGoal is consumed by palette-dialog; stub it as a no-op mutation so
+  // useSubmitPrompt is consumed by palette-dialog; stub it as a no-op mutation so
   // the hero dispatch item's run() doesn't blow up if it ever fires.
-  useSubmitGoal: () => ({
+  useSubmitPrompt: () => ({
     mutateAsync: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
   }),
   useRuns: () => [{ id: 'r1', sessionId: 's1', goal: 'g', status: 'running', summary: null, events: [] }],
@@ -96,7 +96,7 @@ vi.mock('../../lib/api', () => ({
     listArtifacts: vi.fn().mockResolvedValue([]),
     exportSessionMarkdown: vi.fn().mockResolvedValue({ path: '/tmp/x.md' }),
     getRunEvents: vi.fn().mockResolvedValue([]),
-    submitGoal: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
+    submitPrompt: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
   },
 }))
 

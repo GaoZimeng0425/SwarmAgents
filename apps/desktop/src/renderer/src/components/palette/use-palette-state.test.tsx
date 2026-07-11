@@ -35,7 +35,7 @@ const cb: Callbacks = {
   exportMarkdown: vi.fn(),
   setComposerAgent: vi.fn(),
   openArtifact: vi.fn(),
-  submitGoal: noopAsync as Callbacks['submitGoal'],
+  submitPrompt: noopAsync as Callbacks['submitPrompt'],
 }
 
 function makeWrapper(qc: QueryClient) {

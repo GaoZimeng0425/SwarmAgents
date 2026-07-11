@@ -48,7 +48,7 @@ export type Callbacks = {
   setComposerAgent: (agentId: string) => void
   openArtifact: (ref: string) => void
   /** Submit the hero dispatch; returns the new session id for navigation. */
-  submitGoal: (goal: string, agentType: string) => Promise<{ sessionId: string }>
+  submitPrompt: (prompt: string, agentType: string) => Promise<{ sessionId: string }>
   /**
    * Currently picked dispatch formation (lifted in usePaletteState). Optional so
    * pure tests can omit it; heroItem falls back to DEFAULT_FORMATION when unset.
@@ -349,7 +349,7 @@ function withSection(items: PaletteItem[], section: string): PaletteItem[] {
  * Hero dispatch item for the mixed scope. When `trimmed` is non-empty it
  * submits that goal; when empty it acts as a placeholder entry until the user
  * types. `trimmed` is the already-trimmed (but original-case) term, so
- * `submitGoal` never sees trailing spaces and the subtitle stays
+ * `submitPrompt` never sees trailing spaces and the subtitle stays
  * human-readable.
  */
 function heroItem(trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteItem {
@@ -364,7 +364,7 @@ function heroItem(trimmed: string, inputs: BuildInputs, cb: Callbacks): PaletteI
       // selection (flat[0]), so a bare Enter must NOT submit a blank goal and
       // navigate to a dead new session. Only dispatch when there is a term.
       if (!trimmed) return
-      const { sessionId } = await cb.submitGoal(trimmed, cb.pickedFormation ?? DEFAULT_FORMATION)
+      const { sessionId } = await cb.submitPrompt(trimmed, cb.pickedFormation ?? DEFAULT_FORMATION)
       cb.navigate(`/session/${sessionId}`)
     },
     searchText: '把目标交给 agent dispatch',

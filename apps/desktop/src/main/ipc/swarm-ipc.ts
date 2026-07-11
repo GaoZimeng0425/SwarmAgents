@@ -189,18 +189,18 @@ export function wireSwarmIpc(args: {
   const reorderSessions = (_e: Electron.IpcMainInvokeEvent, orderedIds: string[]) =>
     serviceClient.reorderSessions(orderedIds)
 
-  const submitGoal = async (
+  const submitPrompt = async (
     _e: Electron.IpcMainInvokeEvent,
     sessionId: string,
-    goal: string,
+    prompt: string,
     attachments?: import('@swarm/protocol').Attachment[],
     options?: import('@swarm/protocol').RunOptions
   ): Promise<{ runId: string }> => {
-    if (typeof goal !== 'string' || goal.trim().length === 0) {
-      throw new Error('goal must be a non-empty string')
+    if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+      throw new Error('prompt must be a non-empty string')
     }
-    const trimmedGoal = goal.trim()
-    const { runId } = await serviceClient.submitGoal(sessionId, trimmedGoal, attachments, options)
+    const trimmedPrompt = prompt.trim()
+    const { runId } = await serviceClient.submitPrompt(sessionId, trimmedPrompt, attachments, options)
     log.info({
       msg: 'run submitted',
       sessionId,
@@ -260,7 +260,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:setSessionPinned', setSessionPinned)
   ipcMain.handle('swarm:updateSessionSettings', updateSessionSettings)
   ipcMain.handle('swarm:reorderSessions', reorderSessions)
-  ipcMain.handle('swarm:submitGoal', submitGoal)
+  ipcMain.handle('swarm:submitPrompt', submitPrompt)
   ipcMain.handle('swarm:cancelRun', cancelRun)
   ipcMain.handle('swarm:interruptWith', interruptWith)
   ipcMain.handle('swarm:decidePermission', decidePermission)
@@ -399,7 +399,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:setSessionPinned')
       ipcMain.removeHandler('swarm:updateSessionSettings')
       ipcMain.removeHandler('swarm:reorderSessions')
-      ipcMain.removeHandler('swarm:submitGoal')
+      ipcMain.removeHandler('swarm:submitPrompt')
       ipcMain.removeHandler('swarm:cancelRun')
       ipcMain.removeHandler('swarm:interruptWith')
       ipcMain.removeHandler('swarm:decidePermission')

@@ -55,7 +55,7 @@ import type {
   Skill,
   SkillBridge,
   SkillMutationResult,
-  SubmitGoalResult,
+  SubmitPromptResult,
   SwarmBridge,
   ThreadAnalysisPayload,
   ToolGroupInfo,
@@ -359,8 +359,8 @@ const calendar: CalendarBridge = {
 }
 
 const swarm: SwarmBridge = {
-  submitGoal: (sessionId, goal, attachments, options) =>
-    ipcRenderer.invoke('swarm:submitGoal', sessionId, goal, attachments, options) as Promise<SubmitGoalResult>,
+  submitPrompt: (sessionId, prompt, attachments, options) =>
+    ipcRenderer.invoke('swarm:submitPrompt', sessionId, prompt, attachments, options) as Promise<SubmitPromptResult>,
   analyzeEmail: (input: import('@swarm/protocol').AnalyzeEmailInput) =>
     ipcRenderer.invoke('swarm:analyzeEmail', input) as Promise<import('@swarm/protocol').AnalyzeEmailResult>,
   analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) =>

@@ -18,19 +18,19 @@ export function useRuns(): RunRecord[] {
 }
 
 /**
- * Submit a goal to the currently-selected session, creating one if needed.
+ * Submit a prompt to the currently-selected session, creating one if needed.
  * Returns the resolved sessionId so callers landing on `/` (no selection yet)
  * can navigate to the freshly-created session.
  */
-export function useSubmitGoal() {
+export function useSubmitPrompt() {
   return useMutation({
     mutationFn: async ({
-      goal,
+      prompt,
       attachments,
       options,
       forceNew,
     }: {
-      goal: string
+      prompt: string
       attachments?: import('@swarm/protocol').Attachment[]
       options?: import('@swarm/protocol').RunOptions
       forceNew?: boolean
@@ -41,7 +41,7 @@ export function useSubmitGoal() {
         sessionId = created.sessionId
         useSessionsStore.getState().select(sessionId)
       }
-      await swarmApi.submitGoal(sessionId, goal, attachments, options)
+      await swarmApi.submitPrompt(sessionId, prompt, attachments, options)
       // Persist the turn's composer controls onto the session so it reopens with
       // them — covers the home-composer first turn, where the session was just
       // created with no settings yet.

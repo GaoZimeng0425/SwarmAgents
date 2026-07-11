@@ -73,19 +73,19 @@ describe('dispatcher', () => {
     expect(result).toEqual([{ id: 'ceo' }])
   })
 
-  it('submitGoal maps to submitPrompt and returns { runId }', () => {
+  it('submitPrompt maps to submitPrompt and returns { runId }', () => {
     const service = mockService()
     const dispatch = createDispatcher({ service, registerProvider: vi.fn(), ...mcpDeps() })
-    const result = dispatch('submitGoal', ['ses-1', 'do it'])
+    const result = dispatch('submitPrompt', ['ses-1', 'do it'])
     expect(service.submitPrompt).toHaveBeenCalledWith('ses-1', 'do it', undefined, undefined, undefined)
     expect(result).toEqual({ runId: 'run-1' })
   })
 
-  it('submitGoal forwards composer options to submitPrompt', () => {
+  it('submitPrompt forwards composer options to submitPrompt', () => {
     const service = mockService()
     const dispatch = createDispatcher({ service, registerProvider: vi.fn(), ...mcpDeps() })
     const options = { cwd: '/w', permissionMode: 'full' as const, executionMode: 'plan' as const }
-    dispatch('submitGoal', ['ses-1', 'do it', undefined, options])
+    dispatch('submitPrompt', ['ses-1', 'do it', undefined, options])
     expect(service.submitPrompt).toHaveBeenCalledWith('ses-1', 'do it', undefined, undefined, options)
   })
 

@@ -127,7 +127,7 @@ describe('ws bridge', () => {
     peer.on('message', (raw) => seen.push(JSON.parse(raw.toString())))
 
     // This peer never sent a request with this id — e.g. it answers main's
-    // own submitGoal call, made directly against the service, not via this peer.
+    // own submitPrompt call, made directly against the service, not via this peer.
     svc.emit({ kind: 'response', id: 'main-conn:1', ok: true, result: { runId: 'r1' } })
     await new Promise((res) => setTimeout(res, 50))
 

@@ -49,7 +49,7 @@ test('submit creates a session visible in the sidebar', async ({ page }) => {
   const sessionItem = page.getByRole('button', { name: GOAL }).first()
   await expect(sessionItem).toBeVisible({ timeout: 10_000 })
 
-  // Click-into-detail: drive REAL navigation. submitGoal already selected the
+  // Click-into-detail: drive REAL navigation. submitPrompt already selected the
   // session (and the URL reflects it), so first navigate back to the home route
   // via the router to make the sidebar click observable. Routing is hash-based
   // (createHashHistory, entries/main.tsx:21), so the URL looks like

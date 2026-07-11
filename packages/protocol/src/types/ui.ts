@@ -201,7 +201,7 @@ export type ArtifactEntry = {
   origin: string
 }
 
-export type SubmitGoalResult = { runId: string }
+export type SubmitPromptResult = { runId: string }
 
 export type ProvidersSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
@@ -451,12 +451,12 @@ export type MacPermissions = {
  * The shape exposed to the renderer via contextBridge as `window.swarm`.
  */
 export type SwarmBridge = {
-  submitGoal(
+  submitPrompt(
     sessionId: string,
-    goal: string,
+    prompt: string,
     attachments?: Attachment[],
     options?: RunOptions
-  ): Promise<SubmitGoalResult>
+  ): Promise<SubmitPromptResult>
   analyzeEmail(input: AnalyzeEmailInput): Promise<AnalyzeEmailResult>
   analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
   cancelRun(sessionId: string, runId: string): Promise<void>
