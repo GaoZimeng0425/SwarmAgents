@@ -1,7 +1,7 @@
 // src/main/calendar/index.ts
 //
 // Entry point for the Calendar subsystem. Mirrors gmail/index.ts. Runs after
-// app.whenReady(); registerMainRpc is called from main wiring once the
+// app.whenReady(); registerRpcHandlers is called from main wiring once the
 // ServiceClient exists.
 import type { MainMethod } from '@swarm/protocol'
 
@@ -14,13 +14,13 @@ import { wireCalendarIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
 
-type MainRpcClient = {
+type RpcHandlerClient = {
   registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
 }
 
 export type CalendarHandle = {
   service: Service
-  registerMainRpc(client: MainRpcClient): void
+  registerRpcHandlers(client: RpcHandlerClient): void
   dispose(): void
 }
 
@@ -43,9 +43,9 @@ export async function initCalendar(): Promise<CalendarHandle> {
 
   return {
     service,
-    registerMainRpc(client) {
-      ;(Object.keys(wired.mainRpcHandlers) as Array<keyof typeof wired.mainRpcHandlers>).forEach((method) => {
-        client.registerHandler(method, wired.mainRpcHandlers[method]!)
+    registerRpcHandlers(client) {
+      ;(Object.keys(wired.rpcHandlers) as Array<keyof typeof wired.rpcHandlers>).forEach((method) => {
+        client.registerHandler(method, wired.rpcHandlers[method]!)
       })
     },
     dispose() {

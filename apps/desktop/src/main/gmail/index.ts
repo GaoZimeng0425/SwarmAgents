@@ -2,7 +2,7 @@
 //
 // Entry point for the Gmail subsystem. Wires the encrypted store, sqlite
 // cache, REST client, OAuth auth, daemon, service, and IPC. Runs after
-// app.whenReady(). registerMainRpc is called from main wiring once the
+// app.whenReady(). registerRpcHandlers is called from main wiring once the
 // ServiceClient exists.
 import type { MainMethod } from '@swarm/protocol'
 
@@ -15,16 +15,16 @@ import { wireGmailIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
 
-// Structural: only the registerMainRpc surface initGmail needs. The full
+// Structural: only the registerRpcHandlers surface initGmail needs. The full
 // ServiceClient type gains this method in a later task; importing it here
 // would create a forward-dependency that fails typecheck until that lands.
-type MainRpcClient = {
+type RpcHandlerClient = {
   registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
 }
 
 export type GmailHandle = {
   service: Service
-  registerMainRpc(client: MainRpcClient): void
+  registerRpcHandlers(client: RpcHandlerClient): void
   dispose(): void
 }
 
@@ -48,9 +48,9 @@ export async function initGmail(): Promise<GmailHandle> {
 
   return {
     service,
-    registerMainRpc(client) {
-      ;(Object.keys(wired.mainRpcHandlers) as Array<keyof typeof wired.mainRpcHandlers>).forEach((method) => {
-        client.registerHandler(method, wired.mainRpcHandlers[method]!)
+    registerRpcHandlers(client) {
+      ;(Object.keys(wired.rpcHandlers) as Array<keyof typeof wired.rpcHandlers>).forEach((method) => {
+        client.registerHandler(method, wired.rpcHandlers[method]!)
       })
     },
     dispose() {

@@ -7,7 +7,7 @@ import type { MainMethod } from '@swarm/protocol'
 
 import type { ToolSpec } from '../tools/registry'
 
-type MainRpcFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
+type CallMainFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
 const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
@@ -28,7 +28,7 @@ const ListRecentParams = Type.Object({
   label: Type.Optional(Type.String({ description: 'Gmail label to filter by (default INBOX).' })),
 })
 
-function searchSpec(mainRpc: MainRpcFn): ToolSpec {
+function searchSpec(callMain: CallMainFn): ToolSpec {
   return {
     group: 'gmail',
     name: 'search',
@@ -46,7 +46,7 @@ function searchSpec(mainRpc: MainRpcFn): ToolSpec {
         if (!query) return err('empty query')
         const limit = p.limit ?? 20
         try {
-          const rows = (await mainRpc('gmail.search', [query, limit])) as unknown[]
+          const rows = (await callMain('gmail.search', [query, limit])) as unknown[]
           if (rows.length === 0) return ok('(no matching threads)', { count: 0, query })
           const text = rows
             .map((r, i) => {
@@ -63,7 +63,7 @@ function searchSpec(mainRpc: MainRpcFn): ToolSpec {
   }
 }
 
-function getThreadSpec(mainRpc: MainRpcFn): ToolSpec {
+function getThreadSpec(callMain: CallMainFn): ToolSpec {
   return {
     group: 'gmail',
     name: 'get_thread',
@@ -79,7 +79,7 @@ function getThreadSpec(mainRpc: MainRpcFn): ToolSpec {
         const id = (p.id ?? '').trim()
         if (!id) return err('missing id')
         try {
-          const r = (await mainRpc('gmail.get_thread', [id])) as {
+          const r = (await callMain('gmail.get_thread', [id])) as {
             thread: { subject?: string }
             messages: { bodyText?: string; fromAddr?: string }[]
           } | null
@@ -96,7 +96,7 @@ function getThreadSpec(mainRpc: MainRpcFn): ToolSpec {
   }
 }
 
-function listRecentSpec(mainRpc: MainRpcFn): ToolSpec {
+function listRecentSpec(callMain: CallMainFn): ToolSpec {
   return {
     group: 'gmail',
     name: 'list_recent',
@@ -112,7 +112,7 @@ function listRecentSpec(mainRpc: MainRpcFn): ToolSpec {
         const p = (params as { limit?: number; label?: string }) ?? {}
         const input = { limit: p.limit ?? 20, label: p.label }
         try {
-          const rows = (await mainRpc('gmail.list_recent', [input])) as unknown[]
+          const rows = (await callMain('gmail.list_recent', [input])) as unknown[]
           if (rows.length === 0) return ok('(mailbox cache is empty — is Gmail linked?)', { count: 0 })
           const text = rows
             .map((r, i) => {
@@ -129,6 +129,6 @@ function listRecentSpec(mainRpc: MainRpcFn): ToolSpec {
   }
 }
 
-export function gmailSpecs(mainRpc: MainRpcFn): ToolSpec[] {
-  return [searchSpec(mainRpc), getThreadSpec(mainRpc), listRecentSpec(mainRpc)]
+export function gmailSpecs(callMain: CallMainFn): ToolSpec[] {
+  return [searchSpec(callMain), getThreadSpec(callMain), listRecentSpec(callMain)]
 }

@@ -13,11 +13,11 @@ const log = createLogger({ process: 'main' }).child({ component: 'gmail-ipc' })
 
 const STATE_CHANGED = 'gmail:stateChanged'
 
-export type MainRpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
+export type RpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
 
 export function wireGmailIpc(args: { service: Service }): {
   dispose: () => void
-  mainRpcHandlers: MainRpcHandlers
+  rpcHandlers: RpcHandlers
 } {
   const { service } = args
 
@@ -34,7 +34,7 @@ export function wireGmailIpc(args: { service: Service }): {
   ipcMain.handle('gmail:unlinkAccount', () => service.unlinkAccount())
   ipcMain.handle('gmail:syncNow', () => service.syncNow())
   // Renderer-facing read access to the cache (the inbox view). The agent-tool
-  // equivalents live in mainRpcHandlers below; these are the same service calls.
+  // equivalents live in rpcHandlers below; these are the same service calls.
   ipcMain.handle('gmail:listRecent', (_e, input: { limit?: number; label?: string } | undefined) =>
     service.listRecent({ limit: input?.limit ?? 20, label: input?.label })
   )
@@ -54,7 +54,7 @@ export function wireGmailIpc(args: { service: Service }): {
   ipcMain.handle('gmail:markThreadRead', (_e, threadId: string) => service.markThreadRead(String(threadId)))
   ipcMain.handle('gmail:listInboxPage', (_e, page: number) => service.listInboxPage(Number(page)))
 
-  const mainRpcHandlers: MainRpcHandlers = {
+  const rpcHandlers: RpcHandlers = {
     'gmail.search': (q, limit) => Promise.resolve(service.search(String(q), Number(limit ?? 20))),
     'gmail.get_thread': (id) => Promise.resolve(service.getThread(String(id))),
     'gmail.list_recent': (input) => {
@@ -89,6 +89,6 @@ export function wireGmailIpc(args: { service: Service }): {
         ipcMain.removeHandler(ch)
       }
     },
-    mainRpcHandlers,
+    rpcHandlers,
   }
 }

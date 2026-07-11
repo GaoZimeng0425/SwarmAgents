@@ -14,7 +14,7 @@ const TIMEOUT_MS = 15_000
 // wttr.in is only used as a fallback when QWeather is not configured.
 const USER_AGENT = 'curl/8.4.0 (SwarmAgents weather tool)'
 
-type MainRpcFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
+type CallMainFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
 const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
@@ -144,7 +144,7 @@ async function fetchWttr(location: string, days?: number): Promise<Result> {
 
 // ---- tool spec ----
 
-export function getWeatherSpec(mainRpc?: MainRpcFn): ToolSpec {
+export function getWeatherSpec(callMain?: CallMainFn): ToolSpec {
   return {
     group: 'weather',
     name: 'get_weather',
@@ -166,9 +166,9 @@ export function getWeatherSpec(mainRpc?: MainRpcFn): ToolSpec {
         // service worker has none), so the service resolves location by its own
         // priority: saved location > IP — identical to the dashboard card when
         // it has no GPS fix.
-        if (mainRpc) {
+        if (callMain) {
           try {
-            const r = (await mainRpc('weather.get_forecast', [null, null])) as
+            const r = (await callMain('weather.get_forecast', [null, null])) as
               | { ok: true; forecast: WeatherForecast }
               | { ok: false; code: string; message: string }
             if (r.ok) {

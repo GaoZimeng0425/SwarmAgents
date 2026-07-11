@@ -150,9 +150,9 @@ app.whenReady().then(async () => {
     // External clients (extension/RN) bridge to the service over a loopback WS.
     wsHost = await startWsHost({ serviceProcess, userDataDir: app.getPath('userData'), log })
     log.info({ msg: 'ws-host up', port: wsHost.port })
-    gmail.registerMainRpc(serviceClient)
-    calendar.registerMainRpc(serviceClient)
-    weather.registerMainRpc(serviceClient)
+    gmail.registerRpcHandlers(serviceClient)
+    calendar.registerRpcHandlers(serviceClient)
+    weather.registerRpcHandlers(serviceClient)
 
     // Command palette artifacts: scan cwd-recent-files + join bilibili analyses.
     // The analysis store is re-created from the same on-disk file the bilibili

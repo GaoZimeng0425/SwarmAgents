@@ -51,8 +51,8 @@ describe('gmail ipc', () => {
       getView: () => null,
       onStateChanged: () => () => {},
     } as unknown as Parameters<typeof wireGmailIpc>[0]['service']
-    const { dispose, mainRpcHandlers } = wireGmailIpc({ service })
-    const r = await mainRpcHandlers['gmail.search']!('inv', 10)
+    const { dispose, rpcHandlers } = wireGmailIpc({ service })
+    const r = await rpcHandlers['gmail.search']!('inv', 10)
     expect(r).toEqual([{ id: 't1' }])
     expect(service.search).toHaveBeenCalledWith('inv', 10)
     dispose()

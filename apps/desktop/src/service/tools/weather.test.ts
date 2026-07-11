@@ -11,7 +11,7 @@ const ctx: ToolRunContext = {
   requestPermission: async () => 'grant',
   findPeers: () => [],
 }
-const tool = (mainRpc?: Parameters<typeof getWeatherSpec>[0]) => getWeatherSpec(mainRpc).build(ctx)
+const tool = (callMain?: Parameters<typeof getWeatherSpec>[0]) => getWeatherSpec(callMain).build(ctx)
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -59,12 +59,12 @@ const sampleForecast: WeatherForecast = {
 }
 
 describe('get_weather tool — QWeather primary path', () => {
-  it('calls weather.get_forecast via mainRpc and formats the forecast', async () => {
-    const mainRpc = vi.fn(async () => ({ ok: true, forecast: sampleForecast }))
+  it('calls weather.get_forecast via callMain and formats the forecast', async () => {
+    const callMain = vi.fn(async () => ({ ok: true, forecast: sampleForecast }))
 
-    const res = await tool(mainRpc).execute('c', {})
+    const res = await tool(callMain).execute('c', {})
 
-    expect(mainRpc).toHaveBeenCalledWith('weather.get_forecast', [null, null])
+    expect(callMain).toHaveBeenCalledWith('weather.get_forecast', [null, null])
     const text = res.content[0]
     expect(text.type === 'text' && text.text).toContain('北京市')
     expect(text.type === 'text' && text.text).toContain('晴')
@@ -73,34 +73,34 @@ describe('get_weather tool — QWeather primary path', () => {
   })
 
   it('falls back to wttr.in when QWeather is not configured', async () => {
-    const mainRpc = vi.fn(async () => ({ ok: false, code: 'not_configured', message: 'not configured' }))
+    const callMain = vi.fn(async () => ({ ok: false, code: 'not_configured', message: 'not configured' }))
     const fetchMock = vi.fn(async (_url: string) => new Response('wttr report', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const res = await tool(mainRpc).execute('c', { location: 'Tokyo' })
+    const res = await tool(callMain).execute('c', { location: 'Tokyo' })
 
-    expect(mainRpc).toHaveBeenCalled()
+    expect(callMain).toHaveBeenCalled()
     expect(fetchMock.mock.calls[0][0]).toBe('https://wttr.in/Tokyo?Tm')
     const text = res.content[0]
     expect(text.type === 'text' && text.text).toContain('wttr report')
     expect((res.details as { source: string }).source).toBe('wttr.in')
   })
 
-  it('falls back to wttr.in when the mainRpc throws', async () => {
-    const mainRpc = vi.fn(async () => {
+  it('falls back to wttr.in when the callMain throws', async () => {
+    const callMain = vi.fn(async () => {
       throw new Error('rpc transport closed')
     })
     const fetchMock = vi.fn(async (_url: string) => new Response('fallback', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const res = await tool(mainRpc).execute('c', { location: 'Beijing' })
+    const res = await tool(callMain).execute('c', { location: 'Beijing' })
 
     expect(fetchMock).toHaveBeenCalled()
     expect((res.details as { source: string }).source).toBe('wttr.in')
   })
 })
 
-describe('get_weather tool — wttr.in fallback only (no mainRpc injected)', () => {
+describe('get_weather tool — wttr.in fallback only (no callMain injected)', () => {
   it('requests wttr.in with a curl UA, location and clamped day option', async () => {
     const fetchMock = vi.fn(
       async (_url: string, _init: RequestInit) =>

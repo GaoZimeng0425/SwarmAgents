@@ -14,11 +14,11 @@ const log = createLogger({ process: 'main' }).child({ component: 'calendar-ipc' 
 
 const STATE_CHANGED = 'calendar:stateChanged'
 
-export type MainRpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
+export type RpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
 
 export function wireCalendarIpc(args: { service: Service }): {
   dispose: () => void
-  mainRpcHandlers: MainRpcHandlers
+  rpcHandlers: RpcHandlers
 } {
   const { service } = args
 
@@ -44,7 +44,7 @@ export function wireCalendarIpc(args: { service: Service }): {
   ipcMain.handle('calendar:deleteLocal', (_e, id: string) => service.deleteLocal(String(id)))
 
   const DAY_MS = 24 * 60 * 60 * 1000
-  const mainRpcHandlers: MainRpcHandlers = {
+  const rpcHandlers: RpcHandlers = {
     'calendar.list_upcoming': (days) => {
       const d = Number(days ?? 14)
       const now = Date.now()
@@ -76,6 +76,6 @@ export function wireCalendarIpc(args: { service: Service }): {
       unsubscribe()
       for (const ch of channels) ipcMain.removeHandler(ch)
     },
-    mainRpcHandlers,
+    rpcHandlers,
   }
 }

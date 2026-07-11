@@ -10,7 +10,7 @@ import type { MainMethod } from '@swarm/protocol'
 
 import type { ToolSpec } from '../tools/registry'
 
-type MainRpcFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
+type CallMainFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
 const ok = (text: string, details: Record<string, unknown> = {}): Result => ({
@@ -60,7 +60,7 @@ const UpdateParams = Type.Object({
 })
 const DeleteParams = Type.Object({ id: Type.String({ description: 'Local event id.' }) })
 
-export function calendarSpecs(mainRpc: MainRpcFn): ToolSpec[] {
+export function calendarSpecs(callMain: CallMainFn): ToolSpec[] {
   const listUpcoming: ToolSpec = {
     group: 'calendar',
     name: 'list_upcoming',
@@ -75,7 +75,7 @@ export function calendarSpecs(mainRpc: MainRpcFn): ToolSpec[] {
       execute: async (_id, params) => {
         const p = (params as { days?: number }) ?? {}
         try {
-          const rows = (await mainRpc('calendar.list_upcoming', [p.days ?? 14])) as EventLike[]
+          const rows = (await callMain('calendar.list_upcoming', [p.days ?? 14])) as EventLike[]
           if (rows.length === 0) return ok('(no upcoming events)', { count: 0 })
           return ok(rows.map((r) => renderEvent(r)).join('\n'), { count: rows.length })
         } catch (e) {
@@ -99,7 +99,7 @@ export function calendarSpecs(mainRpc: MainRpcFn): ToolSpec[] {
         const id = ((params as { id?: string })?.id ?? '').trim()
         if (!id) return err('missing id')
         try {
-          const e = (await mainRpc('calendar.get_event', [id])) as EventLike | null
+          const e = (await callMain('calendar.get_event', [id])) as EventLike | null
           if (!e) return ok('(event not found)', { id })
           return ok(renderEvent(e), { id })
         } catch (e) {
@@ -139,7 +139,7 @@ export function calendarSpecs(mainRpc: MainRpcFn): ToolSpec[] {
           location: p.location,
         }
         try {
-          const e = (await mainRpc('calendar.create_local', [input])) as { id?: string }
+          const e = (await callMain('calendar.create_local', [input])) as { id?: string }
           return ok(`created local event (${e.id ?? '?'})`, { id: e.id })
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))
@@ -164,7 +164,7 @@ export function calendarSpecs(mainRpc: MainRpcFn): ToolSpec[] {
         if (!id) return err('missing id')
         const { id: _omit, ...patch } = p
         try {
-          const e = (await mainRpc('calendar.update_local', [id, patch])) as { id?: string } | null
+          const e = (await callMain('calendar.update_local', [id, patch])) as { id?: string } | null
           if (!e) return ok('(local event not found)', { id })
           return ok(`updated local event (${e.id})`, { id: e.id })
         } catch (e) {
@@ -188,7 +188,7 @@ export function calendarSpecs(mainRpc: MainRpcFn): ToolSpec[] {
         const id = ((params as { id?: string })?.id ?? '').trim()
         if (!id) return err('missing id')
         try {
-          const removed = (await mainRpc('calendar.delete_local', [id])) as boolean
+          const removed = (await callMain('calendar.delete_local', [id])) as boolean
           return ok(removed ? `deleted local event ${id}` : `(not found: ${id})`, { id, removed })
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))

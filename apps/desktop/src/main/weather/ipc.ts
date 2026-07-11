@@ -54,11 +54,11 @@ function resolveForecast(
     })
 }
 
-export type MainRpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
+export type RpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
 
 export function wireWeatherIpc(args: { service: Service }): {
   dispose: () => void
-  mainRpcHandlers: MainRpcHandlers
+  rpcHandlers: RpcHandlers
 } {
   const { service } = args
 
@@ -81,7 +81,7 @@ export function wireWeatherIpc(args: { service: Service }): {
   // service (same config, cache, location priority) the dashboard card uses.
   // No GPS coords (the service worker has none) → service falls back to
   // saved location > IP, exactly like a dashboard fetch without a GPS fix.
-  const mainRpcHandlers: MainRpcHandlers = {
+  const rpcHandlers: RpcHandlers = {
     'weather.get_forecast': (lng, lat) => {
       const l = typeof lng === 'number' ? lng : null
       const la = typeof lat === 'number' ? lat : null
@@ -97,6 +97,6 @@ export function wireWeatherIpc(args: { service: Service }): {
       ipcMain.removeHandler('weather:setConfig')
       ipcMain.removeHandler('weather:getForecast')
     },
-    mainRpcHandlers,
+    rpcHandlers,
   }
 }

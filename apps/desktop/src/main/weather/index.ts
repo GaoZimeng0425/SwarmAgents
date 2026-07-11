@@ -11,13 +11,13 @@ import { createStore } from './store'
 
 const log = createLogger({ process: 'main' }).child({ component: 'weather' })
 
-type MainRpcClient = {
+type RpcHandlerClient = {
   registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
 }
 
 export type WeatherHandle = {
   service: Service
-  registerMainRpc(client: MainRpcClient): void
+  registerRpcHandlers(client: RpcHandlerClient): void
   dispose(): void
 }
 
@@ -34,9 +34,9 @@ export async function initWeather(): Promise<WeatherHandle> {
 
   return {
     service,
-    registerMainRpc(client) {
-      ;(Object.keys(wired.mainRpcHandlers) as Array<keyof typeof wired.mainRpcHandlers>).forEach((method) => {
-        client.registerHandler(method, wired.mainRpcHandlers[method]!)
+    registerRpcHandlers(client) {
+      ;(Object.keys(wired.rpcHandlers) as Array<keyof typeof wired.rpcHandlers>).forEach((method) => {
+        client.registerHandler(method, wired.rpcHandlers[method]!)
       })
     },
     dispose() {

@@ -62,12 +62,10 @@ export function registerBuiltinTools(
     getWebSearchConfig?: () => WebSearchInjection
     /** Live predicate from the tool-toggles store; undefined → all skills enabled. */
     isSkillEnabled?: (name: string) => boolean
-    /** Service-side client for gmail.* mainRequest/mainResponse calls. */
-    gmailMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
-    /** Service-side client for calendar.* mainRequest/mainResponse calls. */
-    calendarMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
-    /** Service-side client for the weather.get_forecast mainRequest (QWeather). */
-    weatherMainRpc?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
+    // Service→main RPC for methods only the main process serves (the gmail/
+    // calendar caches, QWeather config). Gates the gmail and calendar tools
+    // and the weather tool's QWeather path.
+    callMain?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)
@@ -80,7 +78,7 @@ export function registerBuiltinTools(
   registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(currentTimeSpec())
-  registry.register(getWeatherSpec(deps?.weatherMainRpc))
+  registry.register(getWeatherSpec(deps?.callMain))
   registry.register(webFetchSpec())
   // Vision: analyze_image resolves an image-capable model from the task's
   // provider chain at call time (via ctx.analyzeImage); ocr_image runs local
@@ -99,8 +97,10 @@ export function registerBuiltinTools(
   if (deps?.scheduler) for (const spec of cronSpecs(deps.scheduler)) registry.register(spec)
   // cc_* tools need the Claude Code manager; registered only when one is injected.
   if (deps?.claudeCode) for (const spec of claudeCodeSpecs(deps.claudeCode)) registry.register(spec)
-  // gmail.* tools need the service→main rpc to query the cache; registered only when one is injected.
-  if (deps?.gmailMainRpc) for (const spec of gmailSpecs(deps.gmailMainRpc)) registry.register(spec)
-  // calendar.* tools need the service→main rpc to query/mutate the cache.
-  if (deps?.calendarMainRpc) for (const spec of calendarSpecs(deps.calendarMainRpc)) registry.register(spec)
+  // gmail.*/calendar.* tools need the service→main rpc to query the caches;
+  // registered only when one is injected.
+  if (deps?.callMain) {
+    for (const spec of gmailSpecs(deps.callMain)) registry.register(spec)
+    for (const spec of calendarSpecs(deps.callMain)) registry.register(spec)
+  }
 }

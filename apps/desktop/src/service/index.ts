@@ -190,9 +190,7 @@ registerBuiltinTools(toolRegistry, {
   claudeCode,
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
-  gmailMainRpc: (method, args) => rpcPeer.call(method, args),
-  calendarMainRpc: (method, args) => rpcPeer.call(method, args),
-  weatherMainRpc: (method, args) => rpcPeer.call(method, args),
+  callMain: (method, args) => rpcPeer.call(method, args),
 })
 scheduler.start()
 
