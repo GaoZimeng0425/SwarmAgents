@@ -8,6 +8,10 @@ import type { TabInfo, WindowTabs } from './tabs-shared'
 export type TabsStore = {
   loadAll(): Promise<void>
   snapshot(): WindowTabs[]
+  // The unmodified chrome.tabs.query() return captured during the last
+  // loadAll(). Spec §7.3: the RawJson debug surface shows this, not the
+  // projection. Empty before the first loadAll().
+  rawSnapshot(): chrome.tabs.Tab[]
 }
 
 export function createTabsStore(chromeApi: {
@@ -23,6 +27,9 @@ export function createTabsStore(chromeApi: {
   const tabs = new Map<number, TabInfo>()
   const windows = new Map<number, { incognito: boolean }>()
   let loaded = false
+  // The raw chrome.tabs.query() payload from the last loadAll(). Kept for the
+  // RawJson debug surface (spec §7.3 — show the unmodified API return).
+  let lastRaw: chrome.tabs.Tab[] = []
 
   function toRecord(tab: chrome.tabs.Tab): TabInfo {
     return {
@@ -94,6 +101,9 @@ export function createTabsStore(chromeApi: {
       tabs.clear()
       windows.clear()
       for (const tab of all) upsert(toRecord(tab))
+      // Keep the raw API return for the RawJson debug surface. A shallow copy
+      // is enough — the store never mutates these objects; it only projects.
+      lastRaw = all.slice()
       loaded = true
     },
 
@@ -112,6 +122,10 @@ export function createTabsStore(chromeApi: {
         result.push({ windowId, incognito: meta.incognito, tabs: tabList })
       }
       return result
+    },
+
+    rawSnapshot() {
+      return lastRaw
     },
   }
 }

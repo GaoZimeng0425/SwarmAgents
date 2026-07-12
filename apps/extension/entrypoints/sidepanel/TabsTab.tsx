@@ -8,7 +8,7 @@
 // leak.
 import { type JSX, useEffect, useState } from 'react'
 
-import { TABS_MSG, type TabInfo, type WindowTabs } from '../../lib/tabs-shared'
+import { TABS_MSG, type TabInfo, type TabsSnapshotResponse, type WindowTabs } from '../../lib/tabs-shared'
 import { RawJson } from './RawJson'
 
 function hostnameOf(url: string): string {
@@ -27,10 +27,12 @@ export function TabsTab(): JSX.Element {
 
   const refresh = (): void => {
     setError(null)
-    browser.runtime.sendMessage({ type: TABS_MSG.getSnapshot }, (r) => {
+    browser.runtime.sendMessage({ type: TABS_MSG.getSnapshot }, (r: TabsSnapshotResponse) => {
       if (r?.type === TABS_MSG.snapshot) {
         setWindows(r.windows)
-        setRawSnapshot(r)
+        // Spec §7.3: RawJson shows the UNMODIFIED chrome.tabs.query() return,
+        // not the projection. The background sends it as `raw`.
+        setRawSnapshot(r.raw)
         setSnapshotAt(new Date().toLocaleTimeString())
       } else if (r?.type === TABS_MSG.snapshotError) {
         setError(r.error ?? '快照获取失败')
@@ -44,7 +46,7 @@ export function TabsTab(): JSX.Element {
     const onMsg = (msg: { type?: string; kind?: string; tab?: TabInfo }): void => {
       if (msg?.type !== TABS_MSG.changed || !msg.tab) return
       const tab = msg.tab
-      const kind = msg.kind as 'created' | 'updated' | 'removed' | 'activated'
+      const kind = msg.kind as 'created' | 'updated' | 'removed' | 'attached' | 'activated'
       setWindows((prev) => {
         let next = prev.map((w) => ({ ...w, tabs: [...w.tabs] }))
         if (kind === 'removed') {
@@ -58,6 +60,25 @@ export function TabsTab(): JSX.Element {
             ...w,
             tabs: w.tabs.map((t) => ({ ...t, active: t.id === tab.id })),
           }))
+          return next
+        }
+        // attached — tab moved between windows. The incoming tab.windowId is
+        // the NEW window id (from the chrome.tabs.get call in the background).
+        // Remove the tab from whichever group currently holds it, then insert
+        // into the new-window group (creating the group if needed).
+        if (kind === 'attached') {
+          next = next.map((w) => ({
+            ...w,
+            tabs: w.tabs.filter((t) => t.id !== tab.id),
+          }))
+          const existing = next.find((w) => w.windowId === tab.windowId)
+          if (existing) {
+            existing.tabs.push(tab)
+          } else {
+            next.push({ windowId: tab.windowId, incognito: false, tabs: [tab] })
+          }
+          // Drop any window group left empty by the move.
+          next = next.filter((w) => w.tabs.length > 0)
           return next
         }
         // created or updated: upsert into the tab's window group.

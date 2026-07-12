@@ -27,7 +27,7 @@ export const TABS_MSG = {
   snapshotError: 'tabs:snapshotError',
 } as const
 
-export type TabsChangedKind = 'created' | 'updated' | 'removed' | 'activated'
+export type TabsChangedKind = 'created' | 'updated' | 'removed' | 'attached' | 'activated'
 
 // The delta pushed to the panel on each tabs.on* event.
 export type TabsChangedMessage = {
@@ -35,3 +35,10 @@ export type TabsChangedMessage = {
   kind: TabsChangedKind
   tab: TabInfo
 }
+
+// The response to a `tabs:getSnapshot` request. Either the projected
+// WindowTabs[] plus the raw chrome.tabs.Tab[] (for the RawJson debug surface,
+// spec §7.3) on success, or an error string on failure.
+export type TabsSnapshotResponse =
+  | { type: typeof TABS_MSG.snapshot; windows: WindowTabs[]; raw: chrome.tabs.Tab[] }
+  | { type: typeof TABS_MSG.snapshotError; error: string }

@@ -120,6 +120,18 @@ export default defineBackground(() => {
           .then((tab) => emit('activated', tab))
           .catch(() => {})
       })
+      // attached — tab dragged to a different window. onAttached gives only
+      // (tabId, {newWindowId, newPosition}); re-fetch the tab to get full info
+      // (title/url/active) before broadcasting. The store's own onAttached
+      // listener already moved the record; this broadcast is what refreshes
+      // the panel.
+      chrome.tabs.onAttached.addListener((tabId) => {
+        if (!tabsListening) return
+        chrome.tabs
+          .get(tabId)
+          .then((tab) => emit('attached', tab))
+          .catch(() => {})
+      })
     }
     return tabsStore
   }
@@ -197,7 +209,7 @@ export default defineBackground(() => {
           await store.loadAll()
           tabsListening = true
           const windows: WindowTabs[] = store.snapshot()
-          sendResponse({ type: TABS_MSG.snapshot, windows })
+          sendResponse({ type: TABS_MSG.snapshot, windows, raw: store.rawSnapshot() })
         } catch (err) {
           sendResponse({ type: TABS_MSG.snapshotError, error: String(err) })
         }
