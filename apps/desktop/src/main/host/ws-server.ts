@@ -11,11 +11,11 @@ export type StartWsServer = {
 
 // Bind 0.0.0.0 so LAN devices (phone on Wi-Fi) can reach the host. The token
 // travels as a Sec-WebSocket-Protocol subprotocol (swarm.<token>), never in
-// URLs/logs. One peer at a time; unauthorized connections are rejected with 1008.
+// URLs/logs. Multiple peers allowed (phone + browser extension); unauthorized
+// connections are rejected with 1008.
 export async function startWsServer(
   cfg: StartWsServer
 ): Promise<{ server: WebSocketServer; port: number; close: () => void }> {
-  let peer: WebSocket | null = null
   const server = new WebSocketServer({
     host: '0.0.0.0',
     port: cfg.port,
@@ -37,15 +37,8 @@ export async function startWsServer(
       ws.close(1008, 'bad token')
       return
     }
-    if (peer && peer.readyState === WebSocket.OPEN) {
-      cfg.log.warn({ msg: 'ws-host second peer rejected', ip: req.socket.remoteAddress })
-      ws.close(1008, 'another client is connected')
-      return
-    }
-    peer = ws
     cfg.log.info({ msg: 'ws-host peer connected', ip: req.socket.remoteAddress })
     ws.on('close', () => {
-      if (peer === ws) peer = null
       cfg.log.info({ msg: 'ws-host peer disconnected' })
     })
     cfg.onPeer(ws)

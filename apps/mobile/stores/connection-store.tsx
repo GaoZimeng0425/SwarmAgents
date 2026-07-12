@@ -7,7 +7,7 @@ import { createWsTransport } from '@/lib/transport-ws'
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
-const PAIRING_KEY = '@swarm/pairing'
+const PAIRING_KEY = 'swarm.pairing'
 
 type ConnectionState = {
   status: ConnectionStatus

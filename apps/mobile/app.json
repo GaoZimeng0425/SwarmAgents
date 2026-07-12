@@ -16,7 +16,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.starterkitexpo"
+      "package": "com.anonymous.starterkitexpo",
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro",
@@ -31,7 +32,7 @@
       "expo-splash-screen",
       "expo-status-bar",
       [
-        "expo-barcode-scanner",
+        "expo-camera",
         {
           "cameraPermission": "允许 Swarm Agents 访问相机以扫描配对二维码。"
         }

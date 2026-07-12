@@ -114,10 +114,12 @@ export const MessageContent = memo(({ children, className }: MessageContentProps
 // Shared markdown rendering rules for react-native-markdown-display.
 // Exported so non-UIMessage consumers (e.g. the session detail screen rendering
 // Segment[] text) can reuse the same styling without depending on UIMessage.
+// Uses inline styles only — no NativeWind className — so colors are correct
+// on both light and dark backgrounds without depending on theme token resolution.
 export const markdownRules = {
   text: (node, _children, _parent) => {
     return (
-      <Text className="text-foreground text-lg" key={node.key}>
+      <Text style={{ color: '#e0e0e0', fontSize: 15, lineHeight: 22 }} key={node.key}>
         {node.content}
       </Text>
     )
@@ -125,7 +127,7 @@ export const markdownRules = {
 
   ordered_list: (node, children) => {
     return (
-      <View className="mb-2" key={node.key}>
+      <View style={{ marginBottom: 8 }} key={node.key}>
         {children}
       </View>
     )
@@ -135,10 +137,12 @@ export const markdownRules = {
     const isOrdered = parent?.type === 'ordered_list'
     const index = node.index ?? 0
     return (
-      <View className="mb-1 flex-row items-start" key={node.key}>
-        <Text className="mr-2 text-foreground">{isOrdered ? `${index + 1}.` : '•'}</Text>
-        <View className="flex-1">
-          <View className="flex-1">{children}</View>
+      <View style={{ marginBottom: 4, flexDirection: 'row', alignItems: 'flex-start' }} key={node.key}>
+        <Text style={{ marginRight: 8, color: '#e0e0e0', fontSize: 15, lineHeight: 22 }}>
+          {isOrdered ? `${index + 1}.` : '•'}
+        </Text>
+        <View style={{ flex: 1 }}>
+          <View style={{ flex: 1 }}>{children}</View>
         </View>
       </View>
     )
@@ -146,38 +150,38 @@ export const markdownRules = {
 
   paragraph: (node, children) => {
     return (
-      <View className="" key={node.key}>
+      <View key={node.key}>
         {children}
       </View>
     )
   },
 
   strong: (node, children) => (
-    <Text className="font-bold text-foreground" key={node.key}>
+    <Text style={{ color: '#ffffff', fontSize: 15, lineHeight: 22, fontWeight: '700' }} key={node.key}>
       {children}
     </Text>
   ),
 
   em: (node, children) => (
-    <Text className="text-foreground italic" key={node.key}>
+    <Text style={{ color: '#e0e0e0', fontSize: 15, lineHeight: 22, fontStyle: 'italic' }} key={node.key}>
       {children}
     </Text>
   ),
 
   fence: (node) => (
-    <View className="my-2 rounded-xl bg-muted p-3" key={node.key}>
-      <Text className="font-mono text-sm text-white">{node.content}</Text>
+    <View style={{ marginVertical: 8, borderRadius: 8, backgroundColor: '#0d1117', padding: 12 }} key={node.key}>
+      <Text style={{ color: '#c9d1d9', fontSize: 13, fontFamily: 'monospace' }}>{node.content}</Text>
     </View>
   ),
 
   code_block: (node) => (
-    <View className="my-2 rounded-xl bg-slate-900 p-3" key={node.key}>
-      <Text className="font-mono text-sm text-white">{node.content}</Text>
+    <View style={{ marginVertical: 8, borderRadius: 8, backgroundColor: '#0d1117', padding: 12 }} key={node.key}>
+      <Text style={{ color: '#c9d1d9', fontSize: 13, fontFamily: 'monospace' }}>{node.content}</Text>
     </View>
   ),
 
   code_inline: (node) => (
-    <Text className="rounded bg-slate-800 px-1 py-0.5 text-white" key={node.key}>
+    <Text style={{ backgroundColor: '#2a2a2e', color: '#e0e0e0', fontSize: 14, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }} key={node.key}>
       {node.content}
     </Text>
   ),
