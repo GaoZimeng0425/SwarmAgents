@@ -1,6 +1,8 @@
 /// <reference types="chrome" />
 import { createServiceClient, type ServiceClient } from '@swarm/protocol'
 
+import { TABS_MSG, type TabInfo, type TabsChangedKind, type WindowTabs } from '../lib/tabs-shared'
+import { createTabsStore } from '../lib/tabs-store'
 import { createWsTransport } from '../lib/transport-ws'
 
 type HostConfig = { wsHost: string; token: string }
@@ -72,6 +74,56 @@ export default defineBackground(() => {
     void chrome.sidePanel.open({ windowId: tab.windowId })
   })
 
+  // --- Tabs store (lazy-initialized on first tabs:getSnapshot request).
+  // The store registers its own chrome.tabs.on* listeners inside the factory.
+  let tabsStore: ReturnType<typeof createTabsStore> | null = null
+  let tabsListening = false // true while a panel wants live deltas
+
+  function getTabsStore() {
+    if (!tabsStore) {
+      tabsStore = createTabsStore({ tabs: chrome.tabs })
+      // While at least one panel is listening, forward each delta. The store's
+      // on* handlers already mutated state by the time we'd want to read it,
+      // so we re-listen here purely to broadcast. (Listener order: the store
+      // registered its listeners in createTabsStore; these fire after.)
+      const emit = (kind: TabsChangedKind, tab: chrome.tabs.Tab) => {
+        if (!tabsListening) return
+        const info: TabInfo = {
+          id: tab.id ?? -1,
+          windowId: tab.windowId,
+          title: tab.title ?? '',
+          url: tab.url ?? '',
+          favIconUrl: tab.favIconUrl,
+          active: tab.active ?? false,
+        }
+        browser.runtime.sendMessage({ type: TABS_MSG.changed, kind, tab: info }).catch(() => {
+          /* panel may be closed; ignore */
+        })
+      }
+      chrome.tabs.onCreated.addListener((tab) => emit('created', tab))
+      chrome.tabs.onUpdated.addListener((_id, _info, tab) => emit('updated', tab))
+      chrome.tabs.onRemoved.addListener((id) => {
+        if (!tabsListening) return
+        // onRemoved gives no full Tab; emit a minimal tombstone.
+        browser.runtime
+          .sendMessage({
+            type: TABS_MSG.changed,
+            kind: 'removed',
+            tab: { id, windowId: -1, title: '', url: '', active: false },
+          })
+          .catch(() => {})
+      })
+      chrome.tabs.onActivated.addListener((info) => {
+        if (!tabsListening) return
+        chrome.tabs
+          .get(info.tabId)
+          .then((tab) => emit('activated', tab))
+          .catch(() => {})
+      })
+    }
+    return tabsStore
+  }
+
   // The side panel probes connectivity via `health` (no provider/secret
   // needed — submitPrompt needs a ProviderInjection the extension doesn't own).
   // listAgents is kept for backward compatibility; health wraps the same probe.
@@ -137,6 +189,20 @@ export default defineBackground(() => {
         }
       })()
       return true // async response
+    }
+    if ((msg as { type?: string })?.type === TABS_MSG.getSnapshot) {
+      ;(async () => {
+        try {
+          const store = getTabsStore()
+          await store.loadAll()
+          tabsListening = true
+          const windows: WindowTabs[] = store.snapshot()
+          sendResponse({ type: TABS_MSG.snapshot, windows })
+        } catch (err) {
+          sendResponse({ type: TABS_MSG.snapshotError, error: String(err) })
+        }
+      })()
+      return true
     }
     return false
   })

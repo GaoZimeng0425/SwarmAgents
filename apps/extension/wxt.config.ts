@@ -12,7 +12,7 @@ export default defineConfig({
     name: 'SwarmAgents',
     version: '0.1.0',
     description: 'Quick launcher for the SwarmAgents desktop runtime.',
-    permissions: ['storage', 'alarms', 'scripting', 'bookmarks'],
+    permissions: ['storage', 'alarms', 'scripting', 'bookmarks', 'tabs'],
     host_permissions: ['ws://127.0.0.1:47777/*', 'http://127.0.0.1:47777/*'],
     // With the popup entrypoint removed (side panel replaces it), WXT no longer
     // generates an `action` block — but MV3 needs one for the toolbar icon to
