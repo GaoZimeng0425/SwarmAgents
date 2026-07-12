@@ -1,1 +1,16 @@
-@import "tailwindcss";
+/* @swarm/ui's tokens.css is the base Tailwind v4 theme entry — it pulls in
+   tailwindcss + tw-animate-css + shadcn/tailwind.css + the @theme block and the
+   :root/.dark color palette. Import ONLY it here; do NOT also
+   @import "tailwindcss" (duplicate import — tokens.css already does it).
+
+   The clean specifier `@swarm/ui/styles/tokens.css` (used by the desktop
+   renderer) does NOT resolve here: @swarm/ui has no `exports` field and the web
+   vite config has no `@swarm/ui` alias, so `@swarm/ui` only resolves to its
+   `main` (src/index.ts). The browser extension hits the same limitation and uses
+   the relative node_modules path below — we match that. */
+@import "../node_modules/@swarm/ui/src/styles/tokens.css";
+
+/* Tailwind v4 does not scan outside this CSS file's subtree; source the shared
+   component classes from the workspace symlink (apps/web/node_modules/@swarm/ui)
+   so utilities used inside @swarm/ui components generate. */
+@source "../node_modules/@swarm/ui/src";

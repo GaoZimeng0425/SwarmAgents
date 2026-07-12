@@ -32,10 +32,11 @@ export function SessionDetailPage(): React.JSX.Element {
     )
   }, [client, sessionId, qc])
 
-  // Filter + order the global MessageRecord[] for this session, newest-first
-  // (matches mobile's order convention), then flatten into render segments.
+  // Filter + order the global MessageRecord[] for this session, oldest-first
+  // (ascending order) so the newest message lands at the bottom — the
+  // conventional chat order and the direction the auto-scroll effect expects.
   const segments = useMemo(() => {
-    const sessionMessages = messages.filter((m) => m.sessionId === sessionId).sort((a, b) => b.order - a.order)
+    const sessionMessages = messages.filter((m) => m.sessionId === sessionId).sort((a, b) => a.order - b.order)
     return sessionMessages.flatMap((r) => buildSegments(r.events))
   }, [messages, sessionId])
 
