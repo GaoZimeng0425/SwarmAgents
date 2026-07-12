@@ -6,6 +6,7 @@ import { type JSX, useEffect, useState } from 'react'
 
 import { ArticlesTab } from './ArticlesTab'
 import { BookmarksTab } from './BookmarksTab'
+import { TabsTab } from './TabsTab'
 
 type Tab = 'articles' | 'bookmarks' | 'tabs'
 type HealthResult = { ok: true; count: number } | { ok: false; error: string }
@@ -58,7 +59,7 @@ export function SidePanel(): JSX.Element {
 
       {activeTab === 'articles' && <ArticlesTab connected={connected} />}
       {activeTab === 'bookmarks' && <BookmarksTab />}
-      {activeTab === 'tabs' && <p className="text-muted-foreground text-xs">(标签页视图即将上线)</p>}
+      {activeTab === 'tabs' && <TabsTab />}
     </div>
   )
 }
