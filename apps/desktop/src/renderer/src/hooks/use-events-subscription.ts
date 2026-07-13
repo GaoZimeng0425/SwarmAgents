@@ -44,22 +44,29 @@ function buildPrompt(e: Extract<UIEvent, { kind: 'message.permission_request' }>
   }
 }
 
-export function useEventsSubscription(): void {
+export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): void {
+  const { isQuickPanel = false } = opts
   const qc = useQueryClient()
   const push = usePermissionStore((s) => s.push)
   const navigate = useNavigate()
   const { openSettings } = useSettingsNav()
 
   // Ask once for OS-notification permission so choice cards can ping the user.
+  // Skip in the quick panel — it's a hidden secondary window that shouldn't
+  // trigger the macOS notification permission prompt.
   useEffect(() => {
+    if (isQuickPanel) return
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       void Notification.requestPermission()
     }
-  }, [])
+  }, [isQuickPanel])
 
   // swarmagents://chat/<id> deep links. Pull any link that arrived before this
   // mount (cold start), then subscribe to links pushed while the app runs.
+  // Skip in the quick panel — the main window owns deep-link consumption to
+  // avoid a race where the hidden panel steals the cold-start link.
   useEffect(() => {
+    if (isQuickPanel) return
     const open = (payload: { sessionId?: string; route?: string }): void => {
       if (payload.sessionId) {
         void navigate({ to: '/session/$sessionId', params: { sessionId: payload.sessionId } })
@@ -71,17 +78,19 @@ export function useEventsSubscription(): void {
       if (d) open({ sessionId: d.sessionId })
     })
     return swarmApi.onNavigateToSession(open)
-  }, [navigate])
+  }, [navigate, isQuickPanel])
 
   // Main → renderer Settings open (menu / deep-link). Mounted app-wide via
   // EventsBridge, so it works regardless of the current route. Opens the
   // settings dialog at the mapped section by setting the ?settings= search
   // param (router-derived now, via useSettingsNav).
+  // Skip in the quick panel — settings navigation is main-window-only.
   useEffect(() => {
+    if (isQuickPanel) return
     return swarmApi.onNavigateToSettings((route) => {
       openSettings(routeToSection(route))
     })
-  }, [openSettings])
+  }, [openSettings, isQuickPanel])
 
   useEffect(() => {
     return swarmApi.subscribeEvents((e) => {
@@ -89,11 +98,13 @@ export function useEventsSubscription(): void {
 
       // Surface activity in sessions other than the one being viewed: mark the
       // session unread (dot in the list) and toast on milestone events.
+      // Skip toasts in the quick panel — the main window handles them, and
+      // the hidden panel shouldn't fire invisible toast notifications.
       if ('sessionId' in e && e.sessionId && e.kind.startsWith('message.')) {
         const store = useSessionsStore.getState()
         if (e.sessionId !== store.selectedSessionId) {
           store.markUnread(e.sessionId)
-          if (TOAST_KINDS.has(e.kind)) {
+          if (!isQuickPanel && TOAST_KINDS.has(e.kind)) {
             const sid = e.sessionId
             const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
             toast(activityMessage(e.kind, title), {
@@ -151,8 +162,9 @@ export function useEventsSubscription(): void {
 
       // A render_ui single/multi-select card pings the OS, but only when the
       // user can't already see it: window unfocused, or a non-active session.
+      // Skip in the quick panel — the main window handles OS notifications.
       const choice = parseChoiceCard(e)
-      if (choice && 'sessionId' in e && e.sessionId && 'messageId' in e) {
+      if (!isQuickPanel && choice && 'sessionId' in e && e.sessionId && 'messageId' in e) {
         const store = useSessionsStore.getState()
         const sid = e.sessionId
         if (!document.hasFocus() || sid !== store.selectedSessionId) {
@@ -164,5 +176,5 @@ export function useEventsSubscription(): void {
         }
       }
     })
-  }, [qc, push, navigate])
+  }, [qc, push, navigate, isQuickPanel])
 }

@@ -14,7 +14,7 @@ export const Route = createFileRoute('/quick-panel')({
 function QuickPanelRoute(): React.JSX.Element {
   return (
     <div className="flex h-svh flex-col overflow-hidden">
-      <EventsBridge />
+      <EventsBridge isQuickPanel />
       <QuickPanel />
     </div>
   )

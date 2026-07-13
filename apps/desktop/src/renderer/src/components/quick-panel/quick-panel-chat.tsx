@@ -92,15 +92,26 @@ export function QuickPanelChat(): React.JSX.Element {
 
     let sid = sessionId
     if (!sid) {
-      const created = await swarmApi.createSession()
-      sid = created.sessionId
-      setSessionId(sid)
-      selectSession(sid)
+      try {
+        const created = await swarmApi.createSession()
+        sid = created.sessionId
+        setSessionId(sid)
+        selectSession(sid)
+      } catch {
+        // createSession failed — don't disable input, let the user retry.
+        return
+      }
     }
 
     setInput('')
     setIsStreaming(true)
-    await swarmApi.submitPrompt(sid, trimmed, undefined, { agentType: DEFAULT_FORMATION })
+    try {
+      await swarmApi.submitPrompt(sid, trimmed, undefined, { agentType: DEFAULT_FORMATION })
+    } catch {
+      // submitPrompt rejected before any task event arrived — reset streaming
+      // so the input isn't permanently stuck disabled.
+      setIsStreaming(false)
+    }
   }
 
   const onKeyDown = (e: React.KeyboardEvent): void => {

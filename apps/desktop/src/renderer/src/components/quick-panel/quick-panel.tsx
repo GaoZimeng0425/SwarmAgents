@@ -31,7 +31,7 @@ export function QuickPanel(): React.JSX.Element {
         void swarmApi.quickPanelFocusMain({ navigate: to })
       },
       openSettings: (section) => {
-        void swarmApi.quickPanelFocusMain({ settings: section })
+        void swarmApi.quickPanelFocusMain({ settings: section ?? 'general' })
       },
       cycleTheme: () => {
         const current = (theme ?? 'system') as (typeof THEME_ORDER)[number]
