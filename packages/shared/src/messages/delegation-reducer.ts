@@ -7,7 +7,7 @@ export type PlanItemState = DelegationItem & {
 
 /** A delegation_plan event replaces the entire plan state (full snapshot). */
 export function applyDelegationPlan(
-  prev: Map<string, PlanItemState> | undefined,
+  _prev: Map<string, PlanItemState> | undefined,
   plan: DelegationItem[]
 ): Map<string, PlanItemState> {
   const next = new Map<string, PlanItemState>()

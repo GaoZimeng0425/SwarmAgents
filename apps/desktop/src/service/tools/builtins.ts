@@ -18,6 +18,7 @@ import { buildPeekabooTools } from './peekaboo'
 import { updatePlanSpec } from './plan'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { renderUiSpec } from './render-ui'
+import { reportResultSpec } from './report-result'
 import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
 import { currentTimeSpec } from './time'
@@ -75,6 +76,7 @@ export function registerBuiltinTools(
   registry.register(writeSkillSpec())
   registry.register(updatePlanSpec())
   registry.register(delegationPlanSpec())
+  registry.register(reportResultSpec())
   registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(currentTimeSpec())
