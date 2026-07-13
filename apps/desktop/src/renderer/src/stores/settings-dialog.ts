@@ -12,6 +12,7 @@ import {
   Cpu,
   Globe,
   Info,
+  Keyboard,
   Lock,
   type LucideIcon,
   Mail,
@@ -29,6 +30,7 @@ import { GmailSettingsView } from '@/components/views/gmail-view'
 import { McpServersView } from '@/components/views/mcp-servers-view'
 import { PermissionsView } from '@/components/views/permissions-view'
 import { ProvidersView } from '@/components/views/providers-view'
+import { QuickPanelSettingsView } from '@/components/views/quick-panel-settings-view'
 import { RemoteView } from '@/components/views/remote-view'
 import { SkillsView } from '@/components/views/skills-view'
 import { WeatherView } from '@/components/views/weather-view'
@@ -48,6 +50,7 @@ export type SettingsSection =
   | 'permissions'
   | 'about'
   | 'remote'
+  | 'quick-panel'
 
 export type SectionGroup = '通用' | '模型' | '工具' | '连接' | '系统'
 
@@ -65,6 +68,14 @@ export type SectionMeta = {
 
 export const SECTIONS_REGISTRY: SectionMeta[] = [
   { key: 'general', label: '通用', group: '通用', iconBg: '#8e8e93', icon: Settings, View: GeneralView },
+  {
+    key: 'quick-panel',
+    label: '快捷面板',
+    group: '通用',
+    iconBg: '#8e8e93',
+    icon: Keyboard,
+    View: QuickPanelSettingsView,
+  },
   { key: 'providers', label: '模型设置', group: '模型', iconBg: '#3478f6', icon: Cpu, View: ProvidersView },
   { key: 'budgets', label: '预算', group: '模型', iconBg: '#ff9f0a', icon: CircleDollarSign, View: BudgetsView },
   { key: 'mcp', label: 'MCP 服务器', group: '工具', iconBg: '#5e5ce6', icon: Boxes, View: McpServersView },
