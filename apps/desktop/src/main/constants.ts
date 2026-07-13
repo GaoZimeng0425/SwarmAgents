@@ -58,6 +58,8 @@ export const paths = {
   calendar: () => join(app.getPath('userData'), 'calendar.json'),
   calendarDb: () => join(app.getPath('userData'), 'calendar.db'),
   workbench: () => join(app.getPath('userData'), 'workbench.json'),
+  // Quick panel hotkey config (plaintext JSON, user-editable via Settings).
+  quickPanel: () => join(app.getPath('userData'), 'quick-panel.json'),
 } as const
 
 /**
