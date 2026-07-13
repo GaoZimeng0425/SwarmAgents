@@ -14,6 +14,7 @@ import { Route as UsageRouteImport } from './routes/usage'
 import { Route as TrendingRouteImport } from './routes/trending'
 import { Route as SessionRouteImport } from './routes/session'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
+import { Route as QuickPanelRouteImport } from './routes/quick-panel'
 import { Route as GmailRouteImport } from './routes/gmail'
 import { Route as GlassRouteImport } from './routes/glass'
 import { Route as FormationsRouteImport } from './routes/formations'
@@ -46,6 +47,11 @@ const SessionRoute = SessionRouteImport.update({
 const ScheduledRoute = ScheduledRouteImport.update({
   id: '/scheduled',
   path: '/scheduled',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuickPanelRoute = QuickPanelRouteImport.update({
+  id: '/quick-panel',
+  path: '/quick-panel',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GmailRoute = GmailRouteImport.update({
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/formations': typeof FormationsRoute
   '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
+  '/quick-panel': typeof QuickPanelRoute
   '/scheduled': typeof ScheduledRoute
   '/session': typeof SessionRouteWithChildren
   '/trending': typeof TrendingRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/formations': typeof FormationsRoute
   '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
+  '/quick-panel': typeof QuickPanelRoute
   '/scheduled': typeof ScheduledRoute
   '/trending': typeof TrendingRoute
   '/usage': typeof UsageRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/formations': typeof FormationsRoute
   '/glass': typeof GlassRoute
   '/gmail': typeof GmailRoute
+  '/quick-panel': typeof QuickPanelRoute
   '/scheduled': typeof ScheduledRoute
   '/session': typeof SessionRouteWithChildren
   '/trending': typeof TrendingRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/formations'
     | '/glass'
     | '/gmail'
+    | '/quick-panel'
     | '/scheduled'
     | '/session'
     | '/trending'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/formations'
     | '/glass'
     | '/gmail'
+    | '/quick-panel'
     | '/scheduled'
     | '/trending'
     | '/usage'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/formations'
     | '/glass'
     | '/gmail'
+    | '/quick-panel'
     | '/scheduled'
     | '/session'
     | '/trending'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   FormationsRoute: typeof FormationsRoute
   GlassRoute: typeof GlassRoute
   GmailRoute: typeof GmailRoute
+  QuickPanelRoute: typeof QuickPanelRoute
   ScheduledRoute: typeof ScheduledRoute
   SessionRoute: typeof SessionRouteWithChildren
   TrendingRoute: typeof TrendingRoute
@@ -230,6 +243,13 @@ declare module '@tanstack/react-router' {
       path: '/scheduled'
       fullPath: '/scheduled'
       preLoaderRoute: typeof ScheduledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quick-panel': {
+      id: '/quick-panel'
+      path: '/quick-panel'
+      fullPath: '/quick-panel'
+      preLoaderRoute: typeof QuickPanelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gmail': {
@@ -311,6 +331,7 @@ const rootRouteChildren: RootRouteChildren = {
   FormationsRoute: FormationsRoute,
   GlassRoute: GlassRoute,
   GmailRoute: GmailRoute,
+  QuickPanelRoute: QuickPanelRoute,
   ScheduledRoute: ScheduledRoute,
   SessionRoute: SessionRouteWithChildren,
   TrendingRoute: TrendingRoute,

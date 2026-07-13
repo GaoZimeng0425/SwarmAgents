@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { SidebarInset, SidebarProvider, Toaster } from '@swarm/ui'
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet, useMatches } from '@tanstack/react-router'
 
 import { AppRail } from '@/components/app-rail'
 import { EventsBridge } from '@/components/events-bridge'
@@ -31,12 +31,22 @@ export const Route = createRootRoute({
 
 function RootLayout(): React.JSX.Element {
   const loadSessions = useLoadSessions()
+  const matches = useMatches()
+  const isQuickPanel = matches.some((m) => m.routeId === '/quick-panel')
   // Load the session list once at the root; the /session layout mounts the
   // SessionPanel, but the query cache persists across its mount/unmount.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation
   useEffect(() => {
     loadSessions.mutate()
   }, [])
+
+  // The quick-panel route is a frameless floating window — skip the main-window
+  // chrome (TitleBar / AppRail / Sidebar / SettingsDialog / SessionSearchDialog).
+  // EventsBridge is mounted inside the route component itself so swarm:event
+  // subscriptions work.
+  if (isQuickPanel) {
+    return <Outlet />
+  }
 
   return (
     <>
