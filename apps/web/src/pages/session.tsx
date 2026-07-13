@@ -35,9 +35,14 @@ export function SessionDetailPage(): React.JSX.Element {
   // Filter + order the global MessageRecord[] for this session, oldest-first
   // (ascending order) so the newest message lands at the bottom — the
   // conventional chat order and the direction the auto-scroll effect expects.
+  // Namespace each message's segment keys by message id: buildSegments keys are
+  // only unique within one message, so flatMapping multiple messages into one
+  // list would collide (two messages both emit seg-0, seg-1, …).
   const segments = useMemo(() => {
     const sessionMessages = messages.filter((m) => m.sessionId === sessionId).sort((a, b) => a.order - b.order)
-    return sessionMessages.flatMap((r) => buildSegments(r.events))
+    return sessionMessages.flatMap((r) =>
+      buildSegments(r.events).map((seg) => ({ ...seg, key: `${r.id}:${seg.key}` }))
+    )
   }, [messages, sessionId])
 
   // Extract pending permission_request prompts for this session.
