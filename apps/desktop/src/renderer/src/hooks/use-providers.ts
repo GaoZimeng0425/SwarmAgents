@@ -3,7 +3,7 @@
 // Subscribes to providers state from main and derives the `ready` flag used
 // by the main-window banner (Task 19) and any future task-creation surface.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { type ProvidersStateView, providerViewById } from '@swarm/protocol'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -17,13 +17,11 @@ const EMPTY: ProvidersStateView = {
 export type UseProviders = {
   state: ProvidersStateView
   ready: boolean
-  decryptFailed: boolean
   refetch: () => void
 }
 
 export function useProviders(): UseProviders {
   const qc = useQueryClient()
-  const [decryptFailed, setDecryptFailed] = useState(false)
 
   const { data, refetch } = useQuery<ProvidersStateView>({
     queryKey: PROVIDERS_KEY,
@@ -31,13 +29,11 @@ export function useProviders(): UseProviders {
   })
 
   // Main pushes the full state on change — write it straight into the cache
-  // instead of refetching. Decrypt failure is a separate one-way flag.
+  // instead of refetching.
   useEffect(() => {
     const offState = window.swarm.providers.onStateChanged((v) => qc.setQueryData(PROVIDERS_KEY, v))
-    const offDecrypt = window.swarm.providers.onDecryptFailed(() => setDecryptFailed(true))
     return () => {
       offState()
-      offDecrypt()
     }
   }, [qc])
 
@@ -47,5 +43,5 @@ export function useProviders(): UseProviders {
     return row?.hasKey === true
   }, [state])
 
-  return { state, ready, decryptFailed, refetch: () => void refetch() }
+  return { state, ready, refetch: () => void refetch() }
 }

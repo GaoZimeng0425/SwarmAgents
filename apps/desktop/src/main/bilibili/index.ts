@@ -1,6 +1,6 @@
 // src/main/bilibili/index.ts
 //
-// Entry point for the Bilibili subsystem. Wires the encrypted store, auth, and IPC.
+// Entry point for the Bilibili subsystem. Wires the on-disk store, auth, and IPC.
 import type { ProviderInjection } from '@swarm/protocol'
 
 import { paths } from '../constants'

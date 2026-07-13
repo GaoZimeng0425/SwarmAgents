@@ -11,11 +11,6 @@ import { createService } from './service'
 import { createStore } from './store'
 
 vi.mock('electron', () => ({
-  safeStorage: {
-    encryptString: (s: string) => Buffer.from(s, 'utf8'),
-    decryptString: (b: Buffer) => b.toString('utf8'),
-    isEncryptionAvailable: () => true,
-  },
   shell: { openExternal: async () => {} },
 }))
 
@@ -42,7 +37,7 @@ const fakeDaemon = () => ({
 describe('calendar service', () => {
   it('setClientCreds persists and updates view', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     const cache = createCache({ filePath: ':memory:' })
     const svc = await createService({ store, cache, auth: fakeAuth(), daemon: fakeDaemon() })
     const r = await svc.setClientCreds({ clientId: 'cid', clientSecret: 'sec' })
@@ -54,7 +49,7 @@ describe('calendar service', () => {
 
   it('linkAccount rejects without creds; starts daemon when present', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     const daemon = fakeDaemon()
     const svc = await createService({ store, cache: createCache({ filePath: ':memory:' }), auth: fakeAuth(), daemon })
     const r = await svc.linkAccount()
@@ -68,7 +63,7 @@ describe('calendar service', () => {
 
   it('a reauth sync payload flips the view to not-linked and reauthRequired', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     await store.save({
       clientCreds: { clientId: 'c', clientSecret: 's' },
       tokens: { accessToken: 'a', refreshToken: 'r', expiresAt: Date.now() + 1_000_000 },
@@ -100,7 +95,7 @@ describe('calendar service', () => {
 
   it('createLocal then listInRange returns it; getView counts it', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     const cache = createCache({ filePath: ':memory:' })
     const svc = await createService({ store, cache, auth: fakeAuth(), daemon: fakeDaemon() })
     const created = svc.createLocal({ title: 'M', startMs: 100, endMs: 200 })
@@ -116,7 +111,7 @@ describe('calendar service', () => {
 
   it('deleteLocal removes the event', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     const cache = createCache({ filePath: ':memory:' })
     const svc = await createService({ store, cache, auth: fakeAuth(), daemon: fakeDaemon() })
     const created = svc.createLocal({ title: 'M', startMs: 1, endMs: 2 })

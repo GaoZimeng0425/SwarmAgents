@@ -59,7 +59,7 @@ const THINKING_LABELS: Record<ModelThinkingLevel, string> = {
 type Selection = string | 'add' | null
 
 export function ProvidersView(): React.JSX.Element {
-  const { state, decryptFailed, refetch } = useProviders()
+  const { state, refetch } = useProviders()
   const customs = state.providers.filter((p) => !p.registry)
   const [selected, setSelected] = useState<Selection>(null)
   const didInit = useRef(false)
@@ -92,12 +92,6 @@ export function ProvidersView(): React.JSX.Element {
         description="管理自定义模型供应商，配置后可在聊天时选择使用。"
         title="模型设置"
       />
-
-      {decryptFailed && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          Saved keys could not be decrypted on this machine. Re-enter them to continue.
-        </div>
-      )}
 
       <div className="flex min-h-[26rem] overflow-hidden rounded-xl border">
         <nav className="w-60 shrink-0 space-y-4 overflow-y-auto border-r bg-muted/20 p-3">

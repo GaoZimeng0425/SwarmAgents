@@ -1,47 +1,27 @@
-// Encrypted on-disk QWeather config store. Reads/writes a single file via
-// Electron safeStorage (Keychain-backed on macOS). Saves are atomic (write tmp
-// -> rename) and validated against the Zod schema before encryption so we never
-// persist garbage. Pure module: no logging, no globals — callers inject filePath.
+// Plaintext on-disk QWeather config store. Reads/writes a single JSON file.
+// Saves are atomic (write tmp -> rename) and validated against the Zod schema
+// before writing so we never persist garbage. Pure module: no logging, no
+// globals — callers inject filePath.
 import { existsSync, promises as fs } from 'node:fs'
 import { defaultWeatherConfigOnDisk, WeatherConfigOnDisk } from '@swarm/protocol'
-import { safeStorage } from 'electron'
-
-export type LoadResult =
-  | { ok: true; state: WeatherConfigOnDisk }
-  | { ok: false; reason: 'decrypt_failed' | 'schema_invalid' }
 
 export type Store = {
   load(): Promise<WeatherConfigOnDisk> // forgiving — returns defaults on missing/failure
-  loadOrRecover(): Promise<LoadResult> // strict — reports failure reason
   save(state: WeatherConfigOnDisk): Promise<void>
 }
 
 export function createStore(opts: { filePath: string }): Store {
   const { filePath } = opts
 
-  const loadOrRecover: Store['loadOrRecover'] = async () => {
-    if (!existsSync(filePath)) return { ok: true, state: defaultWeatherConfigOnDisk() }
-    const buf = await fs.readFile(filePath)
-    let json: string
-    try {
-      json = safeStorage.decryptString(buf)
-    } catch {
-      return { ok: false, reason: 'decrypt_failed' }
-    }
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(json)
-    } catch {
-      return { ok: false, reason: 'schema_invalid' }
-    }
-    const checked = WeatherConfigOnDisk.safeParse(parsed)
-    if (!checked.success) return { ok: false, reason: 'schema_invalid' }
-    return { ok: true, state: checked.data }
-  }
-
   const load: Store['load'] = async () => {
-    const r = await loadOrRecover()
-    return r.ok ? r.state : defaultWeatherConfigOnDisk()
+    if (!existsSync(filePath)) return defaultWeatherConfigOnDisk()
+    try {
+      const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'))
+      const checked = WeatherConfigOnDisk.safeParse(parsed)
+      return checked.success ? checked.data : defaultWeatherConfigOnDisk()
+    } catch {
+      return defaultWeatherConfigOnDisk()
+    }
   }
 
   // Serialize saves so concurrent calls don't race on the shared .tmp path.
@@ -49,11 +29,10 @@ export function createStore(opts: { filePath: string }): Store {
 
   const save: Store['save'] = (state) => {
     const next = saveQueue.then(async () => {
-      // Validate before encrypting so we never persist garbage.
+      // Validate before writing so we never persist garbage.
       WeatherConfigOnDisk.parse(state)
-      const ciphertext = safeStorage.encryptString(JSON.stringify(state))
       const tmp = `${filePath}.tmp`
-      await fs.writeFile(tmp, ciphertext)
+      await fs.writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`)
       await fs.rename(tmp, filePath)
     })
     // Keep the queue alive even if one save rejects.
@@ -61,5 +40,5 @@ export function createStore(opts: { filePath: string }): Store {
     return next
   }
 
-  return { load, loadOrRecover, save }
+  return { load, save }
 }

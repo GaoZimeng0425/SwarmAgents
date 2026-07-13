@@ -25,7 +25,7 @@ const provider = {
 const state: ProvidersStateView = { active: 'p1', providers: [provider] }
 
 vi.mock('@/hooks/use-providers', () => ({
-  useProviders: () => ({ state, ready: true, decryptFailed: false }),
+  useProviders: () => ({ state, ready: true }),
 }))
 
 vi.mock('@/components/attachment-viewer-sheet', () => ({
@@ -76,7 +76,7 @@ describe('ChatInput thinking stepper (TanStack Ranger)', () => {
     const top = { ...provider, thinkingLevel: 'high' } as unknown as ProviderView
     const topState: ProvidersStateView = { active: 'p1', providers: [top] }
     const mod = await import('@/hooks/use-providers')
-    vi.spyOn(mod, 'useProviders').mockReturnValue({ state: topState, ready: true, decryptFailed: false } as never)
+    vi.spyOn(mod, 'useProviders').mockReturnValue({ state: topState, ready: true } as never)
 
     render(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" />)
     const slider = await openStepper()

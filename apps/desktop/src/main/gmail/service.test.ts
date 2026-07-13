@@ -10,11 +10,6 @@ import { createService } from './service'
 import { createStore } from './store'
 
 vi.mock('electron', () => ({
-  safeStorage: {
-    encryptString: (s: string) => Buffer.from(s, 'utf8'),
-    decryptString: (b: Buffer) => b.toString('utf8'),
-    isEncryptionAvailable: () => true,
-  },
   shell: { openExternal: async () => {} },
 }))
 
@@ -54,7 +49,7 @@ function fakeApi(overrides: Partial<{ markThreadRead: (id: string) => Promise<vo
 describe('gmail service', () => {
   it('setClientCreds persists and updates view', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const store = createStore({ filePath: join(dir, 'gmail.enc') })
+    const store = createStore({ filePath: join(dir, 'gmail.json') })
     const cache = createCache({ filePath: ':memory:' })
     const daemon = { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn(), getPage: vi.fn(), onSynced: () => () => {} }
     const svc = await createService({ store, cache, auth: fakeAuth(), daemon, api: fakeApi() })
@@ -67,7 +62,7 @@ describe('gmail service', () => {
 
   it('linkAccount starts daemon; unlink stops it', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const store = createStore({ filePath: join(dir, 'gmail.enc') })
+    const store = createStore({ filePath: join(dir, 'gmail.json') })
     await store.save({ clientCreds: { clientId: 'cid', clientSecret: 'sec' }, tokens: null, accountEmail: null })
     const cache = createCache({ filePath: ':memory:' })
     const daemon = { start: vi.fn(), stop: vi.fn(), pollOnce: vi.fn(), getPage: vi.fn(), onSynced: () => () => {} }
@@ -82,7 +77,7 @@ describe('gmail service', () => {
 
   it('query methods read cache', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const store = createStore({ filePath: join(dir, 'gmail.enc') })
+    const store = createStore({ filePath: join(dir, 'gmail.json') })
     const cache = createCache({ filePath: ':memory:' })
     cache.upsertThreads([
       { id: 't1', snippet: 'invoice', fromAddr: '', subject: '', lastDateMs: 1, labelIds: ['INBOX'], unread: false },
@@ -102,7 +97,7 @@ describe('gmail service', () => {
 
   it('markThreadRead flips the cache unread flag and calls the Gmail API', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const store = createStore({ filePath: join(dir, 'gmail.enc') })
+    const store = createStore({ filePath: join(dir, 'gmail.json') })
     const cache = createCache({ filePath: ':memory:' })
     cache.upsertThreads([
       { id: 't1', snippet: '', fromAddr: '', subject: '', lastDateMs: 1, labelIds: ['INBOX', 'UNREAD'], unread: true },

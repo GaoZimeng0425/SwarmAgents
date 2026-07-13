@@ -8,7 +8,7 @@ import { app } from 'electron'
 //   - swarmHome() — ~/.swarm-agents, a user-visible dotfolder (like ~/.claude)
 //     for hand-editable assets: skills, agents, mcp-servers.json,
 //     tool-toggles.json, hooks.json, and the dev log.
-//   - userData — Electron's OS-managed app dir, for encrypted credentials and
+//   - userData — Electron's OS-managed app dir, for plaintext config files and
 //     the DB/memory that users shouldn't hand-edit.
 //
 // Entries are getters, not eager constants: app.getPath('userData') is only
@@ -31,7 +31,7 @@ export const paths = {
   mcpServers: () => join(swarmHome(), 'mcp-servers.json'),
   // Claude-Code-style hooks: event name → command mapping, hand-edited.
   hooks: () => join(swarmHome(), 'hooks.json'),
-  // userData — credentials + DB/memory, not for hand-editing.
+  // userData — plaintext config + DB/memory, not for hand-editing.
   db: () => join(app.getPath('userData'), 'agent-service.db'),
   memory: () => join(app.getPath('userData'), 'agent-memory.json'),
   // Session-markdown exports (the command palette's "export" action). Plain
@@ -41,8 +41,8 @@ export const paths = {
   // own filename collected-articles.json). userData, not swarmHome, so the
   // service pins a stable dir instead of falling back to tmpdir().
   articles: () => join(app.getPath('userData'), 'articles'),
-  providers: () => join(app.getPath('userData'), 'providers.enc'),
-  bilibili: () => join(app.getPath('userData'), 'bilibili.bin'),
+  providers: () => join(app.getPath('userData'), 'providers.json'),
+  bilibili: () => join(app.getPath('userData'), 'bilibili.json'),
   bilibiliAnalysis: () => join(app.getPath('userData'), 'bilibili-analysis.json'),
   // Locally retained video cards (soft-delete) and pinned videos.
   bilibiliArchive: () => join(app.getPath('userData'), 'bilibili-archive.json'),
@@ -50,12 +50,12 @@ export const paths = {
   // Locally-cached OpenRouter model catalog (public pricing/context data — plain
   // JSON, not a credential). Lets pricing auto-match offline and survive restart.
   openrouterCatalog: () => join(app.getPath('userData'), 'openrouter-catalog.json'),
-  webSearch: () => join(app.getPath('userData'), 'web-search.enc'),
-  weather: () => join(app.getPath('userData'), 'weather.enc'),
+  webSearch: () => join(app.getPath('userData'), 'web-search.json'),
+  weather: () => join(app.getPath('userData'), 'weather.json'),
   budgets: () => join(app.getPath('userData'), 'budgets.json'),
-  gmail: () => join(app.getPath('userData'), 'gmail.enc'),
+  gmail: () => join(app.getPath('userData'), 'gmail.json'),
   gmailDb: () => join(app.getPath('userData'), 'gmail.db'),
-  calendar: () => join(app.getPath('userData'), 'calendar.enc'),
+  calendar: () => join(app.getPath('userData'), 'calendar.json'),
   calendarDb: () => join(app.getPath('userData'), 'calendar.db'),
   workbench: () => join(app.getPath('userData'), 'workbench.json'),
 } as const
@@ -82,8 +82,6 @@ export const servicePathEnv: ReadonlyArray<readonly [envName: string, getter: ()
  * Materialize the hand-editable subdirs so ~/.swarm-agents is a discoverable
  * drop-in home from first launch — without it the dir is empty until the user
  * saves a skill/agent (builtins live in-memory and are never written to disk).
- * mcp-servers.json is deliberately NOT seeded: its store relies on "file
- * absent" to trigger legacy migration, so an empty seed would suppress it.
  */
 export function ensureSwarmDirs(): void {
   mkdirSync(paths.skills(), { recursive: true })

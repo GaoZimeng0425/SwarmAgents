@@ -2,19 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { McpServerConfig } from '@swarm/protocol'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: vi.fn(() => true),
-    encryptString: vi.fn((s: string) => Buffer.from(`enc:${s}`)),
-    decryptString: vi.fn((b: Buffer) => {
-      const s = b.toString('utf-8')
-      if (!s.startsWith('enc:')) throw new Error('decrypt failed')
-      return s.slice('enc:'.length)
-    }),
-  },
-}))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createStore } from './store'
 
@@ -37,7 +25,7 @@ const cfg = (over: Partial<McpServerConfig> & Pick<McpServerConfig, 'name' | 'tr
 })
 
 describe('mcp-servers store', () => {
-  it('returns empty when neither .json nor legacy .enc exists', async () => {
+  it('returns empty when the file does not exist', async () => {
     const state = await createStore({ filePath: path }).load()
     expect(state).toEqual({ servers: [] })
   })
@@ -121,22 +109,5 @@ describe('mcp-servers store', () => {
     const { servers } = await createStore({ filePath: path }).load()
     expect(servers).toEqual([])
     expect(existsSync(path)).toBe(true) // left for the user to fix
-  })
-
-  it('migrates a legacy encrypted .enc on first load', async () => {
-    const encPath = join(dir, 'mcp-servers.enc')
-    const legacy = {
-      version: 1,
-      servers: [{ id: '01ABC', name: 'workpanel', transport: 'http', url: 'http://h/mcp', enabled: true }],
-    }
-    writeFileSync(encPath, `enc:${JSON.stringify(legacy)}`)
-
-    const { servers } = await createStore({ filePath: path }).load()
-    expect(servers).toHaveLength(1)
-    expect(servers[0].name).toBe('workpanel')
-    expect(servers[0].id).toBe('workpanel') // ulid dropped; name is the id now
-    // migration writes the plaintext file
-    expect(existsSync(path)).toBe(true)
-    expect(JSON.parse(readFileSync(path, 'utf8')).mcpServers.workpanel.url).toBe('http://h/mcp')
   })
 })

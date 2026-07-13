@@ -10,7 +10,6 @@ function makeStore(initial: ProvidersStateOnDisk): Store & { saved: ProvidersSta
   return {
     saved,
     load: vi.fn(async () => current),
-    loadOrRecover: vi.fn(async () => ({ ok: true as const, state: current })),
     save: vi.fn(async (s: ProvidersStateOnDisk) => {
       saved.push(s)
       current = s

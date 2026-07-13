@@ -14,7 +14,7 @@ function renderChatInput(props: Partial<React.ComponentProps<typeof ChatInput>> 
 // No configured providers → the model/thinking pickers stay hidden, keeping the
 // render focused on the three composer controls under test.
 vi.mock('@/hooks/use-providers', () => ({
-  useProviders: () => ({ state: { active: null, providers: [] }, ready: false, decryptFailed: false }),
+  useProviders: () => ({ state: { active: null, providers: [] }, ready: false }),
 }))
 
 // The attachment viewer pulls in a heavy xlsx-preview dependency (us-atlas) that

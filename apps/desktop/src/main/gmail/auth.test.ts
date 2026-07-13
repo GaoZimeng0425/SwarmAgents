@@ -6,14 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createAuth, exchangeCode, extractCode, refreshTokens } from './auth'
 import { createStore } from './store'
 
-vi.mock('electron', () => ({
-  safeStorage: {
-    encryptString: (s: string) => Buffer.from(s, 'utf8'),
-    decryptString: (b: Buffer) => b.toString('utf8'),
-    isEncryptionAvailable: () => true,
-  },
-}))
-
 let dir: string
 afterEach(() => dir && rmSync(dir, { recursive: true, force: true }))
 
@@ -63,7 +55,7 @@ describe('gmail auth helpers', () => {
 describe('createAuth token handling', () => {
   it('getAccessToken refreshes when expired', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const store = createStore({ filePath: join(dir, 'gmail.enc') })
+    const store = createStore({ filePath: join(dir, 'gmail.json') })
     await store.save({
       clientCreds: creds,
       tokens: { accessToken: 'old', refreshToken: 'RT', expiresAt: Date.now() - 1000 },
@@ -82,7 +74,7 @@ describe('createAuth token handling', () => {
 
   it('getAccessToken throws when not linked', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const store = createStore({ filePath: join(dir, 'gmail.enc') })
+    const store = createStore({ filePath: join(dir, 'gmail.json') })
     const auth = createAuth({ store, onProfile: async () => ({ emailAddress: '' }) })
     await expect(auth.getAccessToken()).rejects.toThrow(/not linked/i)
   })

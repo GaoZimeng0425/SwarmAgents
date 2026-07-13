@@ -84,7 +84,6 @@ const NAVIGATE_CHANNEL = 'swarm:navigate'
 const SETTINGS_NAV_CHANNEL = 'swarm:navigate-settings'
 const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
 const PROVIDERS_STATE_CHANNEL = 'providers:stateChanged'
-const PROVIDERS_DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
 const MCP_CONFIG_CHANGED_CHANNEL = 'mcp:configChanged'
 const MCP_STATUS_CHANNEL = 'mcp:status'
 const WEB_SEARCH_STATE_CHANNEL = 'webSearch:stateChanged'
@@ -127,13 +126,6 @@ const providers: ProvidersBridge = {
     ipcRenderer.on(PROVIDERS_STATE_CHANNEL, listener)
     return () => {
       ipcRenderer.removeListener(PROVIDERS_STATE_CHANNEL, listener)
-    }
-  },
-  onDecryptFailed: (cb) => {
-    const listener = (): void => cb()
-    ipcRenderer.on(PROVIDERS_DECRYPT_FAILED_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(PROVIDERS_DECRYPT_FAILED_CHANNEL, listener)
     }
   },
 }

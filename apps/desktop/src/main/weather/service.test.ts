@@ -52,9 +52,6 @@ function memStore(
     async load() {
       return state
     },
-    async loadOrRecover() {
-      return { ok: true, state }
-    },
     async save(next) {
       state = next
     },
@@ -360,5 +357,79 @@ describe('weather service', () => {
     await svc.getForecast(null, null)
     await svc.getForecast(null, null)
     expect(calls).toBe(2)
+  })
+
+  // GeoAPI results are cached by region identity (custom city name / rounded GPS
+  // coord) so repeated forecast polls for the same place don't re-spend a
+  // GeoAPI call. The cache key changes exactly when the region changes.
+  it('geocodes a custom city only once when the location is unchanged', async () => {
+    geocodeCityMock.mockResolvedValue({ lng: 116.41, lat: 39.9, name: '北京市' })
+    fetchHourlyMock.mockResolvedValue({
+      location: '北京市',
+      lng: 116.41,
+      lat: 39.9,
+      source: 'custom',
+      fetchedAt: Date.now(),
+      hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
+      now: null,
+    })
+    const svc = await createService({
+      store: memStore({ weather: { ...validCfg.weather, location: '北京' } } as never),
+    })
+    await svc.getForecast(null, null)
+    await svc.getForecast(null, null)
+    expect(geocodeCityMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-geocodes after the custom location changes', async () => {
+    geocodeCityMock
+      .mockResolvedValueOnce({ lng: 116.41, lat: 39.9, name: '北京市' })
+      .mockResolvedValueOnce({ lng: 121.47, lat: 31.23, name: '上海市' })
+    fetchHourlyMock.mockResolvedValue({
+      location: 'x',
+      lng: 1,
+      lat: 2,
+      source: 'custom',
+      fetchedAt: Date.now(),
+      hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
+      now: null,
+    })
+    const svc = await createService({
+      store: memStore({ weather: { ...validCfg.weather, location: '北京' } } as never),
+    })
+    await svc.getForecast(null, null)
+    await svc.setConfig({ ...validCfg.weather, location: '上海' })
+    await svc.getForecast(null, null)
+    expect(geocodeCityMock).toHaveBeenCalledTimes(2)
+    expect(geocodeCityMock).toHaveBeenLastCalledWith(expect.anything(), '上海')
+  })
+
+  it('reverse-geocodes GPS coords only once for the same rounded coords', async () => {
+    fetchHourlyMock.mockResolvedValue({
+      location: '北京市',
+      lng: 116.4,
+      lat: 39.9,
+      source: 'gps',
+      fetchedAt: Date.now(),
+      hours: [],
+      warnings: [],
+      indices: [],
+      air: null,
+      minutely: null,
+      now: null,
+    })
+    reverseGeocodeMock.mockResolvedValue('北京市')
+    const svc = await createService({ store: memStore(validCfg as never) })
+    await svc.getForecast(116.401, 39.901)
+    await svc.getForecast(116.402, 39.902) // both round to 116.4,39.9
+    expect(reverseGeocodeMock).toHaveBeenCalledTimes(1)
   })
 })

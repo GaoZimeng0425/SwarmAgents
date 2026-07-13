@@ -1,16 +1,7 @@
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-// safeStorage isn't available under ELECTRON_RUN_AS_NODE; stub it with a
-// reversible utf8 round-trip so the store's encrypt/decrypt path is exercised.
-vi.mock('electron', () => ({
-  safeStorage: {
-    encryptString: (s: string) => Buffer.from(s, 'utf8'),
-    decryptString: (b: Buffer) => b.toString('utf8'),
-  },
-}))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createStore } from './store'
 
@@ -19,7 +10,7 @@ let filePath: string
 
 beforeEach(async () => {
   dir = await fs.mkdtemp(join(tmpdir(), 'bili-store-'))
-  filePath = join(dir, 'bilibili.bin')
+  filePath = join(dir, 'bilibili.json')
 })
 afterEach(async () => {
   await fs.rm(dir, { recursive: true, force: true })
@@ -46,7 +37,7 @@ describe('bilibili store', () => {
   })
 
   it('returns defaults when stored bytes are not valid', async () => {
-    await fs.writeFile(filePath, Buffer.from('not json', 'utf8'))
+    await fs.writeFile(filePath, 'not json')
     const store = createStore({ filePath })
     expect(await store.load()).toEqual({ credentials: null, obsidian: null, transcription: null })
   })

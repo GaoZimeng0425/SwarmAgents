@@ -7,11 +7,6 @@ import { CALENDAR_SCOPE, createAuth, exchangeCode, extractCode, isReauthRequired
 import { createStore } from './store'
 
 vi.mock('electron', () => ({
-  safeStorage: {
-    encryptString: (s: string) => Buffer.from(s, 'utf8'),
-    decryptString: (b: Buffer) => b.toString('utf8'),
-    isEncryptionAvailable: () => true,
-  },
   shell: { openExternal: () => Promise.resolve() },
 }))
 
@@ -64,7 +59,7 @@ describe('calendar auth helpers', () => {
 describe('createAuth token handling', () => {
   it('getAccessToken refreshes when expired', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     await store.save({
       clientCreds: creds,
       tokens: { accessToken: 'old', refreshToken: 'RT', expiresAt: Date.now() - 1000 },
@@ -83,7 +78,7 @@ describe('createAuth token handling', () => {
 
   it('clears tokens and signals reauth when refresh returns invalid_grant', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     await store.save({
       clientCreds: creds,
       tokens: { accessToken: 'old', refreshToken: 'RT', expiresAt: Date.now() - 1000 },
@@ -106,7 +101,7 @@ describe('createAuth token handling', () => {
 
   it('getAccessToken throws when not linked', async () => {
     dir = mkdtempSync(join(tmpdir(), 'cal-'))
-    const store = createStore({ filePath: join(dir, 'calendar.enc') })
+    const store = createStore({ filePath: join(dir, 'calendar.json') })
     const auth = createAuth({ store, onProfile: async () => ({ emailAddress: '' }) })
     await expect(auth.getAccessToken()).rejects.toThrow(/not linked/i)
   })

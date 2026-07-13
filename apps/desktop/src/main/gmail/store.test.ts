@@ -3,24 +3,9 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { createStore } from './store'
-
-// Identity safeStorage with an `enc:` sentinel prefix so encrypt/decrypt
-// round-trip in tests AND garbage bytes fail at decrypt (mirrors real Keychain
-// behavior and the providers/store.test.ts mock).
-vi.mock('electron', () => ({
-  safeStorage: {
-    encryptString: (s: string) => Buffer.from(`enc:${s}`),
-    decryptString: (b: Buffer) => {
-      const s = b.toString('utf8')
-      if (!s.startsWith('enc:')) throw new Error('decrypt failed')
-      return s.slice('enc:'.length)
-    },
-    isEncryptionAvailable: () => true,
-  },
-}))
 
 let dir: string
 afterEach(() => {
@@ -30,7 +15,7 @@ afterEach(() => {
 describe('gmail store', () => {
   it('load returns defaults when file absent', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const store = createStore({ filePath: join(dir, 'gmail.enc') })
+    const store = createStore({ filePath: join(dir, 'gmail.json') })
     const state = await store.load()
     expect(state.clientCreds).toBeNull()
     expect(state.tokens).toBeNull()
@@ -38,7 +23,7 @@ describe('gmail store', () => {
 
   it('save then load round-trips with secrets', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const filePath = join(dir, 'gmail.enc')
+    const filePath = join(dir, 'gmail.json')
     const store = createStore({ filePath })
     await store.save({
       clientCreds: { clientId: 'cid', clientSecret: 'sec' },
@@ -51,14 +36,14 @@ describe('gmail store', () => {
     expect(state.accountEmail).toBe('me@x.com')
   })
 
-  it('loadOrRecover reports decrypt_failed on garbage', async () => {
+  it('load returns defaults on unparseable file', async () => {
     dir = mkdtempSync(join(tmpdir(), 'gmail-'))
-    const filePath = join(dir, 'gmail.enc')
+    const filePath = join(dir, 'gmail.json')
     const { writeFile } = await import('node:fs/promises')
-    await writeFile(filePath, Buffer.from('not-encrypted-garbage'))
+    await writeFile(filePath, 'not valid json')
     const store = createStore({ filePath })
-    const r = await store.loadOrRecover()
-    expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.reason).toBe('decrypt_failed')
+    const state = await store.load()
+    expect(state.clientCreds).toBeNull()
+    expect(state.tokens).toBeNull()
   })
 })

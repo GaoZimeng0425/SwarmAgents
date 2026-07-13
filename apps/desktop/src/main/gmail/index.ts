@@ -1,6 +1,6 @@
 // src/main/gmail/index.ts
 //
-// Entry point for the Gmail subsystem. Wires the encrypted store, sqlite
+// Entry point for the Gmail subsystem. Wires the on-disk store, sqlite
 // cache, REST client, OAuth auth, daemon, service, and IPC. Runs after
 // app.whenReady(). registerRpcHandlers is called from main wiring once the
 // ServiceClient exists.

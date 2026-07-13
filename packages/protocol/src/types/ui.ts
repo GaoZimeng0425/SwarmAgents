@@ -354,7 +354,6 @@ export type ProvidersBridge = {
   renameCustomProvider(id: string, name: string): Promise<ProvidersSetResult>
   test(id: string): Promise<ProvidersTestResult>
   onStateChanged(cb: (v: ProvidersStateView) => void): () => void
-  onDecryptFailed(cb: () => void): () => void
 }
 
 export type McpBridge = {

@@ -1,20 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: vi.fn(() => true),
-    // Identity encryption for tests so we can assert content shape.
-    encryptString: vi.fn((s: string) => Buffer.from(`enc:${s}`)),
-    decryptString: vi.fn((b: Buffer) => {
-      const s = b.toString('utf-8')
-      if (!s.startsWith('enc:')) throw new Error('decrypt failed')
-      return s.slice('enc:'.length)
-    }),
-  },
-}))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createStore } from './store'
 
@@ -23,7 +10,7 @@ let path: string
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'providers-store-'))
-  path = join(dir, 'providers.enc')
+  path = join(dir, 'providers.json')
 })
 
 afterEach(() => {
@@ -73,7 +60,7 @@ describe('store', () => {
         custom: { model: 'glm-4', apiKey: 'sk-c', baseUrl: 'https://x.com/v4', apiStyle: 'openai' },
       },
     })
-    writeFileSync(path, Buffer.from(`enc:${v1}`))
+    writeFileSync(path, v1)
     const store = createStore({ filePath: path })
     const state = await store.load()
     expect(state.version).toBe(4)
@@ -95,28 +82,15 @@ describe('store', () => {
     expect(existsSync(path)).toBe(true)
   })
 
-  it('returns { ok: false, reason: "decrypt_failed" } on corrupt file and does NOT delete it', async () => {
-    // Put garbage on disk that the identity-decrypt mock will reject.
-    writeFileSync(path, Buffer.from('bogus-bytes'))
+  it('returns defaults when JSON is valid but schema fails', async () => {
+    writeFileSync(path, JSON.stringify({ version: 99 }))
     const store = createStore({ filePath: path })
-    const result = await store.loadOrRecover()
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.reason).toBe('decrypt_failed')
-    }
+    const state = await store.load()
+    expect(state).toEqual({
+      version: 4,
+      active: null,
+      providers: [],
+    })
     expect(existsSync(path)).toBe(true) // file preserved
-  })
-
-  it('returns { ok: false, reason: "schema_invalid" } when JSON is valid but schema fails', async () => {
-    // Write a payload that decrypts cleanly but is the wrong shape.
-    const ciphertext = Buffer.from(`enc:${JSON.stringify({ version: 99 })}`)
-    writeFileSync(path, ciphertext)
-    const store = createStore({ filePath: path })
-    const result = await store.loadOrRecover()
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.reason).toBe('schema_invalid')
-    }
-    expect(existsSync(path)).toBe(true)
   })
 })

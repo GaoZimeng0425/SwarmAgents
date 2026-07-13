@@ -3,8 +3,7 @@
 // Secrets are NOT stored here: configs use `${VAR}` references that the Service
 // expands at connect time, so the file is safe to read, grep, and hand-edit.
 // Atomic writes (tmp → rename); a directory watch lets external edits (by a
-// human or the agent's fs tools) reload live. One-time migration decrypts a
-// legacy `mcp-servers.enc` if present.
+// human or the agent's fs tools) reload live.
 import { existsSync, type FSWatcher, promises as fs, watch } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { createLogger } from '@shared/logger'
@@ -15,7 +14,6 @@ import {
   type McpServersFile,
   McpServersFileSchema,
 } from '@swarm/protocol'
-import { safeStorage } from 'electron'
 
 const log = createLogger({ process: 'main' }).child({ component: 'mcp-servers-store' })
 
@@ -94,31 +92,8 @@ function configsToFile(servers: McpServerConfig[]): McpServersFile {
   return { mcpServers }
 }
 
-/** Best-effort one-time migration from the legacy encrypted store. */
-async function migrateFromEnc(encPath: string): Promise<McpServerConfig[] | null> {
-  if (!existsSync(encPath)) return null
-  try {
-    const buf = await fs.readFile(encPath)
-    const json = safeStorage.decryptString(buf)
-    const parsed = JSON.parse(json) as { servers?: unknown[] }
-    const servers = Array.isArray(parsed.servers) ? parsed.servers : []
-    const configs: McpServerConfig[] = []
-    for (const s of servers) {
-      const withId = { ...(s as McpServerConfig), id: (s as McpServerConfig).name }
-      const checked = McpServerConfigSchema.safeParse(withId)
-      if (checked.success) configs.push(checked.data)
-    }
-    log.info({ msg: 'migrated legacy encrypted mcp config', count: configs.length })
-    return configs
-  } catch (err) {
-    log.warn({ msg: 'legacy mcp config migration failed; starting empty', err: String(err) })
-    return null
-  }
-}
-
 export function createStore(opts: { filePath: string }): Store {
   const { filePath } = opts
-  const encPath = filePath.replace(/\.json$/, '.enc')
 
   const writeFile = async (file: McpServersFile): Promise<void> => {
     const tmp = `${filePath}.tmp`
@@ -127,16 +102,7 @@ export function createStore(opts: { filePath: string }): Store {
   }
 
   const load: Store['load'] = async () => {
-    if (!existsSync(filePath)) {
-      const migrated = await migrateFromEnc(encPath)
-      if (migrated) {
-        await writeFile(configsToFile(migrated)).catch((err) =>
-          log.warn({ msg: 'failed to persist migrated config', err: String(err) })
-        )
-        return { servers: migrated }
-      }
-      return { servers: [] }
-    }
+    if (!existsSync(filePath)) return { servers: [] }
     try {
       const raw = await fs.readFile(filePath, 'utf8')
       const checked = McpServersFileSchema.safeParse(JSON.parse(raw))

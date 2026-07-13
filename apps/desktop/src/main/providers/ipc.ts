@@ -3,11 +3,10 @@
 // Wires the providers subsystem to Electron IPC. Exposes get / setKey / clearKey
 // / setActive / setModel / apiStyle / thinking / contextWindow / baseUrl /
 // custom-model handlers, the custom-provider lifecycle (add/remove/rename), and
-// a test handler. Broadcasts state changes to all renderer windows and fires a
-// one-shot decrypt-failed event at boot when applicable.
+// a test handler. Broadcasts state changes to all renderer windows.
 import { createLogger } from '@shared/logger'
 import { type ApiStyle, type ModelMeta, ModelThinkingLevel } from '@swarm/protocol'
-import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 
 import { paths } from '../constants'
 import { fetchCatalog, lookupModel } from './openrouter'
@@ -17,7 +16,6 @@ import { testConnection } from './test-connection'
 const log = createLogger({ process: 'main' }).child({ component: 'providers-ipc' })
 
 const STATE_CHANGED_CHANNEL = 'providers:stateChanged'
-const DECRYPT_FAILED_CHANNEL = 'providers:decryptFailed'
 
 // Any provider id (builtin 'anthropic'/'openai' or a custom uuid). The service
 // rejects unknown ids; here we only guard the wire type.
@@ -27,8 +25,8 @@ function asId(v: unknown): string | null {
 
 const badId = { ok: false as const, code: 'invalid' as const, message: 'invalid provider id' }
 
-export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: boolean }): { dispose: () => void } {
-  const { service, decryptFailedAtBoot } = args
+export function wireProvidersIpc(args: { service: Service }): { dispose: () => void } {
+  const { service } = args
 
   const broadcast = (channel: string, payload?: unknown): void => {
     for (const w of BrowserWindow.getAllWindows()) {
@@ -75,22 +73,6 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     } catch (e) {
       log.warn({ msg: 'auto-match pricing failed', id, err: e instanceof Error ? e.message : String(e) })
     }
-  }
-
-  // One-shot at boot if applicable. Fired on any new window via did-finish-load.
-  const fireDecryptIfNeeded = (w: BrowserWindow): void => {
-    if (decryptFailedAtBoot && !w.isDestroyed()) w.webContents.send(DECRYPT_FAILED_CHANNEL)
-  }
-  const onWebContentsCreated = (_: Electron.Event, contents: Electron.WebContents): void => {
-    contents.once('did-finish-load', () => {
-      const w = BrowserWindow.fromWebContents(contents)
-      if (w) fireDecryptIfNeeded(w)
-    })
-  }
-  app.on('web-contents-created', onWebContentsCreated)
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (w.webContents.isLoading()) w.webContents.once('did-finish-load', () => fireDecryptIfNeeded(w))
-    else fireDecryptIfNeeded(w)
   }
 
   ipcMain.handle('providers:get', () => service.getView())
@@ -268,7 +250,7 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
     })
   })
 
-  log.info({ msg: 'providers IPC wired', decryptFailedAtBoot })
+  log.info({ msg: 'providers IPC wired' })
 
   const channels = [
     'providers:get',
@@ -292,13 +274,7 @@ export function wireProvidersIpc(args: { service: Service; decryptFailedAtBoot: 
   return {
     dispose(): void {
       unsubscribe()
-      app.off('web-contents-created', onWebContentsCreated)
       for (const c of channels) ipcMain.removeHandler(c)
     },
   }
-}
-
-// Helper used by main entry to check whether safeStorage will work at all.
-export function safeStorageAvailable(): boolean {
-  return safeStorage.isEncryptionAvailable()
 }
