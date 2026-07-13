@@ -2,10 +2,12 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
+  Artifact,
   Attachment,
   ConsumedResources,
   DelegateResult,
   DelegationItem,
+  DelegationItemStatus,
   PermissionMode,
   ProviderInjection,
   ResourceBudget,
@@ -15,6 +17,7 @@ import { ulid } from 'ulid'
 
 import type { PermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry, ToolRunContext } from '../tools/registry'
+import { reportResultSpec } from '../tools/report-result'
 import { createMessageEmit, type MessageEmit, type MessageEmitPorts } from './emit'
 import { createEngine, type EngineRunResult, EngineSetupError } from './engine'
 import { injectionSupportsImages } from './models'
@@ -49,6 +52,7 @@ export type MessageSpec = {
   maxIterationsOverride?: number
   retry?: { maxRetries?: number; delayMs?: number }
   onDelegationPlan?: (plan: DelegationItem[]) => void
+  onDelegationUpdate?: (itemId: string, delta: { status: DelegationItemStatus; artifacts: Artifact[] }) => void
 }
 
 export type LaunchPorts = {
@@ -96,6 +100,7 @@ const cancelledResult = (messageId: string, history: AgentMessage[]): EngineRunR
   summary: '',
   messages: history,
   used: emptyUsed(),
+  artifacts: [],
 })
 
 /**
@@ -191,6 +196,7 @@ export async function launchMessage(
 
     // Uniform tool context — identical for every kind (ledger #11/#12).
     const usageSink = { charge: (_costUsd: number): void => undefined }
+    const collectedArtifacts: Artifact[] = []
     const ctx: ToolRunContext = {
       sessionId: spec.sessionId,
       taskId: messageId,
@@ -214,6 +220,13 @@ export async function launchMessage(
         emit({ kind: 'message.delegation_plan', plan })
         spec.onDelegationPlan?.(plan)
       },
+      mergeDelegationResult: (itemId, delta) => {
+        emit({ kind: 'message.delegation_update', itemId, status: delta.status, result: delta.artifacts })
+        spec.onDelegationUpdate?.(itemId, delta)
+      },
+      reportResult: (artifacts) => {
+        collectedArtifacts.push(...artifacts)
+      },
       reportExternalUsage: (usage) => {
         if (usage.costUsd && usage.costUsd > 0) usageSink.charge(usage.costUsd)
       },
@@ -221,6 +234,10 @@ export async function launchMessage(
     }
     const { tools, riskOf } = ports.toolRegistry.resolve(spec.tools ?? [], ctx)
     if (tools.length === 0) runLog.warn({ msg: 'no tools resolved for run', toolAllowlist: spec.tools ?? [] })
+
+    // report_result is runtime infrastructure for child runs — always injected,
+    // bypassing the allowlist. It's how children submit structured results.
+    const toolsWithReport = spec.kind === 'child' ? [...tools, reportResultSpec().build(ctx)] : tools
 
     const engine = createEngine({
       messageId,
@@ -234,7 +251,7 @@ export async function launchMessage(
       executionMode: spec.executionMode,
       permissionMode: spec.permissionMode,
       getPermissionMode: spec.getPermissionMode,
-      tools,
+      tools: toolsWithReport,
       riskOf,
       emit,
       permissionRegistry: ports.permissionRegistry,
@@ -248,7 +265,7 @@ export async function launchMessage(
     const images = (spec.attachments ?? []).map((a) => ({ type: 'image' as const, data: a.data, mimeType: a.mimeType }))
     const r = await engine.run(spec.prompt, images.length > 0 ? images : undefined)
     runLog.info({ msg: 'run finished', status: r.status, summaryLen: r.summary.length })
-    return { messageId, ...r }
+    return { messageId, ...r, artifacts: collectedArtifacts }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const code = err instanceof EngineSetupError ? 'agent_setup_failed' : 'agent_exception'
@@ -263,7 +280,7 @@ export async function launchMessage(
         err: emitErr instanceof Error ? emitErr.message : String(emitErr),
       })
     }
-    return { messageId, status: 'failed', summary: '', messages: spec.history ?? [], used: emptyUsed() }
+    return { messageId, status: 'failed', summary: '', messages: spec.history ?? [], used: emptyUsed(), artifacts: [] }
   } finally {
     try {
       release?.()

@@ -2,8 +2,10 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
+  Artifact,
   DelegateResult,
   DelegationItem,
+  DelegationItemStatus,
   Peer,
   PeerQuery,
   PermissionDecision,
@@ -68,6 +70,10 @@ export interface ToolRunContext {
    * agent-runner; absent in standalone tool tests and non-delegating contexts.
    */
   setDelegationPlan?(plan: DelegationItem[]): void
+  /** Per-run sink: child agent submits structured results (artifacts). Collected by launch. */
+  reportResult?: (artifacts: Artifact[]) => void
+  /** Merge a delegation item's result into session-level planState. */
+  mergeDelegationResult?: (itemId: string, delta: { status: DelegationItemStatus; artifacts: Artifact[] }) => void
 }
 
 export interface ToolSpec {

@@ -76,7 +76,7 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
   // Optional-chain: hooks (useTimelineRenderer/useMemo) run before the empty-state
   // early return, so `busy` must tolerate tasks=[] (last undefined → busy false).
   const busy = last?.status === 'running' || last?.status === 'pending'
-  const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onDelete, onSend, tasks })
+  const { renderSegment, sheet, forkDialog } = useTimelineRenderer({ busy, onCopy, onDelete, onSend, tasks })
 
   const items = useMemo(() => {
     const thread = buildThreadItems(tasks, renderSegment, { busy, showDayDividers: true })
@@ -127,6 +127,7 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
       <ConversationMinimap tasks={tasks} />
       <ScrollToLatest />
       {sheet}
+      {forkDialog}
     </StickToBottomList>
   )
 }

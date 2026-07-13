@@ -103,4 +103,37 @@ describe('delegate', () => {
     const res = await tool.execute('id', { prompt: 'x' })
     expect(res.details).toMatchObject({ error: 'not_wired' })
   })
+
+  it('calls mergeDelegationResult with running then completed when itemId provided', async () => {
+    const mergeDelegationResult = vi.fn()
+    const spawnChild = vi.fn().mockResolvedValue({
+      messageId: 'm1',
+      status: 'completed',
+      summary: 'ok',
+      artifacts: [{ kind: 'note', text: 'result' }],
+    })
+    const tool = build({ spawnChild, mergeDelegationResult })
+    await tool.execute('call1', { prompt: 'do task', itemId: 'd1' })
+    expect(mergeDelegationResult).toHaveBeenNthCalledWith(1, 'd1', { status: 'running', artifacts: [] })
+    expect(mergeDelegationResult).toHaveBeenNthCalledWith(2, 'd1', {
+      status: 'completed',
+      artifacts: [{ kind: 'note', text: 'result' }],
+    })
+  })
+
+  it('calls mergeDelegationResult with failed on spawnChild throw', async () => {
+    const mergeDelegationResult = vi.fn()
+    const spawnChild = vi.fn().mockRejectedValue(new Error('slot exhausted'))
+    const tool = build({ spawnChild, mergeDelegationResult })
+    await expect(tool.execute('call1', { prompt: 'do task', itemId: 'd1' })).rejects.toThrow('slot exhausted')
+    expect(mergeDelegationResult).toHaveBeenNthCalledWith(2, 'd1', { status: 'failed', artifacts: [] })
+  })
+
+  it('does not call mergeDelegationResult when no itemId', async () => {
+    const mergeDelegationResult = vi.fn()
+    const spawnChild = vi.fn().mockResolvedValue({ messageId: 'm1', status: 'completed', summary: 'ok', artifacts: [] })
+    const tool = build({ spawnChild, mergeDelegationResult })
+    await tool.execute('call1', { prompt: 'do task' })
+    expect(mergeDelegationResult).not.toHaveBeenCalled()
+  })
 })

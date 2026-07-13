@@ -6,7 +6,7 @@ export function withAgentTypes(base: string, defs: AgentDefinition[]): string {
   const list = defs.map((d) => `- ${d.id}: ${d.description}`).join('\n')
   const section = `# Sub-agent types
 
-You can delegate a focused sub-task by calling \`delegate\` (without \`topLevel\`) with an \`agentType\`. Delegate when a sub-task is independent, benefits from its own focused context, or should run under a narrower capability boundary (e.g. read-only investigation). Do the work yourself for trivial single-step actions — don't delegate by reflex. Use \`delegate\` with \`topLevel: true\` only when the user's request is substantial work you will own and do yourself.
+You can delegate a focused sub-task by calling \`delegate\` (without \`topLevel\`) with an \`agentType\`. Delegate when a sub-task is independent, benefits from its own focused context, or should run under a narrower capability boundary (e.g. read-only investigation). Do the work yourself for trivial single-step actions — don't delegate by reflex. Use \`delegate\` with \`topLevel: true\` only when the user's request is substantial work you will own and do yourself. When you complete a delegated sub-task, call \`report_result\` to submit structured results (artifacts) — not just a text summary.
 
 Available types:
 ${list}`

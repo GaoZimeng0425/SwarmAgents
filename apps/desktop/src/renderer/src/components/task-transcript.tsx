@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { uniq } from 'es-toolkit'
 import {
   Bot,
@@ -7,11 +8,13 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
+  GitBranch,
   Timer,
   Trash2,
   Wrench,
   XCircleIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import {
   Message,
@@ -33,15 +36,17 @@ const AttachmentViewerSheet = lazy(() =>
 )
 
 import type { MessageRecord } from '@shared/lib/apply-event'
-import { Spinner } from '@swarm/ui'
+import { Button, Input, Popover, PopoverContent, Spinner } from '@swarm/ui'
 
 import { coerceProps, getUiRenderer } from '@/components/ui-renderers'
+import { swarmApi } from '@/lib/api'
 import { buildTimelineItems, type TimelineItem } from '@/lib/build-timeline-items'
 import { extractImagePaths } from '@/lib/file-paths'
 import { groupSegments } from '@/lib/group-segments'
 import type { Segment } from '@/lib/task-segments'
 import { dayKey, formatDayLabel, formatMessageTime, safeTs } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
+import { useSessionsStore } from '@/stores/sessions'
 
 // ToolHeader needs an AI-SDK-shaped tool type + state; derive both from our segment.
 function toolState(ok: boolean | null): 'input-available' | 'output-available' | 'output-error' {
@@ -319,6 +324,88 @@ function ElapsedTimer({ createdAt, endedAt }: { createdAt: number; endedAt: numb
   )
 }
 
+// Target of a "fork from here" action: the terminal assistant message whose
+// turn the user wants to branch a new session from. Lifted into the segment
+// renderer's opts so each terminal assistant row's hover button can open the
+// shared ForkFromHereDialog (mirrors the AttachmentViewerSheet pattern).
+type ForkTarget = {
+  messageId: string
+  sessionId: string
+}
+
+// Inline form that pops up when a user clicks "Fork from here" on a terminal
+// assistant message. Calls swarmApi.forkSession then navigates to the new
+// session. Rendered once at the timeline root (see useTimelineRenderer) and
+// driven by a `target` prop instead of being mounted per-message, so the input
+// state and pending spinner live in one place.
+function ForkFromHereDialog({ target, onClose }: { target: ForkTarget; onClose: () => void }): React.JSX.Element {
+  const navigate = useNavigate()
+  const markForked = useSessionsStore((s) => s.markForked)
+  const [prompt, setPrompt] = useState('')
+  const [pending, setPending] = useState(false)
+
+  const submit = async (): Promise<void> => {
+    const trimmed = prompt.trim()
+    if (!trimmed || pending) return
+    setPending(true)
+    try {
+      const result = await swarmApi.forkSession(target.sessionId, target.messageId, trimmed)
+      // Record the fork lineage client-side so the new session's header can
+      // show a "forked from" badge. The backend's forkedFrom metadata is
+      // in-memory only and not part of the sessions.list payload, so the
+      // renderer owns this transient linkage.
+      markForked(result.sessionId, target.sessionId)
+      onClose()
+      void navigate({ to: '/session/$sessionId', params: { sessionId: result.sessionId } })
+    } catch (err) {
+      setPending(false)
+      toast.error('Fork failed', { description: err instanceof Error ? err.message : undefined })
+    }
+  }
+
+  return (
+    <Popover onOpenChange={(open) => !open && onClose()} open={true}>
+      {/* No visible trigger; the action button that opens this lives in the
+          message footer. The Popover is portalled + positioned at screen
+          center via its content wrapper so it reads as a small centered card. */}
+      <PopoverContent
+        align="center"
+        // Width + auto-margins center the portalled card horizontally on screen.
+        className="mx-auto w-[min(92vw,32rem)]"
+      >
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-foreground">
+            <GitBranch className="size-4 text-primary" />
+            <span className="font-medium text-sm">从这里分支</span>
+          </div>
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            从该消息处分叉出一个新会话,复制到此为止的上下文并以此处作为起点继续。
+          </p>
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void submit()
+            }}
+          >
+            <Input
+              autoFocus
+              className="flex-1"
+              disabled={pending}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="输入新指令…"
+              value={prompt}
+            />
+            <Button disabled={pending || !prompt.trim()} size="sm" type="submit">
+              {pending ? <Spinner className="size-3.5" /> : '分支'}
+            </Button>
+          </form>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // Build the per-segment renderer. Closures (busy/onSend/onCopy/onDelete) are
 // passed explicitly so both the live chat thread and the read-only results card
 // share one rendering implementation. onDelete omitted → no Delete action.
@@ -333,13 +420,16 @@ function createSegmentRenderer(opts: {
   onCopy: (text: string) => void
   onDelete?: (messageId: string) => void
   onOpenFile?: (file: ViewerFile) => void
+  /** Open the "fork from here" dialog on a terminal assistant message. */
+  onForkFromHere?: (target: ForkTarget) => void
 }): (seg: Segment, isLiveTail: boolean, nested?: boolean) => React.JSX.Element {
-  const { busy, tasks, onSend, onCopy, onDelete, onOpenFile } = opts
+  const { busy, tasks, onSend, onCopy, onDelete, onOpenFile, onForkFromHere } = opts
   const messageById = new Map(tasks.map((t) => [t.id, t]))
 
   // Time + copy/delete on one row: time always visible, actions revealed on
-  // hover. User messages right-align the whole row.
-  const messageFooter = (text: string, messageId: string, ts: number): React.JSX.Element => (
+  // hover. User messages right-align the whole row. The optional fork action
+  // (terminal assistant messages only) is appended when onForkFromHere is set.
+  const messageFooter = (text: string, messageId: string, ts: number, message?: MessageRecord): React.JSX.Element => (
     <div className="flex items-center gap-2 px-1 group-[.is-user]:justify-end">
       <time className="text-[10px] text-muted-foreground/50 tabular-nums" dateTime={new Date(safeTs(ts)).toISOString()}>
         {formatMessageTime(ts)}
@@ -351,6 +441,15 @@ function createSegmentRenderer(opts: {
         {onDelete && (
           <MessageAction label="Delete" onClick={() => onDelete(messageId)} tooltip="Delete message">
             <Trash2 className="size-3.5" />
+          </MessageAction>
+        )}
+        {onForkFromHere && message && messageEndedAt(message) != null && (
+          <MessageAction
+            label="Fork from here"
+            onClick={() => onForkFromHere({ messageId, sessionId: message.sessionId })}
+            tooltip="从这里分支"
+          >
+            <GitBranch className="size-3.5" />
           </MessageAction>
         )}
       </MessageActions>
@@ -379,7 +478,7 @@ function createSegmentRenderer(opts: {
             )}
             <span className="whitespace-pre-wrap">{seg.text}</span>
           </MessageContent>
-          {messageFooter(seg.text, seg.messageId, seg.ts)}
+          {messageFooter(seg.text, seg.messageId, seg.ts, undefined)}
         </Message>
       )
     }
@@ -395,7 +494,7 @@ function createSegmentRenderer(opts: {
               <ToolImage key={p} path={p} showName={false} />
             ))}
           </MessageContent>
-          {messageFooter(seg.text, seg.messageId, seg.ts)}
+          {messageFooter(seg.text, seg.messageId, seg.ts, message)}
         </Message>
       )
     }
@@ -466,24 +565,33 @@ type TaskTimelineProps = {
   showDayDividers?: boolean
 }
 
-// Shared renderer (createSegmentRenderer) + attachment-preview sheet. Used by
-// both TaskTimeline (read-only results card) and the StickToBottomList-based
-// chat thread so neither duplicates the viewerFile wiring.
+// Shared renderer (createSegmentRenderer) + attachment-preview sheet + fork
+// dialog. Used by both TaskTimeline (read-only results card) and the
+// StickToBottomList-based chat thread so neither duplicates the viewerFile or
+// fork wiring. `forkEnabled` (default true) gates the per-message hover button.
 export function useTimelineRenderer(opts: {
   busy: boolean
   tasks: MessageRecord[]
   onSend?: (text: string) => void
   onCopy: (text: string) => void
   onDelete?: (messageId: string) => void
-}): { renderSegment: ReturnType<typeof createSegmentRenderer>; sheet: React.JSX.Element | null } {
+  forkEnabled?: boolean
+}): {
+  renderSegment: ReturnType<typeof createSegmentRenderer>
+  sheet: React.JSX.Element | null
+  forkDialog: React.JSX.Element | null
+} {
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null)
-  const renderSegment = createSegmentRenderer({ ...opts, onOpenFile: setViewerFile })
+  const [forkTarget, setForkTarget] = useState<ForkTarget | null>(null)
+  const onForkFromHere = opts.forkEnabled === false ? undefined : setForkTarget
+  const renderSegment = createSegmentRenderer({ ...opts, onOpenFile: setViewerFile, onForkFromHere })
   const sheet = viewerFile ? (
     <Suspense fallback={null}>
       <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
     </Suspense>
   ) : null
-  return { renderSegment, sheet }
+  const forkDialog = forkTarget ? <ForkFromHereDialog onClose={() => setForkTarget(null)} target={forkTarget} /> : null
+  return { renderSegment, sheet, forkDialog }
 }
 
 // Wrap buildTimelineItems with the real card components (SubagentBlock /
@@ -521,12 +629,13 @@ export function TaskTimeline({
   onDelete,
   showDayDividers = true,
 }: TaskTimelineProps): React.JSX.Element {
-  const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onDelete, onSend, tasks })
+  const { renderSegment, sheet, forkDialog } = useTimelineRenderer({ busy, onCopy, onDelete, onSend, tasks })
   const items = buildThreadItems(tasks, renderSegment, { busy, showDayDividers })
   return (
     <>
       {items.map((it) => it.node)}
       {sheet}
+      {forkDialog}
     </>
   )
 }

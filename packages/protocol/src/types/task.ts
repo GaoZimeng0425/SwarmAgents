@@ -71,6 +71,10 @@ export const PlanTodoSchema = z.object({
 export type PlanTodo = z.infer<typeof PlanTodoSchema>
 export type PlanStatus = (typeof planStatusValues)[number]
 
+export const delegationItemStatusValues = ['pending', 'running', 'completed', 'failed', 'cancelled'] as const
+export const DelegationItemStatusSchema = z.enum(delegationItemStatusValues)
+export type DelegationItemStatus = z.infer<typeof DelegationItemStatusSchema>
+
 // One item in a Leader's delegation plan. The Leader declares this DAG via the
 // set_delegation_plan tool; dispatch is prompt-driven (parallel within a wave,
 // waves ordered by dependsOn). Recorded for audit + UI, not mechanically enforced.

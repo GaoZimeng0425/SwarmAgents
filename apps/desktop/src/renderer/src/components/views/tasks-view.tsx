@@ -5,10 +5,12 @@ import { sortBy } from 'es-toolkit'
 import { ChatInput } from '@/components/chat-input'
 import { ComposerOverlay } from '@/components/composer-overlay'
 import { ConversationThread } from '@/components/conversation-thread'
+import { OrchestrationGraph } from '@/components/orchestration/OrchestrationGraph'
 import { SessionHeader } from '@/components/session-header'
 import { ScheduledResultsView } from '@/components/views/scheduled-results-view'
 import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { useTeamOptions } from '@/hooks/use-agents'
+import { useDelegationPlan } from '@/hooks/use-delegation-plan'
 import {
   useCancelMessage,
   useDecidePermission,
@@ -28,6 +30,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const queue = usePermissionStore((s) => s.queue)
   const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
   const sessions = useSessionsStore((s) => s.sessions)
+  const forkedFrom = useSessionsStore((s) => s.forkedFrom)
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
   const submitPrompt = useSubmitPrompt()
   const decide = useDecidePermission()
@@ -67,6 +70,9 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   // Cost shown on the ring is the cumulative session total (matches the session
   // list), not just the latest turn — see sessionDisplayUsage.
   const sessionUsage = sessionDisplayUsage(sessionTasks)
+  // Delegation plan state: when present, the orchestration graph panel renders
+  // above the conversation thread (only for sessions that emit a plan).
+  const planState = useDelegationPlan(selectedSessionId)
 
   // Each session remembers its own composer controls (working directory,
   // permission gate, execution mode). They're persisted on the session row, so
@@ -102,6 +108,9 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const headerStatus = sessionPrompts.length > 0 ? 'awaiting' : runningTask ? 'running' : 'idle'
   const contextPct =
     contextTokens != null && contextWindow != null ? Math.round((contextTokens / contextWindow) * 100) : undefined
+  // Fork lineage for the current session, if any. Client-side only — see the
+  // forkedFrom map in the sessions store.
+  const forkSourceId = selectedSessionId ? forkedFrom[selectedSessionId] : undefined
 
   // The system session ("定时任务") only surfaces scheduled-run RESULTS — it is
   // read-only: no composer, no send/queue overlay, no right panel. Everything
@@ -119,7 +128,18 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   return (
     <div className="relative flex h-full min-w-0 overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col bg-(--surface-chat)">
-        <SessionHeader contextPct={contextPct} status={headerStatus} title={session?.title ?? '对话'} />
+        <SessionHeader
+          contextPct={contextPct}
+          forkedFrom={forkSourceId}
+          status={headerStatus}
+          title={session?.title ?? '对话'}
+        />
+        {planState && planState.size > 0 && (
+          <div className="border-b p-3">
+            <div className="mb-2 font-medium text-gray-500 text-xs">Orchestration</div>
+            <OrchestrationGraph />
+          </div>
+        )}
         <ConversationThread
           focusTaskId={focusTaskId}
           // Remount on session switch so StickToBottom's initial="instant" fires:
