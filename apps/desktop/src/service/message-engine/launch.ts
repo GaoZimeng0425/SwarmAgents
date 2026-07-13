@@ -16,6 +16,7 @@ import { ulid } from 'ulid'
 
 import type { PermissionRegistry } from '../session/permission-registry'
 import type { ToolRegistry, ToolRunContext } from '../tools/registry'
+import { reportResultSpec } from '../tools/report-result'
 import { createMessageEmit, type MessageEmit, type MessageEmitPorts } from './emit'
 import { createEngine, type EngineRunResult, EngineSetupError } from './engine'
 import { injectionSupportsImages } from './models'
@@ -228,6 +229,10 @@ export async function launchMessage(
     const { tools, riskOf } = ports.toolRegistry.resolve(spec.tools ?? [], ctx)
     if (tools.length === 0) runLog.warn({ msg: 'no tools resolved for run', toolAllowlist: spec.tools ?? [] })
 
+    // report_result is runtime infrastructure for child runs — always injected,
+    // bypassing the allowlist. It's how children submit structured results.
+    const toolsWithReport = spec.kind === 'child' ? [...tools, reportResultSpec().build(ctx)] : tools
+
     const engine = createEngine({
       messageId,
       sessionId: spec.sessionId,
@@ -240,7 +245,7 @@ export async function launchMessage(
       executionMode: spec.executionMode,
       permissionMode: spec.permissionMode,
       getPermissionMode: spec.getPermissionMode,
-      tools,
+      tools: toolsWithReport,
       riskOf,
       emit,
       permissionRegistry: ports.permissionRegistry,
