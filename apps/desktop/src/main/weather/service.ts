@@ -62,6 +62,14 @@ export async function createService(opts: { store: Store }): Promise<Service> {
   // Single-slot cache keyed by rounded "lng,lat".
   let cache: { key: string; forecast: WeatherForecast } | null = null
 
+  // GeoAPI result caches. Unlike the forecast cache, these never expire on a
+  // time basis: a city's coordinates and a coordinate's city name are stable
+  // geographic facts, so the only invalidation is a changed key (different
+  // custom location, or different rounded GPS coord) — a miss follows naturally.
+  // Not persisted to disk: a restart costs at most one extra GeoAPI round-trip.
+  let geoCache: { key: string; lng: number; lat: number; name: string } | null = null
+  let revCache: { key: string; name: string } | null = null
+
   const emit = (): void => {
     for (const cb of listeners) cb(toView(state))
   }
@@ -109,38 +117,63 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       let label: string
       if (state.location.trim() !== '') {
         // Custom city name wins when set: geocode it via QWeather GeoAPI.
-        try {
-          const geo = await geocodeCity(state, state.location)
-          coordLng = geo.lng
-          coordLat = geo.lat
+        // Reuse a prior result when the location string is unchanged so polling
+        // the forecast doesn't re-spend a GeoAPI call every time.
+        if (geoCache && geoCache.key === state.location) {
+          coordLng = geoCache.lng
+          coordLat = geoCache.lat
           source = 'custom'
-          label = geo.name
-          log.info({
-            msg: 'weather custom location geocoded',
-            query: state.location,
-            label,
-            lng: coordLng,
-            lat: coordLat,
-          })
-        } catch (e) {
-          log.error({
-            msg: 'weather custom location geocode failed',
-            query: state.location,
-            err: e instanceof Error ? e.message : String(e),
-          })
-          throw e
+          label = geoCache.name
+          log.warn({ msg: 'weather custom location geocode cache hit', query: state.location })
+        } else {
+          try {
+            const geo = await geocodeCity(state, state.location)
+            coordLng = geo.lng
+            coordLat = geo.lat
+            source = 'custom'
+            label = geo.name
+            geoCache = { key: state.location, lng: geo.lng, lat: geo.lat, name: geo.name }
+            log.info({
+              msg: 'weather custom location geocoded',
+              query: state.location,
+              label,
+              lng: coordLng,
+              lat: coordLat,
+            })
+          } catch (e) {
+            log.error({
+              msg: 'weather custom location geocode failed',
+              query: state.location,
+              err: e instanceof Error ? e.message : String(e),
+            })
+            throw e
+          }
         }
       } else if (lng != null && lat != null) {
         coordLng = lng
         coordLat = lat
         source = 'gps'
-        label = await reverseGeocode(state, lng, lat).catch((e) => {
-          log.warn({
-            msg: 'reverse geocode failed; using coords as label',
-            err: e instanceof Error ? e.message : String(e),
-          })
-          return `${round(lng)},${round(lat)}`
-        })
+        // The rounded coord is the identity for reverse geocoding: the same
+        // rounding as the forecast key means a static GPS reader reuses the
+        // last resolved city name instead of hitting GeoAPI on every poll.
+        const revKey = `${round(lng)},${round(lat)}`
+        if (revCache && revCache.key === revKey) {
+          label = revCache.name
+          log.warn({ msg: 'weather reverse geocode cache hit', key: revKey })
+        } else {
+          label = await reverseGeocode(state, lng, lat)
+            .then((name) => {
+              revCache = { key: revKey, name }
+              return name
+            })
+            .catch((e) => {
+              log.warn({
+                msg: 'reverse geocode failed; using coords as label',
+                err: e instanceof Error ? e.message : String(e),
+              })
+              return revKey
+            })
+        }
       } else {
         const ip = await locateByIp()
         coordLng = ip.lng
