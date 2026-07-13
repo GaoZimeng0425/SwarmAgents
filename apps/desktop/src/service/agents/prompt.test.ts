@@ -28,4 +28,11 @@ describe('withAgentTypes', () => {
   it('emits the section alone when the base is empty', () => {
     expect(withAgentTypes('', [def('x', 'd')]).startsWith('# Sub-agent types')).toBe(true)
   })
+
+  it('mentions report_result in delegation instructions', () => {
+    // The section only renders when defs is non-empty, so a non-empty list
+    // is required to exercise the delegation guidance text.
+    const result = withAgentTypes('base', [def('x', 'd')])
+    expect(result).toContain('report_result')
+  })
 })
