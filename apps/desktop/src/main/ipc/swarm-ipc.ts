@@ -259,6 +259,16 @@ export function wireSwarmIpc(args: {
   const cancelCronJob = (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.cancelCronJob(id)
 
   ipcMain.handle('swarm:createSession', () => createSession())
+  ipcMain.handle(
+    'swarm:forkSession',
+    (
+      _e: Electron.IpcMainInvokeEvent,
+      sourceSessionId: string,
+      forkPointMessageId: string,
+      newPrompt: string,
+      opts?: { agentType?: string }
+    ) => serviceClient.forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts)
+  )
   ipcMain.handle('swarm:analyzeEmail', analyzeEmail)
   ipcMain.handle('swarm:analyzeThread', analyzeThread)
   ipcMain.handle('swarm:listSessions', () => listSessions())
@@ -398,6 +408,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
       ipcMain.removeHandler('swarm:createSession')
+      ipcMain.removeHandler('swarm:forkSession')
       ipcMain.removeHandler('swarm:analyzeEmail')
       ipcMain.removeHandler('swarm:analyzeThread')
       ipcMain.removeHandler('swarm:listSessions')

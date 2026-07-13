@@ -371,6 +371,16 @@ const swarm: SwarmBridge = {
     ipcRenderer.invoke('swarm:promoteQueuedMessage', sessionId, messageId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
+  forkSession: (
+    sourceSessionId: string,
+    forkPointMessageId: string,
+    newPrompt: string,
+    opts?: { agentType?: string }
+  ) =>
+    ipcRenderer.invoke('swarm:forkSession', sourceSessionId, forkPointMessageId, newPrompt, opts) as Promise<{
+      sessionId: string
+      messageId: string
+    }>,
   sessions: {
     list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('@swarm/protocol').SessionSummary[]>,
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,

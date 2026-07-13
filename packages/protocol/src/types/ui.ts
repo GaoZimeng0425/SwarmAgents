@@ -466,6 +466,12 @@ export type SwarmBridge = {
   analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
   cancelMessage(sessionId: string, messageId: string): Promise<void>
   promoteQueuedMessage(sessionId: string, messageId: string): Promise<void>
+  forkSession(
+    sourceSessionId: string,
+    forkPointMessageId: string,
+    newPrompt: string,
+    opts?: { agentType?: string }
+  ): Promise<{ sessionId: string; messageId: string }>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>

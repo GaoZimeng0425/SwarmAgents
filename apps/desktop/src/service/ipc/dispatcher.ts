@@ -74,6 +74,15 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         registerProvider(provider)
         return service.createSession(provider)
       }
+      case 'forkToNewSession': {
+        const [sourceSessionId, forkPointMessageId, newPrompt, opts] = args as [
+          string,
+          string,
+          string,
+          { agentType?: string } | undefined,
+        ]
+        return service.forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts)
+      }
       case 'submitPrompt': {
         // The method name stays (ServiceMethod stability for the renderer API),
         // but the call maps to SessionService.submitPrompt and returns { messageId }.

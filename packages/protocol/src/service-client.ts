@@ -27,6 +27,12 @@ export type ServiceClient = {
   connect(): Promise<void>
   disconnect(): void
   createSession(provider: ProviderInjection): Promise<{ sessionId: string }>
+  forkToNewSession(
+    sourceSessionId: string,
+    forkPointMessageId: string,
+    newPrompt: string,
+    opts?: { agentType?: string }
+  ): Promise<{ sessionId: string; messageId: string }>
   submitPrompt(
     sessionId: string,
     prompt: string,
@@ -107,6 +113,8 @@ export function createServiceClient(cfg: {
     disconnect: () => peer.disconnect(),
     registerHandler: (method, fn) => peer.registerHandler(method, fn),
     createSession: (provider) => peer.call('createSession', [provider]),
+    forkToNewSession: (sourceSessionId, forkPointMessageId, newPrompt, opts) =>
+      peer.call('forkToNewSession', [sourceSessionId, forkPointMessageId, newPrompt, opts]),
     submitPrompt: (sessionId, prompt, attachments, options) =>
       peer.call('submitPrompt', [sessionId, prompt, attachments, options]),
     analyzeEmail: (req) => peer.call('analyzeEmail', [req]),
