@@ -127,6 +127,73 @@ function ToolImage({ path, showName = true }: { path: string; showName?: boolean
   )
 }
 
+// Shared collapsible card for the transcript rows (Subagent / Tools / single
+// Tool). Owns the open-while-running / auto-collapse-on-done state machine, the
+// TRANSCRIPT_CARD chrome, the running/failed/done status badge, and a default
+// max-height cap so long expanded bodies scroll instead of stretching the thread.
+function TranscriptCard({
+  icon,
+  title,
+  meta,
+  elapsed,
+  running = false,
+  failed = false,
+  maxHeight = 'max-h-96',
+  children,
+}: {
+  icon: React.ReactNode
+  title: React.ReactNode
+  /** Extra header content after the title (count, names, agent id, preview). */
+  meta?: React.ReactNode | ((open: boolean) => React.ReactNode)
+  /** Live or frozen elapsed timer shown before the status badge. */
+  elapsed?: React.ReactNode
+  running?: boolean
+  failed?: boolean
+  /** Viewport max-height class applied to the scrollable body; '' disables it. */
+  maxHeight?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  const [open, setOpen] = useState(running)
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running) setOpen(false)
+    wasRunning.current = running
+  }, [running])
+
+  return (
+    <div className={TRANSCRIPT_CARD}>
+      <button
+        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
+        onClick={() => setOpen((v) => !v)}
+        type="button"
+      >
+        {icon}
+        <span className="font-semibold uppercase tracking-wider">{title}</span>
+        {typeof meta === 'function' ? meta(open) : meta}
+        <span className="ml-auto flex items-center gap-2">
+          {elapsed}
+          {running ? (
+            <Spinner className="size-3.5 text-primary" />
+          ) : failed ? (
+            <XCircleIcon className="size-3.5 text-red-600" />
+          ) : (
+            <CheckCircleIcon className="size-3.5 text-green-600" />
+          )}
+          <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
+        </span>
+      </button>
+      {open &&
+        (maxHeight ? (
+          <ScrollArea className="mt-3" viewportClassName={maxHeight}>
+            <div className="space-y-3">{children}</div>
+          </ScrollArea>
+        ) : (
+          <div className="mt-3 space-y-3">{children}</div>
+        ))}
+    </div>
+  )
+}
+
 // Collapsible block grouping one spawned sub-agent's segments. Open while the
 // sub-agent runs, shows a spinner, then auto-collapses once it finishes.
 function SubagentBlock({
@@ -142,48 +209,26 @@ function SubagentBlock({
 }): React.JSX.Element {
   const running = task.status === 'running' || task.status === 'pending'
   const failed = task.status === 'failed' || task.status === 'cancelled'
-  const [open, setOpen] = useState(running)
-  const wasRunning = useRef(running)
-  useEffect(() => {
-    if (wasRunning.current && !running) setOpen(false)
-    wasRunning.current = running
-  }, [running])
 
   return (
-    <div className={cn('overflow-hidden', TRANSCRIPT_CARD)}>
-      <button
-        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
-        onClick={() => setOpen((v) => !v)}
-        type="button"
-      >
-        <Bot className={cn('size-3.5', running && 'animate-pulse text-primary')} />
-        <span className="font-semibold uppercase tracking-wider">Subagent</span>
-        {task.agentDefId && <span className="font-mono text-muted-foreground/60">· {task.agentDefId}</span>}
-        <span className="ml-auto flex items-center gap-2">
-          {running ? (
-            <Spinner className="size-3.5 text-primary" />
-          ) : failed ? (
-            <XCircleIcon className="size-3.5 text-red-600" />
-          ) : (
-            <CheckCircleIcon className="size-3.5 text-green-600" />
-          )}
-          <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
-        </span>
-      </button>
-      {open && (
-        <ScrollArea className="mt-3" viewportClassName="max-h-96">
-          <div className="space-y-3">
-            {groupSegments(segs).map((item) =>
-              item.kind === 'single' ? (
-                renderSegment(item.seg, item.seg.key === lastKey)
-              ) : (
-                <ToolGroupBlock key={item.segs[0].key} renderSegment={renderSegment} segs={item.segs} />
-              )
-            )}
-          </div>
-        </ScrollArea>
+    <TranscriptCard
+      elapsed={<ElapsedTimer createdAt={task.createdAt} endedAt={messageEndedAt(task)} />}
+      failed={failed}
+      icon={<Bot className={cn('size-3.5', running && 'animate-pulse text-primary')} />}
+      meta={
+        task.agentDefId ? <span className="font-mono text-muted-foreground/60">· {task.agentDefId}</span> : undefined
+      }
+      running={running}
+      title="Subagent"
+    >
+      {groupSegments(segs).map((item) =>
+        item.kind === 'single' ? (
+          renderSegment(item.seg, item.seg.key === lastKey)
+        ) : (
+          <ToolGroupBlock key={item.segs[0].key} renderSegment={renderSegment} segs={item.segs} />
+        )
       )}
-    </div>
+    </TranscriptCard>
   )
 }
 
@@ -197,37 +242,31 @@ function ToolGroupBlock({
 }): React.JSX.Element {
   const running = segs.some((s) => s.kind === 'tool' && s.ok === null)
   const failed = segs.some((s) => s.kind === 'tool' && s.ok === false)
-  const [open, setOpen] = useState(running)
-  const wasRunning = useRef(running)
-  useEffect(() => {
-    if (wasRunning.current && !running) setOpen(false)
-    wasRunning.current = running
-  }, [running])
-
   const names = uniq(segs.map((s) => (s.kind === 'tool' ? s.tool : '')))
+  const toolSegs = segs.filter((s): s is Extract<Segment, { kind: 'tool' }> => s.kind === 'tool')
+  const startTs = toolSegs.length ? Math.min(...toolSegs.map((s) => s.ts)) : 0
+  const endedTs = running
+    ? null
+    : toolSegs.every((s) => s.endedTs != null)
+      ? Math.max(...toolSegs.map((s) => s.endedTs ?? 0))
+      : null
 
   return (
-    <div className={TRANSCRIPT_CARD}>
-      <button
-        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
-        onClick={() => setOpen((v) => !v)}
-        type="button"
-      >
-        <Wrench className={cn('size-3.5', running && 'animate-pulse text-primary')} />
-        <span className="font-semibold uppercase tracking-wider">Tools</span>
-        <span className="text-muted-foreground/60">{segs.length}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground/60">{names.join(', ')}</span>
-        {running ? (
-          <Spinner className="size-3.5 text-primary" />
-        ) : failed ? (
-          <XCircleIcon className="size-3.5 text-red-600" />
-        ) : (
-          <CheckCircleIcon className="size-3.5 text-green-600" />
-        )}
-        <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
-      </button>
-      {open && <div className="mt-3 space-y-3">{segs.map((seg) => renderSegment(seg, false, true))}</div>}
-    </div>
+    <TranscriptCard
+      elapsed={<ElapsedTimer createdAt={startTs} endedAt={endedTs} />}
+      failed={failed}
+      icon={<Wrench className={cn('size-3.5', running && 'animate-pulse text-primary')} />}
+      meta={
+        <>
+          <span className="text-muted-foreground/60">{segs.length}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground/60">{names.join(', ')}</span>
+        </>
+      }
+      running={running}
+      title="Tools"
+    >
+      {segs.map((seg) => renderSegment(seg, false, true))}
+    </TranscriptCard>
   )
 }
 
@@ -237,47 +276,28 @@ function ToolGroupBlock({
 function SingleToolBlock({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }): React.JSX.Element {
   const running = seg.ok === null
   const failed = seg.ok === false
-  const [open, setOpen] = useState(running)
-  const wasRunning = useRef(running)
-  useEffect(() => {
-    if (wasRunning.current && !running) setOpen(false)
-    wasRunning.current = running
-  }, [running])
-
   const preview = seg.output ? seg.output.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined
 
   return (
-    <div className={TRANSCRIPT_CARD}>
-      <button
-        className="flex w-full items-center gap-2 text-muted-foreground/80 hover:text-muted-foreground"
-        onClick={() => setOpen((v) => !v)}
-        type="button"
-      >
-        <Wrench className={cn('size-3.5', running && 'animate-pulse text-primary')} />
-        <span className="font-semibold uppercase tracking-wider">{seg.tool}</span>
-        {preview && !open && <span className="min-w-0 flex-1 truncate text-muted-foreground/60">{preview}</span>}
-        <span className="ml-auto flex items-center gap-2">
-          {running ? (
-            <Spinner className="size-3.5 text-primary" />
-          ) : failed ? (
-            <XCircleIcon className="size-3.5 text-red-600" />
-          ) : (
-            <CheckCircleIcon className="size-3.5 text-green-600" />
-          )}
-          <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
-        </span>
-      </button>
-      {open && (
-        <div className="mt-3 space-y-3">
-          <ToolInput input={seg.input} />
-          {seg.imagePath && <ToolImage path={seg.imagePath} />}
-          <ToolOutput
-            errorText={seg.ok === false ? (seg.output ?? '') : undefined}
-            output={seg.ok === false ? undefined : seg.output}
-          />
-        </div>
-      )}
-    </div>
+    <TranscriptCard
+      elapsed={<ElapsedTimer createdAt={seg.ts} endedAt={seg.endedTs ?? null} />}
+      failed={failed}
+      icon={<Wrench className={cn('size-3.5', running && 'animate-pulse text-primary')} />}
+      meta={
+        preview
+          ? (open) => !open && <span className="min-w-0 flex-1 truncate text-muted-foreground/60">{preview}</span>
+          : undefined
+      }
+      running={running}
+      title={seg.tool}
+    >
+      <ToolInput input={seg.input} />
+      {seg.imagePath && <ToolImage path={seg.imagePath} />}
+      <ToolOutput
+        errorText={seg.ok === false ? (seg.output ?? '') : undefined}
+        output={seg.ok === false ? undefined : seg.output}
+      />
+    </TranscriptCard>
   )
 }
 

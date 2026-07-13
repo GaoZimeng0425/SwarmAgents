@@ -16,6 +16,8 @@ export type Segment =
       output: string | null
       /** Local path to an image the tool produced (e.g. a screenshot), if any. */
       imagePath?: string
+      /** Wall-clock ts of the matching tool.result event; undefined while running. */
+      endedTs?: number
       key: string
       messageId: string
       ts: number
@@ -150,6 +152,7 @@ export function taskSegments(task: MessageRecord): Segment[] {
           target.ok = ev.ok
           target.output = toolDetail(ev.payload)
           target.imagePath = toolImagePath(ev.payload)
+          target.endedTs = e.ts
         } else {
           out.push({
             kind: 'event',

@@ -134,6 +134,37 @@ describe('taskSegments', () => {
     expect(segs.find((s) => s.kind === 'tool')).toMatchObject({ tool: 'see_screen', imagePath: '/tmp/s.png' })
   })
 
+  it('stamps endedTs from the tool.result event ts', () => {
+    const segs = taskSegments(
+      rec([
+        {
+          kind: 'message.progress',
+          sessionId: 's1',
+          messageId: 't1',
+          event: { kind: 'tool.call', server: 'fs', tool: 'read_file', args: {}, ts: 100 },
+          ts: 100,
+          seq: 1,
+        } as MessageRecord['events'][number],
+        {
+          kind: 'message.progress',
+          sessionId: 's1',
+          messageId: 't1',
+          event: { kind: 'tool.result', ok: true, payload: { text: 'ok' }, ts: 250 },
+          ts: 250,
+          seq: 2,
+        } as MessageRecord['events'][number],
+      ])
+    )
+    const tool = segs.find((s) => s.kind === 'tool') as Extract<(typeof segs)[number], { kind: 'tool' }> | undefined
+    expect(tool?.endedTs).toBe(250)
+  })
+
+  it('leaves endedTs undefined while a tool is still running', () => {
+    const segs = taskSegments(rec([prog({ kind: 'tool.call', server: 'fs', tool: 'read_file', args: {}, ts: 100 })]))
+    const tool = segs.find((s) => s.kind === 'tool') as Extract<(typeof segs)[number], { kind: 'tool' }> | undefined
+    expect(tool?.endedTs).toBeUndefined()
+  })
+
   it('marks a failed tool result with ok:false', () => {
     const segs = taskSegments(
       rec([
