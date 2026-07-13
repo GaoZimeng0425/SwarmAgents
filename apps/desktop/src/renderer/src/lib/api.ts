@@ -144,4 +144,11 @@ export const swarmApi = {
     window.swarm.exportSessionMarkdown(sessionId),
   listArtifacts: (opts?: { query?: string; limit?: number }): Promise<ArtifactEntry[]> =>
     window.swarm.listArtifacts(opts),
+  quickPanelHide: (): Promise<void> => window.swarm.quickPanel.hide(),
+  quickPanelResize: (height: number): Promise<void> => window.swarm.quickPanel.resize(height),
+  quickPanelFocusMain: (payload: { navigate?: string; settings?: string }): Promise<void> =>
+    window.swarm.quickPanel.focusMain(payload),
+  quickPanelGetHotkey: (): Promise<string> => window.swarm.quickPanel.getHotkey(),
+  quickPanelSetHotkey: (accelerator: string): Promise<{ ok: boolean }> =>
+    window.swarm.quickPanel.setHotkey(accelerator),
 }
