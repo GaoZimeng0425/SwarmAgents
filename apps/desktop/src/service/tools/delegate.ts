@@ -21,6 +21,12 @@ const DelegateParams = Type.Object({
   providerKey: Type.Optional(
     Type.String({ description: 'Key of a configured provider for this run (child run only).' })
   ),
+  itemId: Type.Optional(
+    Type.String({
+      description:
+        'If this delegate call corresponds to a plan item (from set_delegation_plan), pass its id (e.g. "d1") so the result is merged into the plan state.',
+    })
+  ),
 })
 
 // A non-completed message surfaces its disposition to the parent as a prefix, so the
@@ -52,6 +58,7 @@ export function delegateSpec(): ToolSpec {
           agentType?: string
           suggestedTools?: string[]
           providerKey?: string
+          itemId?: string
         }
         if (p.topLevel) {
           if (!ctx.createTask) {
@@ -60,8 +67,16 @@ export function delegateSpec(): ToolSpec {
               details: { error: 'not_wired' },
             }
           }
-          const { messageId, status, summary } = await ctx.createTask(p.prompt, p.agentType)
-          return delegateResult(messageId, status, summary)
+          if (p.itemId) ctx.mergeDelegationResult?.(p.itemId, { status: 'running', artifacts: [] })
+          try {
+            const { messageId, status, summary, artifacts } = await ctx.createTask(p.prompt, p.agentType)
+            if (p.itemId)
+              ctx.mergeDelegationResult?.(p.itemId, { status: status ?? 'completed', artifacts: artifacts ?? [] })
+            return delegateResult(messageId, status, summary)
+          } catch (err) {
+            if (p.itemId) ctx.mergeDelegationResult?.(p.itemId, { status: 'failed', artifacts: [] })
+            throw err
+          }
         }
         if (!ctx.spawnChild) {
           return {
@@ -69,12 +84,20 @@ export function delegateSpec(): ToolSpec {
             details: { error: 'not_wired' },
           }
         }
-        const { messageId, status, summary } = await ctx.spawnChild(p.prompt, {
-          suggestedTools: p.suggestedTools,
-          providerKey: p.providerKey,
-          agentType: p.agentType,
-        })
-        return delegateResult(messageId, status, summary)
+        if (p.itemId) ctx.mergeDelegationResult?.(p.itemId, { status: 'running', artifacts: [] })
+        try {
+          const { messageId, status, summary, artifacts } = await ctx.spawnChild(p.prompt, {
+            suggestedTools: p.suggestedTools,
+            providerKey: p.providerKey,
+            agentType: p.agentType,
+          })
+          if (p.itemId)
+            ctx.mergeDelegationResult?.(p.itemId, { status: status ?? 'completed', artifacts: artifacts ?? [] })
+          return delegateResult(messageId, status, summary)
+        } catch (err) {
+          if (p.itemId) ctx.mergeDelegationResult?.(p.itemId, { status: 'failed', artifacts: [] })
+          throw err
+        }
       },
     }),
   }
