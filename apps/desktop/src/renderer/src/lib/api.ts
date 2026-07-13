@@ -53,6 +53,13 @@ export const swarmApi = {
     window.swarm.cancelMessage(sessionId, messageId),
   promoteQueuedMessage: (sessionId: string, messageId: string): Promise<void> =>
     window.swarm.promoteQueuedMessage(sessionId, messageId),
+  forkSession: (
+    sourceSessionId: string,
+    forkPointMessageId: string,
+    newPrompt: string,
+    opts?: { agentType?: string }
+  ): Promise<{ sessionId: string; messageId: string }> =>
+    window.swarm.forkSession(sourceSessionId, forkPointMessageId, newPrompt, opts),
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),
