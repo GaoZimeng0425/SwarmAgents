@@ -60,11 +60,15 @@ export function useEventsSubscription(): void {
   // swarmagents://chat/<id> deep links. Pull any link that arrived before this
   // mount (cold start), then subscribe to links pushed while the app runs.
   useEffect(() => {
-    const open = (sessionId: string): void => {
-      void navigate({ to: '/session/$sessionId', params: { sessionId } })
+    const open = (payload: { sessionId?: string; route?: string }): void => {
+      if (payload.sessionId) {
+        void navigate({ to: '/session/$sessionId', params: { sessionId: payload.sessionId } })
+      } else if (payload.route) {
+        void navigate({ to: payload.route as never })
+      }
     }
     void swarmApi.consumePendingDeepLink().then((d) => {
-      if (d) open(d.sessionId)
+      if (d) open({ sessionId: d.sessionId })
     })
     return swarmApi.onNavigateToSession(open)
   }, [navigate])
