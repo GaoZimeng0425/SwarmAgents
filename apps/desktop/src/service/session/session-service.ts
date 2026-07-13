@@ -66,6 +66,9 @@ type SessionState = {
   provider: ProviderInjection
   permissionRegistry: PermissionRegistry
   messages: AgentMessage[]
+  /** Set when this session was created by forkToNewSession — links back to the
+   *  source session + the message id at the fork point. Optional metadata only. */
+  forkedFrom?: { sessionId: string; messageId: string }
 }
 
 type SessionServiceConfig = {
@@ -106,6 +109,20 @@ export type SessionService = {
     prompt: string,
     options?: RunOptions
   ): Promise<{ messageId: string; status: string; summary: string }>
+  /**
+   * Fork a session at a checkpoint: create a new session sharing the source's
+   * provider, reconstruct the transcript up to (and including) forkPointMessageId
+   * as prior context, and launch a work run with `newPrompt` on top of it.
+   * Returns the new session id and the fork's first message id (the latter is
+   * filled synchronously where possible, otherwise an empty string until the
+   * launched run mints one).
+   */
+  forkToNewSession(
+    sourceSessionId: string,
+    forkPointMessageId: string,
+    newPrompt: string,
+    opts?: { agentType?: string }
+  ): { sessionId: string; messageId: string }
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
   cancelMessage(sessionId: string, messageId: string): void
   promoteQueuedMessage(sessionId: string, messageId: string): void
@@ -139,6 +156,103 @@ function buildDefaultRegistry(): ToolRegistry {
   const r = createToolRegistry()
   registerBuiltinTools(r)
   return r
+}
+
+/**
+ * Reconstruct an `AgentMessage[]` transcript from a session's persisted message
+ * events, suitable for seeding a forked session's `history` (prior context).
+ *
+ * Minimal-fidelity by design — only the LLM-visible conversational turns are
+ * rebuilt; tool.call/tool.result wiring (which would need full `ToolCall` /
+ * `ToolResultMessage` reconstruction with stable callIds) is intentionally
+ * omitted. The resulting context is enough for a forked run to continue a
+ * conversation; it is NOT a byte-perfect replay of the source agent state.
+ *
+ * Mapping:
+ *   message.created (prompt)            → UserMessage(prompt)
+ *   message.progress llm.message(user)  → UserMessage(content)
+ *   message.progress llm.message(assistant) → AssistantMessage (consecutive
+ *                                             chunks coalesce into one bubble,
+ *                                             like task-segments.ts does)
+ *   everything else (reasoning, tool.*,
+ *   permissions, terminals, metadata)   → skipped
+ *
+ * `provider` supplies the `api`/`provider`/`model` fields the AssistantMessage
+ * shape requires; usage is zeroed and stopReason is 'stop' since these are
+ * synthesized, not round-tripped from a real model response.
+ */
+function reconstructHistoryFromEvents(
+  rows: Array<{ messageId: string; event: UIEvent }>,
+  provider: ProviderInjection
+): AgentMessage[] {
+  // pi-ai's `Api` is a union of KnownApi | string, so the wire-style→api-id
+  // mapping produces a valid Api without importing the type directly.
+  const api = provider.apiStyle === 'anthropic' ? 'anthropic-messages' : 'openai-completions'
+  const out: AgentMessage[] = []
+  // Pending assistant text accumulates across consecutive llm.message(assistant)
+  // chunks until a non-assistant event flushes it (mirrors task-segments.ts).
+  let pendingAssistantText = ''
+  let pendingAssistantTs: number | null = null
+  const flushAssistant = (): void => {
+    if (!pendingAssistantText) {
+      pendingAssistantTs = null
+      return
+    }
+    out.push({
+      role: 'assistant',
+      content: [{ type: 'text', text: pendingAssistantText }],
+      api,
+      provider: provider.id,
+      model: provider.model,
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: 'stop',
+      timestamp: pendingAssistantTs ?? Date.now(),
+    })
+    pendingAssistantText = ''
+    pendingAssistantTs = null
+  }
+
+  for (const row of rows) {
+    const e = row.event
+    if (e.kind === 'message.created') {
+      flushAssistant()
+      out.push({ role: 'user', content: e.prompt, timestamp: e.ts })
+      continue
+    }
+    if (e.kind === 'message.progress') {
+      const task = e.event
+      if (task.kind === 'llm.message') {
+        if (task.role === 'assistant') {
+          // Coalesce consecutive assistant chunks (streaming emit flushes at
+          // sentence boundaries — task-segments.ts does the same).
+          if (!pendingAssistantTs) pendingAssistantTs = task.ts
+          pendingAssistantText += typeof task.content === 'string' ? task.content : JSON.stringify(task.content)
+        } else if (task.role === 'user') {
+          // A forwarded user event (e.g. submitPrompt's post-launch emit).
+          flushAssistant()
+          out.push({
+            role: 'user',
+            content: typeof task.content === 'string' ? task.content : JSON.stringify(task.content),
+            timestamp: task.ts,
+          })
+        }
+      }
+      // tool.call / tool.result / reasoning / error are skipped (minimal fidelity).
+      continue
+    }
+    // Any non-message-progress event flushes the pending assistant bubble so a
+    // later user turn doesn't get glued onto it.
+    flushAssistant()
+  }
+  flushAssistant()
+  return out
 }
 
 export function createSessionService(cfg: SessionServiceConfig): SessionService {
@@ -455,7 +569,8 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   const runWork = async (
     sessionId: string,
     prompt: string,
-    options: RunOptions = {}
+    options: RunOptions = {},
+    extra?: { history?: AgentMessage[] }
   ): Promise<{
     messageId: string
     status: 'completed' | 'failed' | 'cancelled'
@@ -478,6 +593,10 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         agent: withPrompt(agentDef),
         provider: session.provider,
         prompt,
+        // Prior context ONLY — the prompt is NOT in history (spec D4); the
+        // engine appends the user turn from spec.prompt. Forked sessions seed
+        // this with the reconstructed transcript up to the fork point.
+        ...(extra?.history ? { history: extra.history } : {}),
         budget: budgets().main,
         tools,
         cwd: options.cwd,
@@ -511,6 +630,98 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     store.updateSessionStatus(sessionId, 'active')
     sessions.set(sessionId, rehydrated)
     return rehydrated
+  }
+
+  // Fork a session at a checkpoint: create a new session sharing the source's
+  // provider, reconstruct the transcript up to (and including) the fork point
+  // as prior context, and launch a work run with `newPrompt` on top of it.
+  // Defined as a closure (not a method) so it can compose with createSession /
+  // runWork / getOrRehydrate without `this`-binding gymnastics across the
+  // returned service literal.
+  const forkToNewSession = (
+    sourceSessionId: string,
+    forkPointMessageId: string,
+    newPrompt: string,
+    opts?: { agentType?: string }
+  ): { sessionId: string; messageId: string } => {
+    // 1. Resolve the source session (live or rehydrated) for its provider.
+    const sourceSession = getOrRehydrate(sourceSessionId)
+    if (!sourceSession) throw new Error(`session not found: ${sourceSessionId}`)
+
+    // 2. Slice the source's event stream up to AND INCLUDING the fork point.
+    //    Rows arrive in insertion order, so a linear scan with a break on the
+    //    fork messageId captures the terminal boundary. If the fork point is
+    //    never seen (stale id / race with deletion), we fork from the whole
+    //    transcript — same outcome as forking at the latest message.
+    const rows = store.getMessageEvents(sourceSessionId)
+    const slicedEvents: Array<{ messageId: string; event: UIEvent }> = []
+    let sawForkPoint = false
+    for (const row of rows) {
+      slicedEvents.push({ messageId: row.messageId, event: row.event })
+      if (row.messageId === forkPointMessageId) {
+        sawForkPoint = true
+        break
+      }
+    }
+    if (!sawForkPoint) {
+      log.warn({
+        msg: 'fork point messageId not found in source session; forking from whole transcript',
+        sourceSessionId,
+        forkPointMessageId,
+      })
+    }
+
+    // 3. Reconstruct AgentMessage[] prior context from the sliced events.
+    const history = reconstructHistoryFromEvents(slicedEvents, sourceSession.provider)
+
+    // 4. Mint the new session id and persist it — mirrors the createSession
+    //    method's persistence path (store row + live SessionState + broadcast)
+    //    without invoking the method itself (avoiding `this`/forward-ref issues
+    //    inside the returned literal). Keeps the system-session provider-refresh
+    //    side effect; a fork should behave like any other fresh session.
+    const sessionId = ulid()
+    store.createSession(sessionId, sourceSession.provider)
+    const newSession: SessionState = {
+      id: sessionId,
+      provider: sourceSession.provider,
+      permissionRegistry: createPermissionRegistry(permissionEmit(sessionId)),
+      messages: [],
+      forkedFrom: { sessionId: sourceSessionId, messageId: forkPointMessageId },
+    }
+    sessions.set(sessionId, newSession)
+    broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
+    if (store.getSession(SYSTEM_SESSION_ID)) {
+      store.updateSessionProvider(SYSTEM_SESSION_ID, sourceSession.provider)
+      const liveSystem = sessions.get(SYSTEM_SESSION_ID)
+      if (liveSystem) liveSystem.provider = sourceSession.provider
+    }
+
+    log.info({
+      msg: 'session forked',
+      sourceSessionId,
+      forkPointMessageId,
+      newSessionId: sessionId,
+      historyLen: history.length,
+    })
+
+    // 5. Launch a work run with the sliced history as prior context. Fire-
+    //    and-forget: forkToNewSession is synchronous (it must return the new
+    //    session id immediately so the renderer can navigate to it); the run
+    //    proceeds in the background and mints its own messageId on dispatch.
+    //    The returned messageId is left empty when we cannot know it yet
+    //    (launchMessage mints one internally); the renderer can list the new
+    //    session's events to find the fork's first message.
+    const runOpts = opts?.agentType ? { agentType: opts.agentType } : {}
+    void runWork(sessionId, newPrompt, runOpts, { history }).catch((err) => {
+      log.error({
+        msg: 'fork run failed',
+        sessionId,
+        sourceSessionId,
+        err: err instanceof Error ? err.message : String(err),
+      })
+    })
+
+    return { sessionId, messageId: '' }
   }
 
   // Interrupted-on-restart recovery. Runs synthesize a terminal close-out per
@@ -709,6 +920,10 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
 
     runWork(sessionId, prompt, options) {
       return runWork(sessionId, prompt, options)
+    },
+
+    forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts) {
+      return forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts)
     },
 
     resolvePermission(sessionId, actionId, decision) {
