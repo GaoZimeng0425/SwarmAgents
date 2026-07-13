@@ -1,5 +1,13 @@
 import type { Risk } from './ipc'
-import type { Attachment, ConsumedResources, DelegationItem, PlanTodo, TaskEvent } from './task'
+import type {
+  Artifact,
+  Attachment,
+  ConsumedResources,
+  DelegationItem,
+  DelegationItemStatus,
+  PlanTodo,
+  TaskEvent,
+} from './task'
 
 /**
  * Wire protocol v2: message.* events (run-engine rewrite spec §5).
@@ -57,6 +65,12 @@ export type MessageWireEvent =
     })
   | (MessageEventBase & { kind: 'message.plan'; todos: PlanTodo[] })
   | (MessageEventBase & { kind: 'message.delegation_plan'; plan: DelegationItem[] })
+  | (MessageEventBase & {
+      kind: 'message.delegation_update'
+      itemId: string
+      status: DelegationItemStatus
+      result: Artifact[]
+    })
   | (MessageEventBase & { kind: 'message.spawned'; childMessageId: string })
 
 /**
