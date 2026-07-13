@@ -18,7 +18,6 @@ import { buildPeekabooTools } from './peekaboo'
 import { updatePlanSpec } from './plan'
 import type { ToolRegistry, ToolRisk, ToolSpec } from './registry'
 import { renderUiSpec } from './render-ui'
-import { reportResultSpec } from './report-result'
 import { shellSpec } from './shell'
 import { useSkillSpec } from './skill'
 import { currentTimeSpec } from './time'
@@ -76,7 +75,10 @@ export function registerBuiltinTools(
   registry.register(writeSkillSpec())
   registry.register(updatePlanSpec())
   registry.register(delegationPlanSpec())
-  registry.register(reportResultSpec())
+  // NOTE: report_result is NOT registered globally. It is runtime infrastructure
+  // for child runs only, force-injected in launch.ts (bypassing the allowlist).
+  // Registering it here would double-resolve it for child runs whose default
+  // agent allowlist is ['*'], producing a duplicate tool name in the schema.
   registry.register(renderUiSpec())
   registry.register(shellSpec())
   registry.register(currentTimeSpec())

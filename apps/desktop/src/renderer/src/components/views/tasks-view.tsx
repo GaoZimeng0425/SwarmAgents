@@ -72,7 +72,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const sessionUsage = sessionDisplayUsage(sessionTasks)
   // Delegation plan state: when present, the orchestration graph panel renders
   // above the conversation thread (only for sessions that emit a plan).
-  const planState = useDelegationPlan()
+  const planState = useDelegationPlan(selectedSessionId)
 
   // Each session remembers its own composer controls (working directory,
   // permission gate, execution mode). They're persisted on the session row, so

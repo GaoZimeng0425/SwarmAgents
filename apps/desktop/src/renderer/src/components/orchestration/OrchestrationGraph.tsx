@@ -4,13 +4,15 @@ import '@xyflow/react/dist/style.css'
 
 import { useDelegationPlan } from '../../hooks/use-delegation-plan'
 import { useMessages } from '../../hooks/use-messages'
+import { useSessionsStore } from '../../stores/sessions'
 import { PlanItemNode } from './PlanItemNode'
 import { RunNode, type RunNodeData } from './RunNode'
 
 const nodeTypes = { planItem: PlanItemNode, run: RunNode }
 
 export function OrchestrationGraph() {
-  const planState = useDelegationPlan()
+  const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
+  const planState = useDelegationPlan(selectedSessionId)
   const messages = useMessages()
 
   const { nodes, edges } = useMemo(() => {
@@ -34,8 +36,10 @@ export function OrchestrationGraph() {
       }
     })
 
-    // run nodes (bottom row) — messages with parentMessageId form the delegation tree
-    const runMessages = messages.filter((m) => m.parentMessageId)
+    // run nodes (bottom row) — this session's messages with parentMessageId form
+    // the delegation tree. Filter by sessionId: useMessages() returns the global
+    // cache (every hydrated session), so without this nodes leak across sessions.
+    const runMessages = messages.filter((m) => m.parentMessageId && m.sessionId === selectedSessionId)
     runMessages.forEach((m, i) => {
       const runData: RunNodeData = {
         messageId: m.id,
@@ -57,7 +61,7 @@ export function OrchestrationGraph() {
     // This is a follow-up refinement; initial version shows plan DAG + run tree separately.
 
     return { nodes, edges }
-  }, [planState, messages])
+  }, [planState, messages, selectedSessionId])
 
   if (!planState || planState.size === 0) return null
 
