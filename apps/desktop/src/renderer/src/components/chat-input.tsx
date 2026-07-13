@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Attachment, ExecutionMode, PermissionMode } from '@swarm/protocol'
 import { type ModelThinkingLevel, type ProvidersStateView, providerViewById } from '@swarm/protocol'
 import { SelectGroup, SelectLabel, SelectSeparator } from '@swarm/ui'
-import { useRanger } from '@tanstack/react-ranger'
 import { Check, Cpu, FileText, Folder, FolderOpen, ListChecks, Paperclip, Shield, Target, Users, X } from 'lucide-react'
 
 import {
@@ -363,22 +362,19 @@ export function ChatInput({
     if (level && level !== activeRow?.thinkingLevel) void onPickThinking(level)
   }
 
-  // TanStack Ranger drives the discrete "思考程度" stepper: a single handle over
-  // the level indices [0..thinkingLast]. The ranger owns the drag wiring
-  // (document mouse/touch listeners), the client-x → value interpolation, and
-  // the step rounding that the old bespoke control hand-rolled. The level is
-  // external state (synced over IPC), so the ranger is fully controlled by
-  // `thinkingIndex` and every drag/keyboard change commits straight through
-  // commitThinkingIndex — there is no local position state to drift out of sync.
-  const thinkingRanger = useRanger<HTMLDivElement>({
-    getRangerElement: () => stepTrackRef.current,
-    values: [thinkingIndex],
-    min: 0,
-    max: thinkingLast,
-    stepSize: 1,
-    onChange: (instance) => commitThinkingIndex(Math.round(instance.sortedValues[0] ?? 0)),
-    onDrag: (instance) => commitThinkingIndex(Math.round(instance.sortedValues[0] ?? 0)),
-  })
+  // Map a pointer's clientX to the nearest step index and commit it. Used for
+  // both track clicks and dragging the indicator. The pointer capture is set on
+  // the track's target in onPointerDown, so pointermove keeps arriving there
+  // even when the cursor leaves the track — that's what makes dragging work
+  // inside the Base UI Select popup, where document-level mousemove listeners
+  // (e.g. the old TanStack Ranger wiring) are unreliable.
+  const pickAtClientX = (clientX: number): void => {
+    const track = stepTrackRef.current
+    if (!track) return
+    const rect = track.getBoundingClientRect()
+    const ratio = thinkingLast <= 0 ? 0 : (clientX - rect.left) / rect.width
+    commitThinkingIndex(Math.round(ratio * thinkingLast))
+  }
 
   // Self-measuring footer: collapse the control labels to icons only when the
   // toolbar can't fit them. We compare the width the two control groups actually
@@ -391,6 +387,9 @@ export function ChatInput({
   const rightGroupRef = useRef<HTMLDivElement>(null)
   const naturalRef = useRef(0)
   const [compact, setCompact] = useState(false)
+  // True while a pointer is held down on the thinking stepper track, so
+  // onPointerMove keeps updating the level until the pointer is released.
+  const [dragging, setDragging] = useState(false)
   const recomputeCompact = useCallback(() => {
     const row = toolsRef.current
     const left = leftGroupRef.current
@@ -575,15 +574,15 @@ export function ChatInput({
                               </span>
                             </div>
                             {(() => {
-                              // Discrete capsule stepper driven by TanStack Ranger. The
-                              // single coordinate system is preserved on purpose: step
-                              // centers, the filled segment, and the press target all
-                              // derive from the same `i/last` percentages, so the rings,
-                              // the line, and the snap point stay aligned. Ranger supplies
-                              // the client-x → value mapping, step rounding, and the
-                              // document-level drag listeners; pressing the track jumps to
-                              // the nearest step and hands off to the ranger handle so a
-                              // continued drag keeps updating the level live.
+                              // Discrete capsule stepper driven by self-managed pointer
+                              // events. The single coordinate system is preserved on
+                              // purpose: step centers, the filled segment, and the press
+                              // target all derive from the same `i/last` percentages, so
+                              // the rings, the line, and the snap point stay aligned.
+                              // Pointer capture is set on press so pointermove keeps
+                              // arriving on the track element even inside the Base UI
+                              // Select popup — document-level mouse listeners (e.g.
+                              // TanStack Ranger) are unreliable here.
                               const last = thinkingLast
                               const current = thinkingIndex
                               return (
@@ -604,9 +603,19 @@ export function ChatInput({
                                   }}
                                   onPointerDown={(e) => {
                                     e.stopPropagation()
-                                    commitThinkingIndex(Math.round(thinkingRanger.getValueForClientX(e.clientX)))
-                                    thinkingRanger.handles()[0]?.onMouseDownHandler(e as unknown as MouseEvent)
+                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                    setDragging(true)
+                                    pickAtClientX(e.clientX)
                                   }}
+                                  onPointerMove={(e) => {
+                                    if (!dragging) return
+                                    pickAtClientX(e.clientX)
+                                  }}
+                                  onPointerUp={(e) => {
+                                    ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+                                    setDragging(false)
+                                  }}
+                                  onPointerCancel={() => setDragging(false)}
                                   ref={stepTrackRef}
                                   role="slider"
                                   tabIndex={0}
