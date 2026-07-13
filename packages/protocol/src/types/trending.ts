@@ -83,6 +83,8 @@ export type RepoVerdictTone = z.infer<typeof RepoVerdictTone>
 
 // Structured output of the repo-researcher agent — mirrors ArticleSummary but
 // carries the trending-panel sections (为什么上榜 / 核心亮点 / 适合谁用 / 结论).
+// `summary` holds the streamed Markdown briefing (kept on completion, like the
+// Gmail thread analyst); optional so older cached records without it still load.
 export const RepoResearch = z.object({
   gist: z.string(),
   why: z.string(),
@@ -91,6 +93,7 @@ export const RepoResearch = z.object({
   verdict: z.string(),
   verdictTag: z.string(),
   verdictTone: RepoVerdictTone,
+  summary: z.string().optional(),
 })
 export type RepoResearch = z.infer<typeof RepoResearch>
 

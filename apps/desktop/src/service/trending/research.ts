@@ -1,11 +1,12 @@
-// One-shot Agent research of a trending GitHub repo. Mirrors article/analyze.ts:
+// One-shot Agent research of a trending GitHub repo. Mirrors gmail/analyze-thread.ts:
 // a PRIVATE LaunchPorts binding (silent seq, no store append, no-op slot/abort
 // ports) and a broadcast adapter translating run.* into trending.research*
 // events keyed by repoName. The agent streams a natural-language markdown
-// briefing (shown live) and emits its structured fields via a
-// render_ui({type:'analysis', props:{...}}) tool call, captured with
-// readAnalysisCard. On message.complete a valid card caches the research back to the
-// research store (re-viewable, like article's analysis cache); no valid card
+// briefing (shown live AND kept on completion) and emits its structured fields
+// via a render_ui({type:'analysis', props:{...}}) tool call, captured with
+// readAnalysisCard. The streamed markdown IS the summary; the card carries the
+// structured sections. On message.complete a valid card caches the research
+// (with summary) back to the research store (re-viewable); no valid card
 // degrades to researchError.
 //
 // ponytail: the researcher reasons from repo metadata + model knowledge (no live
@@ -99,10 +100,11 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
     // PRIVATE emit ports: a silent seq (no session/store), no persistence, no
     // terminal registry — the research lives entirely in the broadcast stream.
     // The broadcast port translates the run.* wire into trending.research*
-    // events: message.progress llm.message → researchDelta (streamed prose),
+    // events: message.progress llm.message → researchDelta (+ accumulate summary),
     // run.progress tool.call (analysis card) → capture RepoResearch,
-    // message.complete → save→researchComplete (or researchError if no valid card),
-    // message.error → researchError.
+    // message.complete → save→researchComplete (with summary), message.error →
+    // researchError.
+    let accumulated = ''
     let card: RepoResearch | null = null
 
     let seq = 0
@@ -114,6 +116,7 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
         if (evt.kind === 'message.progress') {
           const ev = evt.event
           if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
+            accumulated += ev.content
             deps.broadcaster.broadcast('trending.researchDelta', {
               repoName,
               text: ev.content,
@@ -122,13 +125,15 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
             return
           }
           const props = readAnalysisCard(evt)
-          if (props) card = toRepoResearch(props)
+          if (props) card = { ...toRepoResearch(props), summary: accumulated }
         } else if (evt.kind === 'message.complete') {
           if (card) {
-            deps.store.save(repoName, card)
+            const cardWithSummary: RepoResearch = { ...card, summary: accumulated }
+            deps.store.save(repoName, cardWithSummary)
             deps.broadcaster.broadcast('trending.researchComplete', {
               repoName,
-              research: card,
+              research: cardWithSummary,
+              summary: accumulated,
               ts: Date.now(),
             })
           } else {

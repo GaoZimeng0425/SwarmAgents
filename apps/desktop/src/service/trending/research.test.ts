@@ -76,10 +76,16 @@ describe('createResearchRepo early returns', () => {
 })
 
 describe('createResearchRepo broadcast', () => {
-  it('broadcasts researchComplete + saves on a valid render_ui card', async () => {
+  it('broadcasts researchComplete (with kept summary) + saves on a valid render_ui card', async () => {
     const broadcaster = fakeBroadcaster()
     const store = fakeStore()
     const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
+      // Streamed markdown briefing — accumulated into the summary and kept on
+      // completion (the fix that mirrors gmail analyze-thread).
+      ports.emit.broadcast({
+        kind: 'message.progress',
+        event: { kind: 'llm.message', content: '## 简报\n这是一个终端 agent。' },
+      })
       ports.emit.broadcast({
         kind: 'message.progress',
         event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props: research } },
@@ -98,11 +104,17 @@ describe('createResearchRepo broadcast', () => {
     const r = run({ repo, period: 'past_24_hours', provider: injection as never })
     expect(r).toEqual({ ok: true })
     await Promise.resolve()
+    const researchWithSummary = { ...research, summary: '## 简报\n这是一个终端 agent。' }
+    expect(broadcaster.broadcast).toHaveBeenCalledWith('trending.researchDelta', expect.any(Object))
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
       'trending.researchComplete',
-      expect.objectContaining({ repoName: 'sst/opencode', research })
+      expect.objectContaining({
+        repoName: 'sst/opencode',
+        research: researchWithSummary,
+        summary: '## 简报\n这是一个终端 agent。',
+      })
     )
-    expect(store.save).toHaveBeenCalledWith('sst/opencode', research)
+    expect(store.save).toHaveBeenCalledWith('sst/opencode', researchWithSummary)
   })
 
   it('broadcasts researchError when the agent emits no valid card', async () => {

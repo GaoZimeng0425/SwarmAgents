@@ -142,6 +142,10 @@ export function TrendingResearchPanel({
   const [streamText, setStreamText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [liveResearch, setLiveResearch] = useState<RepoResearch | null>(null)
+  // The Markdown briefing surfaced in the done state. Mirrors gmail-assistant-card's
+  // use of analysis.summary: the streamed markdown is kept (not discarded) so the
+  // user sees both the briefing and the structured card on completion.
+  const [liveSummary, setLiveSummary] = useState('')
 
   const slashIndex = repo.repoName.indexOf('/')
   const owner = slashIndex >= 0 ? repo.repoName.slice(0, slashIndex) : repo.repoName
@@ -160,6 +164,7 @@ export function TrendingResearchPanel({
     setStreamText('')
     setError(null)
     setLiveResearch(null)
+    setLiveSummary('')
   }, [repo.repoName])
 
   // Subscribe to research stream events; events for other repos are ignored.
@@ -170,6 +175,7 @@ export function TrendingResearchPanel({
         setPhase('streaming')
       } else if (e.kind === 'trending.researchComplete' && e.repoName === repo.repoName) {
         setLiveResearch(e.research)
+        setLiveSummary(e.summary)
         setStreamText('')
         setPhase('done')
         void qc.invalidateQueries({ queryKey: ['trending', 'research', repo.repoName] })
@@ -188,11 +194,15 @@ export function TrendingResearchPanel({
   }, [phase, repo.repoName, onResearchingChange])
 
   const research = liveResearch ?? cached.data?.research ?? null
+  // Markdown briefing for the done state: the freshly streamed summary wins, then
+  // a cached research's persisted summary (so a re-view also shows the briefing).
+  const summary = liveSummary || research?.summary || ''
 
   async function handleResearch(): Promise<void> {
     setError(null)
     setStreamText('')
     setLiveResearch(null)
+    setLiveSummary('')
     setPhase('streaming')
     const res = await swarmApi.researchRepo(repo, period)
     if (!res.ok) {
@@ -266,7 +276,14 @@ export function TrendingResearchPanel({
               <ResearchingPlaceholder />
             )
           ) : research ? (
-            <ResearchView research={research} />
+            <div className="flex flex-col gap-3.5">
+              {summary ? (
+                <div className="text-[13px] text-foreground/85 leading-relaxed">
+                  <Streamdown>{summary}</Streamdown>
+                </div>
+              ) : null}
+              <ResearchView research={research} />
+            </div>
           ) : phase === 'error' ? (
             <p className="text-destructive text-sm">{error}</p>
           ) : (

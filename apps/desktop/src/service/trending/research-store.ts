@@ -20,6 +20,9 @@ const RepoResearchRecordSchema = z.object({
     verdict: z.string(),
     verdictTag: z.string(),
     verdictTone: z.enum(['recommend', 'adopt', 'caution', 'watch']),
+    // The streamed Markdown briefing. Optional so older cached records without
+    // it still load.
+    summary: z.string().optional(),
   }),
   researchedAt: z.string(),
 })

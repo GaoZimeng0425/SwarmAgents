@@ -115,7 +115,14 @@ export type UIEvent =
   | { kind: 'article.analysisComplete'; articleId: string; summary: ArticleSummary; ts: number; seq?: number }
   | { kind: 'article.analysisError'; articleId: string; error: string; ts: number; seq?: number }
   | { kind: 'trending.researchDelta'; repoName: string; text: string; ts: number; seq?: number }
-  | { kind: 'trending.researchComplete'; repoName: string; research: RepoResearch; ts: number; seq?: number }
+  | {
+      kind: 'trending.researchComplete'
+      repoName: string
+      research: RepoResearch
+      summary: string
+      ts: number
+      seq?: number
+    }
   | { kind: 'trending.researchError'; repoName: string; error: string; ts: number; seq?: number }
 
 export type SessionSummary = {

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { RepoResearch } from '@swarm/protocol'
@@ -42,5 +42,23 @@ describe('createRepoResearchStore', () => {
     const reloaded = createRepoResearchStore({ userDataDir: dir })
     expect(reloaded.get('sst/opencode').research).toEqual(research)
     expect(reloaded.names()).toEqual(['sst/opencode'])
+  })
+
+  it('persists and reloads a research record with a summary', () => {
+    const store = createRepoResearchStore({ userDataDir: dir })
+    const withSummary: RepoResearch = { ...research, summary: '## 简报\n这是一个终端 agent。' }
+    store.save('sst/opencode', withSummary)
+    const reloaded = createRepoResearchStore({ userDataDir: dir })
+    expect(reloaded.get('sst/opencode').research).toEqual(withSummary)
+  })
+
+  it('loads a legacy record without summary (backward compatible)', () => {
+    // A pre-summary record on disk must still load; summary resolves to undefined.
+    writeFileSync(
+      join(dir, 'repo-research.json'),
+      JSON.stringify({ 'sst/opencode': { research, researchedAt: '2026-01-01T00:00:00.000Z' } })
+    )
+    const store = createRepoResearchStore({ userDataDir: dir })
+    expect(store.get('sst/opencode').research).toEqual(research)
   })
 })
