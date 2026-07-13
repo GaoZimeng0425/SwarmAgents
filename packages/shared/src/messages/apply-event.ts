@@ -12,6 +12,14 @@ export type MessageRecord = {
   attachments: Attachment[]
   used?: ConsumedResources
   plan?: PlanTodo[]
+  /** The Leader's delegation DAG, set by `message.delegation_plan` (wholesale replace). */
+  delegationPlan?: import('@swarm/protocol').DelegationItem[]
+  /** Append-only ledger of per-item status/result updates (message.delegation_update). */
+  delegationUpdates?: Array<{
+    itemId: string
+    status: import('@swarm/protocol').DelegationItemStatus
+    result: import('@swarm/protocol').Artifact[]
+  }>
   /** Set when this message is a spawned sub-agent (links to its parent). */
   parentMessageId?: string
   /** Sub-agent definition id, used to label the subagent block. */
@@ -100,6 +108,18 @@ export function applyEvent(messages: MessageRecord[], e: UIEvent): MessageRecord
       break
     case 'message.plan':
       updated = { ...updated, plan: e.todos }
+      break
+    case 'message.delegation_plan':
+      updated = { ...updated, delegationPlan: e.plan }
+      break
+    case 'message.delegation_update':
+      updated = {
+        ...updated,
+        delegationUpdates: [
+          ...(updated.delegationUpdates ?? []),
+          { itemId: e.itemId, status: e.status, result: e.result },
+        ],
+      }
       break
     case 'message.permission_request':
       updated = setStatus(updated, 'awaiting_user')
