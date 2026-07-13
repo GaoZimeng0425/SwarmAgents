@@ -4,8 +4,11 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
+  Artifact,
   Attachment,
   DelegateResult,
+  DelegationItem,
+  DelegationItemStatus,
   PermissionDecision,
   PermissionMode,
   ProviderInjection,
@@ -13,7 +16,15 @@ import type {
   UIEvent,
 } from '@swarm/protocol'
 import { allowlistForAgent, type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
-import { applyAgentModel, DEFAULT_AGENT_DEF, SYSTEM_SESSION_ID } from '@swarm/shared'
+import {
+  applyAgentModel,
+  applyDelegationPlan,
+  applyDelegationUpdate,
+  DEFAULT_AGENT_DEF,
+  type PlanItemState,
+  replayDelegationEvents,
+  SYSTEM_SESSION_ID,
+} from '@swarm/shared'
 import { ulid } from 'ulid'
 
 import { withAgentTypes } from '../agents/prompt'
@@ -167,6 +178,35 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
 
   const seqCounter = createSeqCounter((sid: string) => store.getMessageEvents(sid))
   const terminalRegistry = createTerminalRegistry(store.getTerminalMessageStatuses())
+
+  // Session-level planState: event-replay-derived cache of the Leader's
+  // delegation DAG + per-item status/result. Holds NO context here — the
+  // MessageSpec callbacks (onDelegationPlan / onDelegationUpdate) wired below
+  // are the ONLY mutators; launch.ts ctx just emits + delegates to them.
+  const planStates = new Map<string, Map<string, PlanItemState>>()
+  /** Lazy-load: replay delegation events from the store on first access. */
+  const ensurePlanState = (sessionId: string): Map<string, PlanItemState> => {
+    let state = planStates.get(sessionId)
+    if (state) return state
+    const events = store.getMessageEvents(sessionId).map((r) => r.event)
+    state = replayDelegationEvents(events as Array<{ kind: string; [k: string]: unknown }>)
+    planStates.set(sessionId, state)
+    return state
+  }
+  const setDelegationPlanForSession = (sessionId: string, plan: DelegationItem[]): void => {
+    const state = applyDelegationPlan(planStates.get(sessionId), plan)
+    planStates.set(sessionId, state)
+  }
+  const mergeDelegationResultForSession = (
+    sessionId: string,
+    itemId: string,
+    delta: { status: DelegationItemStatus; artifacts: Artifact[] }
+  ): void => {
+    const state = ensurePlanState(sessionId)
+    // The callback's `delta.artifacts` maps to the reducer's `result` field name.
+    const next = applyDelegationUpdate(state, { itemId, status: delta.status, result: delta.artifacts })
+    planStates.set(sessionId, next)
+  }
 
   // The ONE emit-port adapter, shared by every message. Persists each message.* event
   // to message_events, marks the first-wins terminal registry, broadcasts on the wire.
@@ -353,7 +393,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         messageId: r.messageId,
         status: r.status,
         summary: r.summary,
-        artifacts: [],
+        artifacts: r.artifacts ?? [],
       })),
     writeAgent: (def) =>
       cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
@@ -399,10 +439,14 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         // grants 'full' for the session, delegated children must not re-prompt.
         getPermissionMode: () => resolvePermissionMode(session.id),
         maxIterationsOverride: budgets().maxIterations,
+        // Path-Y injection: planState lives in this closure; launch ctx only
+        // emits events and routes back here via the callback.
+        onDelegationPlan: (plan) => setDelegationPlanForSession(session.id, plan),
+        onDelegationUpdate: (itemId, delta) => mergeDelegationResultForSession(session.id, itemId, delta),
       },
       basePorts(session)
     )
-    return { messageId: r.messageId, status: r.status, summary: r.summary, artifacts: [] }
+    return { messageId: r.messageId, status: r.status, summary: r.summary, artifacts: r.artifacts ?? [] }
   }
 
   // Agent-authored top-level work run (delegate topLevel): a self-contained
@@ -412,7 +456,12 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     sessionId: string,
     prompt: string,
     options: RunOptions = {}
-  ): Promise<{ messageId: string; status: 'completed' | 'failed' | 'cancelled'; summary: string }> => {
+  ): Promise<{
+    messageId: string
+    status: 'completed' | 'failed' | 'cancelled'
+    summary: string
+    artifacts: Artifact[]
+  }> => {
     const session = getOrRehydrate(sessionId)
     if (!session) throw new Error(`session ${sessionId} not found`)
     const resolvedByType = options.agentType ? cfg.agentStore?.get(options.agentType) : undefined
@@ -437,11 +486,15 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         // permission mode so agent-authored work runs honor a session 'full' grant.
         getPermissionMode: () => options.permissionMode ?? resolvePermissionMode(sessionId),
         maxIterationsOverride: budgets().maxIterations,
+        // Path-Y injection: planState lives in this closure; launch ctx only
+        // emits events and routes back here via the callback.
+        onDelegationPlan: (plan) => setDelegationPlanForSession(sessionId, plan),
+        onDelegationUpdate: (itemId, delta) => mergeDelegationResultForSession(sessionId, itemId, delta),
       },
       basePorts(session)
     )
     log.info({ msg: 'work run finished', sessionId, messageId: r.messageId, status: r.status })
-    return { messageId: r.messageId, status: r.status, summary: r.summary }
+    return { messageId: r.messageId, status: r.status, summary: r.summary, artifacts: r.artifacts ?? [] }
   }
 
   const getOrRehydrate = (sessionId: string): SessionState | undefined => {
@@ -590,6 +643,10 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
           store.saveAgentSnapshot(sessionId, messages)
         },
         maxIterationsOverride: budgets().maxIterations,
+        // Path-Y injection: planState lives in this closure; launch ctx only
+        // emits events and routes back here via the callback.
+        onDelegationPlan: (plan) => setDelegationPlanForSession(sessionId, plan),
+        onDelegationUpdate: (itemId, delta) => mergeDelegationResultForSession(sessionId, itemId, delta),
       }
 
       // Fire the run IMMEDIATELY so run.created renders as a pending card. This

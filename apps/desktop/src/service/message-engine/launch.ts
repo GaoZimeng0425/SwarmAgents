@@ -7,6 +7,7 @@ import type {
   ConsumedResources,
   DelegateResult,
   DelegationItem,
+  DelegationItemStatus,
   PermissionMode,
   ProviderInjection,
   ResourceBudget,
@@ -51,6 +52,7 @@ export type MessageSpec = {
   maxIterationsOverride?: number
   retry?: { maxRetries?: number; delayMs?: number }
   onDelegationPlan?: (plan: DelegationItem[]) => void
+  onDelegationUpdate?: (itemId: string, delta: { status: DelegationItemStatus; artifacts: Artifact[] }) => void
 }
 
 export type LaunchPorts = {
@@ -217,6 +219,10 @@ export async function launchMessage(
       setDelegationPlan: (plan) => {
         emit({ kind: 'message.delegation_plan', plan })
         spec.onDelegationPlan?.(plan)
+      },
+      mergeDelegationResult: (itemId, delta) => {
+        emit({ kind: 'message.delegation_update', itemId, status: delta.status, result: delta.artifacts })
+        spec.onDelegationUpdate?.(itemId, delta)
       },
       reportResult: (artifacts) => {
         collectedArtifacts.push(...artifacts)
