@@ -5,7 +5,7 @@ import { useSessionsStore } from './sessions'
 
 describe('sessions store', () => {
   beforeEach(() => {
-    useSessionsStore.setState({ sessions: [], selectedSessionId: null, unread: {} })
+    useSessionsStore.setState({ sessions: [], selectedSessionId: null, unread: {}, forkedFrom: {} })
   })
 
   it('sets the session list', () => {
@@ -265,5 +265,31 @@ describe('sessions store', () => {
     useSessionsStore.getState().setSessions([s('a', 0), s('b', 1), s('c', 2)])
     useSessionsStore.getState().reorder(['c', 'a', 'b'])
     expect(useSessionsStore.getState().sessions.map((x) => x.id)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('markForked records the fork lineage keyed by the forked session', () => {
+    useSessionsStore.getState().markForked('fork', 'source')
+    expect(useSessionsStore.getState().forkedFrom).toEqual({ fork: 'source' })
+  })
+
+  it('markForked is idempotent for the same lineage', () => {
+    const { markForked } = useSessionsStore.getState()
+    markForked('fork', 'source')
+    const before = useSessionsStore.getState().forkedFrom
+    markForked('fork', 'source')
+    // Same ref — no new object allocated when nothing changes.
+    expect(useSessionsStore.getState().forkedFrom).toBe(before)
+  })
+
+  it('remove clears the forkedFrom entry for the removed fork', () => {
+    useSessionsStore.getState().markForked('fork', 'source')
+    useSessionsStore.getState().remove('fork')
+    expect(useSessionsStore.getState().forkedFrom).toEqual({})
+  })
+
+  it('remove clears forks that pointed at the removed source', () => {
+    useSessionsStore.getState().markForked('fork', 'source')
+    useSessionsStore.getState().remove('source')
+    expect(useSessionsStore.getState().forkedFrom).toEqual({})
   })
 })

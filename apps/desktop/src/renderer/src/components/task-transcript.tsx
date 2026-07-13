@@ -46,6 +46,7 @@ import { groupSegments } from '@/lib/group-segments'
 import type { Segment } from '@/lib/task-segments'
 import { dayKey, formatDayLabel, formatMessageTime, safeTs } from '@/lib/timeline'
 import { cn } from '@/lib/utils'
+import { useSessionsStore } from '@/stores/sessions'
 
 // ToolHeader needs an AI-SDK-shaped tool type + state; derive both from our segment.
 function toolState(ok: boolean | null): 'input-available' | 'output-available' | 'output-error' {
@@ -339,6 +340,7 @@ type ForkTarget = {
 // state and pending spinner live in one place.
 function ForkFromHereDialog({ target, onClose }: { target: ForkTarget; onClose: () => void }): React.JSX.Element {
   const navigate = useNavigate()
+  const markForked = useSessionsStore((s) => s.markForked)
   const [prompt, setPrompt] = useState('')
   const [pending, setPending] = useState(false)
 
@@ -348,6 +350,11 @@ function ForkFromHereDialog({ target, onClose }: { target: ForkTarget; onClose: 
     setPending(true)
     try {
       const result = await swarmApi.forkSession(target.sessionId, target.messageId, trimmed)
+      // Record the fork lineage client-side so the new session's header can
+      // show a "forked from" badge. The backend's forkedFrom metadata is
+      // in-memory only and not part of the sessions.list payload, so the
+      // renderer owns this transient linkage.
+      markForked(result.sessionId, target.sessionId)
       onClose()
       void navigate({ to: '/session/$sessionId', params: { sessionId: result.sessionId } })
     } catch (err) {

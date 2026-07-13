@@ -12,9 +12,14 @@ type Props = {
   status: SessionHeaderStatus
   /** Latest turn's context-window fill, 0–100. Omitted when unknown. */
   contextPct?: number
+  /** Source session id when this session was created via "fork from here".
+   *  Omitted for non-fork sessions. Client-side lineage only — the renderer
+   *  records it when swarmApi.forkSession resolves, so it does not survive a
+   *  restart. */
+  forkedFrom?: string
 }
 
-export function SessionHeader({ title, status, contextPct }: Props): React.JSX.Element {
+export function SessionHeader({ title, status, contextPct, forkedFrom }: Props): React.JSX.Element {
   return (
     // Window dragging is owned globally by <TitleBar> (top strip, mounted in
     // __root); interactive controls opt out of it via the global no-drag rule
@@ -22,6 +27,11 @@ export function SessionHeader({ title, status, contextPct }: Props): React.JSX.E
     <div className="flex h-[52px] shrink-0 items-center gap-2.5 border-border/60 border-b px-4">
       <ChatIdBadge />
       <span className="truncate font-semibold text-[13.5px]">{title}</span>
+      {forkedFrom && (
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          forked from session
+        </span>
+      )}
       {status === 'running' && (
         <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 font-medium text-[11.5px] text-primary">
           <span className="size-1.5 rounded-full bg-primary" />
