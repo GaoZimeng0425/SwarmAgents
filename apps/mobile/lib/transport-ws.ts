@@ -56,11 +56,39 @@ export function createWsTransport(
     ws.addEventListener('error', () => onClose())
   }
 
-  const ready = new Promise<void>((resolve) => {
-    // readyState 1 = OPEN
-    if (ws.readyState === 1) resolve()
-    else ws.addEventListener('open', () => resolve())
+  // `ready` must settle (resolve OR reject) when the socket opens or fails —
+  // otherwise callers awaiting it (e.g. the auto-reconnect on launch) block
+  // indefinitely if the desktop host is down, leaving the app stuck on the
+  // loading screen. React Native fires `error` before `close` for a failed
+  // connection; a settled flag keeps the promise from being rejected twice.
+  let settled = false
+  const ready = new Promise<void>((resolve, reject) => {
+    if (ws.readyState === 1) {
+      settled = true
+      resolve()
+      return
+    }
+    ws.addEventListener('open', () => {
+      if (settled) return
+      settled = true
+      resolve()
+    })
+    ws.addEventListener('error', () => {
+      if (settled) return
+      settled = true
+      reject(new Error('WebSocket connection failed'))
+    })
+    ws.addEventListener('close', () => {
+      if (settled) return
+      settled = true
+      reject(new Error('WebSocket closed before open'))
+    })
   })
+  // Swallow unhandled rejections on `ready`: some callers create the transport
+  // without awaiting it (e.g. the close() test, or a connect that's pre-empted
+  // by a disconnect). The connection-store's doConnect always awaits it, which
+  // is where the rejection actually matters.
+  ready.catch(() => {})
 
   const transport: ServiceTransport = {
     postMessage: (m: unknown) => ws.send(JSON.stringify(m)),

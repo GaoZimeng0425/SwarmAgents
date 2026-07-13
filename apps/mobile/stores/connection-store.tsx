@@ -1,6 +1,6 @@
-import { createContext, type ReactNode, useContext, useRef, useState } from 'react'
-import * as SecureStore from 'expo-secure-store'
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { createServiceClient, type ServiceClient } from '@swarm/protocol'
+import * as SecureStore from 'expo-secure-store'
 
 import type { ConnectionConfig } from '@/lib/parse-qr'
 import { createWsTransport } from '@/lib/transport-ws'
@@ -61,7 +61,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const clientRef = useRef<ServiceClient | null>(null)
   const configRef = useRef<ConnectionConfig | null>(null)
 
-  const doConnect = async (cfg: ConnectionConfig): Promise<boolean> => {
+  // Stabilize the action callbacks with useCallback (empty deps) so the context
+  // value's function references stay constant across re-renders. Without this,
+  // every Provider re-render creates new function identities, which makes
+  // consumer effects keyed on [connect, loadSavedPairing] re-fire, overlap their
+  // async work, and trip React's "state update on a component that hasn't
+  // mounted yet" guard. The setters and refs they close over are themselves
+  // stable across renders, so empty deps are correct here.
+  const doConnect = useCallback(async (cfg: ConnectionConfig): Promise<boolean> => {
     setStatus('connecting')
     setError(null)
     try {
@@ -107,25 +114,25 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       clientRef.current = null
       return false
     }
-  }
+  }, [])
 
-  const doDisconnect = (): void => {
+  const doDisconnect = useCallback((): void => {
     clientRef.current?.disconnect()
     closeRef.current?.()
     clientRef.current = null
     closeRef.current = null
     setClient(null)
     setStatus('idle')
-  }
+  }, [])
 
-  const doReconnect = async (): Promise<boolean> => {
+  const doReconnect = useCallback(async (): Promise<boolean> => {
     const cfg = configRef.current
     if (!cfg) return false
     doDisconnect()
     return doConnect(cfg)
-  }
+  }, [doDisconnect, doConnect])
 
-  const loadSavedPairing = async (): Promise<ConnectionConfig | null> => {
+  const loadSavedPairing = useCallback(async (): Promise<ConnectionConfig | null> => {
     try {
       const raw = await SecureStore.getItemAsync(PAIRING_KEY)
       if (!raw) return null
@@ -133,24 +140,23 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     } catch {
       return null
     }
-  }
+  }, [])
 
-  return (
-    <ConnectionContext.Provider
-      value={{
-        status,
-        config,
-        client,
-        error,
-        connect: doConnect,
-        disconnect: doDisconnect,
-        reconnect: doReconnect,
-        loadSavedPairing,
-      }}
-    >
-      {children}
-    </ConnectionContext.Provider>
+  const value = useMemo<ConnectionState>(
+    () => ({
+      status,
+      config,
+      client,
+      error,
+      connect: doConnect,
+      disconnect: doDisconnect,
+      reconnect: doReconnect,
+      loadSavedPairing,
+    }),
+    [status, config, client, error, doConnect, doDisconnect, doReconnect, loadSavedPairing]
   )
+
+  return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>
 }
 
 export function useConnection(): ConnectionState {

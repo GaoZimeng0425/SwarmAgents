@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { router } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { ActivityIndicator, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import Logo from '@/assets/icons/Logo'
 import { Box } from '@/components/ui/box'
@@ -16,19 +16,24 @@ export default function Home() {
 
   // On first launch, check if there's a saved pairing and auto-connect.
   useEffect(() => {
+    let cancelled = false
     void (async () => {
       const saved = await loadSavedPairing()
       if (saved) {
         console.log('[index] auto-connecting to', saved.host, saved.port)
         const ok = await connect(saved)
         console.log('[index] auto-connect result:', ok, 'status will update')
+        if (cancelled) return
         if (!ok) {
           // Auto-connect failed — go to pair screen.
           router.replace('/pair')
         }
       }
-      setChecking(false)
+      if (!cancelled) setChecking(false)
     })()
+    return () => {
+      cancelled = true
+    }
   }, [loadSavedPairing, connect])
 
   // If auto-connect succeeds, go to sessions.
@@ -42,7 +47,7 @@ export default function Home() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#151718' }}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#888" />
+          <ActivityIndicator color="#888" size="large" />
         </View>
       </SafeAreaView>
     )
@@ -54,10 +59,8 @@ export default function Home() {
         <Logo />
 
         <VStack className="items-center gap-2">
-          <Text className="text-2xl font-bold text-typography-900">Swarm Agents</Text>
-          <Text className="text-center text-typography-400">
-            连接到桌面端,在手机上查看会话、发送消息和审批权限。
-          </Text>
+          <Text className="font-bold text-2xl text-typography-900">Swarm Agents</Text>
+          <Text className="text-center text-typography-400">连接到桌面端,在手机上查看会话、发送消息和审批权限。</Text>
         </VStack>
 
         <Button onPress={() => router.push('/pair')} size="lg">

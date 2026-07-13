@@ -74,6 +74,23 @@ describe('createWsTransport', () => {
     await expect(ready).resolves.toBeUndefined()
   })
 
+  it('rejects ready when the socket errors before opening', async () => {
+    // Regression: if the desktop host is down, ready must reject so the caller's
+    // await unblocks instead of hanging forever (which leaves the app on the
+    // loading screen after a saved pairing auto-connect attempt).
+    const { ready } = createWsTransport({ host: '192.168.1.1', port: 47777, token: 'abc' }, MockWebSocket)
+    const mock = MockWebSocket.instances[0]
+    mock._error()
+    await expect(ready).rejects.toThrow(/WebSocket connection failed/)
+  })
+
+  it('rejects ready when the socket closes before opening', async () => {
+    const { ready } = createWsTransport({ host: '192.168.1.1', port: 47777, token: 'abc' }, MockWebSocket)
+    const mock = MockWebSocket.instances[0]
+    mock.close()
+    await expect(ready).rejects.toThrow(/WebSocket closed before open/)
+  })
+
   it('postMessage sends JSON-stringified message', () => {
     const { transport } = createWsTransport({ host: '192.168.1.1', port: 47777, token: 'abc' }, MockWebSocket)
     const mock = MockWebSocket.instances[0]

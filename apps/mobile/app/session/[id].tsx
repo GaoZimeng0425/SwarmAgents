@@ -1,28 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocalSearchParams, router } from 'expo-router'
-import { ChevronLeft } from 'lucide-react-native'
-import Markdown from 'react-native-markdown-display'
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import type { MessageWireEvent } from '@swarm/protocol'
+import { buildSegments, hydrateSession, type Segment, useMessages } from '@swarm/shared'
 import { useQueryClient } from '@tanstack/react-query'
+import { router, useLocalSearchParams } from 'expo-router'
+import { ChevronLeft } from 'lucide-react-native'
+import { FlatList, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import Markdown from 'react-native-markdown-display'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { markdownRules } from '@/components/ui/chat-ai/message'
 import { useConnection } from '@/stores/connection-store'
-import {
-  type Segment,
-  buildSegments,
-  hydrateSession,
-  useMessages,
-} from '@swarm/shared'
-import type { MessageWireEvent } from '@swarm/protocol'
 
 type PermissionPrompt = {
   messageId: string
@@ -43,7 +30,11 @@ export default function SessionDetailScreen(): React.JSX.Element {
   // Hydrate history on mount / session switch.
   useEffect(() => {
     if (!client || !sessionId) return
-    void hydrateSession(qc, { getMessageEvents: (sid) => client.getMessageEvents(sid), subscribeEvents: () => () => {} }, sessionId)
+    void hydrateSession(
+      qc,
+      { getMessageEvents: (sid) => client.getMessageEvents(sid), subscribeEvents: () => () => {} },
+      sessionId
+    )
   }, [client, sessionId, qc])
 
   // Watch for permission_request events in the message records.
@@ -67,12 +58,13 @@ export default function SessionDetailScreen(): React.JSX.Element {
     setPermissions(perms)
   }, [messages, sessionId])
 
-  // Flatten all MessageRecords for this session into render segments.
+  // Flatten all MessageRecords for this session into render segments. Each
+  // message's segments are namespaced by message id: buildSegments keys are only
+  // unique within a single message (seg-0, seg-1, …), so flatMapping multiple
+  // messages into one list would collide (e.g. two messages both emit seg-22).
   const segments = useMemo(() => {
-    const sessionMessages = messages
-      .filter((m) => m.sessionId === sessionId)
-      .sort((a, b) => b.order - a.order)
-    return sessionMessages.flatMap((r) => buildSegments(r.events))
+    const sessionMessages = messages.filter((m) => m.sessionId === sessionId).sort((a, b) => b.order - a.order)
+    return sessionMessages.flatMap((r) => buildSegments(r.events).map((seg) => ({ ...seg, key: `${r.id}:${seg.key}` })))
   }, [messages, sessionId])
 
   const handleSend = async (): Promise<void> => {
@@ -101,7 +93,15 @@ export default function SessionDetailScreen(): React.JSX.Element {
       case 'user':
         return (
           <View style={{ marginHorizontal: 16, marginVertical: 4, flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <View style={{ maxWidth: '85%', borderRadius: 12, backgroundColor: '#2a2a2e', paddingHorizontal: 12, paddingVertical: 8 }}>
+            <View
+              style={{
+                maxWidth: '85%',
+                borderRadius: 12,
+                backgroundColor: '#2a2a2e',
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+              }}
+            >
               <Text style={{ color: '#e0e0e0', fontSize: 15 }}>{item.text}</Text>
             </View>
           </View>
@@ -114,19 +114,41 @@ export default function SessionDetailScreen(): React.JSX.Element {
         )
       case 'reasoning':
         return (
-          <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#1e1e22', paddingHorizontal: 12, paddingVertical: 8 }}>
+          <View
+            style={{
+              marginHorizontal: 16,
+              marginVertical: 4,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#333',
+              backgroundColor: '#1e1e22',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
             <Text style={{ color: '#888', fontSize: 13, fontStyle: 'italic' }}>{item.text}</Text>
           </View>
         )
       case 'tool':
         return (
-          <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#1e1e22', paddingHorizontal: 12, paddingVertical: 8 }}>
+          <View
+            style={{
+              marginHorizontal: 16,
+              marginVertical: 4,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#333',
+              backgroundColor: '#1e1e22',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
             <Text style={{ color: '#aaa', fontSize: 13, fontWeight: '500' }}>
               🔧 {item.tool}
               {item.ok === null ? ' ⋯' : item.ok ? ' ✓' : ' ✗'}
             </Text>
             {item.output && (
-              <Text style={{ marginTop: 4, color: '#777', fontSize: 12, fontFamily: 'monospace' }} numberOfLines={5}>
+              <Text numberOfLines={5} style={{ marginTop: 4, color: '#777', fontSize: 12, fontFamily: 'monospace' }}>
                 {item.output}
               </Text>
             )}
@@ -134,7 +156,16 @@ export default function SessionDetailScreen(): React.JSX.Element {
         )
       case 'error':
         return (
-          <View style={{ marginHorizontal: 16, marginVertical: 4, borderRadius: 8, backgroundColor: '#3a1518', paddingHorizontal: 12, paddingVertical: 8 }}>
+          <View
+            style={{
+              marginHorizontal: 16,
+              marginVertical: 4,
+              borderRadius: 8,
+              backgroundColor: '#3a1518',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
             <Text style={{ color: '#ef4444', fontSize: 14 }}>
               {item.label === 'stopped' ? '⏹' : '⚠'} {item.detail}
             </Text>
@@ -153,10 +184,7 @@ export default function SessionDetailScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#151718' }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={{ flex: 1 }}>
           {/* Header */}
           <View
@@ -182,18 +210,33 @@ export default function SessionDetailScreen(): React.JSX.Element {
             </View>
           )}
 
-          <FlatList
-            data={segments}
-            keyExtractor={(item) => item.key}
-            renderItem={renderSegment}
-          />
+          <FlatList data={segments} keyExtractor={(item) => item.key} renderItem={renderSegment} />
 
           {/* Permission cards */}
           {permissions.length > 0 && (
-            <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingHorizontal: 16, paddingVertical: 12 }}>
+            <View
+              style={{
+                gap: 8,
+                borderTopWidth: 1,
+                borderTopColor: '#2a2a2a',
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+              }}
+            >
               {permissions.map((perm) => (
-                <View key={perm.actionId} style={{ borderRadius: 8, borderWidth: 1, borderColor: '#856404', backgroundColor: '#1e1a0e', padding: 12 }}>
-                  <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '500' }}>{perm.risk} 风险操作 · 需要审批</Text>
+                <View
+                  key={perm.actionId}
+                  style={{
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: '#856404',
+                    backgroundColor: '#1e1a0e',
+                    padding: 12,
+                  }}
+                >
+                  <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '500' }}>
+                    {perm.risk} 风险操作 · 需要审批
+                  </Text>
                   <Text style={{ marginTop: 4, color: '#aaa', fontSize: 12 }}>{perm.summary}</Text>
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                     <TouchableOpacity
@@ -204,7 +247,13 @@ export default function SessionDetailScreen(): React.JSX.Element {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => void handlePermission(perm, 'deny')}
-                      style={{ borderWidth: 1, borderColor: '#555', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 6 }}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: '#555',
+                        borderRadius: 8,
+                        paddingHorizontal: 16,
+                        paddingVertical: 6,
+                      }}
                     >
                       <Text style={{ color: '#ccc', fontSize: 14 }}>拒绝</Text>
                     </TouchableOpacity>
@@ -215,8 +264,22 @@ export default function SessionDetailScreen(): React.JSX.Element {
           )}
 
           {/* Input bar */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingHorizontal: 16, paddingVertical: 8 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              borderTopWidth: 1,
+              borderTopColor: '#2a2a2a',
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+            }}
+          >
             <TextInput
+              onChangeText={setInput}
+              onSubmitEditing={() => void handleSend()}
+              placeholder="输入消息…"
+              placeholderTextColor="#666"
               style={{
                 flex: 1,
                 color: '#e0e0e0',
@@ -226,11 +289,7 @@ export default function SessionDetailScreen(): React.JSX.Element {
                 paddingVertical: 8,
                 fontSize: 15,
               }}
-              placeholder="输入消息…"
-              placeholderTextColor="#666"
               value={input}
-              onChangeText={setInput}
-              onSubmitEditing={() => void handleSend()}
             />
             <TouchableOpacity
               disabled={!input.trim()}
