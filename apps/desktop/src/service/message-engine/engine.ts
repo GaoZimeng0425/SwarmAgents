@@ -5,6 +5,7 @@ import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
+  Artifact,
   ConsumedResources,
   PermissionMode,
   ProviderInjection,
@@ -55,6 +56,7 @@ export type EngineRunResult = {
   summary: string
   messages: AgentMessage[]
   used: ConsumedResources
+  artifacts: Artifact[]
 }
 
 export type Engine = {
@@ -291,7 +293,7 @@ export function createEngine(deps: EngineDeps): Engine {
     if (status === 'completed') deps.emit({ kind: 'message.complete', summary })
     else deps.emit({ kind: 'message.error', error: error as RunErrorShape })
     runLog.info({ msg: 'run terminal', status, code: error?.code, durationMs: Date.now() - startedAt })
-    return { status, summary, messages: agent.state.messages, used: snapshotUsed() }
+    return { status, summary, messages: agent.state.messages, used: snapshotUsed(), artifacts: [] }
   }
 
   const cancelledError: RunErrorShape = { code: 'cancelled', message: 'Stopped by user.', tier: 'gave_up' }

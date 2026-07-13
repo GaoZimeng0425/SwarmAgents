@@ -2,6 +2,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
+  Artifact,
   Attachment,
   ConsumedResources,
   DelegateResult,
@@ -96,6 +97,7 @@ const cancelledResult = (messageId: string, history: AgentMessage[]): EngineRunR
   summary: '',
   messages: history,
   used: emptyUsed(),
+  artifacts: [],
 })
 
 /**
@@ -191,6 +193,7 @@ export async function launchMessage(
 
     // Uniform tool context — identical for every kind (ledger #11/#12).
     const usageSink = { charge: (_costUsd: number): void => undefined }
+    const collectedArtifacts: Artifact[] = []
     const ctx: ToolRunContext = {
       sessionId: spec.sessionId,
       taskId: messageId,
@@ -213,6 +216,9 @@ export async function launchMessage(
       setDelegationPlan: (plan) => {
         emit({ kind: 'message.delegation_plan', plan })
         spec.onDelegationPlan?.(plan)
+      },
+      reportResult: (artifacts) => {
+        collectedArtifacts.push(...artifacts)
       },
       reportExternalUsage: (usage) => {
         if (usage.costUsd && usage.costUsd > 0) usageSink.charge(usage.costUsd)
@@ -248,7 +254,7 @@ export async function launchMessage(
     const images = (spec.attachments ?? []).map((a) => ({ type: 'image' as const, data: a.data, mimeType: a.mimeType }))
     const r = await engine.run(spec.prompt, images.length > 0 ? images : undefined)
     runLog.info({ msg: 'run finished', status: r.status, summaryLen: r.summary.length })
-    return { messageId, ...r }
+    return { messageId, ...r, artifacts: collectedArtifacts }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const code = err instanceof EngineSetupError ? 'agent_setup_failed' : 'agent_exception'
@@ -263,7 +269,7 @@ export async function launchMessage(
         err: emitErr instanceof Error ? emitErr.message : String(emitErr),
       })
     }
-    return { messageId, status: 'failed', summary: '', messages: spec.history ?? [], used: emptyUsed() }
+    return { messageId, status: 'failed', summary: '', messages: spec.history ?? [], used: emptyUsed(), artifacts: [] }
   } finally {
     try {
       release?.()
