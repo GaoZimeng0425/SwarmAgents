@@ -85,7 +85,9 @@ describe('calendar service', () => {
     // auth clears the dead tokens on invalid_grant; then the failed poll fires reauth.
     await store.save({ clientCreds: { clientId: 'c', clientSecret: 's' }, tokens: null, accountEmail: 'me@x.com' })
     fire({ count: 0, ts: Date.now(), pastDays: 30, futureDays: 90, reauthRequired: true, error: 'expired' })
-    await new Promise((r) => setTimeout(r, 0)) // service reloads config async
+    // onSynced reloads the config asynchronously (store.load().then(...));
+    // waitFor until loggedIn flips to false.
+    await vi.waitFor(() => expect(svc.getView().loggedIn).toBe(false))
     const v = svc.getView()
     expect(v.reauthRequired).toBe(true)
     expect(v.loggedIn).toBe(false)
