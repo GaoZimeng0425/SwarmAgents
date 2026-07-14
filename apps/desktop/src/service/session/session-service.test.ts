@@ -192,7 +192,7 @@ const stubBroadcaster = (): { broadcaster: Broadcaster; calls: Bcast[] } => {
 }
 
 const runKinds = (calls: Bcast[]): string[] =>
-  calls.filter((c) => c.event.startsWith('run.')).map((c) => (c.data as { kind: string }).kind)
+  calls.filter((c) => c.event.startsWith('message.')).map((c) => (c.data as { kind: string }).kind)
 
 const makeService = (over: Partial<Parameters<typeof createSessionService>[0]> = {}) => {
   const store = createFakeStore()
@@ -236,7 +236,7 @@ describe('SessionService', () => {
 
     // Store received the exact same run.* rows the broadcaster saw.
     const storeMessageEvents = store.getMessageEvents(sessionId).map((r) => r.event)
-    const broadcastMessageEvents = calls.filter((c) => c.event.startsWith('run.')).map((c) => c.data)
+    const broadcastMessageEvents = calls.filter((c) => c.event.startsWith('message.')).map((c) => c.data)
     expect(storeMessageEvents).toEqual(broadcastMessageEvents)
 
     // Buffer updated via saveSnapshot; prompt NOT double-seeded (one user turn).
@@ -259,7 +259,7 @@ describe('SessionService', () => {
     const seqOf = (messageId: string, kind: string): number => {
       const c = calls.find(
         (x) =>
-          x.event.startsWith('run.') &&
+          x.event.startsWith('message.') &&
           (x.data as { messageId: string }).messageId === messageId &&
           (x.data as { kind: string }).kind === kind
       )
@@ -499,7 +499,7 @@ describe('SessionService', () => {
     // The registry/broadcast path is unaffected by the persistence skip: both
     // cancelled terminals still went out over the wire.
     const errorRunIds = calls
-      .filter((c) => c.event.startsWith('run.') && (c.data as { kind: string }).kind === 'message.error')
+      .filter((c) => c.event.startsWith('message.') && (c.data as { kind: string }).kind === 'message.error')
       .map((c) => (c.data as { messageId: string }).messageId)
     expect(errorRunIds).toEqual(expect.arrayContaining([a, b]))
     releaseAllHeld()

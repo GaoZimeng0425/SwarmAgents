@@ -192,48 +192,62 @@ export function createConversationStore(dbPath: string): ConversationStore {
   // Guarded by schema_meta.version so it runs exactly once across the DB's
   // lifetime; runs inside ONE transaction so a crash mid-migration rolls back
   // to the pre-migration state instead of leaving run_events half-rewritten.
+  // Fresh-DB guard: v2-v4 reference run_events (renamed to message_events in
+  // v5). On a fresh DB only message_events exists, so these migrations would
+  // crash on "no such table: run_events". If run_events is absent, skip
+  // straight to the current version — there is nothing to migrate.
+  const hasRunEvents =
+    db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='run_events'").get() !== undefined
   const schemaMetaRow = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as { version: number } | undefined
   if ((schemaMetaRow?.version ?? 0) < 2) {
-    const migrateToV2 = db.transaction(() => {
-      // 1. Orphan sweep: sessions deleted while runs were in flight, pre-guard
-      // (deleteSession's in-memory cutoff didn't exist yet on old builds).
-      db.exec('DELETE FROM run_events WHERE session_id NOT IN (SELECT id FROM sessions)')
-      // 2. task.handoff.completed rows are redundant linkage — the run's own
-      // terminal event plus parentRunId already carry the same information.
-      db.exec(`DELETE FROM run_events WHERE json_extract(event, '$.kind') = 'task.handoff.completed'`)
-      // 3. Kind renames. handoff.spawned MUST be rewritten first: its payload
-      // shape (parentTaskId/childTaskId, no taskId) differs from the generic
-      // task.<rest> pattern, and once renamed to run.spawned it no longer
-      // matches the LIKE below — renaming it after the generic sweep would
-      // instead (wrongly) produce run.handoff.spawned.
-      db.exec(
-        `UPDATE run_events SET event = json_set(event, '$.kind', 'run.spawned') WHERE json_extract(event, '$.kind') = 'task.handoff.spawned'`
-      )
-      db.exec(
-        `UPDATE run_events SET event = json_set(event, '$.kind', 'run.' || substr(json_extract(event, '$.kind'), 6)) WHERE json_extract(event, '$.kind') LIKE 'task.%'`
-      )
-      // 4. Key renames + workerId drop. json_set would otherwise write an
-      // explicit null when the source key is absent, so each rewrite is
-      // guarded by a WHERE on the old key's presence.
-      db.exec(
-        `UPDATE run_events SET event = json_remove(json_set(event, '$.runId', json_extract(event, '$.taskId')), '$.taskId') WHERE json_extract(event, '$.taskId') IS NOT NULL`
-      )
-      db.exec(
-        `UPDATE run_events SET event = json_remove(json_set(event, '$.parentRunId', json_extract(event, '$.parentTaskId')), '$.parentTaskId') WHERE json_extract(event, '$.parentTaskId') IS NOT NULL`
-      )
-      db.exec(
-        `UPDATE run_events SET event = json_remove(json_set(event, '$.childRunId', json_extract(event, '$.childTaskId')), '$.childTaskId') WHERE json_extract(event, '$.childTaskId') IS NOT NULL`
-      )
-      db.exec(
-        `UPDATE run_events SET event = json_remove(event, '$.workerId') WHERE json_extract(event, '$.workerId') IS NOT NULL`
-      )
-      // Version write inside the SAME transaction: if anything above throws,
-      // the whole migration (including this) rolls back, so a retry on next
-      // open is safe and won't skip a half-applied rewrite.
-      if (schemaMetaRow) db.prepare('UPDATE schema_meta SET version = 2').run()
-      else db.prepare('INSERT INTO schema_meta (version) VALUES (2)').run()
-    })
-    migrateToV2()
+    if (!hasRunEvents) {
+      // Fresh DB — no legacy data to migrate. Stamp the latest version so v2-v5
+      // are all skipped on this and subsequent opens.
+      const latestVersion = 6
+      if (schemaMetaRow) db.prepare('UPDATE schema_meta SET version = ?').run(latestVersion)
+      else db.prepare('INSERT INTO schema_meta (version) VALUES (?)').run(latestVersion)
+    } else {
+      const migrateToV2 = db.transaction(() => {
+        // 1. Orphan sweep: sessions deleted while runs were in flight, pre-guard
+        // (deleteSession's in-memory cutoff didn't exist yet on old builds).
+        db.exec('DELETE FROM run_events WHERE session_id NOT IN (SELECT id FROM sessions)')
+        // 2. task.handoff.completed rows are redundant linkage — the run's own
+        // terminal event plus parentRunId already carry the same information.
+        db.exec(`DELETE FROM run_events WHERE json_extract(event, '$.kind') = 'task.handoff.completed'`)
+        // 3. Kind renames. handoff.spawned MUST be rewritten first: its payload
+        // shape (parentTaskId/childTaskId, no taskId) differs from the generic
+        // task.<rest> pattern, and once renamed to run.spawned it no longer
+        // matches the LIKE below — renaming it after the generic sweep would
+        // instead (wrongly) produce run.handoff.spawned.
+        db.exec(
+          `UPDATE run_events SET event = json_set(event, '$.kind', 'run.spawned') WHERE json_extract(event, '$.kind') = 'task.handoff.spawned'`
+        )
+        db.exec(
+          `UPDATE run_events SET event = json_set(event, '$.kind', 'run.' || substr(json_extract(event, '$.kind'), 6)) WHERE json_extract(event, '$.kind') LIKE 'task.%'`
+        )
+        // 4. Key renames + workerId drop. json_set would otherwise write an
+        // explicit null when the source key is absent, so each rewrite is
+        // guarded by a WHERE on the old key's presence.
+        db.exec(
+          `UPDATE run_events SET event = json_remove(json_set(event, '$.runId', json_extract(event, '$.taskId')), '$.taskId') WHERE json_extract(event, '$.taskId') IS NOT NULL`
+        )
+        db.exec(
+          `UPDATE run_events SET event = json_remove(json_set(event, '$.parentRunId', json_extract(event, '$.parentTaskId')), '$.parentTaskId') WHERE json_extract(event, '$.parentTaskId') IS NOT NULL`
+        )
+        db.exec(
+          `UPDATE run_events SET event = json_remove(json_set(event, '$.childRunId', json_extract(event, '$.childTaskId')), '$.childTaskId') WHERE json_extract(event, '$.childTaskId') IS NOT NULL`
+        )
+        db.exec(
+          `UPDATE run_events SET event = json_remove(event, '$.workerId') WHERE json_extract(event, '$.workerId') IS NOT NULL`
+        )
+        // Version write inside the SAME transaction: if anything above throws,
+        // the whole migration (including this) rolls back, so a retry on next
+        // open is safe and won't skip a half-applied rewrite.
+        if (schemaMetaRow) db.prepare('UPDATE schema_meta SET version = 2').run()
+        else db.prepare('INSERT INTO schema_meta (version) VALUES (2)').run()
+      })
+      migrateToV2()
+    }
   }
 
   // ---- Migration v3: run.created `goal` key → `prompt` --------------------
