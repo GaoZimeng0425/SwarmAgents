@@ -43,7 +43,6 @@ import {
 } from '@swarm/ui'
 import { compact } from 'es-toolkit'
 import { CornerDownLeftIcon, ImageIcon, Monitor, PlusIcon, SquareIcon, XIcon } from 'lucide-react'
-import { nanoid } from 'nanoid'
 
 import {
   DropdownMenu,
@@ -227,7 +226,7 @@ export const PromptInputProvider = ({ initialInput: initialTextInput = '', child
       ...prev,
       ...incoming.map((file) => ({
         filename: file.name,
-        id: nanoid(),
+        id: crypto.randomUUID(),
         mediaType: file.type,
         type: 'file' as const,
         url: URL.createObjectURL(file),
@@ -534,7 +533,7 @@ export const PromptInput = ({
         for (const file of capped) {
           next.push({
             filename: file.name,
-            id: nanoid(),
+            id: crypto.randomUUID(),
             mediaType: file.type,
             type: 'file',
             url: URL.createObjectURL(file),
@@ -737,7 +736,7 @@ export const PromptInput = ({
     () => ({
       add: (incoming: SourceDocumentUIPart[] | SourceDocumentUIPart) => {
         const array = Array.isArray(incoming) ? incoming : [incoming]
-        setReferencedSources((prev) => [...prev, ...array.map((s) => ({ ...s, id: nanoid() }))])
+        setReferencedSources((prev) => [...prev, ...array.map((s) => ({ ...s, id: crypto.randomUUID() }))])
       },
       clear: clearReferencedSources,
       remove: (id: string) => {

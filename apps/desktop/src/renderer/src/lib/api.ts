@@ -63,7 +63,8 @@ export const swarmApi = {
   decidePermission: (sessionId: string, actionId: string, decision: PermissionDecision): Promise<void> =>
     window.swarm.decidePermission(sessionId, actionId, decision),
   subscribeEvents: (cb: (e: UIEvent) => void): (() => void) => window.swarm.subscribeEvents(cb),
-  onNavigateToSession: (cb: (sessionId: string) => void): (() => void) => window.swarm.onNavigateToSession(cb),
+  onNavigateToSession: (cb: (payload: { sessionId?: string; route?: string }) => void): (() => void) =>
+    window.swarm.onNavigateToSession(cb),
   onNavigateToSettings: (cb: (route: string) => void): (() => void) => window.swarm.onNavigateToSettings(cb),
   consumePendingDeepLink: (): Promise<{ sessionId: string } | null> => window.swarm.consumePendingDeepLink(),
   listSessions: (): Promise<SessionSummary[]> => window.swarm.sessions.list(),
@@ -143,4 +144,11 @@ export const swarmApi = {
     window.swarm.exportSessionMarkdown(sessionId),
   listArtifacts: (opts?: { query?: string; limit?: number }): Promise<ArtifactEntry[]> =>
     window.swarm.listArtifacts(opts),
+  quickPanelHide: (): Promise<void> => window.swarm.quickPanel.hide(),
+  quickPanelResize: (height: number): Promise<void> => window.swarm.quickPanel.resize(height),
+  quickPanelFocusMain: (payload: { navigate?: string; settings?: string }): Promise<void> =>
+    window.swarm.quickPanel.focusMain(payload),
+  quickPanelGetHotkey: (): Promise<string> => window.swarm.quickPanel.getHotkey(),
+  quickPanelSetHotkey: (accelerator: string): Promise<{ ok: boolean }> =>
+    window.swarm.quickPanel.setHotkey(accelerator),
 }

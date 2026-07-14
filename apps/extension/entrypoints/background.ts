@@ -42,7 +42,16 @@ async function connect(): Promise<void> {
   await ready
   client = createServiceClient({
     transport,
-    onEvent: (e, d) => console.log('[swarm-ext] event', e, d),
+    onEvent: (e, d) => {
+      console.log('[swarm-ext] event', e, d)
+      // Forward article analysis completion to the side panel so it can
+      // refresh the selected article's analysis view in real time.
+      if (e === 'article.analysisComplete' && d) {
+        browser.runtime.sendMessage({ type: 'article.analysisComplete', ...d }).catch(() => {
+          /* panel may be closed; ignore */
+        })
+      }
+    },
   })
   await client.connect()
   console.log('[swarm-ext] connected to', wsHost)
@@ -196,6 +205,28 @@ export default defineBackground(() => {
           const res = await client.collectArticle(input)
           if (res.ok) sendResponse({ ok: true, articleId: res.articleId })
           else sendResponse({ ok: false, error: res.message })
+        } catch (err) {
+          sendResponse({ ok: false, error: String(err) })
+        }
+      })()
+      return true // async response
+    }
+    if ((msg as { type?: string })?.type === 'listArticles' && client) {
+      ;(async () => {
+        try {
+          const articles = await client.listArticles()
+          sendResponse({ ok: true, articles })
+        } catch (err) {
+          sendResponse({ ok: false, error: String(err) })
+        }
+      })()
+      return true // async response
+    }
+    if ((msg as { type?: string; articleId?: string })?.type === 'getArticleAnalysis' && client) {
+      ;(async () => {
+        try {
+          const { summary, analyzedAt } = await client.getArticleAnalysis(msg.articleId!)
+          sendResponse({ ok: true, summary, analyzedAt })
         } catch (err) {
           sendResponse({ ok: false, error: String(err) })
         }

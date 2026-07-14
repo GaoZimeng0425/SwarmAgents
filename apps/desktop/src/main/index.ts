@@ -17,6 +17,7 @@ import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
 import { initMcpServers } from './mcp-servers'
 import { initProviders } from './providers'
+import { initQuickPanel } from './quick-panel'
 import { setupAutoUpdate } from './system/auto-update'
 import { handleDeepLink, registerDeepLinkIpc } from './system/deep-link'
 import { setupMenu } from './system/menu'
@@ -208,6 +209,7 @@ app.whenReady().then(async () => {
   })
 
   app.on('before-quit', () => {
+    quickPanel.dispose()
     wsHost?.dispose()
     serviceClient.disconnect()
     serviceProcess.kill()
@@ -224,6 +226,7 @@ app.whenReady().then(async () => {
   ipcMain.on('ping', () => console.log('pong'))
 
   createMainWindow()
+  const quickPanel = initQuickPanel()
   // Cold start on Windows/Linux: the URL arrives in the first instance's argv
   // (macOS cold start routes via the `open-url` event registered above).
   // MUST run after createMainWindow() so getMainWindow() is non-null; the

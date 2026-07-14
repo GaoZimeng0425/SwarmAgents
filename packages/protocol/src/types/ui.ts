@@ -519,7 +519,7 @@ export type SwarmBridge = {
   listArtifacts(opts?: { query?: string; limit?: number }): Promise<ArtifactEntry[]>
   subscribeEvents(cb: (event: UIEvent) => void): () => void
   /** A swarmagents://chat/<id> deep link routes here. Pushed when the app is already running. */
-  onNavigateToSession(cb: (sessionId: string) => void): () => void
+  onNavigateToSession(cb: (payload: { sessionId?: string; route?: string }) => void): () => void
   /** Main pushes a /settings route here (menu / deep-link) for in-app navigation. */
   onNavigateToSettings(cb: (route: string) => void): () => void
   /** Pull a chat deep link that arrived before the renderer subscribed (cold start). One-shot: clears after read. */
@@ -559,6 +559,18 @@ export type SwarmBridge = {
   gmail: GmailBridge
   calendar: CalendarBridge
   workbench: WorkbenchBridge
+  quickPanel: {
+    /** Hide the quick panel window. */
+    hide(): Promise<void>
+    /** Resize the quick panel window to the given height. */
+    resize(height: number): Promise<void>
+    /** Focus the main window, optionally navigating to a session or settings route. */
+    focusMain(payload: { navigate?: string; settings?: string }): Promise<void>
+    /** Get the currently registered global hotkey accelerator string. */
+    getHotkey(): Promise<string>
+    /** Register a new global hotkey accelerator. Returns whether it was applied. */
+    setHotkey(accelerator: string): Promise<{ ok: boolean }>
+  }
 }
 
 // Re-exported for renderer convenience without dragging task.ts types directly.

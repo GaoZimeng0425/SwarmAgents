@@ -125,7 +125,8 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
             return
           }
           const props = readAnalysisCard(evt)
-          if (props) card = { ...toRepoResearch(props), summary: accumulated }
+          const parsed = props ? toRepoResearch(props) : null
+          if (parsed) card = { ...parsed, summary: accumulated }
         } else if (evt.kind === 'message.complete') {
           if (card) {
             const cardWithSummary: RepoResearch = { ...card, summary: accumulated }

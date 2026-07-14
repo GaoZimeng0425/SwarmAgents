@@ -435,7 +435,8 @@ const swarm: SwarmBridge = {
     }
   },
   onNavigateToSession: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: { sessionId: string }): void => cb(payload.sessionId)
+    const listener = (_: Electron.IpcRendererEvent, payload: { sessionId?: string; route?: string }): void =>
+      cb(payload)
     ipcRenderer.on(NAVIGATE_CHANNEL, listener)
     return () => {
       ipcRenderer.removeListener(NAVIGATE_CHANNEL, listener)
@@ -487,6 +488,15 @@ const swarm: SwarmBridge = {
   gmail,
   calendar,
   workbench,
+  quickPanel: {
+    hide: () => ipcRenderer.invoke('swarm:quickPanel:hide'),
+    resize: (height: number) => ipcRenderer.invoke('swarm:quickPanel:resize', height),
+    focusMain: (payload: { navigate?: string; settings?: string }) =>
+      ipcRenderer.invoke('swarm:quickPanel:focusMain', payload),
+    getHotkey: () => ipcRenderer.invoke('swarm:quickPanel:getHotkey') as Promise<string>,
+    setHotkey: (accelerator: string) =>
+      ipcRenderer.invoke('swarm:quickPanel:setHotkey', accelerator) as Promise<{ ok: boolean }>,
+  },
 }
 
 if (process.contextIsolated) {
