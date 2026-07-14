@@ -114,6 +114,11 @@ function VideoCard({
   onChanged: () => void
   onError: (message: string) => void
 }): React.JSX.Element {
+  // In-flight mutation state reported by the "..." menu (delete/pin). The menu
+  // trigger is hover-only and gets disabled-but-closed, so without this overlay
+  // a "彻底删除" click shows zero feedback until the list refetches.
+  const [busy, setBusy] = useState(false)
+
   return (
     // The card is a div (not a button) so the "..." menu trigger can sit inside
     // it without nesting interactive elements. Click anywhere selects the video.
@@ -148,6 +153,11 @@ function VideoCard({
         <span className="absolute right-1.5 bottom-1.5 rounded bg-black/60 px-1.5 py-0.5 font-mono font-semibold text-[10px] text-white tabular-nums">
           {formatDuration(video.durationSec)}
         </span>
+        {busy ? (
+          <span className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </span>
+        ) : null}
       </div>
       {/* Hover "..." overlay: top-right over the cover (AI badge is top-left).
           stopPropagation so opening the menu doesn't also select the card. */}
@@ -157,6 +167,7 @@ function VideoCard({
       >
         <BilibiliVideoMenu
           context={context}
+          onBusyChange={setBusy}
           onChanged={onChanged}
           onError={onError}
           pinned={pinned}
@@ -189,6 +200,8 @@ function PinnedCard({
   onChanged: () => void
   onError: (message: string) => void
 }): React.JSX.Element {
+  const [busy, setBusy] = useState(false)
+
   return (
     <div className="group relative flex w-44 shrink-0 cursor-pointer flex-col gap-1 rounded-md border border-amber-500/30 bg-amber-500/5 p-1.5 hover:bg-amber-500/10">
       <div className="relative w-full" onClick={() => onSelect(video)}>
@@ -200,6 +213,11 @@ function PinnedCard({
             src={video.cover}
           />
         ) : null}
+        {busy ? (
+          <span className="absolute inset-0 flex items-center justify-center rounded bg-background/55 backdrop-blur-[1px]">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </span>
+        ) : null}
       </div>
       <div className="truncate text-foreground text-xs" onClick={() => onSelect(video)}>
         {video.title}
@@ -207,6 +225,7 @@ function PinnedCard({
       <div className="absolute right-0.5 bottom-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <BilibiliVideoMenu
           context="archive"
+          onBusyChange={setBusy}
           onChanged={onChanged}
           onError={onError}
           pinned
@@ -288,6 +307,13 @@ export function BilibiliView(): React.JSX.Element {
     )
   }
 
+  // A background refetch (e.g. after a delete invalidates the list) shows a
+  // floating bar instead of the full-screen "加载中…" placeholder, which would
+  // reset scroll position. isPending stays false here (cache present).
+  const refetching =
+    tab === 'archive'
+      ? archiveQuery.isFetching && !archiveQuery.isPending
+      : listQuery.isFetching && !listQuery.isPending
   const folders = listQuery.data?.folders ?? []
 
   return (
@@ -347,7 +373,7 @@ export function BilibiliView(): React.JSX.Element {
           the panel on-demand lets it collapse — and gives the grid the full
           width while browsing, so small windows still show multiple columns. */}
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           {tab !== 'archive' && listQuery.isError ? (
             <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
               <p>加载失败</p>
@@ -414,6 +440,12 @@ export function BilibiliView(): React.JSX.Element {
               </div>
             </ScrollArea>
           )}
+          {refetching ? (
+            <div className="pointer-events-none absolute top-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border/60 bg-background/90 px-3.5 py-1.5 text-xs shadow-sm backdrop-blur-sm">
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              <span className="text-muted-foreground">刷新中…</span>
+            </div>
+          ) : null}
         </div>
         {selected ? (
           <BilibiliDetailPanel

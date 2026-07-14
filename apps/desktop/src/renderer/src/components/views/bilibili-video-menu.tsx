@@ -6,6 +6,7 @@
 // The trigger is rendered by the caller via the `trigger` prop so the same menu
 // can anchor to either an icon button (detail header) or a compact overlay dot
 // (card hover). base-ui Trigger composes via `render`, not `asChild`.
+import { useEffect } from 'react'
 import type { BiliVideo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -22,6 +23,7 @@ export function BilibiliVideoMenu({
   onChanged,
   onError,
   trigger = 'icon',
+  onBusyChange,
 }: {
   video: BiliVideo
   context: VideoListContext
@@ -30,6 +32,10 @@ export function BilibiliVideoMenu({
   onError: (message: string) => void
   /** 'icon' = a MoreVertical icon button (header); 'dot' = a compact overlay dot (card hover). */
   trigger?: 'icon' | 'dot'
+  /** Report in-flight mutation state so the caller can badge the card while a
+   *  delete/pin is running (the menu is closed and its disabled trigger is
+   *  otherwise invisible). */
+  onBusyChange?: (busy: boolean) => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
 
@@ -88,6 +94,12 @@ export function BilibiliVideoMenu({
   })
 
   const busy = pinMutation.isPending || softDeleteMutation.isPending || hardDeleteMutation.isPending
+  // Surface the busy state to the caller so the card can show an in-flight
+  // overlay — the menu trigger itself is hidden (hover) or disabled-but-closed,
+  // giving zero feedback otherwise.
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
   const softLabel = context === 'watch-later' ? '移除稍后再看' : '取消收藏'
   const hardLabel = context === 'archive' ? '删除存档' : '彻底删除'
 
