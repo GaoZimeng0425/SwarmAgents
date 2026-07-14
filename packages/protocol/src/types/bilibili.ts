@@ -2,7 +2,10 @@
 // Shared types for the Bilibili integration: credentials, list items, and the
 // encrypted on-disk config schema. Mirrors fields we read from Bilibili's
 // public web API.
+
 import { z } from 'zod'
+
+import type { ProviderInjection } from './provider'
 
 export type BiliCredentials = {
   sessdata: string
@@ -137,6 +140,21 @@ export type BiliAnalysis = z.infer<typeof BiliAnalysisSchema>
 export type BiliProcessResult =
   | { ok: true; summary: BiliSummary; text: string; source: 'subtitle' }
   | { ok: false; code: 'no_subtitle' | 'no_provider' | 'llm_failed' | 'unknown'; message: string }
+
+// Request from Main → Service to run the bilibili-analyst agent over a
+// transcript. Main owns subtitle/transcript fetch + persistence; the service
+// only runs the analysis and streams bilibili.analysis* events back.
+export type AnalyzeBilibiliRequest = {
+  bvid: string
+  provider: ProviderInjection
+  text: string
+  title: string
+  author: string
+}
+
+export type AnalyzeBilibiliResult =
+  | { ok: true; summary: BiliSummary }
+  | { ok: false; code: 'no_provider' | 'no_agent' | 'llm_failed' | 'no_card'; message: string }
 
 export type BiliSaveResult =
   | { ok: true; path: string }

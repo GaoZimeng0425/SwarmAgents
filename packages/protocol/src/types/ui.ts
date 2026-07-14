@@ -124,6 +124,9 @@ export type UIEvent =
       seq?: number
     }
   | { kind: 'trending.researchError'; repoName: string; error: string; ts: number; seq?: number }
+  | { kind: 'bilibili.analysisDelta'; bvid: string; text: string; ts: number; seq?: number }
+  | { kind: 'bilibili.analysisComplete'; bvid: string; summary: BiliSummary; ts: number; seq?: number }
+  | { kind: 'bilibili.analysisError'; bvid: string; error: string; ts: number; seq?: number }
 
 export type SessionSummary = {
   id: string

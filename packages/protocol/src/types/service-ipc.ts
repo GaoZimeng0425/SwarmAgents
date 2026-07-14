@@ -48,6 +48,7 @@ export type ServiceMethod =
   | 'analyzeThread'
   | 'collectArticle'
   | 'analyzeArticle'
+  | 'analyzeBilibili'
   | 'listArticles'
   | 'getArticleAnalysis'
   | 'deleteArticle'

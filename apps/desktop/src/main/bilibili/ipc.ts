@@ -7,6 +7,8 @@ import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import type {
+  AnalyzeBilibiliRequest,
+  AnalyzeBilibiliResult,
   BiliAnalysis,
   BiliCredentials,
   BiliDeleteResult,
@@ -36,7 +38,6 @@ import { processVideo } from './pipeline'
 import { defaultPlayUrlDeps, getDashAudioUrl } from './playurl'
 import type { Store } from './store'
 import { defaultSubtitleDeps, getSubtitleText } from './subtitle'
-import { summarize } from './summarize'
 import { transcribeWav } from './transcribe'
 import { createTranscribeQueue } from './transcribe-queue'
 
@@ -62,8 +63,16 @@ export type ListDeps = {
   getWatchLater: (c: BiliCredentials) => Promise<BiliVideo[]>
 }
 
-export async function buildList(c: BiliCredentials, mid: number, deps: ListDeps): Promise<BiliListResult> {
+export type BuildListResult = BiliListResult & {
+  /** How many fav folders failed to load (swallowed into empty videos). */
+  failedFolders: number
+  /** Whether the watch-later fetch threw. */
+  failedWatchLater: boolean
+}
+
+export async function buildList(c: BiliCredentials, mid: number, deps: ListDeps): Promise<BuildListResult> {
   const folders = await deps.getFavFolders(c, mid)
+  let failedFolders = 0
   const withVideos = await Promise.all(
     folders.map(async (folder) => {
       try {
@@ -75,17 +84,20 @@ export async function buildList(c: BiliCredentials, mid: number, deps: ListDeps)
           folderId: folder.id,
           err: err instanceof Error ? err.message : String(err),
         })
+        failedFolders++
         return { folder, videos: [] as BiliVideo[] }
       }
     })
   )
   let watchLater: BiliVideo[] = []
+  let failedWatchLater = false
   try {
     watchLater = await deps.getWatchLater(c)
   } catch (err) {
     log.warn({ msg: 'watch-later load failed', err: err instanceof Error ? err.message : String(err) })
+    failedWatchLater = true
   }
-  return { folders: withVideos, watchLater }
+  return { folders: withVideos, watchLater, failedFolders, failedWatchLater }
 }
 
 export function wireBilibiliIpc(opts: {
@@ -95,11 +107,25 @@ export function wireBilibiliIpc(opts: {
   archiveStore: ArchiveStore
   pinStore: PinStore
   getInjection: () => ProviderInjection | null
+  analyzeBilibili: (req: AnalyzeBilibiliRequest) => Promise<AnalyzeBilibiliResult>
 }): {
   dispose: () => void
 } {
   const { auth, store, analysisStore, archiveStore, pinStore } = opts
   const deps: ListDeps = { getFavFolders, getFavResources, getWatchLater }
+
+  // Local adapter preserving the (inj, input) => Promise<BiliSummary> signature the
+  // pipeline/transcribe-queue expect, but delegating to the service-process
+  // bilibili-analyst agent. The agent streams bilibili.analysis* events back to the
+  // renderer; on completion it returns the structured BiliSummary for Main to persist.
+  const summarize = async (
+    inj: ProviderInjection,
+    input: { bvid: string; title: string; author: string; text: string }
+  ): Promise<BiliSummary> => {
+    const result = await opts.analyzeBilibili({ ...input, provider: inj })
+    if (!result.ok) throw new Error(result.message)
+    return result.summary
+  }
 
   // Populated when bilibili:list resolves so pipeline can look up title/author without refetch.
   const metaIndex = new Map<string, { title: string; author: string }>()
@@ -161,10 +187,28 @@ export function wireBilibiliIpc(opts: {
     }
     log.info({ msg: 'bilibili list started', mid: st.mid })
     const result = await buildList(cfg.credentials, st.mid, deps)
+    // Distinguish "genuinely empty" from "every fetch failed". When every fav
+    // folder failed AND watch-later also failed/empty, throw so the renderer's
+    // listQuery surfaces "加载失败 + 重试" instead of a misleading "暂无视频".
+    // Partial failures still degrade gracefully (failed folders show empty).
+    const allFoldersFailed = result.folders.length > 0 && result.failedFolders === result.folders.length
+    const noWatchLater = result.failedWatchLater || result.watchLater.length === 0
+    if (allFoldersFailed && noWatchLater) {
+      log.error({
+        msg: 'bilibili list all sources failed',
+        folders: result.folders.length,
+        failedFolders: result.failedFolders,
+        failedWatchLater: result.failedWatchLater,
+        durationMs: Date.now() - started,
+      })
+      throw new Error('收藏列表加载失败,可能是 B 站风控,请稍后重试。')
+    }
     log.info({
       msg: 'bilibili list ok',
       folders: result.folders.length,
       watchLater: result.watchLater.length,
+      failedFolders: result.failedFolders,
+      failedWatchLater: result.failedWatchLater,
       durationMs: Date.now() - started,
     })
     // Refresh metaIndex so bilibili:process has title/author without a refetch.

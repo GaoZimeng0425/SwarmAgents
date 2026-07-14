@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { cookieHeader, deleteWatchLater, getFavFolders, getNav, getWatchLater, toHttpsUrl } from './api'
+import {
+  cookieHeader,
+  deleteWatchLater,
+  getFavFolders,
+  getNav,
+  getWatchLater,
+  invalidateWbiKeys,
+  toHttpsUrl,
+} from './api'
 
 const creds = { sessdata: 's', biliJct: 'j', dedeUserId: '42' }
 
@@ -16,7 +24,11 @@ const NAV_WITH_WBI = {
   },
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  // Clear the module-level WBI key cache so each test starts fresh.
+  invalidateWbiKeys()
+})
 
 function mockJson(body: unknown): void {
   vi.stubGlobal(
@@ -67,9 +79,62 @@ describe('getFavFolders', () => {
     expect(await getFavFolders(creds, 42)).toEqual([])
   })
 
-  it('throws on non-zero code', async () => {
-    mockJsonWithWbi({ code: -400, message: 'bad request' })
+  it('throws on non-zero code after retrying once with fresh keys', async () => {
+    // First attempt + retry both fail: nav, -400, nav(retry), -400(retry).
+    const responses = [
+      new Response(JSON.stringify(NAV_WITH_WBI), { status: 200 }),
+      new Response(JSON.stringify({ code: -400, message: 'bad request' }), { status: 200 }),
+      new Response(JSON.stringify(NAV_WITH_WBI), { status: 200 }),
+      new Response(JSON.stringify({ code: -400, message: 'bad request' }), { status: 200 }),
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => responses.shift() as Response)
+    )
     await expect(getFavFolders(creds, 42)).rejects.toThrow(/-400/)
+  })
+
+  it('retries once with fresh keys when the first signed request fails', async () => {
+    // First nav returns stale keys; the signed request fails; getSigned
+    // invalidates the cache, re-fetches nav, and the retry succeeds.
+    const responses = [
+      new Response(JSON.stringify(NAV_WITH_WBI), { status: 200 }), // 1st nav (cached keys)
+      new Response(JSON.stringify({ code: -412, message: '风控' }), { status: 200 }), // 1st signed → fail
+      new Response(JSON.stringify(NAV_WITH_WBI), { status: 200 }), // retry nav (fresh keys)
+      new Response(JSON.stringify({ code: 0, data: { list: [{ id: 1, title: 'ok', media_count: 2 }] } }), {
+        status: 200,
+      }), // retry signed → success
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => responses.shift() as Response)
+    )
+    expect(await getFavFolders(creds, 42)).toEqual([{ id: 1, title: 'ok', count: 2 }])
+  })
+})
+
+describe('WBI key caching', () => {
+  it('fetches nav once and reuses cached keys across multiple calls', async () => {
+    // Two getFavFolders calls should hit nav exactly once: the first warms the
+    // cache, the second reuses it. Each data endpoint still gets its own fetch.
+    const responses = [
+      new Response(JSON.stringify(NAV_WITH_WBI), { status: 200 }), // nav (cached)
+      new Response(JSON.stringify({ code: 0, data: { list: [{ id: 1, title: 'A', media_count: 1 }] } }), {
+        status: 200,
+      }), // 1st folder list
+      new Response(JSON.stringify({ code: 0, data: { list: [{ id: 2, title: 'B', media_count: 1 }] } }), {
+        status: 200,
+      }), // 2nd folder list (no nav before it)
+    ]
+    const fetchMock = vi.fn(async (_url: string) => responses.shift() as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getFavFolders(creds, 42)
+    await getFavFolders(creds, 42)
+
+    // 3 fetches total: 1 nav + 2 data (the 2nd call reused the cached keys).
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes('/nav'))).toHaveLength(1)
   })
 })
 

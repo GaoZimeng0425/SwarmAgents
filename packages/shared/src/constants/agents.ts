@@ -2,6 +2,7 @@ import type { AgentDefinition } from '@swarm/protocol'
 
 import {
   ARTICLE_ANALYST_SYSTEM_PROMPT,
+  BILIBI_ANALYST_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
   REPO_RESEARCHER_SYSTEM_PROMPT,
 } from '../agents/default-prompt'
@@ -422,6 +423,16 @@ const baseAgents: AgentDefinition[] = [
     maxIterations: 1000,
     role: 'article-analyst',
     capabilities: ['article-analyze'],
+    skills: [],
+  },
+  {
+    id: 'bilibili-analyst',
+    name: '视频分析',
+    description: '分析 Bilibili 视频字幕/转写文本,输出结构化中文经验卡片(主旨/要点/经验/踩坑/步骤)。',
+    systemPrompt: BILIBI_ANALYST_SYSTEM_PROMPT,
+    maxIterations: 1000,
+    role: 'bilibili-analyst',
+    capabilities: ['bilibili-analyze'],
     skills: [],
   },
   {

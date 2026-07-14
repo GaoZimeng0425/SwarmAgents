@@ -4,7 +4,7 @@
 // area. Always mounted as a sibling of the video grid; shows an empty-state
 // prompt when no video is selected.
 import { useEffect, useState } from 'react'
-import type { BiliSummary, BiliVideo } from '@swarm/protocol'
+import type { BiliSummary, BiliVideo, UIEvent } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { compact } from 'es-toolkit'
@@ -18,6 +18,7 @@ import {
   TriangleAlert,
   Upload,
 } from 'lucide-react'
+import { Streamdown } from 'streamdown'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { swarmApi } from '@/lib/api'
@@ -198,6 +199,9 @@ export function BilibiliDetailPanel({
   })
   const [stage, setStage] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('analysis')
+  // Streamed analysis prose while the bilibili-analyst agent runs. Cleared on
+  // completion (SummaryView takes over) or on video switch.
+  const [streamText, setStreamText] = useState('')
   // Surfaces errors from the action menu (delete/pin). Cleared on video switch.
   const [menuError, setMenuError] = useState<string | null>(null)
 
@@ -215,6 +219,7 @@ export function BilibiliDetailPanel({
     saveMutation.reset()
     setStage(null)
     setDetailTab('analysis')
+    setStreamText('')
     setMenuError(null)
     // We intentionally omit the mutation objects from deps — we only want to reset on bvid change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -227,6 +232,24 @@ export function BilibiliDetailPanel({
       if (p.bvid === video?.bvid) setStage(p.stage)
     })
     return off
+  }, [video?.bvid])
+
+  // Subscribe to the streamed analysis from the bilibili-analyst agent. Deltas
+  // accumulate into streamText (shown live via Streamdown); completion refreshes
+  // the cached analysis so SummaryView takes over.
+  useEffect(() => {
+    if (!video?.bvid) return
+    return window.swarm.subscribeEvents((e: UIEvent) => {
+      if (e.kind === 'bilibili.analysisDelta' && e.bvid === video.bvid) {
+        setStreamText((prev) => prev + e.text)
+      } else if (e.kind === 'bilibili.analysisComplete' && e.bvid === video.bvid) {
+        setStreamText('')
+        invalidateAnalysis()
+      } else if (e.kind === 'bilibili.analysisError' && e.bvid === video.bvid) {
+        setStreamText('')
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.bvid])
 
   // Summary/full-text can come from a fresh subtitle run, a fresh transcription, or
@@ -290,7 +313,14 @@ export function BilibiliDetailPanel({
 
             {/* Action row: analyze / watch / save / more-menu (rightmost). */}
             <div className="flex gap-2">
-              <Button className="flex-1" disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
+              <Button
+                className="flex-1"
+                disabled={mutation.isPending}
+                onClick={() => {
+                  setStreamText('')
+                  mutation.mutate(video.bvid)
+                }}
+              >
                 {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
               </Button>
               <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
@@ -330,7 +360,11 @@ export function BilibiliDetailPanel({
                 <Button
                   className="w-fit"
                   disabled={transcribeMutation.isPending}
-                  onClick={() => video && transcribeMutation.mutate(video.bvid)}
+                  onClick={() => {
+                    if (!video) return
+                    setStreamText('')
+                    transcribeMutation.mutate(video.bvid)
+                  }}
                   variant="outline"
                 >
                   {transcribeMutation.isPending ? '转写中…' : '本地转写'}
@@ -379,7 +413,9 @@ export function BilibiliDetailPanel({
               <SummaryView source={fullText?.source} summary={summary} />
             ) : detailTab === 'text' && fullText ? (
               <FullTextView label={textLabel} text={fullText.text} />
-            ) : mutation.isPending ? (
+            ) : streamText ? (
+              <Streamdown>{streamText}</Streamdown>
+            ) : mutation.isPending || transcribeMutation.isPending ? (
               <AnalyzingPlaceholder />
             ) : (
               <p className="py-8 text-center text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要。</p>

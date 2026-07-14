@@ -8,6 +8,7 @@ import type {
   CollectArticleResult,
   CollectedArticleWithAnalysis,
 } from './types/article'
+import type { AnalyzeBilibiliRequest, AnalyzeBilibiliResult } from './types/bilibili'
 import type { BudgetConfig } from './types/budgets'
 import type { McpServerConfig, McpServerStatus } from './types/mcp'
 import type { MemoryView } from './types/memory'
@@ -43,6 +44,7 @@ export type ServiceClient = {
   analyzeThread(req: import('./types/ui').AnalyzeThreadRequest): Promise<import('./types/ui').AnalyzeThreadResult>
   collectArticle(input: ArticleSource): Promise<CollectArticleResult>
   analyzeArticle(req: AnalyzeArticleRequest): Promise<AnalyzeArticleResult>
+  analyzeBilibili(req: AnalyzeBilibiliRequest): Promise<AnalyzeBilibiliResult>
   listArticles(): Promise<CollectedArticleWithAnalysis[]>
   getArticleAnalysis(articleId: string): Promise<{ summary: ArticleSummary | null; analyzedAt: string | null }>
   deleteArticle(articleId: string): Promise<void>
@@ -121,6 +123,7 @@ export function createServiceClient(cfg: {
     analyzeThread: (req) => peer.call('analyzeThread', [req]),
     collectArticle: (input) => peer.call('collectArticle', [input]),
     analyzeArticle: (req) => peer.call('analyzeArticle', [req]),
+    analyzeBilibili: (req) => peer.call('analyzeBilibili', [req]),
     listArticles: () => peer.call('listArticles', []),
     getArticleAnalysis: (articleId) => peer.call('getArticleAnalysis', [articleId]),
     async deleteArticle(articleId) {

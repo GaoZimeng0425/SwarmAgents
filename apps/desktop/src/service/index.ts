@@ -15,6 +15,7 @@ import { createAgentStore, syncBuiltinAgents } from './agents/store'
 import { createAnalyzeArticle } from './article/analyze'
 import { createCollectArticle } from './article/collect'
 import { createArticleStore } from './article/store'
+import { createAnalyzeBilibili } from './bilibili/analyze'
 import { createClaudeCodeManager } from './claude-code/manager'
 import { createConversationStore } from './conversation/store'
 import { createCronScheduler } from './cron/scheduler'
@@ -208,6 +209,12 @@ const dispatch = createDispatcher({
     broadcaster,
     agentStore,
     store: articleStore,
+    toolRegistry,
+    getBudgetConfig: () => budgetConfig,
+  }),
+  analyzeBilibili: createAnalyzeBilibili({
+    broadcaster,
+    agentStore,
     toolRegistry,
     getBudgetConfig: () => budgetConfig,
   }),

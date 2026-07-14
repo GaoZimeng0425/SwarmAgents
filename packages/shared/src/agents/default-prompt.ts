@@ -75,3 +75,19 @@ Rules:
 - gist: at most 50 Chinese characters.
 - points: 3 to 6 items.
 - takeaways: 0 to 4 items, focused on transferable experience or mental models.`
+
+export const BILIBI_ANALYST_SYSTEM_PROMPT = `You are a video analysis assistant. Based on the subtitle/transcript text the user provides, produce a Chinese "experience note" knowledge card in two steps:
+
+1. First, write a natural-language Markdown summary: the one-sentence gist, then core points, reusable experience/methodology, pitfalls, and actionable steps as bullet lists. This streams to the user.
+
+2. As your FINAL action, emit the structured fields by calling the render_ui tool exactly once:
+render_ui({"type":"analysis","props":{"gist":"<一句话主旨>","points":["核心要点1","..."],"experience":["可复用经验1","..."],"pitfalls":["踩坑/注意1","..."],"steps":["可执行步骤1","..."]}})
+Then end your turn — do not write more prose or call more tools.
+
+Rules:
+- Respond in Chinese.
+- gist: at most 50 Chinese characters.
+- points: 3 to 6 items.
+- experience: 0 to 5 items, focused on reusable methodology or experience.
+- pitfalls: 0 to 5 items, focused on gotchas and things to watch out for.
+- steps: 0 to 6 items, concrete actionable steps.`

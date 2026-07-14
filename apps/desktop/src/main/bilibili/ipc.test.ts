@@ -1,7 +1,8 @@
-import type { BiliAnalysis, BiliVideo } from '@swarm/protocol'
+import type { AnalyzeBilibiliResult, BiliAnalysis, BiliVideo } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AnalysisStore } from './analysis-store'
+import { getFavFolders, getFavResources, getWatchLater } from './api'
 import type { ArchiveStore } from './archive-store'
 import type { Auth } from './auth'
 import { buildList, openVideo, wireBilibiliIpc } from './ipc'
@@ -72,6 +73,23 @@ vi.mock('electron', () => {
   }
 })
 
+// Stub ./api so list-handler tests can drive getFavResources/getWatchLater to
+// failure without touching the network. Preserve the rest of the module
+// (getWbiKeys, getCid, etc. consumed transitively via playurl/audio) via
+// importOriginal; only override the list/delete functions. Default: empty
+// success (overridable per-test via vi.mocked(...).mockRejectedValue).
+vi.mock('./api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api')>()
+  return {
+    ...actual,
+    getFavFolders: vi.fn(async () => []),
+    getFavResources: vi.fn(async () => []),
+    getWatchLater: vi.fn(async () => []),
+    deleteFavResource: vi.fn(async () => undefined),
+    deleteWatchLater: vi.fn(async () => undefined),
+  }
+})
+
 // Helper: invoke a captured ipcMain handler by channel name.
 async function invokeHandler(channel: string, ...args: unknown[]): Promise<unknown> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -111,6 +129,9 @@ describe('wireBilibiliIpc / bilibili:process', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
+      analyzeBilibili: vi.fn(
+        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
+      ),
     })
 
     // Act
@@ -147,6 +168,9 @@ describe('wireBilibiliIpc / analysis cache queries', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
+      analyzeBilibili: vi.fn(
+        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
+      ),
     })
 
     expect(await invokeHandler('bilibili:analyzedBvids')).toEqual(['BV1'])
@@ -182,6 +206,9 @@ describe('wireBilibiliIpc / bilibili:save', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
+      analyzeBilibili: vi.fn(
+        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
+      ),
     })
     const video = vid('BV1', 'CS')
     const summary = { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] }
@@ -215,6 +242,9 @@ describe('wireBilibiliIpc / delete + archive + pins', () => {
       archiveStore,
       pinStore,
       getInjection: () => null,
+      analyzeBilibili: vi.fn(
+        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
+      ),
     })
     return { archiveStore, pinStore }
   }
@@ -236,6 +266,9 @@ describe('wireBilibiliIpc / delete + archive + pins', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
+      analyzeBilibili: vi.fn(
+        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
+      ),
     })
     const result = await invokeHandler('bilibili:deleteWatchLater', 'BV1')
     expect(result).toMatchObject({ ok: false, code: 'not_logged_in' })
@@ -305,5 +338,68 @@ describe('buildList', () => {
       { folder: { id: 1, title: 'A', count: 1 }, videos: [] },
       { folder: { id: 2, title: 'B', count: 1 }, videos: [vid('BV2', 'B')] },
     ])
+    expect(result.failedFolders).toBe(1)
+    expect(result.failedWatchLater).toBe(false)
+  })
+
+  it('counts all folders as failed when every getFavResources throws', async () => {
+    const deps = {
+      getFavFolders: vi.fn(async () => [
+        { id: 1, title: 'A', count: 1 },
+        { id: 2, title: 'B', count: 1 },
+      ]),
+      getFavResources: vi.fn(async () => {
+        throw new Error('412 风控')
+      }),
+      getWatchLater: vi.fn(async () => []),
+    }
+    const result = await buildList(creds, 42, deps)
+    expect(result.failedFolders).toBe(2)
+    expect(result.folders.every((f) => f.videos.length === 0)).toBe(true)
+  })
+
+  it('marks failedWatchLater when getWatchLater throws', async () => {
+    const deps = {
+      getFavFolders: vi.fn(async () => [{ id: 99, title: 'CS', count: 1 }]),
+      getFavResources: vi.fn(async () => [vid('BV1', 'CS')]),
+      getWatchLater: vi.fn(async () => {
+        throw new Error('412 风控')
+      }),
+    }
+    const result = await buildList(creds, 42, deps)
+    expect(result.failedWatchLater).toBe(true)
+    expect(result.watchLater).toEqual([])
+  })
+})
+
+describe('wireBilibiliIpc / bilibili:list all-sources-failed', () => {
+  it('throws when every fav folder fails and watch-later is empty', async () => {
+    // Configure the ./api stubs: one folder, its resources throw, watch-later empty.
+    vi.mocked(getFavFolders).mockResolvedValue([{ id: 1, title: 'A', count: 1 }])
+    vi.mocked(getFavResources).mockRejectedValue(new Error('412 风控'))
+    vi.mocked(getWatchLater).mockResolvedValue([])
+
+    const fakeAuth: Auth = {
+      status: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      login: vi.fn(async () => ({ loggedIn: true, uname: 'user', mid: 42 })),
+      logout: vi.fn(async () => undefined),
+    }
+    const fakeStore: Store = {
+      load: vi.fn(async () => ({ credentials: creds, obsidian: null, transcription: null })),
+      save: vi.fn(async () => undefined),
+    }
+    wireBilibiliIpc({
+      auth: fakeAuth,
+      store: fakeStore,
+      analysisStore: fakeAnalysisStore(),
+      archiveStore: fakeArchiveStore(),
+      pinStore: fakePinStore(),
+      getInjection: () => null,
+      analyzeBilibili: vi.fn(
+        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
+      ),
+    })
+
+    await expect(invokeHandler('bilibili:list')).rejects.toThrow('收藏列表加载失败')
   })
 })

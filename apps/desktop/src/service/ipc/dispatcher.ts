@@ -29,6 +29,9 @@ type DispatcherConfig = {
   analyzeThread(req: import('@swarm/protocol').AnalyzeThreadRequest): import('@swarm/protocol').AnalyzeThreadResult
   collectArticle(input: import('@swarm/protocol').ArticleSource): import('@swarm/protocol').CollectArticleResult
   analyzeArticle(req: import('@swarm/protocol').AnalyzeArticleRequest): import('@swarm/protocol').AnalyzeArticleResult
+  analyzeBilibili(
+    req: import('@swarm/protocol').AnalyzeBilibiliRequest
+  ): Promise<import('@swarm/protocol').AnalyzeBilibiliResult>
   listArticles(): Promise<import('@swarm/protocol').CollectedArticleWithAnalysis[]>
   getArticleAnalysis(
     articleId: string
@@ -109,6 +112,10 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
       case 'analyzeArticle': {
         const [req] = args as [import('@swarm/protocol').AnalyzeArticleRequest]
         return cfg.analyzeArticle(req)
+      }
+      case 'analyzeBilibili': {
+        const [req] = args as [import('@swarm/protocol').AnalyzeBilibiliRequest]
+        return cfg.analyzeBilibili(req)
       }
       case 'listArticles': {
         return cfg.listArticles()

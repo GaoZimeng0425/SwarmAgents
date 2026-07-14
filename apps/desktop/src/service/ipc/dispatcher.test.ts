@@ -22,6 +22,7 @@ const mcpDeps = () => ({
   analyzeThread: vi.fn().mockReturnValue({ ok: true }),
   collectArticle: vi.fn().mockReturnValue({ ok: true, articleId: 'art-1' }),
   analyzeArticle: vi.fn().mockReturnValue({ ok: true }),
+  analyzeBilibili: vi.fn().mockResolvedValue({ ok: false, code: 'no_provider', message: 'mock' }),
   listArticles: vi.fn().mockResolvedValue([]),
   getArticleAnalysis: vi.fn().mockResolvedValue({ summary: null, analyzedAt: null }),
   deleteArticle: vi.fn().mockResolvedValue(undefined),

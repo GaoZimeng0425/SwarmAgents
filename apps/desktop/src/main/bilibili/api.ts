@@ -83,11 +83,11 @@ export async function getNav(c: BiliCredentials): Promise<BiliLoginStatus> {
 type FavFolderRow = { id: number; title: string; media_count: number }
 
 export async function getFavFolders(c: BiliCredentials, mid: number): Promise<BiliFavFolder[]> {
-  // WBI-signed: the folder list endpoint started returning -412 风控 without it.
-  const { imgKey, subKey } = await getWbiKeys(c)
-  const query = encWbi({ up_mid: String(mid) }, imgKey, subKey, Math.floor(Date.now() / 1000))
-  const url = `https://api.bilibili.com/x/v3/fav/folder/created/list-all?${query}`
-  const data = await get<{ list: FavFolderRow[] | null }>(url, c)
+  const data = await getSigned<{ list: FavFolderRow[] | null }>(
+    'https://api.bilibili.com/x/v3/fav/folder/created/list-all',
+    { up_mid: String(mid) },
+    c
+  )
   const list = data.list ?? []
   return list.map((f) => ({ id: f.id, title: f.title, count: f.media_count }))
 }
@@ -104,16 +104,11 @@ type FavMediaRow = {
 }
 
 export async function getFavResources(c: BiliCredentials, mediaId: number, folderTitle: string): Promise<BiliVideo[]> {
-  // WBI-signed: the resource list endpoint returns -412 风控 without it.
-  const { imgKey, subKey } = await getWbiKeys(c)
-  const query = encWbi(
+  const data = await getSigned<{ medias: FavMediaRow[] | null }>(
+    'https://api.bilibili.com/x/v3/fav/resource/list',
     { media_id: String(mediaId), ps: '20', pn: '1', platform: 'web' },
-    imgKey,
-    subKey,
-    Math.floor(Date.now() / 1000)
+    c
   )
-  const url = `https://api.bilibili.com/x/v3/fav/resource/list?${query}`
-  const data = await get<{ medias: FavMediaRow[] | null }>(url, c)
   const medias = data.medias ?? []
   return medias.map((m) => ({
     bvid: m.bvid,
@@ -155,13 +150,48 @@ export async function getWatchLater(c: BiliCredentials): Promise<BiliVideo[]> {
 }
 
 // The two WBI keys live in the nav response under wbi_img; their filename stems
-// feed the signing mixin.
+// feed the signing mixin. Cached for 24h: the keys are site-wide (not per-user)
+// and rotate rarely (a one-off site-level operation). A signed request that
+// fails (e.g. the cached keys were rotated mid-TTL) is retried once after the
+// cache is invalidated — see getSigned below.
+const WBI_TTL_MS = 24 * 60 * 60 * 1000
+let wbiCache: { keys: { imgKey: string; subKey: string }; expiresAt: number } | null = null
+
+export function invalidateWbiKeys(): void {
+  wbiCache = null
+}
+
 export async function getWbiKeys(c: BiliCredentials): Promise<{ imgKey: string; subKey: string }> {
+  if (wbiCache && Date.now() < wbiCache.expiresAt) return wbiCache.keys
   const data = await get<{ wbi_img: { img_url: string; sub_url: string } }>(
     'https://api.bilibili.com/x/web-interface/nav',
     c
   )
-  return { imgKey: keyFromUrl(data.wbi_img.img_url), subKey: keyFromUrl(data.wbi_img.sub_url) }
+  const keys = { imgKey: keyFromUrl(data.wbi_img.img_url), subKey: keyFromUrl(data.wbi_img.sub_url) }
+  wbiCache = { keys, expiresAt: Date.now() + WBI_TTL_MS }
+  return keys
+}
+
+// Sign a WBI-protected GET and run it. If the first attempt fails (a non-zero
+// code surfaces as a thrown Error — most likely the cached keys were rotated),
+// invalidate the cache, re-fetch fresh keys, and retry exactly once. This keeps
+// the 24h cache self-healing without the user seeing a stale-key failure.
+async function getSigned<T>(baseUrl: string, params: Record<string, string>, c: BiliCredentials): Promise<T> {
+  const sign = async (): Promise<string> => {
+    const { imgKey, subKey } = await getWbiKeys(c)
+    return encWbi(params, imgKey, subKey, Math.floor(Date.now() / 1000))
+  }
+  const query = await sign()
+  try {
+    return await get<T>(`${baseUrl}?${query}`, c)
+  } catch (err) {
+    // Retry once with fresh keys; if it still fails, surface the original error.
+    invalidateWbiKeys()
+    const retryQuery = await sign()
+    return get<T>(`${baseUrl}?${retryQuery}`, c).catch(() => {
+      throw err
+    })
+  }
 }
 
 // Returns the first page's cid for a video, needed to call the player subtitle endpoint.
