@@ -148,15 +148,6 @@ export function wireSwarmIpc(args: {
     return { sessionId }
   }
 
-  const analyzeEmail = async (
-    _e: Electron.IpcMainInvokeEvent,
-    input: import('@swarm/protocol').AnalyzeEmailInput
-  ): Promise<import('@swarm/protocol').AnalyzeEmailResult> => {
-    const injection = providers.getInjection()
-    if (!injection) return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
-    return serviceClient.analyzeEmail({ ...input, provider: injection })
-  }
-
   const analyzeThread = async (
     _e: Electron.IpcMainInvokeEvent,
     input: import('@swarm/protocol').AnalyzeThreadInput
@@ -269,7 +260,6 @@ export function wireSwarmIpc(args: {
       opts?: { agentType?: string }
     ) => serviceClient.forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts)
   )
-  ipcMain.handle('swarm:analyzeEmail', analyzeEmail)
   ipcMain.handle('swarm:analyzeThread', analyzeThread)
   ipcMain.handle('swarm:listSessions', () => listSessions())
   ipcMain.handle('swarm:getMessageEvents', getMessageEvents)
@@ -409,7 +399,6 @@ export function wireSwarmIpc(args: {
       unsubscribeAccent()
       ipcMain.removeHandler('swarm:createSession')
       ipcMain.removeHandler('swarm:forkSession')
-      ipcMain.removeHandler('swarm:analyzeEmail')
       ipcMain.removeHandler('swarm:analyzeThread')
       ipcMain.removeHandler('swarm:listSessions')
       ipcMain.removeHandler('swarm:getMessageEvents')

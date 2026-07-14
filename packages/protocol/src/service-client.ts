@@ -40,7 +40,6 @@ export type ServiceClient = {
     attachments?: import('./types/task').Attachment[],
     options?: import('./types/task').RunOptions
   ): Promise<{ messageId: string }>
-  analyzeEmail(req: import('./types/ui').AnalyzeEmailRequest): Promise<import('./types/ui').AnalyzeEmailResult>
   analyzeThread(req: import('./types/ui').AnalyzeThreadRequest): Promise<import('./types/ui').AnalyzeThreadResult>
   collectArticle(input: ArticleSource): Promise<CollectArticleResult>
   analyzeArticle(req: AnalyzeArticleRequest): Promise<AnalyzeArticleResult>
@@ -119,7 +118,6 @@ export function createServiceClient(cfg: {
       peer.call('forkToNewSession', [sourceSessionId, forkPointMessageId, newPrompt, opts]),
     submitPrompt: (sessionId, prompt, attachments, options) =>
       peer.call('submitPrompt', [sessionId, prompt, attachments, options]),
-    analyzeEmail: (req) => peer.call('analyzeEmail', [req]),
     analyzeThread: (req) => peer.call('analyzeThread', [req]),
     collectArticle: (input) => peer.call('collectArticle', [input]),
     analyzeArticle: (req) => peer.call('analyzeArticle', [req]),

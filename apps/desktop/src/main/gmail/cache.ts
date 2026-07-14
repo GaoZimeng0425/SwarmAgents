@@ -23,8 +23,6 @@ export type Cache = {
   threadMissingHtml(id: string): boolean
   // True total cached message count, regardless of the last poll's fetch volume.
   countMessages(): number
-  saveAnalysis(messageId: string, analysis: string): void
-  getAnalyses(threadId: string): Record<string, import('@swarm/protocol').GmailAnalysis>
   getThreadAnalysis(threadId: string): import('@swarm/protocol').GmailThreadAnalysis | null
   saveThreadAnalysis(threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload): void
   // Thread ids that already have a cached thread-level analysis — drives the
@@ -33,7 +31,7 @@ export type Cache = {
   // Flip a thread's cached unread flag (optimistic update after marking read on
   // the server). No-op if the thread isn't cached.
   setThreadUnread(threadId: string, unread: boolean): void
-  // Remove a thread and everything hanging off it (messages, analyses) — used
+  // Remove a thread and everything hanging off it (messages, thread analysis) — used
   // when a thread leaves INBOX (archived/trashed/deleted) elsewhere.
   deleteThread(threadId: string): void
   listRecent(input: { limit: number; label?: string }): GmailThread[]
@@ -60,9 +58,6 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(threadId);
 CREATE INDEX IF NOT EXISTS idx_messages_date ON messages(dateMs);
-CREATE TABLE IF NOT EXISTS analyses (
-  messageId TEXT PRIMARY KEY, analysis TEXT, updatedAt INTEGER
-);
 CREATE TABLE IF NOT EXISTS thread_analyses (
   threadId TEXT PRIMARY KEY, summary TEXT, todos TEXT, suggest TEXT, updatedAt INTEGER
 );
@@ -238,26 +233,6 @@ export function createCache(opts: { filePath: string }): Cache {
     return ids.map((id) => byId.get(id)).filter((t): t is GmailThread => t !== undefined)
   }
 
-  const upsertAnalysis = db.prepare(
-    `INSERT INTO analyses (messageId, analysis, updatedAt) VALUES (@messageId, @analysis, @updatedAt)
-     ON CONFLICT(messageId) DO UPDATE SET analysis=@analysis, updatedAt=@updatedAt`
-  )
-  const saveAnalysis: Cache['saveAnalysis'] = (messageId, analysis) => {
-    upsertAnalysis.run({ messageId, analysis, updatedAt: Date.now() })
-  }
-  const getAnalyses: Cache['getAnalyses'] = (threadId) => {
-    const rows = db
-      .prepare(
-        `SELECT a.messageId AS messageId, a.analysis AS analysis, a.updatedAt AS updatedAt
-         FROM analyses a JOIN messages m ON a.messageId = m.id
-         WHERE m.threadId = ?`
-      )
-      .all(threadId) as { messageId: string; analysis: string; updatedAt: number }[]
-    const out: Record<string, import('@swarm/protocol').GmailAnalysis> = {}
-    for (const r of rows) out[r.messageId] = { analysis: r.analysis, updatedAt: r.updatedAt }
-    return out
-  }
-
   // Thread-level analysis cache: todos stored as a JSON string (sqlite needs a
   // string for the array); getThreadAnalysis parses it back. Upsert keyed by
   // threadId so re-analysis replaces the prior row.
@@ -297,10 +272,8 @@ export function createCache(opts: { filePath: string }): Cache {
     setThreadUnreadStmt.run({ id: threadId, unread: unread ? 1 : 0 })
   }
 
-  // Delete analyses (keyed by messageId) before their messages, then the thread's
-  // messages, thread-level analysis, and the thread row — atomically.
+  // Delete the thread's messages, thread-level analysis, and the thread row — atomically.
   const deleteThreadTxn = db.transaction((threadId: string) => {
-    db.prepare('DELETE FROM analyses WHERE messageId IN (SELECT id FROM messages WHERE threadId = ?)').run(threadId)
     db.prepare('DELETE FROM messages WHERE threadId = ?').run(threadId)
     db.prepare('DELETE FROM thread_analyses WHERE threadId = ?').run(threadId)
     db.prepare('DELETE FROM threads WHERE id = ?').run(threadId)
@@ -317,8 +290,6 @@ export function createCache(opts: { filePath: string }): Cache {
     hasThread,
     threadMissingHtml,
     countMessages,
-    saveAnalysis,
-    getAnalyses,
     getThreadAnalysis,
     saveThreadAnalysis,
     analyzedThreadIds,

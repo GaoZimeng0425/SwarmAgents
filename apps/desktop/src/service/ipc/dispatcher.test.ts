@@ -18,7 +18,6 @@ const mcpDeps = () => ({
   getMcpStatus: vi.fn().mockReturnValue([]),
   setWebSearchConfig: vi.fn(),
   setBudgetConfig: vi.fn(),
-  analyzeEmail: vi.fn().mockReturnValue({ ok: true }),
   analyzeThread: vi.fn().mockReturnValue({ ok: true }),
   collectArticle: vi.fn().mockReturnValue({ ok: true, articleId: 'art-1' }),
   analyzeArticle: vi.fn().mockReturnValue({ ok: true }),

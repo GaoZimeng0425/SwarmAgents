@@ -5,7 +5,7 @@
 // = the selected thread's messages (getThread). The daemon broadcasts
 // gmail:stateChanged after every poll, so the list refetches live.
 import { useEffect, useMemo, useState } from 'react'
-import type { GmailAnalysis, GmailMessage, UIEvent } from '@swarm/protocol'
+import type { GmailMessage } from '@swarm/protocol'
 import {
   Button,
   Input,
@@ -20,7 +20,6 @@ import {
 } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Inbox, Loader2, MailOpen, RefreshCw, Search, Sparkles } from 'lucide-react'
-import { Streamdown } from 'streamdown'
 
 import { EmailHtml } from '@/components/email-html'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -411,77 +410,6 @@ function MessageCard({ m }: { m: GmailMessage }): React.JSX.Element {
         </pre>
       )}
     </article>
-  )
-}
-
-export function MessageAnalysis({
-  message,
-  cached,
-}: {
-  message: GmailMessage
-  cached?: GmailAnalysis
-}): React.JSX.Element {
-  const [phase, setPhase] = useState<'idle' | 'streaming' | 'done' | 'error'>(cached ? 'done' : 'idle')
-  const [text, setText] = useState<string>(cached?.analysis ?? '')
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    // Subscribe once per message; events for other message ids are ignored.
-    return window.swarm.subscribeEvents((e: UIEvent) => {
-      if (e.kind === 'gmail.analysisDelta' && e.messageId === message.id) {
-        setText((prev) => prev + e.text)
-        setPhase('streaming')
-      } else if (e.kind === 'gmail.analysisComplete' && e.messageId === message.id) {
-        setText(e.markdown)
-        setPhase('done')
-        void window.swarm.gmail.saveAnalysis(message.id, e.markdown)
-      } else if (e.kind === 'gmail.analysisError' && e.messageId === message.id) {
-        setError(e.error)
-        setPhase('error')
-      }
-    })
-  }, [message.id])
-
-  const analyze = (): void => {
-    if (!message.bodyText.trim()) return
-    setError(null)
-    setText('')
-    setPhase('streaming')
-    void window.swarm.analyzeEmail({
-      messageId: message.id,
-      subject: message.subject,
-      from: message.fromAddr,
-      content: message.bodyText,
-    })
-  }
-
-  return (
-    <div className="mt-3 rounded-md border border-border/40 bg-background/40 p-3">
-      {phase === 'idle' && (
-        <Button disabled={!message.bodyText.trim()} onClick={analyze} size="sm" variant="outline">
-          <Sparkles className="size-3.5" /> 分析
-        </Button>
-      )}
-      {phase === 'error' && (
-        <div className="flex items-center gap-2">
-          <span className="text-destructive text-xs">{error ?? '分析失败'}</span>
-          <Button onClick={analyze} size="sm" variant="outline">
-            重试
-          </Button>
-        </div>
-      )}
-      {(phase === 'streaming' || phase === 'done') && (
-        <div className="flex flex-col gap-2">
-          {phase === 'streaming' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
-          <Streamdown className="text-foreground/90 text-sm">{text}</Streamdown>
-          {phase === 'done' && (
-            <Button onClick={analyze} size="sm" variant="ghost">
-              ↻ 重新分析
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
   )
 }
 

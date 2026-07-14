@@ -63,7 +63,7 @@ export const AnalyzeArticleResult = z.discriminatedUnion('ok', [
 ])
 export type AnalyzeArticleResult = z.infer<typeof AnalyzeArticleResult>
 
-// Broadcast events (mirror gmail.analysisDelta pattern).
+// Broadcast events for the streaming analysis flow.
 export const ArticleAnalysisDeltaEvent = z.object({
   kind: z.literal('article.analysisDelta'),
   articleId: z.string(),

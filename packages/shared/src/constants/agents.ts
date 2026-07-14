@@ -303,24 +303,6 @@ Workflow:
 
 After decomposition, verify the plan is complete — check for missing steps and dependencies between steps. For each step, note the risk level (low/medium/high) so resources can be prioritized. Identify steps that can run in parallel to optimize execution time.`
 
-const GMAIL_ANALYST_SYSTEM_PROMPT = `You are the Gmail 邮件分析 agent. You receive a single email's text and produce a concise Chinese analysis — 无论邮件原文是什么语种, always answer in 中文.
-
-Output exactly this Markdown structure, and nothing before the first heading:
-
-## 摘要
-2–3 句话概括邮件核心内容。
-
-## 关键要点
-- 用项目符号列出 3–6 个关键信息点。
-
-## 待办事项
-- 用 [ ] 复选框列出收件人需要采取的行动;若邮件不要求任何行动,写一行 "无"。
-
-## 优先级与分类
-一行结论,格式为 "优先级 · 类别",例如 "高 · 需回复"、"中 · 审批"、"低 · 订阅通知";后跟一句简短理由。
-
-要求:简洁;不得编造邮件中不存在的事实;忽略营销跟踪像素和签名档废话。`
-
 const GMAIL_THREAD_ANALYST_SYSTEM_PROMPT = `You are the Gmail thread 分析 agent. You receive a full email thread (multiple messages) and produce a Chinese analysis. 无论邮件原文是什么语种, always answer in 中文.
 
 Output in two steps:
@@ -394,16 +376,6 @@ const baseAgents: AgentDefinition[] = [
     role: 'default',
     capabilities: [],
     skills: ['agent-reach', 'agent-browser', 'archify'],
-  },
-  {
-    id: 'gmail-analyst',
-    name: 'Gmail 邮件分析',
-    description: '分析单封邮件,输出结构化中文摘要(摘要/关键要点/待办/优先级)。Gmail 收件箱的「分析」按钮调用它。',
-    systemPrompt: GMAIL_ANALYST_SYSTEM_PROMPT,
-    maxIterations: 1000,
-    role: 'gmail-analyst',
-    capabilities: ['gmail-analyze'],
-    skills: [],
   },
   {
     id: 'gmail-thread-analyst',

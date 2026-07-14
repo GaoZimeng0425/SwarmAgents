@@ -47,23 +47,6 @@ import type {
   WorkbenchMutationResult,
 } from './workbench'
 
-/** Renderer→Main: analyze one email. Main injects the active provider before
- *  forwarding to the service, so the renderer never handles a provider here. */
-export type AnalyzeEmailInput = {
-  messageId: string
-  subject: string
-  from: string
-  content: string
-}
-
-/** Main→Service: the input plus the resolved active provider. */
-export type AnalyzeEmailRequest = AnalyzeEmailInput & { provider: ProviderInjection }
-
-export type AnalyzeEmailResult = { ok: true } | { ok: false; code: 'no_provider' | 'no_agent'; message: string }
-
-/** A cached analysis row, keyed by message id. */
-export type GmailAnalysis = { analysis: string; updatedAt: number }
-
 /** Renderer→Main: the thread to analyze (no provider — main injects it). */
 export type AnalyzeThreadInput = {
   threadId: string
@@ -97,9 +80,6 @@ export type UIEvent =
   | { kind: 'skills.changed'; ts: number; seq?: number }
   | { kind: 'agents.changed'; ts: number; seq?: number }
   | { kind: 'articles.changed'; ts: number; seq?: number }
-  | { kind: 'gmail.analysisDelta'; messageId: string; text: string; ts: number; seq?: number }
-  | { kind: 'gmail.analysisComplete'; messageId: string; markdown: string; ts: number; seq?: number }
-  | { kind: 'gmail.analysisError'; messageId: string; error: string; ts: number; seq?: number }
   | { kind: 'gmail.threadAnalysisDelta'; threadId: string; text: string; ts: number; seq?: number }
   | {
       kind: 'gmail.threadAnalysisComplete'
@@ -295,8 +275,6 @@ export type GmailBridge = {
   listRecent(input: { limit: number; label?: string }): Promise<GmailThread[]>
   getThread(id: string): Promise<{ thread: GmailThread; messages: GmailMessage[] } | null>
   search(query: string, limit: number): Promise<GmailThread[]>
-  saveAnalysis(messageId: string, analysis: string): Promise<void>
-  getAnalyses(threadId: string): Promise<Record<string, GmailAnalysis>>
   getThreadAnalysis(threadId: string): Promise<GmailThreadAnalysis | null>
   saveThreadAnalysis(threadId: string, analysis: ThreadAnalysisPayload): Promise<void>
   analyzedThreadIds(): Promise<string[]>
@@ -471,7 +449,6 @@ export type SwarmBridge = {
     attachments?: Attachment[],
     options?: RunOptions
   ): Promise<SubmitPromptResult>
-  analyzeEmail(input: AnalyzeEmailInput): Promise<AnalyzeEmailResult>
   analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
   cancelMessage(sessionId: string, messageId: string): Promise<void>
   promoteQueuedMessage(sessionId: string, messageId: string): Promise<void>

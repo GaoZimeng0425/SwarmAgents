@@ -25,7 +25,6 @@ import type { SessionService } from '../session/session-service'
 
 type DispatcherConfig = {
   service: SessionService
-  analyzeEmail(req: import('@swarm/protocol').AnalyzeEmailRequest): import('@swarm/protocol').AnalyzeEmailResult
   analyzeThread(req: import('@swarm/protocol').AnalyzeThreadRequest): import('@swarm/protocol').AnalyzeThreadResult
   collectArticle(input: import('@swarm/protocol').ArticleSource): import('@swarm/protocol').CollectArticleResult
   analyzeArticle(req: import('@swarm/protocol').AnalyzeArticleRequest): import('@swarm/protocol').AnalyzeArticleResult
@@ -96,10 +95,6 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
           import('@swarm/protocol').RunOptions | undefined,
         ]
         return service.submitPrompt(sessionId, prompt, attachments, undefined, options)
-      }
-      case 'analyzeEmail': {
-        const [req] = args as [import('@swarm/protocol').AnalyzeEmailRequest]
-        return cfg.analyzeEmail(req)
       }
       case 'analyzeThread': {
         const [req] = args as [import('@swarm/protocol').AnalyzeThreadRequest]

@@ -44,7 +44,6 @@ export type ServiceMethod =
   | 'listAllCronJobs'
   | 'listAllCronRuns'
   | 'cancelCronJob'
-  | 'analyzeEmail'
   | 'analyzeThread'
   | 'collectArticle'
   | 'analyzeArticle'

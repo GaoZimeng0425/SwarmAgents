@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ThreadAnalysisState } from '@/hooks/use-thread-analysis'
 import { swarmApi } from '@/lib/api'
 import { GmailAssistantCard } from './gmail-assistant-card'
-import { GmailInboxView, MessageAnalysis } from './gmail-inbox-view'
+import { GmailInboxView } from './gmail-inbox-view'
 
 function msg(overrides: Partial<{ id: string; subject: string; fromAddr: string; bodyText: string }> = {}) {
   return {
@@ -25,24 +25,6 @@ function msg(overrides: Partial<{ id: string; subject: string; fromAddr: string;
     labelIds: [],
     ...overrides,
   } as import('@swarm/protocol').GmailMessage
-}
-
-type AnalysisCb = (e: { kind: string; messageId?: string; text?: string; markdown?: string }) => void
-
-function mockSwarm(): { subscriber: { current: AnalysisCb | null }; analyzeEmail: ReturnType<typeof vi.fn> } {
-  const subscriber = { current: null as AnalysisCb | null }
-  const analyzeEmail = vi.fn().mockResolvedValue({ ok: true } as import('@swarm/protocol').AnalyzeEmailResult)
-  ;(window as unknown as { swarm: unknown }).swarm = {
-    analyzeEmail,
-    subscribeEvents: (cb: AnalysisCb) => {
-      subscriber.current = cb
-      return () => {
-        subscriber.current = null
-      }
-    },
-    gmail: { saveAnalysis: vi.fn().mockResolvedValue(undefined) },
-  } as unknown as typeof window.swarm
-  return { subscriber, analyzeEmail }
 }
 
 describe('GmailAssistantCard', () => {
@@ -122,26 +104,6 @@ describe('GmailAssistantCard', () => {
   })
 })
 
-// MessageAnalysis is no longer mounted in the inbox (replaced by the thread
-// assistant), but the component is kept for backward compatibility. These
-// tests guard that it still behaves correctly so any lingering import sites
-// keep working.
-describe('MessageAnalysis (backward-compat, unmounted)', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks()
-  })
-  afterEach(() => {
-    cleanup()
-  })
-
-  it('renders the cached analysis without calling analyzeEmail', async () => {
-    const { analyzeEmail } = mockSwarm()
-    render(<MessageAnalysis cached={{ analysis: '## 摘要\n缓存结果', updatedAt: 1 }} message={msg()} />)
-    await screen.findByText(/缓存结果/)
-    expect(analyzeEmail).not.toHaveBeenCalled()
-  })
-})
-
 // Analysis is manual: opening a thread never auto-fires analyzeThread. A cache
 // miss stays idle behind an "AI 分析" button; a cache hit shows the cached
 // summary with a "重新生成" re-run. Both the initial 分析 and the re-run call
@@ -197,7 +159,6 @@ describe('GmailInboxView manual analysis', () => {
         search: vi.fn().mockResolvedValue([]),
         getThreadAnalysis: (id: string) => getThreadAnalysis(id),
         saveThreadAnalysis,
-        getAnalyses: vi.fn().mockResolvedValue({}),
         analyzedThreadIds: vi.fn().mockResolvedValue([]),
         markThreadRead: vi.fn().mockResolvedValue(undefined),
         listInboxPage,

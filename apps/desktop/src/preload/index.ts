@@ -303,12 +303,6 @@ const gmail: GmailBridge = {
       messages: GmailMessage[]
     } | null>,
   search: (query: string, limit: number) => ipcRenderer.invoke('gmail:search', query, limit) as Promise<GmailThread[]>,
-  saveAnalysis: (messageId: string, analysis: string) =>
-    ipcRenderer.invoke('gmail:saveAnalysis', messageId, analysis) as Promise<void>,
-  getAnalyses: (threadId: string) =>
-    ipcRenderer.invoke('gmail:getAnalyses', threadId) as Promise<
-      Record<string, import('@swarm/protocol').GmailAnalysis>
-    >,
   getThreadAnalysis: (threadId: string) =>
     ipcRenderer.invoke('gmail:getThreadAnalysis', threadId) as Promise<GmailThreadAnalysis | null>,
   saveThreadAnalysis: (threadId: string, analysis: ThreadAnalysisPayload) =>
@@ -353,8 +347,6 @@ const calendar: CalendarBridge = {
 const swarm: SwarmBridge = {
   submitPrompt: (sessionId, prompt, attachments, options) =>
     ipcRenderer.invoke('swarm:submitPrompt', sessionId, prompt, attachments, options) as Promise<SubmitPromptResult>,
-  analyzeEmail: (input: import('@swarm/protocol').AnalyzeEmailInput) =>
-    ipcRenderer.invoke('swarm:analyzeEmail', input) as Promise<import('@swarm/protocol').AnalyzeEmailResult>,
   analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) =>
     ipcRenderer.invoke('swarm:analyzeThread', input) as Promise<import('@swarm/protocol').AnalyzeThreadResult>,
   cancelMessage: (sessionId, messageId) =>

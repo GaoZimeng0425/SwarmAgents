@@ -28,8 +28,6 @@ export type Service = {
   search(query: string, limit: number): ReturnType<Cache['search']>
   getThread(id: string): ReturnType<Cache['getThread']>
   listRecent(input: { limit: number; label?: string }): ReturnType<Cache['listRecent']>
-  saveAnalysis(messageId: string, analysis: string): void
-  getAnalyses(threadId: string): ReturnType<Cache['getAnalyses']>
   getThreadAnalysis(threadId: string): ReturnType<Cache['getThreadAnalysis']>
   saveThreadAnalysis(threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload): void
   analyzedThreadIds(): string[]
@@ -159,8 +157,6 @@ export async function createService(deps: ServiceDeps): Promise<Service> {
     search: (q, limit) => deps.cache.search(q, limit),
     getThread: (id) => deps.cache.getThread(id),
     listRecent: (input) => deps.cache.listRecent(input),
-    saveAnalysis: (messageId, analysis) => deps.cache.saveAnalysis(messageId, analysis),
-    getAnalyses: (threadId) => deps.cache.getAnalyses(threadId),
     getThreadAnalysis: (threadId) => deps.cache.getThreadAnalysis(threadId),
     saveThreadAnalysis: (threadId, analysis) => deps.cache.saveThreadAnalysis(threadId, analysis),
     analyzedThreadIds: () => deps.cache.analyzedThreadIds(),
