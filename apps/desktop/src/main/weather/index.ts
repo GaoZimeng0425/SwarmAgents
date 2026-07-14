@@ -20,7 +20,7 @@ export type WeatherHandle = {
 export async function initWeather(): Promise<WeatherHandle> {
   const filePath = paths.weather()
   const store = createStore({ filePath })
-  const service = await createService({ store })
+  const service = await createService({ store, cachePath: paths.weatherCache() })
   const wired = wireWeatherIpc({ service })
 
   return {

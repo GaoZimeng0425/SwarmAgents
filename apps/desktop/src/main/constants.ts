@@ -52,6 +52,10 @@ export const paths = {
   openrouterCatalog: () => join(app.getPath('userData'), 'openrouter-catalog.json'),
   webSearch: () => join(app.getPath('userData'), 'web-search.json'),
   weather: () => join(app.getPath('userData'), 'weather.json'),
+  // Persisted forecast cache so a window close/reopen (which destroys the
+  // renderer's React Query cache) doesn't force a fresh HTTP fetch within the
+  // disk TTL window. Separate file from weather.json (the config store).
+  weatherCache: () => join(app.getPath('userData'), 'weather-forecast.json'),
   budgets: () => join(app.getPath('userData'), 'budgets.json'),
   gmail: () => join(app.getPath('userData'), 'gmail.json'),
   gmailDb: () => join(app.getPath('userData'), 'gmail.db'),

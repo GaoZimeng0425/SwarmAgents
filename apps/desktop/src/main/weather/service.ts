@@ -4,8 +4,15 @@
 // coordinates (custom location > GPS > IP), checks the cache, then fetches the
 // hourly forecast plus supplementary products (warnings/indices/air/minutely) in
 // parallel. Every business path is logged per AGENTS.md §5.
+import { existsSync, promises as fs } from 'node:fs'
 import { createLogger } from '@shared/logger'
-import type { WeatherConfig, WeatherConfigOnDisk, WeatherConfigView, WeatherForecast } from '@swarm/protocol'
+import {
+  type WeatherConfig,
+  type WeatherConfigOnDisk,
+  type WeatherConfigView,
+  type WeatherForecast,
+  WeatherForecast as WeatherForecastSchema,
+} from '@swarm/protocol'
 
 import { geocodeCity, locateByIp, reverseGeocode } from './geo'
 import { fetchAir, fetchHourly, fetchIndices, fetchMinutely, fetchNow, fetchWarnings } from './qweather'
@@ -38,6 +45,11 @@ export type Service = {
 }
 
 const CACHE_TTL_MS = 30 * 60 * 1000
+// Disk cache TTL. Shorter than the in-memory TTL because the disk copy ignores
+// the coordinate key (single-user, single-location app): within this window a
+// window close/reopen or app restart serves the last forecast without a fresh
+// HTTP request. 10 min satisfies the "at least 10 min" freshness requirement.
+const DISK_CACHE_TTL_MS = 10 * 60 * 1000
 const round = (n: number): number => Math.round(n * 100) / 100
 
 function validateConfig(c: WeatherConfig): string | null {
@@ -54,13 +66,66 @@ function validateConfig(c: WeatherConfig): string | null {
   return null
 }
 
-export async function createService(opts: { store: Store }): Promise<Service> {
+export async function createService(opts: { store: Store; cachePath?: string }): Promise<Service> {
   const disk = await opts.store.load()
   let state: WeatherConfig = disk.weather
   const listeners = new Set<(c: WeatherConfigView) => void>()
 
   // Single-slot cache keyed by rounded "lng,lat".
   let cache: { key: string; forecast: WeatherForecast } | null = null
+
+  // --- Disk cache helpers ---
+  // The on-disk forecast cache outlives a window close/reopen (which destroys
+  // the renderer's React Query cache) and a full app restart (which clears the
+  // in-memory cache). It ignores the coordinate key — a single-user app only
+  // has one active location, so the latest forecast is a valid stand-in within
+  // the disk TTL window. Loaded once at startup; kept in sync on every fetch.
+
+  /** Best-effort load of the persisted forecast into the in-memory cache slot. */
+  async function loadDiskCache(): Promise<void> {
+    const { cachePath } = opts
+    if (!cachePath || !existsSync(cachePath)) return
+    try {
+      const parsed = JSON.parse(await fs.readFile(cachePath, 'utf8'))
+      const checked = WeatherForecastSchema.safeParse(parsed)
+      if (!checked.success) {
+        log.warn({ msg: 'weather disk cache unparseable, ignoring' })
+        return
+      }
+      if (Date.now() - checked.data.fetchedAt >= DISK_CACHE_TTL_MS) {
+        log.info({ msg: 'weather disk cache expired on load' })
+        return
+      }
+      const key = `${round(checked.data.lng)},${round(checked.data.lat)}`
+      cache = { key, forecast: checked.data }
+      log.info({ msg: 'weather disk cache loaded', fetchedAt: checked.data.fetchedAt })
+    } catch (e) {
+      log.warn({ msg: 'weather disk cache load failed', err: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
+  /** Atomic write tmp → rename, validated before writing. Fire-and-forget. */
+  function persistForecastDisk(forecast: WeatherForecast): void {
+    const { cachePath } = opts
+    if (!cachePath) return
+    WeatherForecastSchema.parse(forecast)
+    const tmp = `${cachePath}.tmp`
+    fs.writeFile(tmp, `${JSON.stringify(forecast)}\n`)
+      .then(() => fs.rename(tmp, cachePath))
+      .then(() => log.debug({ msg: 'weather disk cache written' }))
+      .catch((e) =>
+        log.warn({ msg: 'weather disk cache write failed', err: e instanceof Error ? e.message : String(e) })
+      )
+  }
+
+  /** Remove the persisted forecast (config change / sign-out). */
+  function clearDiskCache(): void {
+    const { cachePath } = opts
+    if (!cachePath) return
+    fs.unlink(cachePath).catch(() => undefined)
+  }
+
+  await loadDiskCache()
 
   // GeoAPI result caches. Unlike the forecast cache, these never expire on a
   // time basis: a city's coordinates and a coordinate's city name are stable
@@ -82,7 +147,8 @@ export async function createService(opts: { store: Store }): Promise<Service> {
       return { ok: false, code: 'persist_failed', message: e instanceof Error ? e.message : String(e) }
     }
     state = next.weather
-    cache = null // config changed → invalidate
+    cache = null // config changed → invalidate in-memory
+    clearDiskCache() // …and persisted forecast
     emit()
     return { ok: true }
   }
@@ -188,6 +254,17 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         return cache.forecast
       }
 
+      // In-memory miss (new process, or a coordinate key that doesn't match the
+      // rounded GPS jitter): fall back to the disk cache within its TTL window.
+      // The disk copy ignores the coordinate key — a single-user app only has
+      // one active location, so the last forecast is a valid stand-in for 10 min.
+      // Guarded on cachePath: without a disk store this is just an in-memory
+      // process, and a genuine coordinate change should fetch, not serve stale.
+      if (opts.cachePath && cache && Date.now() - cache.forecast.fetchedAt < DISK_CACHE_TTL_MS) {
+        log.warn({ msg: 'weather disk cache hit', ageMs: Date.now() - cache.forecast.fetchedAt })
+        return cache.forecast
+      }
+
       const started = Date.now()
       log.info({ msg: 'weather fetch', lng: coordLng, lat: coordLat, source })
       try {
@@ -221,6 +298,7 @@ export async function createService(opts: { store: Store }): Promise<Service> {
         ])
         const forecast = { ...core, warnings, indices, air, minutely, now }
         cache = { key, forecast }
+        persistForecastDisk(forecast)
         log.info({
           msg: 'weather fetched',
           durationMs: Date.now() - started,
