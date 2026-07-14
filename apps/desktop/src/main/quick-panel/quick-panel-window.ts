@@ -14,7 +14,8 @@ const isMac = process.platform === 'darwin'
 let panelRef: BrowserWindow | null = null
 
 const PANEL_WIDTH = 640
-const PANEL_HEIGHT_INITIAL = 96
+const PANEL_HEIGHT_INITIAL = 400
+const PANEL_HEIGHT_MAX = 600
 
 export function createQuickPanelWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -104,7 +105,7 @@ export function toggleQuickPanel(): void {
 export function resizeQuickPanel(height: number): void {
   const win = getQuickPanelWindow()
   if (!win) return
-  const clamped = Math.max(PANEL_HEIGHT_INITIAL, Math.min(height, 480))
+  const clamped = Math.max(PANEL_HEIGHT_INITIAL, Math.min(height, PANEL_HEIGHT_MAX))
   const [w] = win.getSize()
   win.setSize(w, clamped, false)
   log.debug({ msg: 'panel resized', height: clamped })

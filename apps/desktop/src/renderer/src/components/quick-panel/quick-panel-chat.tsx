@@ -1,15 +1,18 @@
 // Chat mode mini-session. On first Enter: creates a session + submits the
 // prompt. Subsequent Enter appends to the same session. Streaming is driven by
 // the shared MESSAGES_KEY query cache (updated by EventsBridge's swarm:event
-// subscription). Esc closes the panel.
+// subscription). Esc closes the panel; Backspace on empty input returns to
+// palette mode (Raycast-style).
 //
 // Text extraction: MessageRecord has no content/role fields. We reuse
 // taskSegments() (the same pure function the main thread uses) to extract
 // user/assistant text segments from task.events[]. Only user + assistant
 // segments are rendered; tool/reasoning/error segments are skipped for the
-// mini view.
+// mini view. Rendering uses the same Message/MessageContent/MessageResponse
+// components as the main conversation thread for visual consistency.
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
 import { useMessages } from '@/hooks/use-messages'
 import { swarmApi } from '@/lib/api'
 import { taskSegments } from '@/lib/task-segments'
@@ -26,7 +29,7 @@ type Bubble = {
   text: string
 }
 
-export function QuickPanelChat(): React.JSX.Element {
+export function QuickPanelChat({ onBack }: { onBack: () => void }): React.JSX.Element {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -80,9 +83,9 @@ export function QuickPanelChat(): React.JSX.Element {
     }
   }, [tasks])
 
-  // Resize the panel to fit content (grows with bubbles, capped at 480 by main).
+  // Resize the panel to fit content (grows with bubbles, capped at 600 by main).
   useEffect(() => {
-    const height = Math.min(96 + bubbles.length * 60, 480)
+    const height = Math.min(400 + bubbles.length * 60, 600)
     void swarmApi.quickPanelResize(height)
   }, [bubbles.length])
 
@@ -118,6 +121,10 @@ export function QuickPanelChat(): React.JSX.Element {
     if (e.key === 'Escape') {
       e.preventDefault()
       void swarmApi.quickPanelHide()
+    } else if (e.key === 'Backspace' && input === '') {
+      // Raycast-style: Backspace on empty input returns to the previous view.
+      e.preventDefault()
+      onBack()
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       void handleSubmit()
@@ -126,20 +133,22 @@ export function QuickPanelChat(): React.JSX.Element {
 
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-popover/82 backdrop-blur-[40px]">
-      {/* Message list */}
+      {/* Message list — uses the same Message/MessageContent/MessageResponse
+          components as the main conversation thread for visual consistency. */}
       <div className="cmdscroll min-h-0 flex-1 overflow-y-auto px-4 py-3" ref={scrollRef}>
         {bubbles.length === 0 && (
           <div className="py-8 text-center text-muted-foreground text-sm">输入消息开始对话…</div>
         )}
         {bubbles.map((b) => (
-          <div className="mb-3" key={b.key}>
-            <div className="mb-0.5 text-muted-foreground text-xs">{b.role === 'user' ? '你' : 'Agent'}</div>
-            <div
-              className={`whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm ${b.role === 'user' ? 'bg-primary/10' : 'bg-muted/40'}`}
-            >
-              {b.text || (isStreaming && b.role === 'assistant' ? '…' : '')}
-            </div>
-          </div>
+          <Message className="group mb-3" from={b.role === 'user' ? 'user' : 'assistant'} key={b.key}>
+            <MessageContent>
+              {b.role === 'assistant' ? (
+                <MessageResponse>{b.text || (isStreaming ? '…' : '')}</MessageResponse>
+              ) : (
+                <span className="whitespace-pre-wrap">{b.text}</span>
+              )}
+            </MessageContent>
+          </Message>
         ))}
       </div>
 
@@ -150,7 +159,7 @@ export function QuickPanelChat(): React.JSX.Element {
           disabled={isStreaming}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={isStreaming ? 'Agent 正在回复…' : '输入消息,Enter 发送,Esc 关闭…'}
+          placeholder={isStreaming ? 'Agent 正在回复…' : '输入消息,Enter 发送,⌫ 返回…'}
           ref={inputRef}
           value={input}
         />

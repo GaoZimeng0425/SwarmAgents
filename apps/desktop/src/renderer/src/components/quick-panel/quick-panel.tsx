@@ -63,7 +63,7 @@ export function QuickPanel(): React.JSX.Element {
   const state = useQuickPanelState({ inputs, cb })
 
   // Resize the panel to fit palette results. Each result row is ~32px; the
-  // input is ~52px. The cap at 480 is enforced by main's resizeQuickPanel.
+  // input is ~52px. Grow with results, capped at PANEL_HEIGHT_MAX (600).
   useEffect(() => {
     if (state.mode !== 'palette') return
     const inputHeight = 52
@@ -73,7 +73,7 @@ export function QuickPanel(): React.JSX.Element {
   }, [state.mode, state.flat.length])
 
   if (state.mode === 'chat') {
-    return <QuickPanelChat />
+    return <QuickPanelChat onBack={state.backToPalette} />
   }
 
   return (

@@ -45,6 +45,7 @@ export type QuickPanelState = {
   showSlashList: boolean
   slashItems: SlashCommand[]
   pickSlashCommand: (cmd: SlashCommand) => void
+  backToPalette: () => void
 }
 
 export function useQuickPanelState(args: { inputs: BuildInputs; cb: Callbacks }): QuickPanelState {
@@ -76,6 +77,11 @@ export function useQuickPanelState(args: { inputs: BuildInputs; cb: Callbacks })
       setMode('chat')
       setQuery('')
     }
+  }
+
+  const backToPalette = (): void => {
+    setMode('palette')
+    setQuery('')
   }
 
   const onKeyDown = (e: React.KeyboardEvent): void => {
@@ -122,5 +128,6 @@ export function useQuickPanelState(args: { inputs: BuildInputs; cb: Callbacks })
     showSlashList,
     slashItems,
     pickSlashCommand,
+    backToPalette,
   }
 }
