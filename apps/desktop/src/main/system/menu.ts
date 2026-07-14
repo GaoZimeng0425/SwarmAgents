@@ -41,12 +41,16 @@ export function setupMenu(args: { onOpenSettings: () => void }): void {
     submenu: [{ role: 'toggleDevTools' }],
   }
 
-  const template: Electron.MenuItemConstructorOptions[] = [
-    appMenu,
-    { role: 'editMenu' },
-    viewMenu,
-    { role: 'windowMenu' },
-  ]
+  // Explicit Window submenu. The `{ role: 'windowMenu' }` shorthand omits a
+  // Close entry on macOS, so Cmd+W has no binding and the focused window can't
+  // be closed via keyboard. Declare Close (Cmd+W) + Minimize + Zoom explicitly
+  // so the standard shortcuts are wired up.
+  const windowMenu: Electron.MenuItemConstructorOptions = {
+    label: 'Window',
+    submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close' }, { type: 'separator' }, { role: 'front' }],
+  }
+
+  const template: Electron.MenuItemConstructorOptions[] = [appMenu, { role: 'editMenu' }, viewMenu, windowMenu]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }

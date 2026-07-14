@@ -26,7 +26,7 @@ import { initTrending } from './trending'
 import { wireTrendingResearchIpc } from './trending/ipc'
 import { initWeather } from './weather'
 import { initWebSearch } from './web-search'
-import { createMainWindow } from './windows/main-window'
+import { createMainWindow, getMainWindow } from './windows/main-window'
 import { openSettings } from './windows/open-settings'
 import { initWorkbench } from './workbench'
 
@@ -236,9 +236,20 @@ app.whenReady().then(async () => {
   if (initialDeepLink) handleDeepLink(initialDeepLink)
 
   app.on('activate', () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+    // On macOS, clicking the dock icon should show/focus the main window — or
+    // recreate it if it was closed. Counting all windows breaks here: the
+    // quick-panel is a long-lived hidden window that is never destroyed, so
+    // getAllWindows().length is always ≥ 1 even after the main window closes,
+    // leaving the dock icon unable to reopen the app. Check the main window
+    // specifically: show+focus if it exists, recreate if not.
+    const main = getMainWindow()
+    if (main) {
+      if (main.isMinimized()) main.restore()
+      main.show()
+      main.focus()
+    } else {
+      createMainWindow()
+    }
   })
 })
 
