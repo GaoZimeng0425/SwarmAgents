@@ -1,7 +1,7 @@
 // apps/desktop/src/renderer/src/lib/workspace/build-artifacts.ts
 // Pure builder: aggregates artifacts from two sources — file paths extracted from
-// the session's tool_call args (best-effort heuristic) + bilibili analyses from
-// listArtifacts.
+// the session's tool_call events (write_file/edit_file/shell redirects + MCP
+// heuristic) + bilibili analyses from listArtifacts.
 
 import type { MessageRecord } from '@shared/lib/apply-event'
 import type { ArtifactEntry } from '@swarm/protocol'
@@ -46,14 +46,59 @@ function extractPathsFromArgs(args: unknown): string[] {
   return out
 }
 
+// Extract file-output targets from a shell command string: redirect targets
+// (> / >>), and the destination operand of cp/mv/install/tee. Relative targets
+// are resolved against cwd when available so the row ref is absolute.
+function extractShellTargets(command: string, cwd?: string): string[] {
+  const targets: string[] = []
+
+  // Redirect: > file / >> file
+  for (const m of command.matchAll(/>>?\s*(\S+)/g)) {
+    targets.push(m[1])
+  }
+
+  // cp/mv/install <flags> <src> <dst> — the last operand is the destination.
+  const cpMv = command.match(/\b(?:cp|mv|install)\s+(?:-\S+\s+)*(\S+)\s+(\S+)/)
+  if (cpMv) targets.push(cpMv[2])
+
+  // tee <flags> file
+  const tee = command.match(/\btee\s+(?:-\S+\s+)*(\S+)/)
+  if (tee) targets.push(tee[1])
+
+  // Keep only targets with a file extension, then resolve against cwd.
+  return targets
+    .filter((t) => hasExtension(t))
+    .map((t) => {
+      if (t.startsWith('/')) return t
+      return cwd ? `${cwd.replace(/\/$/, '')}/${t}` : t
+    })
+}
+
 /** Aggregate session-extracted file outputs + bilibili analyses, deduplicated. */
-export function buildArtifacts(messages: MessageRecord[], cwdArtifacts: ArtifactEntry[]): ArtifactRow[] {
+export function buildArtifacts(messages: MessageRecord[], cwdArtifacts: ArtifactEntry[], cwd?: string): ArtifactRow[] {
   const seen = new Set<string>()
   const sessionRows: ArtifactRow[] = []
   for (const message of messages) {
     for (const e of message.events) {
-      if (e.kind !== 'message.tool_call') continue
-      for (const p of extractPathsFromArgs((e as { args: unknown }).args)) {
+      // Tool calls ride inside message.progress as a nested tool.call TaskEvent
+      // (translator.ts wraps them there — the top-level message.tool_call kind
+      // was never emitted and has been removed from the protocol).
+      if (e.kind !== 'message.progress') continue
+      const ev = e.event
+      if (ev.kind !== 'tool.call') continue
+
+      const tool = ev.tool
+      const args = (ev as { args: unknown }).args
+
+      // Only run_shell needs special parsing — its command string hides paths
+      // from the generic extractor. Every other tool (fs, MCP, …) exposes
+      // path-like values in args directly.
+      const paths =
+        tool === 'run_shell'
+          ? extractShellTargets((args as { command?: string }).command ?? '', cwd)
+          : extractPathsFromArgs(args)
+
+      for (const p of paths) {
         const norm = normalizePath(p)
         if (seen.has(norm)) continue
         seen.add(norm)

@@ -83,14 +83,15 @@ function planSteps(plan: PlanTodo[] | undefined): string | null {
 
 // The message's most recent tool call, formatted as a one-line activity hint
 // (`"${tool} ${arg}"`, e.g. `Bash pnpm vitest auth.test.ts`). Scans events
-// newest-first for the last `message.tool_call`; returns null when the message
-// hasn't invoked a tool yet. Pure — the card renders it verbatim (with a ▸ prefix).
+// newest-first for the last tool.call inside a message.progress; returns null
+// when the message hasn't invoked a tool yet. Pure — the card renders it
+// verbatim (with a ▸ prefix).
 export function latestActivity(events: UIEvent[]): string | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i]
-    if (e.kind === 'message.tool_call') {
-      const hint = toolArgHint(e.args)
-      return hint ? `${e.tool} ${hint}` : e.tool
+    if (e.kind === 'message.progress' && e.event.kind === 'tool.call') {
+      const hint = toolArgHint(e.event.args)
+      return hint ? `${e.event.tool} ${hint}` : e.event.tool
     }
   }
   return null

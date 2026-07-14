@@ -70,20 +70,19 @@ describe('hook dispatcher', () => {
     }
   })
 
-  it('fires PostToolUse on run.tool_call', async () => {
+  it('fires PostToolUse on message.progress wrapping a tool.call', async () => {
     const out = join(tmpdir(), `swarm-hooks-ptu-${Date.now()}.json`)
     const { dispatch, cleanup } = setup({
       PostToolUse: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
     })
     try {
-      dispatch('message.tool_call', {
-        kind: 'message.tool_call',
+      dispatch('message.progress', {
+        kind: 'message.progress',
         sessionId: 's',
         messageId: 'r',
-        tool: 'run_shell',
-        args: {},
         seq: 1,
         ts: 1,
+        event: { kind: 'tool.call', server: 'agent', tool: 'run_shell', args: {}, ts: 1 },
       })
       await waitForOutfile(out)
       expect(JSON.parse(readFileSync(out, 'utf8')).event).toBe('PostToolUse')

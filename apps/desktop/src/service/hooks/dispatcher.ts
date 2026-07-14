@@ -21,7 +21,7 @@ const MAX_OUTPUT = 16_000
 // SubagentStop based on whether the message is a child (has parentMessageId). Verified
 // against the official hook reference (code.claude.com/docs/en/hooks):
 //   - UserPromptSubmit: "user submits a prompt"        → message.created (turn)
-//   - PostToolUse:      "after a tool is called"        → message.tool_call
+//   - PostToolUse:      "after a tool is called"        → message.progress (tool.call)
 //   - Notification:     "requires user attention"       → message.permission_request
 //   - PermissionRequest:"a permission request is made"  → message.permission_request
 //   - Stop:             "Claude finishes responding"    → terminal of a top-level message
@@ -31,7 +31,6 @@ const MAX_OUTPUT = 16_000
 // PreCompact, …) are intentionally NOT mapped — see docs/design notes.
 const MESSAGE_KIND_TO_CLAUDE: Record<string, (ctx: { parentMessageId?: string }) => string[]> = {
   'message.created': () => ['UserPromptSubmit'],
-  'message.tool_call': () => ['PostToolUse'],
   'message.permission_request': () => ['Notification', 'PermissionRequest'],
   'message.spawned': () => ['SubagentStart'],
   'message.complete': (ctx) => [ctx.parentMessageId ? 'SubagentStop' : 'Stop'],
@@ -43,13 +42,6 @@ export type HookDispatcher = (eventName: string, payload: unknown) => void
 export function createHookDispatcher(opts: { store: HooksStore }): HookDispatcher {
   const { store } = opts
   return (eventName, payload) => {
-    // eventName here is the internal message.* kind; resolve the Claude names it
-    // should trigger. Terminal kinds route to Stop vs SubagentStop via the
-    // parentMessageId-aware mapper below.
-    const mapFor = MESSAGE_KIND_TO_CLAUDE[eventName]
-    if (!mapFor) return
-
-    const config: HooksFile = store.get()
     const obj = (payload && typeof payload === 'object' ? { ...(payload as Record<string, unknown>) } : {}) as {
       sessionId?: string
       messageId?: string
@@ -58,9 +50,26 @@ export function createHookDispatcher(opts: { store: HooksStore }): HookDispatche
       ts?: number
       kind?: string
     }
-    const claudeNames = mapFor({ parentMessageId: obj.parentMessageId })
+
+    // Tool calls ride inside message.progress as a nested tool.call TaskEvent.
+    // PostToolUse fires on tool.call — not on every progress event.
+    let claudeNames: string[]
+    if (eventName === 'message.progress') {
+      const event = (obj as { event?: { kind?: string } }).event
+      if (event?.kind !== 'tool.call') return
+      claudeNames = ['PostToolUse']
+    } else {
+      // eventName here is the internal message.* kind; resolve the Claude names it
+      // should trigger. Terminal kinds route to Stop vs SubagentStop via the
+      // parentMessageId-aware mapper below.
+      const mapFor = MESSAGE_KIND_TO_CLAUDE[eventName]
+      if (!mapFor) return
+      claudeNames = mapFor({ parentMessageId: obj.parentMessageId })
+    }
+
     if (claudeNames.length === 0) return
 
+    const config: HooksFile = store.get()
     for (const claudeName of claudeNames) {
       const matchers = config[claudeName]
       if (!matchers || matchers.length === 0) continue

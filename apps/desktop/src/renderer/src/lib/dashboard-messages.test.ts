@@ -101,13 +101,12 @@ describe('selectDashboardMessages', () => {
 
 const toolCall = (tool: string, args: unknown, seq: number): MessageRecord['events'][number] =>
   ({
-    kind: 'message.tool_call',
+    kind: 'message.progress',
     sessionId: 's1',
     messageId: '1',
     seq,
     ts: seq,
-    tool,
-    args,
+    event: { kind: 'tool.call', server: 'agent', tool, args, ts: seq },
   }) as MessageRecord['events'][number]
 
 describe('latestActivity', () => {
