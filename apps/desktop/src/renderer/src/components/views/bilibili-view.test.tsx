@@ -19,6 +19,11 @@ beforeEach(() => {
   // Local archive/pins have no login gate and load on mount; stub them empty.
   vi.spyOn(swarmApi, 'bilibiliArchiveList').mockResolvedValue([])
   vi.spyOn(swarmApi, 'bilibiliPinsList').mockResolvedValue([])
+  // The detail panel calls window.swarm.subscribeEvents on mount; stub a no-op
+  // unsubscribe so it doesn't touch the absent preload bridge.
+  ;(globalThis as unknown as { window: Window }).window.swarm = {
+    subscribeEvents: vi.fn().mockReturnValue(() => {}),
+  } as unknown as typeof window.swarm
 })
 
 function wrap(node: React.ReactElement): React.ReactElement {

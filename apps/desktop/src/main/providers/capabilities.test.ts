@@ -45,6 +45,7 @@ describe('modelThinkingLevels', () => {
       'medium',
       'high',
       'xhigh',
+      'max',
     ])
   })
 })

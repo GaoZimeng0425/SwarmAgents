@@ -172,9 +172,9 @@ describe('delegate tree — CEO delegates two children over the real delegate to
 
     const allEvents = store.getMessageEvents(sessionId)
 
-    // (d) every persisted event kind starts with `run.` — no task.* leakage.
+    // (d) every persisted event kind starts with `message.` — no task.* leakage.
     for (const row of allEvents) {
-      expect((row.event as { kind: string }).kind.startsWith('run.')).toBe(true)
+      expect((row.event as { kind: string }).kind.startsWith('message.')).toBe(true)
     }
 
     // (a) both children's run.created carry parentMessageId = the CEO's messageId.

@@ -40,8 +40,16 @@ describe('ws server', () => {
     }
   })
 
-  it('rejects a second peer while one is connected', async () => {
-    const r = await startWsServer({ port: 0, token: 'tok', onPeer: () => {}, log: console })
+  it('accepts a second peer (multi-peer host: phone + browser extension)', async () => {
+    let peers = 0
+    const r = await startWsServer({
+      port: 0,
+      token: 'tok',
+      onPeer: () => {
+        peers++
+      },
+      log: console,
+    })
     try {
       const first = new WebSocket(`ws://127.0.0.1:${r.port}`, 'swarm.tok')
       await new Promise((res, rej) => {
@@ -49,9 +57,13 @@ describe('ws server', () => {
         first.once('error', rej)
       })
       const second = new WebSocket(`ws://127.0.0.1:${r.port}`, 'swarm.tok')
-      const code = await new Promise<number>((res) => second.once('close', (c) => res(c)))
-      expect(code).toBe(1008)
+      await new Promise((res, rej) => {
+        second.once('open', res)
+        second.once('error', rej)
+      })
+      expect(peers).toBe(2)
       first.close()
+      second.close()
     } finally {
       r.close()
     }

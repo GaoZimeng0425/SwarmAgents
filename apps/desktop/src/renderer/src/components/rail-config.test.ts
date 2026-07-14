@@ -5,6 +5,8 @@ import {
   MessageSquare,
   Network,
   Newspaper,
+  Rocket,
+  Sparkles,
   TrendingUp,
   Video,
 } from 'lucide-react'
@@ -25,8 +27,8 @@ describe('RAIL_SECTIONS', () => {
 
   it('services list matches the design in order with the right icons', () => {
     const services = RAIL_SECTIONS[1].items
-    expect(services.map((i) => i.label)).toEqual(['Gmail', 'GitHub 趋势', 'Bilibili', '文章'])
-    expect(services.map((i) => i.icon)).toEqual([Mail, TrendingUp, Video, Newspaper])
+    expect(services.map((i) => i.label)).toEqual(['Gmail', 'GitHub 趋势', 'Bilibili', '文章', '工作面板', '玻璃主题'])
+    expect(services.map((i) => i.icon)).toEqual([Mail, TrendingUp, Video, Newspaper, Rocket, Sparkles])
   })
 
   it('routes every route item to its expected path with the expected match mode (formations included, no automation/usage)', () => {
@@ -42,6 +44,8 @@ describe('RAIL_SECTIONS', () => {
       { key: 'trending', to: '/trending', match: 'exact' },
       { key: 'bilibili', to: '/bilibili', match: 'exact' },
       { key: 'article', to: '/articles', match: 'exact' },
+      { key: 'workbench', to: '/workbench', match: 'exact' },
+      { key: 'glass', to: '/glass', match: 'exact' },
     ])
   })
 
