@@ -23,13 +23,23 @@ function seed(status: MessageRecord['status'], over: Partial<MessageRecord> = {}
 
 describe('applyEvent', () => {
   it('creates a message on message.created', () => {
-    const next = applyEvent([], { kind: 'message.created', ...baseEvent, prompt: 'do x' })
+    const next = applyEvent([], { kind: 'message.created', ...baseEvent })
     expect(next).toHaveLength(1)
-    expect(next[0]).toMatchObject({ id: 't1', prompt: 'do x', status: 'pending' })
+    expect(next[0]).toMatchObject({ id: 't1', prompt: '', status: 'pending' })
+  })
+
+  it('backfills prompt from the role:user progress event', () => {
+    const created = applyEvent([], { kind: 'message.created', ...baseEvent })
+    const next = applyEvent(created, {
+      kind: 'message.progress',
+      ...baseEvent,
+      event: { kind: 'llm.message', role: 'user', content: 'do x', ts: 1 },
+    })
+    expect(next[0].prompt).toBe('do x')
   })
 
   it('stamps order from e.seq on message.created', () => {
-    const next = applyEvent([], { kind: 'message.created', ...baseEvent, seq: 42, prompt: 'do x' })
+    const next = applyEvent([], { kind: 'message.created', ...baseEvent, seq: 42 })
     expect(next[0].order).toBe(42)
   })
 
@@ -38,7 +48,6 @@ describe('applyEvent', () => {
       kind: 'message.created',
       ...baseEvent,
       parentMessageId: 'parent-1',
-      prompt: 'sub goal',
       agentDefId: 'researcher',
     })
     expect(next[0]).toMatchObject({ id: 't1', parentMessageId: 'parent-1', agentDefId: 'researcher' })
@@ -130,7 +139,7 @@ describe('applyEvent', () => {
   })
 
   it('stamps sessionId onto the created record', () => {
-    const out = applyEvent([], { kind: 'message.created', ...baseEvent, prompt: 'g' })
+    const out = applyEvent([], { kind: 'message.created', ...baseEvent })
     expect(out[0].sessionId).toBe('ses-1')
   })
 

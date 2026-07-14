@@ -65,11 +65,6 @@ export function buildSegments(events: UIEvent[]): Segment[] {
   for (const evt of events) {
     const wire = evt as MessageWireEvent
 
-    if (wire.kind === 'message.created') {
-      out.push({ kind: 'user', text: wire.prompt, key: nextKey(), ts: wire.ts })
-      continue
-    }
-
     if (wire.kind === 'message.progress') {
       const taskEvt = wire.event as TaskEvent
 
@@ -129,7 +124,6 @@ export function buildSegments(events: UIEvent[]): Segment[] {
     if (wire.kind === 'message.error') {
       const label = wire.error.code === 'cancelled' ? 'stopped' : 'error'
       out.push({ kind: 'error', label, detail: wire.error.message, key: nextKey(), ts: wire.ts })
-      continue
     }
 
     // message.complete, message.dispatched, message.usage, message.plan,

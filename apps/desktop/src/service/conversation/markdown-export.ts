@@ -5,8 +5,8 @@
 //
 // Data shape: each MessageEvent's `event` is a UIEvent. The transcript content
 // (llm.message / tool.call / reasoning / error) lives INSIDE message.progress
-// events as a TaskEvent payload (`event.event`). message.tool_call / message.error /
-// message.complete are also rendered at the message level. Pure; unit-tested.
+// events as a TaskEvent payload (`event.event`). message.error / message.complete
+// are also rendered at the message level. Pure; unit-tested.
 
 import type { MessageEvent, TaskEvent, UIEvent } from '@swarm/protocol'
 
@@ -28,8 +28,14 @@ export function buildMarkdown(rows: MessageEvent[]): string {
       order.push(r.messageId)
       parentOf.set(r.messageId, r.parentMessageId)
     }
-    // Capture the prompt from message.created for the section heading.
-    if (r.event.kind === 'message.created') promptByRun.set(r.messageId, r.event.prompt)
+    // Capture the prompt from the role:'user' progress event for the section
+    // heading (message.created no longer carries the prompt).
+    if (r.event.kind === 'message.progress' && r.event.event.kind === 'llm.message' && r.event.event.role === 'user') {
+      promptByRun.set(
+        r.messageId,
+        typeof r.event.event.content === 'string' ? r.event.event.content : JSON.stringify(r.event.event.content)
+      )
+    }
     byRun.get(r.messageId)!.push(r)
   }
 
@@ -71,8 +77,6 @@ function renderEvent(e: UIEvent): string[] {
   switch (e.kind) {
     case 'message.progress':
       return renderTaskEvent(e.event)
-    case 'message.tool_call':
-      return ['```json', truncate(`tool: ${e.tool}\nargs: ${stringify(e.args)}`), '```']
     case 'message.error':
       return [`> ⚠️ ${e.error.message} (${e.error.code})`]
     case 'message.complete':

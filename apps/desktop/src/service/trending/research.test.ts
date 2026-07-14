@@ -84,7 +84,7 @@ describe('createResearchRepo broadcast', () => {
       // completion (the fix that mirrors gmail analyze-thread).
       ports.emit.broadcast({
         kind: 'message.progress',
-        event: { kind: 'llm.message', content: '## 简报\n这是一个终端 agent。' },
+        event: { kind: 'llm.message', role: 'assistant', content: '## 简报\n这是一个终端 agent。' },
       })
       ports.emit.broadcast({
         kind: 'message.progress',

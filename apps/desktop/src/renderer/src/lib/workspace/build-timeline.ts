@@ -20,21 +20,18 @@ export type TimelineRow = {
 const KEEP: Record<string, TimelineKind | undefined> = {
   'message.created': 'start',
   'message.dispatched': 'dispatch',
-  'message.tool_call': 'tool',
   'message.permission_request': 'permission',
   'message.complete': 'complete',
   'message.error': 'error',
 }
 
-function label(e: UIEvent & { ts: number }): string {
+function label(e: UIEvent & { ts: number }, fallback: string): string {
   // Narrow per kind; the KEEP guard above guarantees these members.
   switch (e.kind) {
     case 'message.created':
-      return e.prompt
+      return fallback
     case 'message.dispatched':
       return '派发'
-    case 'message.tool_call':
-      return e.tool
     case 'message.permission_request':
       return e.summary
     case 'message.complete':
@@ -51,9 +48,18 @@ export function buildTimeline(messages: MessageRecord[]): TimelineRow[] {
   const rows: TimelineRow[] = []
   for (const message of messages) {
     for (const e of message.events) {
+      // Tool calls ride inside message.progress as a nested tool.call TaskEvent.
+      if (e.kind === 'message.progress' && e.event.kind === 'tool.call' && e.event.tool !== 'update_plan') {
+        rows.push({ id: `${message.id}:${e.seq}`, ts: e.ts, kind: 'tool', label: e.event.tool })
+        continue
+      }
+
       const kind = KEEP[e.kind]
       if (!kind) continue
-      rows.push({ id: `${message.id}:${e.seq}`, ts: e.ts, kind, label: label(e) })
+      // message.created no longer carries the prompt; use the record's derived
+      // prompt (back-filled from the role:'user' progress event by applyEvent).
+      const fallback = e.kind === 'message.created' ? message.prompt || message.id : ''
+      rows.push({ id: `${message.id}:${e.seq}`, ts: e.ts, kind, label: label(e, fallback) })
     }
   }
   rows.sort((a, b) => a.ts - b.ts)

@@ -75,7 +75,7 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
       broadcast: (evt) => {
         if (evt.kind === 'message.progress') {
           const ev = evt.event
-          if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
+          if (ev?.kind === 'llm.message' && ev.role === 'assistant' && typeof ev.content === 'string') {
             deps.broadcaster.broadcast('article.analysisDelta', {
               articleId: req.articleId,
               text: ev.content,

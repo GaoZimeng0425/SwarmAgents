@@ -134,7 +134,6 @@ describe('ConversationStore', () => {
       kind: 'message.created',
       sessionId: 'ses-b',
       messageId: 'r-b',
-      prompt: 'g',
       ts: now,
       seq: 1,
     })
@@ -262,7 +261,6 @@ describe('ConversationStore', () => {
         kind: 'message.created',
         sessionId: 's1',
         messageId: 'r2',
-        prompt: 'child',
         parentMessageId: 'r1',
         ts: 3,
         seq: 3,
@@ -374,7 +372,6 @@ describe('ConversationStore', () => {
       kind: 'message.created',
       sessionId: 'ses-d',
       messageId: 'r-d',
-      prompt: 'g',
       ts: 1,
       seq: 1,
     })

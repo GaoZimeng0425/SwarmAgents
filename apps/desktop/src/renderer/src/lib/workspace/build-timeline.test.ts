@@ -24,12 +24,15 @@ describe('buildTimeline', () => {
     expect(buildTimeline([mkRun({ id: 'r1' })])).toEqual([])
   })
 
-  it('maps message.created → start row with the prompt', () => {
+  it('maps message.created → start row with the record prompt as label', () => {
+    // message.created no longer carries prompt; the timeline label falls back
+    // to the record's derived prompt (back-filled from the role:'user' progress).
     const run = mkRun({
       id: 'r1',
+      prompt: '修复登录',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'message.created', sessionId: 's1', messageId: 'r1', order: 1, ts: 100, prompt: '修复登录' } as any,
+        { kind: 'message.created', sessionId: 's1', messageId: 'r1', seq: 1, ts: 100 } as any,
       ],
     })
     const rows = buildTimeline([run])
@@ -37,23 +40,22 @@ describe('buildTimeline', () => {
     expect(rows[0]).toMatchObject({ kind: 'start', label: '修复登录', ts: 100 })
   })
 
-  it('maps message.tool_call → tool row with the tool name', () => {
+  it('maps tool.call (inside message.progress) → tool row with the tool name', () => {
     const run = mkRun({
       id: 'r1',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
         {
-          kind: 'message.tool_call',
+          kind: 'message.progress',
           sessionId: 's1',
           messageId: 'r1',
-          order: 2,
+          seq: 2,
           ts: 200,
-          tool: 'shell',
-          args: {},
+          event: { kind: 'tool.call', server: 'agent', tool: 'run_shell', args: { command: 'ls' }, ts: 200 },
         } as any,
       ],
     })
-    expect(buildTimeline([run])[0]).toMatchObject({ kind: 'tool', label: 'shell', ts: 200 })
+    expect(buildTimeline([run])[0]).toMatchObject({ kind: 'tool', label: 'run_shell', ts: 200 })
   })
 
   it('maps message.permission_request → permission row', () => {
@@ -106,7 +108,7 @@ describe('buildTimeline', () => {
     expect(buildTimeline([run])[0]).toMatchObject({ kind: 'error', label: '炸了', ts: 500 })
   })
 
-  it('filters out message.progress events (too dense)', () => {
+  it('filters out non-tool message.progress events (llm.message, reasoning, etc.)', () => {
     const run = mkRun({
       id: 'r1',
       events: [
@@ -147,16 +149,18 @@ describe('buildTimeline', () => {
   it('flattens multiple runs and sorts by ts ascending', () => {
     const r1 = mkRun({
       id: 'r1',
+      prompt: '晚的',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'message.created', sessionId: 's1', messageId: 'r1', order: 1, ts: 300, prompt: '晚的' } as any,
+        { kind: 'message.created', sessionId: 's1', messageId: 'r1', seq: 1, ts: 300 } as any,
       ],
     })
     const r2 = mkRun({
       id: 'r2',
+      prompt: '早的',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'message.created', sessionId: 's1', messageId: 'r2', order: 1, ts: 100, prompt: '早的' } as any,
+        { kind: 'message.created', sessionId: 's1', messageId: 'r2', seq: 1, ts: 100 } as any,
       ],
     })
     const rows = buildTimeline([r1, r2])
@@ -168,9 +172,9 @@ describe('buildTimeline', () => {
       id: 'r1',
       events: [
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'message.created', sessionId: 's1', messageId: 'r1', order: 1, ts: 100, prompt: 'a' } as any,
+        { kind: 'message.created', sessionId: 's1', messageId: 'r1', seq: 1, ts: 100 } as any,
         // biome-ignore lint/suspicious/noExplicitAny: test fixture
-        { kind: 'message.complete', sessionId: 's1', messageId: 'r1', order: 2, ts: 200, summary: 'b' } as any,
+        { kind: 'message.complete', sessionId: 's1', messageId: 'r1', seq: 2, ts: 200, summary: 'b' } as any,
       ],
     })
     const rows = buildTimeline([run])

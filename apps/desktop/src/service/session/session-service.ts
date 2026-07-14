@@ -33,7 +33,7 @@ import { buildMarkdown } from '../conversation/markdown-export'
 import type { ConversationStore } from '../conversation/store'
 import { createAgentDirectory } from '../directory/receptionist'
 import type { Broadcaster } from '../ipc/broadcaster'
-import { createMessageEmit, type MessageEmitPorts } from '../message-engine/emit'
+import type { MessageEmitPorts } from '../message-engine/emit'
 import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
 import { withSkills } from '../skills/prompt'
 import type { SkillStore } from '../skills/store'
@@ -169,7 +169,7 @@ function buildDefaultRegistry(): ToolRegistry {
  * conversation; it is NOT a byte-perfect replay of the source agent state.
  *
  * Mapping:
- *   message.created (prompt)            → UserMessage(prompt)
+ *   message.created                     → identity only (no user content)
  *   message.progress llm.message(user)  → UserMessage(content)
  *   message.progress llm.message(assistant) → AssistantMessage (consecutive
  *                                             chunks coalesce into one bubble,
@@ -222,8 +222,9 @@ function reconstructHistoryFromEvents(
   for (const row of rows) {
     const e = row.event
     if (e.kind === 'message.created') {
+      // created only carries identity (id/session/parent); the user content
+      // arrives as a role:'user' message.progress event below.
       flushAssistant()
-      out.push({ role: 'user', content: e.prompt, timestamp: e.ts })
       continue
     }
     if (e.kind === 'message.progress') {
@@ -235,7 +236,7 @@ function reconstructHistoryFromEvents(
           if (!pendingAssistantTs) pendingAssistantTs = task.ts
           pendingAssistantText += typeof task.content === 'string' ? task.content : JSON.stringify(task.content)
         } else if (task.role === 'user') {
-          // A forwarded user event (e.g. submitPrompt's post-launch emit).
+          // The message's input content — the sole source of the user turn.
           flushAssistant()
           out.push({
             role: 'user',
@@ -860,20 +861,17 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         onDelegationUpdate: (itemId, delta) => mergeDelegationResultForSession(sessionId, itemId, delta),
       }
 
-      // Fire the run IMMEDIATELY so run.created renders as a pending card. This
-      // runs synchronously up to launchMessage's first await, which emits run.created
-      // and pushes the FIFO ticket before returning the pending promise.
+      // Fire the run IMMEDIATELY so message.created renders as a pending card.
+      // launchMessage emits message.created + the role:'user' progress (the
+      // user's input content) synchronously before its first await, then pushes
+      // the FIFO ticket before returning the pending promise.
       const done = launchMessage(spec, basePorts(session))
 
-      // The user message is a first-class, seq'd run.progress event rendered in
-      // true causal position — right after run.created, before dispatch (port of
-      // the 4c behavior). Guarded: a throwing store here must not escape to the
-      // dispatcher while the run is already streaming (Minor #3).
+      // Post-launch session bookkeeping only (the user-content emit moved into
+      // launchMessage so every kind carries its input uniformly). Guarded: a
+      // throwing store here must not escape to the dispatcher while the run is
+      // already streaming (Minor #3).
       try {
-        createMessageEmit(emitPorts, { sessionId, messageId })({
-          kind: 'message.progress',
-          event: { kind: 'llm.message', role: 'user', content: prompt, ts: Date.now() },
-        })
         store.updateSessionLastActive(sessionId)
 
         // First prompt titles the session.

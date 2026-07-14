@@ -38,14 +38,12 @@ export type MessageEventBase = {
 export type MessageWireEvent =
   | (MessageEventBase & {
       kind: 'message.created'
-      prompt: string
       attachments?: Attachment[]
       /** Agent definition id (e.g. 'researcher'), labels child-message blocks. */
       agentDefId?: string
     })
   | (MessageEventBase & { kind: 'message.dispatched' })
   | (MessageEventBase & { kind: 'message.progress'; event: TaskEvent })
-  | (MessageEventBase & { kind: 'message.tool_call'; tool: string; args: unknown })
   | (MessageEventBase & {
       kind: 'message.permission_request'
       actionId: string

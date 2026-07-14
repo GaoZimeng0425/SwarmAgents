@@ -334,6 +334,61 @@ export function createConversationStore(dbPath: string): ConversationStore {
     migrateToV5()
   }
 
+  // ---- Migration v6: message.created.prompt → message.progress (role:user) -
+  // The user-facing prompt is no longer a field on message.created (which is
+  // now identity-only); it lives as a role:'user' llm.message progress event,
+  // the sole source of the message's input content. For each legacy created
+  // row that still carries a `prompt` key, synthesize a matching progress row
+  // at seq = max(seq)+1 for that session, then strip the key from created.
+  const versionRowV6 = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as { version: number } | undefined
+  if ((versionRowV6?.version ?? 0) < 6) {
+    const migrateToV6 = db.transaction(() => {
+      const legacy = db
+        .prepare(
+          `SELECT id, session_id, message_id, parent_message_id, seq, ts, event
+           FROM message_events
+           WHERE json_extract(event, '$.kind') = 'message.created'
+             AND json_extract(event, '$.prompt') IS NOT NULL`
+        )
+        .all() as Array<{
+        id: number
+        session_id: string
+        message_id: string
+        parent_message_id: string | null
+        seq: number
+        ts: number
+        event: string
+      }>
+      const insertProgress = db.prepare(
+        'INSERT INTO message_events (session_id, message_id, parent_message_id, seq, ts, event) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      const stripPrompt = db.prepare(`UPDATE message_events SET event = json_remove(event, '$.prompt') WHERE id = ?`)
+      for (const row of legacy) {
+        const prompt = JSON.parse(row.event).prompt as string
+        // Next seq for this session: one past the current max.
+        const maxSeq = (
+          db
+            .prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM message_events WHERE session_id = ?')
+            .get(row.session_id) as { m: number }
+        ).m
+        const progressEvent = JSON.stringify({
+          kind: 'message.progress',
+          sessionId: row.session_id,
+          messageId: row.message_id,
+          ...(row.parent_message_id ? { parentMessageId: row.parent_message_id } : {}),
+          seq: maxSeq + 1,
+          ts: row.ts,
+          event: { kind: 'llm.message', role: 'user', content: prompt, ts: row.ts, seq: maxSeq + 1 },
+        })
+        insertProgress.run(row.session_id, row.message_id, row.parent_message_id, maxSeq + 1, row.ts, progressEvent)
+        stripPrompt.run(row.id)
+      }
+      if (versionRowV6) db.prepare('UPDATE schema_meta SET version = 6').run()
+      else db.prepare('INSERT INTO schema_meta (version) VALUES (6)').run()
+    })
+    migrateToV6()
+  }
+
   for (const stmt of [
     'ALTER TABLE sessions ADD COLUMN title TEXT',
     `ALTER TABLE sessions ADD COLUMN agent_snapshot TEXT NOT NULL DEFAULT '[]'`,

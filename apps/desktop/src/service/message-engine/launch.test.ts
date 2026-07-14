@@ -101,14 +101,26 @@ describe('launchMessage', () => {
     const { ports } = makePorts(s)
     const r = await launchMessage(spec(), ports)
     expect(r.status).toBe('completed')
-    expect(kinds(s)).toEqual(['message.created', 'message.dispatched', 'message.progress', 'message.complete'])
+    expect(kinds(s)).toEqual([
+      'message.created',
+      'message.progress',
+      'message.dispatched',
+      'message.progress',
+      'message.complete',
+    ])
+    // created is identity-only (no prompt); the user content rides on the
+    // first message.progress as a role:'user' llm.message.
     expect(s.events[0]).toMatchObject({
       kind: 'message.created',
-      prompt: 'go',
       sessionId: 's1',
       messageId: r.messageId,
     })
+    expect('prompt' in s.events[0]).toBe(false)
     expect('parentMessageId' in s.events[0]).toBe(false)
+    expect(s.events[1]).toMatchObject({
+      kind: 'message.progress',
+      event: { kind: 'llm.message', role: 'user', content: 'go' },
+    })
   })
 
   it('stamps parentMessageId + agentDefId for child runs and honors a provided messageId', async () => {

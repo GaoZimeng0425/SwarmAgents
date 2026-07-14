@@ -51,7 +51,9 @@ export function applyEvent(messages: MessageRecord[], e: UIEvent): MessageRecord
     const created: MessageRecord = {
       id: e.messageId,
       sessionId: e.sessionId,
-      prompt: e.prompt,
+      // prompt is derived from the role:'user' message.progress event (the
+      // message's input content); empty until that event arrives.
+      prompt: '',
       status: 'pending',
       summary: null,
       createdAt: e.ts,
@@ -124,7 +126,15 @@ export function applyEvent(messages: MessageRecord[], e: UIEvent): MessageRecord
     case 'message.permission_request':
       updated = setStatus(updated, 'awaiting_user')
       break
-    case 'message.progress':
+    case 'message.progress': {
+      // The user's input content arrives as a role:'user' llm.message progress
+      // event — backfill the record's prompt (the derived preview/title field)
+      // from it, so session lists, minimaps, and palette previews see the text
+      // without each consumer re-scanning events.
+      const task = e.event
+      if (task.kind === 'llm.message' && task.role === 'user' && !updated.prompt) {
+        updated = { ...updated, prompt: typeof task.content === 'string' ? task.content : JSON.stringify(task.content) }
+      }
       // A streamed progress event means the message resumed: a message parked
       // on a permission prompt is executing again once the operator decides
       // (the granted tool runs, or the model keeps going after a deny). Nothing
@@ -134,6 +144,7 @@ export function applyEvent(messages: MessageRecord[], e: UIEvent): MessageRecord
       // live message is untouched.
       if (updated.status === 'awaiting_user') updated = setStatus(updated, 'running')
       break
+    }
     // message.spawned is append-only: the parent→child linkage rides
     // parentMessageId on the child's message.created, so here we only record
     // the event on the parent.

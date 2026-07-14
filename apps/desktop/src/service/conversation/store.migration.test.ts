@@ -166,7 +166,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const inspect = new Database(dbPath)
     const row = inspect.prepare('SELECT version FROM schema_meta').get() as { version: number }
     inspect.close()
-    expect(row.version).toBe(5)
+    expect(row.version).toBe(6)
   })
 
   it('renames a legacy cron_jobs.goal column to prompt, keeping the data', () => {
@@ -233,17 +233,27 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     expect(plan?.event.plan).toEqual([{ id: 'd1', prompt: 'sub work', dependsOn: [] }])
   })
 
-  it('migration v3 renames the run.created goal key to prompt', () => {
+  it('migration v3 renames the run.created goal key to prompt (v6 moves it to a progress event)', () => {
     seedLegacyDb(dbPath)
     const store = createConversationStore(dbPath)
     const rows = store.getMessageEvents('ses-1')
     store.close()
 
+    // v3 renamed goal → prompt on created; v6 then moved prompt off created
+    // into a role:'user' message.progress event (the sole source of user
+    // content). So created no longer carries goal OR prompt, and a progress
+    // event with the original 'g' content exists.
     const created = rows.find((r) => r.event.kind === 'message.created') as
       | { event: Record<string, unknown> }
       | undefined
-    expect(created?.event.prompt).toBe('g')
     expect('goal' in (created?.event ?? {})).toBe(false)
+    expect('prompt' in (created?.event ?? {})).toBe(false)
+
+    const userProgress = rows.find(
+      (r) =>
+        r.event.kind === 'message.progress' && r.event.event?.kind === 'llm.message' && r.event.event?.role === 'user'
+    ) as { event: { event: { content: string } } } | undefined
+    expect(userProgress?.event.event.content).toBe('g')
   })
 
   it('sweeps orphan rows whose session no longer exists', () => {
@@ -268,8 +278,9 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
 
     expect(rows.some((r) => (r.event as { kind: string }).kind === 'task.handoff.completed')).toBe(false)
     expect(rows.some((r) => (r.event as { kind: string }).kind === 'run.handoff.completed')).toBe(false)
-    // 11 legacy rows seeded for ses-1, minus the 1 dropped handoff.completed.
-    expect(rows).toHaveLength(10)
+    // 11 legacy rows seeded for ses-1, minus the 1 dropped handoff.completed,
+    // plus 1 synthesized role:'user' progress row (v6 moves created.prompt out).
+    expect(rows).toHaveLength(11)
   })
 
   it('renames every legacy kind to its message.* equivalent, with no task.* survivors', () => {
@@ -288,6 +299,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
         'message.error',
         'message.error',
         'message.plan',
+        'message.progress',
         'message.progress',
         'message.spawned',
         'message.usage',
@@ -356,7 +368,7 @@ describe('ConversationStore migration v2 (task.* → run.*)', () => {
     const metaRowCount = (inspect.prepare('SELECT COUNT(*) AS n FROM schema_meta').get() as { n: number }).n
     inspect.close()
 
-    expect(version).toBe(5)
+    expect(version).toBe(6)
     expect(metaRowCount).toBe(1) // no duplicate version row inserted on reopen
     expect(rowsAfterSecondOpen).toEqual(rowsAfterFirstOpen) // no double-rewrite (e.g. no 'message.message.*')
   })

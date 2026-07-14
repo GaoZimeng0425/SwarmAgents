@@ -167,9 +167,17 @@ export async function launchMessage(
     ports.registerAbort(messageId, () => ac.abort())
     emit({
       kind: 'message.created',
-      prompt: spec.prompt,
       ...(spec.attachments?.length ? { attachments: spec.attachments } : {}),
       ...(spec.kind === 'child' ? { agentDefId: spec.agent.id } : {}),
+    })
+    // The user-facing prompt is a first-class, seq'd message.progress event —
+    // the message's input content, symmetric to the assistant's output chunks
+    // (also message.progress / role:'assistant'). Emitted here so every kind
+    // (turn/work/child) uniformly carries its input on the timeline at the
+    // correct causal position (right after created, before dispatch).
+    emit({
+      kind: 'message.progress',
+      event: { kind: 'llm.message', role: 'user', content: spec.prompt, ts: Date.now() },
     })
     runLog.info({ msg: 'run created', kind: spec.kind, agentId: spec.agent.id, promptLen: spec.prompt.length })
 

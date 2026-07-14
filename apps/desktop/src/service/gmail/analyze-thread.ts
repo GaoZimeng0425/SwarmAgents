@@ -67,7 +67,7 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
       broadcast: (evt) => {
         if (evt.kind === 'message.progress') {
           const ev = evt.event
-          if (ev?.kind === 'llm.message' && typeof ev.content === 'string') {
+          if (ev?.kind === 'llm.message' && ev.role === 'assistant' && typeof ev.content === 'string') {
             accumulated += ev.content
             deps.broadcaster.broadcast('gmail.threadAnalysisDelta', { threadId, text: ev.content, ts: Date.now() })
             return

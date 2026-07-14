@@ -48,27 +48,6 @@ function toolImagePath(payload: unknown): string | undefined {
 export function taskSegments(task: MessageRecord): Segment[] {
   const out: Segment[] = []
 
-  // A top-level conversation turn carries its user message as a real seq'd event
-  // (manager.submitPrompt), rendered by the loop below — no synthetic bubble. A
-  // sub-agent run has no human user event; its objective is shown via the
-  // synthetic prompt bubble here (SubagentBlock does not render the prompt).
-  const hasUserMessage = task.events.some(
-    (e) => e.kind === 'message.progress' && e.event.kind === 'llm.message' && e.event.role === 'user'
-  )
-  if (!hasUserMessage) {
-    out.push({
-      kind: 'user',
-      text: task.prompt,
-      attachments: task.attachments ?? [],
-      key: `${task.id}-prompt`,
-      messageId: task.id,
-      ts: task.createdAt,
-      // The goal bubble takes the message's seq so it sorts at the task's true
-      // position; MessageRecord always carries seq (stamped from message.created).
-      order: task.order,
-    })
-  }
-
   // Appended chunks keep the first chunk's ts/seq (the segment's causal position).
   const pushAssistant = (text: string, key: string, ts: number, order: number): void => {
     const last = out[out.length - 1]
@@ -84,9 +63,8 @@ export function taskSegments(task: MessageRecord): Segment[] {
 
   // update_plan is rendered by PlanPanel, so its call AND following result are dropped.
   let skipNextToolResult = false
-  // The first event-derived user segment carries task.attachments so a request
-  // submitted with images still shows them (the bubble now comes from the event,
-  // not a synthetic goal bubble). Unused on the sub-agent fallback path above.
+  // The first user segment carries task.attachments so a request submitted with
+  // images still shows them on its bubble.
   let firstUserSegment = true
   // Tools awaiting their tool.result. Keyed by callId when the upstream events
   // carry one: parallel tool execution emits results in completion order, not

@@ -20,13 +20,26 @@ const prog = (event: unknown) =>
   ({ kind: 'message.progress', sessionId: 's1', messageId: 't1', event, ts: 1 }) as MessageRecord['events'][number]
 
 describe('taskSegments', () => {
-  it('emits the goal as the first user segment when there is no user-message event (sub-agent path)', () => {
-    const segs = taskSegments(rec([]))
+  it('renders the user segment from the role:user progress event', () => {
+    // Every kind (turn/work/child) now emits a role:'user' progress — no
+    // synthetic goal bubble is needed, so an empty event list yields no user
+    // segment.
+    const segs = taskSegments(rec([prog({ kind: 'llm.message', role: 'user', content: 'do x', ts: 1 })]))
     expect(segs[0]).toMatchObject({ kind: 'user', text: 'do x' })
   })
 
-  it('carries attachments on the synthetic goal segment (sub-agent path)', () => {
-    const segs = taskSegments(rec([], [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }]))
+  it('emits no user segment when the event list is empty', () => {
+    const segs = taskSegments(rec([]))
+    expect(segs.filter((s) => s.kind === 'user')).toHaveLength(0)
+  })
+
+  it('carries attachments on the first event-derived user segment', () => {
+    const segs = taskSegments(
+      rec(
+        [prog({ kind: 'llm.message', role: 'user', content: 'do x', ts: 1 })],
+        [{ data: 'AAAA', mimeType: 'image/png', name: 'a.png' }]
+      )
+    )
     const user = segs.find((s) => s.kind === 'user')
     expect(user && 'attachments' in user && user.attachments).toEqual([
       { data: 'AAAA', mimeType: 'image/png', name: 'a.png' },
@@ -336,22 +349,30 @@ describe('taskSegments order', () => {
     expect(tool.order).toBe(42)
   })
 
-  it('gives the goal segment the message.created order', () => {
-    // MessageRecord.order is stamped once from message.created (see applyEvent);
-    // the goal bubble takes task.order, so they match.
+  it('gives the user segment the progress event order', () => {
+    // The user segment's order comes from the role:'user' progress event's seq,
+    // not from message.created (which renders no segment).
     const segs = taskSegments({
       ...rec([
         {
           kind: 'message.created',
           sessionId: 's1',
           messageId: 't1',
-          prompt: 'do x',
           ts: 10,
           seq: 7,
+        } as MessageRecord['events'][number],
+        {
+          kind: 'message.progress',
+          sessionId: 's1',
+          messageId: 't1',
+          event: { kind: 'llm.message', role: 'user', content: 'do x', ts: 10 },
+          ts: 10,
+          seq: 8,
         } as MessageRecord['events'][number],
       ]),
       order: 7,
     })
-    expect((segs[0] as unknown as { order?: number }).order).toBe(7)
+    const user = segs.find((s) => s.kind === 'user') as unknown as { order?: number }
+    expect(user.order).toBe(8)
   })
 })

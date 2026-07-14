@@ -70,10 +70,10 @@ describe('buildTimelineItems', () => {
       'ta',
       [
         {
-          kind: 'message.created',
+          kind: 'message.progress',
           sessionId: 's',
           messageId: 'ta',
-          prompt: 'a',
+          event: { kind: 'llm.message', role: 'user', content: 'a', ts: 1 },
           ts: 1,
           seq: 5,
         } as MessageRecord['events'][number],
@@ -85,10 +85,10 @@ describe('buildTimelineItems', () => {
       'tb',
       [
         {
-          kind: 'message.created',
+          kind: 'message.progress',
           sessionId: 's',
           messageId: 'tb',
-          prompt: 'b',
+          event: { kind: 'llm.message', role: 'user', content: 'b', ts: 1 },
           ts: 1,
           seq: 1,
         } as MessageRecord['events'][number],
@@ -108,7 +108,6 @@ describe('buildTimelineItems', () => {
         kind: 'message.created',
         sessionId: 's',
         messageId: 't1',
-        prompt: 'hi',
         ts: 1,
       } as MessageRecord['events'][number],
       {

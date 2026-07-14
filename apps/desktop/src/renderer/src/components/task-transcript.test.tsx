@@ -25,7 +25,18 @@ function task(overrides: Partial<MessageRecord> = {}): MessageRecord {
     createdAt: 1,
     attachments: [],
     order: 1,
-    events: [],
+    events: [
+      // The user's input content arrives as a role:'user' progress event;
+      // message.created no longer carries it.
+      {
+        kind: 'message.progress',
+        sessionId: 's1',
+        messageId: 't1',
+        seq: 1,
+        ts: 1,
+        event: { kind: 'llm.message', role: 'user', content: 'do x', ts: 1 },
+      } as MessageRecord['events'][number],
+    ],
     ...overrides,
   }
 }

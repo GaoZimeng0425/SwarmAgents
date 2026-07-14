@@ -63,7 +63,7 @@ describe('use-tasks + use-events-subscription', () => {
     await waitFor(() => expect(view.result.current).toEqual([]))
 
     await act(async () => {
-      emit({ kind: 'message.created', sessionId: 'ses-1', messageId: 't1', prompt: 'do x', ts: 1, seq: 1 })
+      emit({ kind: 'message.created', sessionId: 'ses-1', messageId: 't1', ts: 1, seq: 1 })
     })
 
     await waitFor(() => expect(view.result.current).toHaveLength(1))
@@ -183,14 +183,28 @@ describe('hydrateSession', () => {
         parentMessageId: null,
         seq: 1,
         ts: 1,
-        event: { kind: 'message.created', sessionId: 's', messageId: 'r1', prompt: 'hi', ts: 1, seq: 1 },
+        event: { kind: 'message.created', sessionId: 's', messageId: 'r1', ts: 1, seq: 1 },
       },
       {
         messageId: 'r1',
         parentMessageId: null,
         seq: 2,
         ts: 2,
-        event: { kind: 'message.complete', sessionId: 's', messageId: 'r1', summary: 'done', ts: 2, seq: 2 },
+        event: {
+          kind: 'message.progress',
+          sessionId: 's',
+          messageId: 'r1',
+          ts: 2,
+          seq: 2,
+          event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 2 },
+        },
+      },
+      {
+        messageId: 'r1',
+        parentMessageId: null,
+        seq: 3,
+        ts: 3,
+        event: { kind: 'message.complete', sessionId: 's', messageId: 'r1', summary: 'done', ts: 3, seq: 3 },
       },
     ]
     const qc = new QueryClient({
