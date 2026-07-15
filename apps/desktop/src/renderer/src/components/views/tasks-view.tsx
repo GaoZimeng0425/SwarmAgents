@@ -22,6 +22,7 @@ import { useProviders } from '@/hooks/use-providers'
 import { swarmApi } from '@/lib/api'
 import { classifyComposerTurns } from '@/lib/composer-turns'
 import { latestTopLevelTask, sessionDisplayUsage } from '@/lib/session-usage'
+import { useForkLineage } from '@/stores/fork-lineage'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -30,7 +31,7 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const queue = usePermissionStore((s) => s.queue)
   const selectedSessionId = useSessionsStore((s) => s.selectedSessionId)
   const sessions = useSessionsStore((s) => s.sessions)
-  const forkedFrom = useSessionsStore((s) => s.forkedFrom)
+  const forkedFrom = useForkLineage((s) => s.forkedFrom)
   const setSessionSettings = useSessionsStore((s) => s.setSettings)
   const submitPrompt = useSubmitPrompt()
   const decide = useDecidePermission()
@@ -108,8 +109,8 @@ export function TasksView({ focusTaskId }: { focusTaskId?: string } = {}): React
   const headerStatus = sessionPrompts.length > 0 ? 'awaiting' : runningTask ? 'running' : 'idle'
   const contextPct =
     contextTokens != null && contextWindow != null ? Math.round((contextTokens / contextWindow) * 100) : undefined
-  // Fork lineage for the current session, if any. Client-side only — see the
-  // forkedFrom map in the sessions store.
+  // Fork lineage for the current session, if any — persisted in the
+  // fork-lineage store so the badge survives a restart.
   const forkSourceId = selectedSessionId ? forkedFrom[selectedSessionId] : undefined
 
   // The system session ("定时任务") only surfaces scheduled-run RESULTS — it is

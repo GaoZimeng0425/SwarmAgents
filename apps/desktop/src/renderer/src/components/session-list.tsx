@@ -34,6 +34,7 @@ import { formatTokens } from '@/lib/format-usage'
 import { type DirectoryGroup, flattenForReorder, groupSessionsByDirectory, UNGROUPED } from '@/lib/session-grouping'
 import { pickNextSession } from '@/lib/session-nav'
 import { cn } from '@/lib/utils'
+import { useForkLineage } from '@/stores/fork-lineage'
 import { useSearchDialog } from '@/stores/search-dialog'
 import { type SessionViewMode, useSessionView } from '@/stores/session-view'
 import { useSessionsStore } from '@/stores/sessions'
@@ -109,6 +110,7 @@ export function SessionList(): React.JSX.Element {
   const unread = useSessionsStore((s) => s.unread)
   const upsert = useSessionsStore((s) => s.upsert)
   const removeFromStore = useSessionsStore((s) => s.remove)
+  const forgetFork = useForkLineage((s) => s.forget)
   const reorder = useSessionsStore((s) => s.reorder)
   const navigate = useNavigate()
   const tasks = useMessages()
@@ -259,6 +261,7 @@ export function SessionList(): React.JSX.Element {
     setPendingDelete(null)
     const next = pickNextSession(sessions, id)
     removeFromStore(id)
+    forgetFork(id)
     await swarmApi.deleteSession(id)
     // Only redirect if we were viewing the deleted session.
     if (wasCurrent) {
