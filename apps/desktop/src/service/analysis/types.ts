@@ -35,8 +35,9 @@ export type AnalysisConfig<TSummary> = {
   idKey: string
   /** Coerce render_ui card props into the typed summary, or null if invalid. */
   validateCard: (props: Record<string, unknown>) => TSummary | null
-  /** Build the broadcast payload for the Complete event from the card + accumulated text. */
-  buildCompletePayload: (summary: TSummary, accumulated: string) => Record<string, unknown>
+  /** Build the broadcast payload for the Complete event from the card + accumulated text.
+   *  `card` is null when noCardBehavior is 'tolerate' and the agent emitted no card. */
+  buildCompletePayload: (card: TSummary | null, accumulated: string) => Record<string, unknown>
   /** Whether to accumulate streamed markdown prose alongside the card. */
   accumulateSummary: boolean
   /** What to do when message.complete arrives without a valid card. */

@@ -34,6 +34,7 @@ function run(events: MessageEmitInput[]): Promise<Array<[string, unknown]>> {
     agentStore: { get: () => undefined } as AnalyzeThreadDeps['agentStore'],
     toolRegistry: {} as AnalyzeThreadDeps['toolRegistry'],
     getBudgetConfig: () => ({}) as import('@swarm/protocol').BudgetConfig,
+    callMain: async () => undefined,
     launch: fakeLaunch(events),
   })
   const ack = analyze({

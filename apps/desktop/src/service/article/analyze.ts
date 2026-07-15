@@ -18,7 +18,7 @@ const ARTICLE_CONFIG: AnalysisConfig<ArticleSummary> = {
   events: { delta: 'article.analysisDelta', complete: 'article.analysisComplete', error: 'article.analysisError' },
   idKey: 'articleId',
   validateCard: toArticleSummary,
-  buildCompletePayload: (summary) => ({ summary }),
+  buildCompletePayload: (card) => (card ? { summary: card } : {}),
   accumulateSummary: false,
   noCardBehavior: 'error',
 }

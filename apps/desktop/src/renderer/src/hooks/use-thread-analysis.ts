@@ -75,11 +75,6 @@ export function useThreadAnalysis(thread: ThreadAnalysisInput | null): UseThread
         }))
       } else if (e.kind === 'gmail.threadAnalysisComplete' && e.threadId === threadId) {
         setState({ phase: 'done', summary: e.summary, todos: e.todos, suggest: e.suggest })
-        void window.swarm.gmail.saveThreadAnalysis(threadId, {
-          summary: e.summary,
-          todos: e.todos,
-          suggest: e.suggest,
-        })
         // Refresh the cache so the analyzed badge + a later revisit see the result.
         void qc.invalidateQueries({ queryKey: ['gmail', 'threadAnalysis', threadId] })
         void qc.invalidateQueries({ queryKey: ['gmail', 'analyzedThreadIds'] })

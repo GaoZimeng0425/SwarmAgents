@@ -1,7 +1,7 @@
 import type { RepoResearch } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createResearchRepo, toRepoResearch } from './research'
+import { createResearchRepo, toRepoCard } from './research'
 import type { RepoResearchStore } from './research-store'
 
 function fakeStore(): RepoResearchStore {
@@ -49,15 +49,15 @@ const agent = {
   skills: [],
 }
 
-describe('toRepoResearch', () => {
+describe('toRepoCard', () => {
   it('accepts a well-formed card', () => {
-    expect(toRepoResearch({ ...research })).toEqual(research)
+    expect(toRepoCard({ ...research })).toEqual(research)
   })
   it('rejects an unknown verdictTone', () => {
-    expect(toRepoResearch({ ...research, verdictTone: 'bogus' })).toBeNull()
+    expect(toRepoCard({ ...research, verdictTone: 'bogus' })).toBeNull()
   })
   it('rejects a card missing fields', () => {
-    expect(toRepoResearch({ gist: 'g' })).toBeNull()
+    expect(toRepoCard({ gist: 'g' })).toBeNull()
   })
 })
 

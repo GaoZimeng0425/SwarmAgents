@@ -201,7 +201,13 @@ const mcpManager = createMcpManager({
 
 const dispatch = createDispatcher({
   service,
-  analyzeThread: createAnalyzeThread({ broadcaster, agentStore, toolRegistry, getBudgetConfig: () => budgetConfig }),
+  analyzeThread: createAnalyzeThread({
+    broadcaster,
+    agentStore,
+    toolRegistry,
+    getBudgetConfig: () => budgetConfig,
+    callMain: (method, args) => rpcPeer.call(method, args),
+  }),
   collectArticle: createCollectArticle({ store: articleStore }),
   analyzeArticle: createAnalyzeArticle({
     broadcaster,

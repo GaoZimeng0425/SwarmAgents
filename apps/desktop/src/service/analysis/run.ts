@@ -82,11 +82,17 @@ export function createAnalysisRun<TSummary>(
           const props = readAnalysisCard(evt)
           if (props) card = validateCard(props)
         } else if (evt.kind === 'message.complete') {
-          if (card) {
-            const payload = { [idKey]: req.id, ...buildCompletePayload(card, accumulated), ts: Date.now() }
+          if (card || noCardBehavior === 'tolerate') {
+            // Broadcast the Complete event. When noCardBehavior is 'tolerate' and
+            // card is null (agent emitted no card), buildCompletePayload receives
+            // null and decides what to put in the payload (e.g. gmail-thread uses
+            // empty todos/suggest but keeps the streamed summary).
+            const payload = {
+              [idKey]: req.id,
+              ...buildCompletePayload(card, accumulated),
+              ts: Date.now(),
+            }
             deps.broadcaster.broadcast(events.complete, payload)
-            // Persist in the service layer (unified persistence). Errors are
-            // logged but never block the broadcast — the result is already shown.
             if (deps.onComplete) {
               void Promise.resolve(deps.onComplete(req.id, card, accumulated, req.extra, log)).catch((err) => {
                 log.warn({
@@ -97,11 +103,11 @@ export function createAnalysisRun<TSummary>(
                 })
               })
             }
-          } else if (noCardBehavior === 'error') {
+          } else {
+            // noCardBehavior === 'error' and no valid card
             log.warn({ msg: 'analysis produced no valid card', agentId, id: req.id })
             deps.broadcaster.broadcast(events.error, { [idKey]: req.id, error: '分析结果解析失败', ts: Date.now() })
           }
-          // 'tolerate': no card → the caller handles empty defaults (gmail-thread).
         } else if (evt.kind === 'message.error') {
           runError = evt.error?.message ?? 'analysis failed'
           deps.broadcaster.broadcast(events.error, { [idKey]: req.id, error: runError, ts: Date.now() })

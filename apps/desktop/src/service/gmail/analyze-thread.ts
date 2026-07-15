@@ -1,149 +1,90 @@
-// Thread-level analysis: clones analyze.ts's message-engine pattern but keys
-// broadcasts by threadId. The agent streams a natural-language markdown summary
-// (shown to the user) and emits its structured fields via a
-// render_ui({type:'analysis', props:{todos, suggest}}) tool call, which the
-// broadcast adapter captures with readAnalysisCard. The streamed markdown IS
-// the summary; the card adds todos/suggest. No card → empty todos/suggest
-// (summary intact) — never blocks the user-facing summary.
-import { createLogger } from '@shared/logger'
-import type { AnalyzeThreadRequest, AnalyzeThreadResult, BudgetConfig, Todo } from '@swarm/protocol'
-import { applyAgentModel, defaultAgents } from '@swarm/shared'
-import { ulid } from 'ulid'
+// Thread-level analysis: thin config over the shared analysis-run factory
+// (service/analysis/run.ts), keyed by threadId. The agent streams a natural-language
+// markdown summary (shown to the user, kept on completion) and emits its structured
+// fields via a render_ui({type:'analysis', props:{todos, suggest}}) tool call. The
+// streamed markdown IS the summary; the card adds todos/suggest. No card → tolerated:
+// empty todos/suggest (summary intact) — never blocks the user-facing summary.
+//
+// Persistence: onComplete calls the 'gmail.save_thread_analysis' RPC so the result
+// lands in Main's SQLite cache. The renderer no longer needs to persist on its own.
+import type {
+  AnalyzeThreadRequest,
+  AnalyzeThreadResult,
+  BudgetConfig,
+  MainMethod,
+  ThreadAnalysisPayload,
+  Todo,
+} from '@swarm/protocol'
 
 import type { AgentStore } from '../agents/store'
+import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../analysis/run'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { MessageEmitPorts } from '../message-engine/emit'
-import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
-import { createPermissionRegistry } from '../session/permission-registry'
+import type { launchMessage } from '../message-engine/launch'
 import type { ToolRegistry } from '../tools/registry'
-import { readAnalysisCard } from '../tools/render-ui'
 
-const log = createLogger({ process: 'service' }).child({ component: 'gmail-analyze-thread' })
+type CallMain = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
-const GMAIL_THREAD_ANALYST_ID = 'gmail-thread-analyst'
+// The card captures todos + a suggested reply. When the agent emits no card,
+// tolerate with empty defaults (the summary is still useful on its own).
+type ThreadCard = { todos: Todo[]; suggest: string }
+
+const GMAIL_THREAD_CONFIG: AnalysisConfig<ThreadCard> = {
+  agentId: 'gmail-thread-analyst',
+  events: {
+    delta: 'gmail.threadAnalysisDelta',
+    complete: 'gmail.threadAnalysisComplete',
+    error: 'gmail.threadAnalysisError',
+  },
+  idKey: 'threadId',
+  validateCard: (props) => ({
+    todos: Array.isArray(props.todos) ? (props.todos as Todo[]) : [],
+    suggest: typeof props.suggest === 'string' ? props.suggest : '',
+  }),
+  buildCompletePayload: (card, accumulated) => ({
+    summary: accumulated,
+    todos: card?.todos ?? [],
+    suggest: card?.suggest ?? '',
+  }),
+  accumulateSummary: true,
+  noCardBehavior: 'tolerate',
+}
 
 export type AnalyzeThreadDeps = {
   broadcaster: Broadcaster
   agentStore: Pick<AgentStore, 'get'>
   toolRegistry: ToolRegistry
   getBudgetConfig(): BudgetConfig
+  /** Cross-process RPC to Main (for persisting the thread analysis result). */
+  callMain: CallMain
   /** Injectable so tests can drive the emit adapter without a real provider/engine. */
   launch?: typeof launchMessage
 }
 
 export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThreadRequest) => AnalyzeThreadResult {
-  const run = deps.launch ?? launchMessage
+  const analysisDeps: AnalysisDeps = {
+    broadcaster: deps.broadcaster,
+    agentStore: deps.agentStore,
+    toolRegistry: deps.toolRegistry,
+    getBudgetConfig: deps.getBudgetConfig,
+    launch: deps.launch,
+    onComplete: (threadId, card, accumulated) => {
+      const c = (card ?? { todos: [], suggest: '' }) as ThreadCard
+      const payload: ThreadAnalysisPayload = {
+        summary: accumulated,
+        todos: c.todos,
+        suggest: c.suggest,
+      }
+      void deps.callMain('gmail.save_thread_analysis', [threadId, payload])
+    },
+  }
+  const run = createAnalysisRun(analysisDeps, GMAIL_THREAD_CONFIG)
   return (req) => {
-    if (!req.provider) {
-      return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
-    }
-    const def =
-      deps.agentStore.get(GMAIL_THREAD_ANALYST_ID) ?? defaultAgents.find((a) => a.id === GMAIL_THREAD_ANALYST_ID)
-    if (!def) {
-      return { ok: false, code: 'no_agent', message: 'gmail-thread-analyst agent 不可用。' }
-    }
-    const threadId = req.threadId
-    log.info({
-      msg: 'thread analyze started',
-      threadId,
-      subjectLen: req.subject.length,
-      messageCount: req.messages.length,
-    })
-
-    // Accumulate the streamed markdown as the summary and capture the structured
-    // fields from the render_ui analysis card. The broadcast port translates the
-    // run.* wire into gmail.threadAnalysis* events keyed by threadId:
-    // message.progress llm.message → threadAnalysisDelta (+ accumulate),
-    // run.progress tool.call (analysis card) → capture todos/suggest,
-    // message.complete → threadAnalysisComplete, message.error → threadAnalysisError.
-    let accumulated = ''
-    let card: { todos: Todo[]; suggest: string } | null = null
-
-    let seq = 0
-    const emitPorts: MessageEmitPorts = {
-      nextSeq: () => seq++,
-      appendEvent: () => undefined,
-      markTerminal: () => undefined,
-      broadcast: (evt) => {
-        if (evt.kind === 'message.progress') {
-          const ev = evt.event
-          if (ev?.kind === 'llm.message' && ev.role === 'assistant' && typeof ev.content === 'string') {
-            accumulated += ev.content
-            deps.broadcaster.broadcast('gmail.threadAnalysisDelta', { threadId, text: ev.content, ts: Date.now() })
-            return
-          }
-          const props = readAnalysisCard(evt)
-          if (props) {
-            card = {
-              todos: Array.isArray(props.todos) ? (props.todos as Todo[]) : [],
-              suggest: typeof props.suggest === 'string' ? props.suggest : '',
-            }
-          }
-        } else if (evt.kind === 'message.complete') {
-          // summary = the streamed markdown; todos/suggest = the captured card
-          // (empty when the agent emitted no card).
-          deps.broadcaster.broadcast('gmail.threadAnalysisComplete', {
-            threadId,
-            summary: accumulated,
-            todos: card?.todos ?? [],
-            suggest: card?.suggest ?? '',
-            ts: Date.now(),
-          })
-        } else if (evt.kind === 'message.error') {
-          deps.broadcaster.broadcast('gmail.threadAnalysisError', {
-            threadId,
-            error: evt.error?.message ?? 'thread analysis failed',
-            ts: Date.now(),
-          })
-        }
-      },
-    }
-
-    // No-op slot/abort ports and a no-op permission gate: a self-contained run
-    // (only the low-risk render_ui structured-output tool) that competes for
-    // nothing and prompts for nothing.
-    const ports: LaunchPorts = {
-      emit: emitPorts,
-      toolRegistry: deps.toolRegistry,
-      permissionRegistry: createPermissionRegistry(() => undefined),
-      acquireSlot: async () => () => undefined,
-      registerAbort: () => undefined,
-      unregisterAbort: () => undefined,
-    }
-
-    // Concatenate the thread's messages into the prompt.
     const threadText = req.messages
       .map((m) => `---\nFrom: ${m.from}\nDate: ${new Date(m.dateMs).toLocaleString()}\n\n${m.bodyText}`)
       .join('\n\n')
     const prompt = `分析下面这个邮件线程。\n\nSubject: ${req.subject}\n\n${threadText}`
-
-    const spec: MessageSpec = {
-      kind: 'work',
-      sessionId: `analyze-thread:${ulid()}`,
-      agent: def,
-      provider: applyAgentModel(req.provider, def),
-      prompt,
-      budget: deps.getBudgetConfig().sub,
-      tools: ['ui.render_ui'],
-      maxIterationsOverride: def.maxIterations,
-    }
-
-    const t0 = Date.now()
-    // launchMessage never rejects: every failure path emits message.error, which the
-    // broadcast port already forwards as threadAnalysisError. The catch is
-    // purely defensive (log-only, no double broadcast).
-    void run(spec, ports)
-      .then((r) =>
-        log.info({ msg: 'thread analyze complete', threadId, status: r.status, durationMs: Date.now() - t0 })
-      )
-      .catch((err) => {
-        log.error({
-          msg: 'thread analyze run failed',
-          threadId,
-          err: err instanceof Error ? err.message : String(err),
-        })
-      })
-
+    const result = run({ provider: req.provider, id: req.threadId, prompt })
+    if (!result.ok) return result
     return { ok: true }
   }
 }
