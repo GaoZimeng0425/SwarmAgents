@@ -170,7 +170,11 @@ export function wireBilibiliIpc(opts: {
     }
   }
 
-  ipcMain.handle('bilibili:status', () => auth.status())
+  ipcMain.handle('bilibili:status', async () => {
+    const st = await auth.status()
+    log.info({ msg: 'status handler returned', loggedIn: st.loggedIn, mid: st.mid, uname: st.uname })
+    return st
+  })
   ipcMain.handle('bilibili:login', () => auth.login())
   ipcMain.handle('bilibili:logout', () => auth.logout())
   ipcMain.handle('bilibili:list', async (): Promise<BiliListResult> => {

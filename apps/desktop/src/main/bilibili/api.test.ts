@@ -7,6 +7,7 @@ import {
   getNav,
   getWatchLater,
   invalidateWbiKeys,
+  NavApiError,
   toHttpsUrl,
 } from './api'
 
@@ -62,8 +63,24 @@ describe('getNav', () => {
     expect(await getNav(creds)).toEqual({ loggedIn: true, uname: 'me', mid: 42 })
   })
 
-  it('reports logged-out when code is -101', async () => {
+  it('throws NavApiError carrying the code when API returns non-zero (-101 logout)', async () => {
     mockJson({ code: -101, message: 'not logged in', data: { isLogin: false } })
+    // Non-zero codes now throw so status() can log the real code; -412/-352
+    // (risk-control) are distinguishable from -101 (cookie expired).
+    await expect(getNav(creds)).rejects.toSatisfy((err: unknown) => {
+      return err instanceof NavApiError && err.code === -101 && /-101/.test(err.message)
+    })
+  })
+
+  it('throws NavApiError carrying the code for -412 risk-control', async () => {
+    mockJson({ code: -412, message: '风控', data: { isLogin: false } })
+    await expect(getNav(creds)).rejects.toSatisfy((err: unknown) => {
+      return err instanceof NavApiError && err.code === -412
+    })
+  })
+
+  it('reports logged-out when code is 0 but isLogin is false', async () => {
+    mockJson({ code: 0, data: { isLogin: false } })
     expect(await getNav(creds)).toEqual({ loggedIn: false, uname: null, mid: null })
   })
 })

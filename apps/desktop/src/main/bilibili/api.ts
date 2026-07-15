@@ -68,16 +68,44 @@ type NavData = { isLogin?: boolean; uname?: string; mid?: number }
 
 export async function getNav(c: BiliCredentials): Promise<BiliLoginStatus> {
   // nav returns code -101 when the cookie is invalid/expired; treat as logged-out
-  // rather than throwing, so the UI can prompt re-login.
-  const res = await fetch('https://api.bilibili.com/x/web-interface/nav', {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-    headers: { cookie: cookieHeader(c), 'user-agent': BILI_UA, referer: BILI_REFERER },
-  })
+  // rather than throwing, so the UI can prompt re-login. Other non-zero codes
+  // (e.g. -412 风控, -352 风控) or HTTP failures surface in the log so a
+  // transient risk-control block is distinguishable from a real logout.
+  let res: Response
+  try {
+    res = await fetch('https://api.bilibili.com/x/web-interface/nav', {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { cookie: cookieHeader(c), 'user-agent': BILI_UA, referer: BILI_REFERER },
+    })
+  } catch (err) {
+    // Network error / timeout — the caller (status) logs and treats as logged-out.
+    throw new Error(`nav fetch failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
+  if (!res.ok) {
+    // HTTP-level failure (e.g. 412 risk-control served as a non-JSON block page).
+    throw new Error(`nav HTTP ${res.status} ${res.statusText}`)
+  }
   const body = (await res.json()) as Envelope<NavData>
-  if (body.code !== 0 || !body.data?.isLogin) {
+  if (body.code !== 0) {
+    // API-level failure. -101 = logged-out; -412/-352 = risk-control; both are
+    // "not logged in" from the UI's perspective, but the code is logged upstream
+    // so the actual cause is locatable.
+    throw new NavApiError(body.code, body.message ?? 'unknown')
+  }
+  if (!body.data?.isLogin) {
     return { loggedIn: false, uname: null, mid: null }
   }
   return { loggedIn: true, uname: body.data.uname ?? null, mid: body.data.mid ?? null }
+}
+
+/** Distinguish an API-level nav failure (carries Bilibili's own code) from a transport error. */
+export class NavApiError extends Error {
+  readonly code: number
+  constructor(code: number, message: string) {
+    super(`nav API code ${code}: ${message}`)
+    this.name = 'NavApiError'
+    this.code = code
+  }
 }
 
 type FavFolderRow = { id: number; title: string; media_count: number }

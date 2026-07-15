@@ -5,7 +5,7 @@ import { createLogger } from '@shared/logger'
 import type { BiliCredentials, BiliLoginStatus } from '@swarm/protocol'
 import { BrowserWindow, session } from 'electron'
 
-import { getNav } from './api'
+import { getNav, NavApiError } from './api'
 import type { Store } from './store'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-auth' })
@@ -35,12 +35,23 @@ export function createAuth(opts: { store: Store }): Auth {
 
   const status: Auth['status'] = async () => {
     const cfg = await store.load()
-    if (!cfg.credentials) return { loggedIn: false, uname: null, mid: null }
+    if (!cfg.credentials) {
+      log.info({ msg: 'status: no stored credentials' })
+      return { loggedIn: false, uname: null, mid: null }
+    }
     try {
-      return await getNav(cfg.credentials)
+      const st = await getNav(cfg.credentials)
+      log.info({ msg: 'status: nav ok', loggedIn: st.loggedIn, mid: st.mid, uname: st.uname })
+      return st
     } catch (err) {
+      // Distinguish the failure cause so a transient risk-control block
+      // (-412/-352) is not confused with a real cookie expiry (-101). Both are
+      // "not logged in" from the UI's perspective, but the code tells the real
+      // story. Logged at warn: the user sees an empty list, not a crash.
+      const code = err instanceof NavApiError ? err.code : null
       log.warn({
-        msg: 'nav check failed, treating as logged-out',
+        msg: 'status: nav failed, treating as logged-out',
+        code,
         err: err instanceof Error ? err.message : String(err),
       })
       return { loggedIn: false, uname: null, mid: null }
