@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { swarmApi } from '@/lib/api'
+import { useAnalysisStreamStore } from '@/stores/analysis-stream'
 import { BilibiliView, buildRows } from './bilibili-view'
 
 // Holds the subscribeEvents callback so tests can emit bilibili.analysis* events.
@@ -62,6 +63,8 @@ const SAMPLE: BiliListResult = {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  // Clear the global analysis-stream store so tests don't leak state.
+  useAnalysisStreamStore.setState({ entries: new Map() })
 })
 
 describe('buildRows', () => {

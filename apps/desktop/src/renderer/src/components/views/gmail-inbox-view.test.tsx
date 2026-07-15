@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ThreadAnalysisState } from '@/hooks/use-thread-analysis'
 import { swarmApi } from '@/lib/api'
+import { useAnalysisStreamStore } from '@/stores/analysis-stream'
 import { GmailAssistantCard } from './gmail-assistant-card'
 import { GmailInboxView } from './gmail-inbox-view'
 
@@ -179,6 +180,8 @@ describe('GmailInboxView manual analysis', () => {
   afterEach(() => {
     cleanup()
     emits = []
+    // Clear the global analysis-stream store so tests don't leak state.
+    useAnalysisStreamStore.setState({ entries: new Map() })
   })
 
   it('does not auto-analyze a cache-miss thread; the AI 分析 button triggers it', async () => {
