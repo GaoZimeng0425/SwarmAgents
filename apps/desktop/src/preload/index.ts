@@ -467,6 +467,8 @@ const swarm: SwarmBridge = {
   openUserDataDir: () => ipcRenderer.invoke('system:openUserDataDir') as Promise<void>,
   pickDirectory: () => ipcRenderer.invoke('system:pickPath', 'directory') as Promise<string | null>,
   pickFile: () => ipcRenderer.invoke('system:pickPath', 'file') as Promise<string | null>,
+  listDir: (dir: string, prefix?: string) =>
+    ipcRenderer.invoke('system:listDir', dir, prefix) as Promise<{ name: string; isDir: boolean }[]>,
   providers,
   mcp,
   webSearch,

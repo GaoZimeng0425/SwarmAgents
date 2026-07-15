@@ -526,6 +526,11 @@ export type SwarmBridge = {
   pickDirectory(): Promise<string | null>
   /** Show a native open dialog to pick a file. Returns its absolute path, or null if cancelled. */
   pickFile(): Promise<string | null>
+  /** List one level of a directory (non-recursive) for the composer's @ file picker.
+   *  Returns entries whose name starts with `prefix` (case-insensitive). Hidden files
+   *  (dot-prefixed) are excluded. Folders sort before files; capped at 50 entries.
+   *  Returns [] for a non-existent or unreadable directory (never throws). */
+  listDir(dir: string, prefix?: string): Promise<{ name: string; isDir: boolean }[]>
   providers: ProvidersBridge
   mcp: McpBridge
   webSearch: WebSearchBridge

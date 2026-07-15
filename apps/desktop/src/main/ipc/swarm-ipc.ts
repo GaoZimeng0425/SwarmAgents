@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import fs, { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
@@ -364,6 +364,29 @@ export function wireSwarmIpc(args: {
   }
   ipcMain.handle('system:pickPath', pickPath)
 
+  // List one directory level for the composer's @ file/folder autocomplete.
+  // Non-recursive, dotfiles excluded, prefix-filtered, folders-first, capped.
+  const listDir = async (
+    _e: Electron.IpcMainInvokeEvent,
+    dir: unknown,
+    prefix?: unknown
+  ): Promise<{ name: string; isDir: boolean }[]> => {
+    if (typeof dir !== 'string') return []
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true })
+      const p = typeof prefix === 'string' ? prefix.toLowerCase() : ''
+      const visible = entries
+        .filter((e) => !e.name.startsWith('.'))
+        .filter((e) => (p ? e.name.toLowerCase().startsWith(p) : true))
+        .map((e) => ({ name: e.name, isDir: e.isDirectory() }))
+        .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name))
+      return visible.slice(0, 50)
+    } catch {
+      return []
+    }
+  }
+  ipcMain.handle('system:listDir', listDir)
+
   ipcMain.handle('system:getMacPermissions', () => getMacPermissions())
   const handleOpenPrivacySettings = (_e: Electron.IpcMainInvokeEvent, pane: unknown): Promise<void> =>
     openPrivacySettings(pane === 'accessibility' ? 'accessibility' : 'screen')
@@ -395,6 +418,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('system:openPath')
       ipcMain.removeHandler('system:openUserDataDir')
       ipcMain.removeHandler('system:pickPath')
+      ipcMain.removeHandler('system:listDir')
       ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
       ipcMain.removeHandler('swarm:createSession')
