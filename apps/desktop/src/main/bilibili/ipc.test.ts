@@ -129,9 +129,7 @@ describe('wireBilibiliIpc / bilibili:process', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
-      analyzeBilibili: vi.fn(
-        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
-      ),
+      analyzeBilibili: vi.fn(async () => ({ ok: true }) as AnalyzeBilibiliResult),
     })
 
     // Act
@@ -168,9 +166,7 @@ describe('wireBilibiliIpc / analysis cache queries', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
-      analyzeBilibili: vi.fn(
-        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
-      ),
+      analyzeBilibili: vi.fn(async () => ({ ok: true }) as AnalyzeBilibiliResult),
     })
 
     expect(await invokeHandler('bilibili:analyzedBvids')).toEqual(['BV1'])
@@ -206,9 +202,7 @@ describe('wireBilibiliIpc / bilibili:save', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
-      analyzeBilibili: vi.fn(
-        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
-      ),
+      analyzeBilibili: vi.fn(async () => ({ ok: true }) as AnalyzeBilibiliResult),
     })
     const video = vid('BV1', 'CS')
     const summary = { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] }
@@ -242,9 +236,7 @@ describe('wireBilibiliIpc / delete + archive + pins', () => {
       archiveStore,
       pinStore,
       getInjection: () => null,
-      analyzeBilibili: vi.fn(
-        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
-      ),
+      analyzeBilibili: vi.fn(async () => ({ ok: true }) as AnalyzeBilibiliResult),
     })
     return { archiveStore, pinStore }
   }
@@ -266,9 +258,7 @@ describe('wireBilibiliIpc / delete + archive + pins', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
-      analyzeBilibili: vi.fn(
-        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
-      ),
+      analyzeBilibili: vi.fn(async () => ({ ok: true }) as AnalyzeBilibiliResult),
     })
     const result = await invokeHandler('bilibili:deleteWatchLater', 'BV1')
     expect(result).toMatchObject({ ok: false, code: 'not_logged_in' })
@@ -395,9 +385,7 @@ describe('wireBilibiliIpc / bilibili:list all-sources-failed', () => {
       archiveStore: fakeArchiveStore(),
       pinStore: fakePinStore(),
       getInjection: () => null,
-      analyzeBilibili: vi.fn(
-        async () => ({ ok: false, code: 'no_provider', message: 'mock' }) as AnalyzeBilibiliResult
-      ),
+      analyzeBilibili: vi.fn(async () => ({ ok: true }) as AnalyzeBilibiliResult),
     })
 
     await expect(invokeHandler('bilibili:list')).rejects.toThrow('收藏列表加载失败')

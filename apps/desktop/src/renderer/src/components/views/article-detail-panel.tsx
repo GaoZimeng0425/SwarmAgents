@@ -5,19 +5,19 @@
 // horizontal action row, segmented tabs, gradient gist card, and iconed
 // 核心要点 / 可带走洞察 sections.
 import { useEffect, useState } from 'react'
-import type { ArticleSummary, CollectedArticleWithAnalysis, UIEvent } from '@swarm/protocol'
+import type { ArticleSummary, CollectedArticleWithAnalysis } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
-import { useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, ChevronRight, ExternalLink, ListChecks, Loader2, Sparkles, Trash2 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useAnalysisStream } from '@/hooks/use-analysis-stream'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { AnalysisContent } from './analysis-primitives'
 import { colorForSite } from './article-colors'
 
 type DetailTab = 'analysis' | 'text'
-type Phase = 'idle' | 'streaming' | 'done' | 'error'
 
 function hostnameOf(url: string): string {
   try {
@@ -93,21 +93,6 @@ function SummaryView({ summary, readMin }: { summary: ArticleSummary; readMin: n
   )
 }
 
-// Reading-area placeholder while an analysis is in flight but no text has
-// streamed yet: pulsing skeletons so the panel reads as "working".
-function AnalyzingPlaceholder(): React.JSX.Element {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1.5 font-semibold text-[13px] text-violet-600 dark:text-violet-300">
-        <Loader2 className="size-3.5 animate-spin" /> AI 分析中…
-      </div>
-      <div className="h-16 animate-pulse rounded-md bg-muted" />
-      <div className="h-24 animate-pulse rounded-md bg-muted" />
-      <div className="h-24 animate-pulse rounded-md bg-muted" />
-    </div>
-  )
-}
-
 export function ArticleDetailPanel({
   article,
   onClose,
@@ -121,66 +106,37 @@ export function ArticleDetailPanel({
    *  badge that card. */
   onAnalyzingChange?: (id: string | null) => void
 }): React.JSX.Element {
-  const queryClient = useQueryClient()
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [streamText, setStreamText] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  // Summary surfaced in the reading area: the cached summary from the article
-  // object until a fresh analysis completes, then the freshly streamed summary.
-  const [liveSummary, setLiveSummary] = useState<ArticleSummary | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('analysis')
 
-  // Reset all in-flight/streamed state when the user switches article cards.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: article.id is the reset trigger, not read in the body
-  useEffect(() => {
-    setPhase('idle')
-    setStreamText('')
-    setError(null)
-    setLiveSummary(null)
-    setDetailTab('analysis')
-  }, [article.id])
-
-  // Subscribe to analysis stream events once per article; events for other ids are ignored.
-  useEffect(() => {
-    return window.swarm.subscribeEvents((e: UIEvent) => {
-      if (e.kind === 'article.analysisDelta' && e.articleId === article.id) {
-        setStreamText((prev) => prev + e.text)
-        setPhase('streaming')
-      } else if (e.kind === 'article.analysisComplete' && e.articleId === article.id) {
-        setLiveSummary(e.summary)
-        setStreamText('')
-        setPhase('done')
-        void queryClient.invalidateQueries({ queryKey: ['articles', 'list'] })
-      } else if (e.kind === 'article.analysisError' && e.articleId === article.id) {
-        setError(e.error)
-        setPhase('error')
-      }
-    })
-  }, [article.id, queryClient])
+  const { state, analyze } = useAnalysisStream<ArticleSummary>({
+    id: article.id,
+    events: { delta: 'article.analysisDelta', complete: 'article.analysisComplete', error: 'article.analysisError' },
+    idField: 'articleId',
+    parseComplete: (e) => (e as { summary: ArticleSummary }).summary,
+    trigger: () => swarmApi.articleAnalyze(article.id),
+    cachedResult: article.summary ?? null,
+    invalidateOnComplete: [['articles', 'list']],
+  })
 
   // Surface the in-flight id to the grid so it can badge the matching card;
   // clear it when idle or when the panel unmounts.
+  const phase = state.phase
   useEffect(() => {
     onAnalyzingChange?.(phase === 'streaming' ? article.id : null)
     return () => onAnalyzingChange?.(null)
   }, [phase, article.id, onAnalyzingChange])
 
+  const streamText = state.phase === 'streaming' || state.phase === 'done' ? state.streamText : ''
+  const error = state.phase === 'error' ? state.error : null
+  const liveSummary = state.phase === 'done' ? state.result : null
   const summary = liveSummary ?? article.summary
   const site = article.siteName ?? hostnameOf(article.url)
   const initial = site.slice(0, 1).toUpperCase()
   const readMin = readMinutes(article.contentMarkdown)
 
-  async function handleAnalyze(): Promise<void> {
-    setError(null)
-    setStreamText('')
-    setLiveSummary(null)
-    setPhase('streaming')
+  function handleAnalyze(): void {
     setDetailTab('analysis')
-    const res = await swarmApi.articleAnalyze(article.id)
-    if (!res.ok) {
-      setError(res.message)
-      setPhase('error')
-    }
+    analyze()
   }
 
   async function handleDelete(): Promise<void> {
@@ -255,24 +211,13 @@ export function ArticleDetailPanel({
 
           {/* Content. */}
           {detailTab === 'analysis' ? (
-            phase === 'streaming' ? (
-              streamText ? (
-                <div className="text-[14px] text-foreground/85 leading-relaxed">
-                  <Streamdown>{streamText}</Streamdown>
-                </div>
-              ) : (
-                <AnalyzingPlaceholder />
-              )
-            ) : summary ? (
-              <SummaryView readMin={readMin} summary={summary} />
-            ) : phase === 'error' ? (
-              <p className="text-destructive text-sm">{error}</p>
-            ) : (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <Sparkles className="size-7 text-muted-foreground/40" />
-                <p className="text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要</p>
-              </div>
-            )
+            <AnalysisContent
+              emptyPrompt="点击「AI 分析」生成结构化摘要"
+              error={error}
+              phase={phase}
+              resultCard={summary ? <SummaryView readMin={readMin} summary={summary} /> : undefined}
+              streamText={streamText}
+            />
           ) : (
             <div className="text-[13px] text-foreground/85 leading-relaxed">
               <Streamdown>{article.contentMarkdown}</Streamdown>

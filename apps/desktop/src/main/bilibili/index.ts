@@ -1,17 +1,25 @@
 // src/main/bilibili/index.ts
 //
 // Entry point for the Bilibili subsystem. Wires the on-disk store, auth, and IPC.
-import type { AnalyzeBilibiliRequest, AnalyzeBilibiliResult, ProviderInjection } from '@swarm/protocol'
+import type { AnalyzeBilibiliRequest, AnalyzeBilibiliResult, MainMethod, ProviderInjection } from '@swarm/protocol'
 
 import { paths } from '../constants'
-import { createAnalysisStore } from './analysis-store'
+import { type AnalysisStore, createAnalysisStore } from './analysis-store'
 import { createArchiveStore } from './archive-store'
 import { createAuth } from './auth'
 import { wireBilibiliIpc } from './ipc'
 import { createPinStore } from './pin-store'
 import { createStore } from './store'
 
-export type BilibiliHandle = { dispose(): void }
+// Structural: only the registerRpcHandlers surface initBilibili needs.
+type RpcHandlerClient = {
+  registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
+}
+
+export type BilibiliHandle = {
+  registerRpcHandlers(client: RpcHandlerClient): void
+  dispose(): void
+}
 
 export function initBilibili(opts: {
   getInjection: () => ProviderInjection | null
@@ -31,5 +39,14 @@ export function initBilibili(opts: {
     getInjection: opts.getInjection,
     analyzeBilibili: opts.analyzeBilibili,
   })
-  return { dispose }
+  return {
+    registerRpcHandlers(client) {
+      // The service process calls this to persist an analysis result
+      // (the full BiliAnalysis row: { bvid, summary, text, source, analyzedAt }).
+      client.registerHandler('bilibili.save_analysis', (_bvid, analysis) =>
+        Promise.resolve(analysisStore.put(analysis as Parameters<AnalysisStore['put']>[0]))
+      )
+    },
+    dispose,
+  }
 }

@@ -221,6 +221,7 @@ const dispatch = createDispatcher({
     agentStore,
     toolRegistry,
     getBudgetConfig: () => budgetConfig,
+    callMain: (method, args) => rpcPeer.call(method, args),
   }),
   // The store's list/get/delete are sync; the dispatcher contract returns
   // Promises for these (renderer awaits), so wrap them.

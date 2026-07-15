@@ -5,8 +5,8 @@
 // failure mode maps to a structured BiliTranscribeResult code.
 import { createLogger } from '@shared/logger'
 import type {
+  BiliAnalysisSource,
   BiliCredentials,
-  BiliSummary,
   BiliTranscribeProgress,
   BiliTranscribeResult,
   BiliTranscribeStage,
@@ -32,10 +32,10 @@ export type TranscribeQueueDeps = {
     bvid: string
   }) => Promise<string>
   transcribeWav: (args: { wavPath: string; modelDir: string }) => Promise<string>
-  summarize: (
+  triggerAnalyze: (
     inj: ProviderInjection,
-    input: { bvid: string; title: string; author: string; text: string }
-  ) => Promise<BiliSummary>
+    input: { bvid: string; title: string; author: string; text: string; source: BiliAnalysisSource }
+  ) => Promise<void>
   workDir: string
   cleanup: (wavPath: string) => Promise<void>
 }
@@ -115,13 +115,13 @@ export function createTranscribeQueue(deps: TranscribeQueueDeps): {
     const meta = deps.getMeta(bvid) ?? { title: '', author: '' }
     try {
       emit(bvid, 'summarizing')
-      const summary = await deps.summarize(inj, { bvid, ...meta, text })
+      await deps.triggerAnalyze(inj, { bvid, ...meta, text, source: 'transcript' })
       emit(bvid, 'done')
       log.info({ msg: 'transcribe ok', bvid, durationMs: Date.now() - started })
-      return { ok: true, summary, text, source: 'transcript' }
+      return { ok: true, text, source: 'transcript' }
     } catch (err) {
       emit(bvid, 'failed')
-      log.error({ msg: 'transcribe summarize stage failed', bvid, err: errMsg(err) })
+      log.error({ msg: 'transcribe analyze stage failed', bvid, err: errMsg(err) })
       return { ok: false, code: 'llm_failed', message: 'AI 总结失败，请稍后重试。' }
     }
   }

@@ -138,23 +138,22 @@ export const BiliAnalysisSchema = z
 export type BiliAnalysis = z.infer<typeof BiliAnalysisSchema>
 
 export type BiliProcessResult =
-  | { ok: true; summary: BiliSummary; text: string; source: 'subtitle' }
+  | { ok: true; text: string; source: BiliAnalysisSource }
   | { ok: false; code: 'no_subtitle' | 'no_provider' | 'llm_failed' | 'unknown'; message: string }
 
 // Request from Main → Service to run the bilibili-analyst agent over a
-// transcript. Main owns subtitle/transcript fetch + persistence; the service
-// only runs the analysis and streams bilibili.analysis* events back.
+// transcript. Main fetches the subtitle; the service runs the analysis, streams
+// bilibili.analysis* events, and persists via onComplete (bilibili.save_analysis RPC).
 export type AnalyzeBilibiliRequest = {
   bvid: string
   provider: ProviderInjection
   text: string
   title: string
   author: string
+  source: BiliAnalysisSource
 }
 
-export type AnalyzeBilibiliResult =
-  | { ok: true; summary: BiliSummary }
-  | { ok: false; code: 'no_provider' | 'no_agent' | 'llm_failed' | 'no_card'; message: string }
+export type AnalyzeBilibiliResult = { ok: true } | { ok: false; code: 'no_provider' | 'no_agent'; message: string }
 
 export type BiliSaveResult =
   | { ok: true; path: string }
@@ -165,7 +164,7 @@ export type BiliTranscribeStage = 'queued' | 'audio' | 'transcribing' | 'summari
 export type BiliTranscribeProgress = { bvid: string; stage: BiliTranscribeStage }
 
 export type BiliTranscribeResult =
-  | { ok: true; summary: BiliSummary; text: string; source: 'transcript' }
+  | { ok: true; text: string; source: 'transcript' }
   | {
       ok: false
       code: 'no_config' | 'no_provider' | 'audio_failed' | 'ffmpeg_failed' | 'asr_failed' | 'llm_failed' | 'unknown'
