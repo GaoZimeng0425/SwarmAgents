@@ -1,9 +1,9 @@
 // Read-only in-memory view of the hand-edited `hooks.json`. The service
 // spawns the configured commands when the corresponding run.* events fire
 // (see dispatcher.ts); there is no runtime mutation, so — unlike the sibling
-// tool-toggles store — this one never persists and only exposes get()/reload().
-// Loads forgivingly on construction and on reload(): a missing or invalid
-// file falls back to an empty config (no hooks fire) with a warn log.
+// tool-toggles store — this one never persists and only exposes get().
+// Loads forgivingly on construction: a missing or invalid file falls back to
+// an empty config (no hooks fire) with a warn log.
 import { existsSync, readFileSync } from 'node:fs'
 import { createLogger } from '@shared/logger'
 import { type HooksFile, HooksFileSchema } from '@swarm/protocol'
@@ -12,8 +12,6 @@ const log = createLogger({ process: 'service' }).child({ component: 'hooks-store
 
 export type HooksStore = {
   get(): HooksFile
-  /** Re-read the file from disk; a watch hook can call this for hot reload. */
-  reload(): void
 }
 
 export function createHooksStore(opts: { filePath: string }): HooksStore {
@@ -37,9 +35,5 @@ export function createHooksStore(opts: { filePath: string }): HooksStore {
 
   return {
     get: () => state,
-    reload: () => {
-      state = load()
-      log.info({ msg: 'hooks reloaded', eventNames: Object.keys(state) })
-    },
   }
 }

@@ -25,7 +25,7 @@ export type MessageEmitPorts = {
   broadcast(evt: MessageWireEvent): void
 }
 
-export type MessageIdentity = { sessionId: string; messageId: string; parentMessageId?: string }
+type MessageIdentity = { sessionId: string; messageId: string; parentMessageId?: string }
 
 /**
  * The ONE emit path for a message (spec §3): stamps identity + seq + ts, persists,

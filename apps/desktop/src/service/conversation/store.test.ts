@@ -65,22 +65,6 @@ describe('ConversationStore', () => {
     store2.close()
   })
 
-  it('saves and retrieves tool state', () => {
-    const store = createConversationStore(dbPath)
-    const provider = {
-      id: 'anthropic' as const,
-      apiStyle: 'anthropic' as const,
-      model: 'claude-sonnet-4-5',
-      apiKey: 'k',
-    }
-    store.createSession('ses-1', provider)
-    store.saveToolState('ses-1', 'cookies', [{ name: 'sid', value: '123' }])
-    const cookies = store.getToolState('ses-1', 'cookies')
-    expect(cookies).toEqual([{ name: 'sid', value: '123' }])
-    expect(store.getToolState('ses-1', 'nonexistent')).toBeUndefined()
-    store.close()
-  })
-
   it('stores and updates a session title', () => {
     const store = createConversationStore(dbPath)
     const provider = {

@@ -4,9 +4,7 @@ import { join } from 'node:path'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRunContext } from './registry'
-import { analyzeImageSpec, mimeFromPath, ocrImageSpec, pickVisionInjection } from './vision'
-
-const inj = (id: string) => ({ id, model: id, apiStyle: 'anthropic', apiKey: 'k' }) as never
+import { analyzeImageSpec, mimeFromPath, ocrImageSpec } from './vision'
 
 // A minimal ToolRunContext — analyze_image reads ctx.cwd and ctx.analyzeImage.
 const ctx = (over: Partial<ToolRunContext> = {}): ToolRunContext => over as never
@@ -28,16 +26,6 @@ describe('mimeFromPath', () => {
     expect(mimeFromPath('/a/b.JPG')).toBe('image/jpeg')
     expect(mimeFromPath('/a/b.webp')).toBe('image/webp')
     expect(mimeFromPath('/a/b.txt')).toBeUndefined()
-  })
-})
-
-describe('pickVisionInjection', () => {
-  it('returns the first injection the predicate accepts (primary preferred over fallbacks)', () => {
-    const supports = (p: { id: string }) => p.id !== 'text-only'
-    expect(pickVisionInjection([inj('text-only'), inj('vision-a'), inj('vision-b')], supports)?.id).toBe('vision-a')
-  })
-  it('returns undefined when nothing in the chain is image-capable', () => {
-    expect(pickVisionInjection([inj('a'), inj('b')], () => false)).toBeUndefined()
   })
 })
 

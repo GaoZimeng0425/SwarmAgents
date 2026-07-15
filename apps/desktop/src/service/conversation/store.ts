@@ -78,8 +78,6 @@ export type ConversationStore = {
   /** The last terminal status per messageId across ALL sessions (for registry boot). */
   getTerminalMessageStatuses(): Array<{ messageId: string; status: 'completed' | 'failed' | 'cancelled' }>
   getUsageStats(rangeDays: number): UsageStats
-  saveToolState(sessionId: string, key: string, value: unknown): void
-  getToolState(sessionId: string, key: string): unknown
   saveCronJob(job: StoredCronJob): void
   listCronJobs(): StoredCronJob[]
   listCronJobsForSession(sessionId: string): StoredCronJob[]
@@ -147,13 +145,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
       event              TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_message_events_session ON message_events(session_id, id);
-    CREATE TABLE IF NOT EXISTS tool_state_snapshots (
-      session_id  TEXT NOT NULL REFERENCES sessions(id),
-      key         TEXT NOT NULL,
-      value       TEXT NOT NULL,
-      updated_at  INTEGER NOT NULL,
-      PRIMARY KEY (session_id, key)
-    );
     CREATE TABLE IF NOT EXISTS cron_jobs (
       id                TEXT PRIMARY KEY,
       session_id        TEXT NOT NULL REFERENCES sessions(id),
@@ -524,12 +515,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
     return active.map(rowToSession).map((s) => ({ ...s, status: 'interrupted' as const }))
   })
 
-  const stmtUpsertToolState = db.prepare(
-    `INSERT OR REPLACE INTO tool_state_snapshots (session_id, key, value, updated_at)
-     VALUES (?, ?, ?, ?)`
-  )
-  const stmtGetToolState = db.prepare('SELECT value FROM tool_state_snapshots WHERE session_id = ? AND key = ?')
-
   const stmtSetTitle = db.prepare('UPDATE sessions SET title = ? WHERE id = ?')
   const stmtSetPinned = db.prepare('UPDATE sessions SET pinned = ? WHERE id = ?')
   const stmtSetSortOrder = db.prepare('UPDATE sessions SET sort_order = ? WHERE id = ?')
@@ -602,11 +587,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
   )
 
   // Hard-delete a session and everything that references it (FK constraints
-  // forbid orphaning tool-state rows).
+  // forbid orphaning child rows).
   const deleteSessionTx = db.transaction((id: string) => {
     db.prepare('DELETE FROM cron_runs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
-    db.prepare('DELETE FROM tool_state_snapshots WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM message_events WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
@@ -881,13 +865,6 @@ export function createConversationStore(dbPath: string): ConversationStore {
         })
         throw err
       }
-    },
-    saveToolState(sessionId, key, value) {
-      stmtUpsertToolState.run(sessionId, key, JSON.stringify(value), Date.now())
-    },
-    getToolState(sessionId, key) {
-      const row = stmtGetToolState.get(sessionId, key) as { value: string } | undefined
-      return row ? JSON.parse(row.value) : undefined
     },
     saveCronJob(job) {
       stmtInsertCronJob.run(

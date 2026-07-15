@@ -39,9 +39,9 @@ export function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> 
   })
 }
 
-export type RetryDecision = 'retry-same-model' | 'advance-model' | 'give-up'
+type RetryDecision = 'retry-same-model' | 'advance-model' | 'give-up'
 
-export type AttemptContext = {
+type AttemptContext = {
   /** 0-based attempt index on the current model. */
   attempt: number
   /** Extra attempts allowed per model (total attempts = maxRetries + 1). */

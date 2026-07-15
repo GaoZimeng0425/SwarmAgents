@@ -24,7 +24,7 @@ import { injectionSupportsImages } from './models'
 
 const log = createLogger({ process: 'service' }).child({ component: 'message-launch' })
 
-export type MessageKind = 'turn' | 'work' | 'child'
+type MessageKind = 'turn' | 'work' | 'child'
 
 export type MessageSpec = {
   kind: MessageKind

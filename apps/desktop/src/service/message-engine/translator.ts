@@ -5,7 +5,7 @@ import type { MessageEmit } from './emit'
 
 /** Per-attempt outcome collected from pi's event stream. The engine — not the
  *  translator — turns this into the message's SINGLE terminal event. */
-export type TranslatorOutcome = {
+type TranslatorOutcome = {
   /** Assembled assistant text for this attempt (the summary candidate). */
   summary: string
   /** pi delivered a request failure (an assistant message with stopReason 'error'). */
@@ -14,7 +14,7 @@ export type TranslatorOutcome = {
   sawAborted: boolean
 }
 
-export type MessageTranslator = {
+type MessageTranslator = {
   handle(e: AgentEvent): void
   outcome(): TranslatorOutcome
   /** Reset per-attempt state before a retry or a new resident-style turn. */

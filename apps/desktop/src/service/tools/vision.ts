@@ -4,7 +4,6 @@ import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { ProviderInjection } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 
@@ -20,18 +19,6 @@ const MIME_BY_EXT: Record<string, string> = {
 export function mimeFromPath(path: string): string | undefined {
   const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
   return MIME_BY_EXT[ext]
-}
-
-/**
- * Pick the model to run a vision call on: the first image-capable injection in
- * the chain (`[provider, ...fallbacks]`). Lets a cheap text-only main model
- * delegate image work to an image-capable provider configured as its fallback.
- */
-export function pickVisionInjection(
-  chain: readonly ProviderInjection[],
-  supportsImages: (p: ProviderInjection) => boolean
-): ProviderInjection | undefined {
-  return chain.find(supportsImages)
 }
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
