@@ -3,11 +3,14 @@ import '@testing-library/jest-dom/vitest'
 import type React from 'react'
 import type { BiliListResult } from '@swarm/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { swarmApi } from '@/lib/api'
 import { BilibiliView, buildRows } from './bilibili-view'
+
+// Holds the subscribeEvents callback so tests can emit bilibili.analysis* events.
+let eventCb: ((e: unknown) => void) | null = null
 
 // The always-mounted detail sheet subscribes to transcription progress on render and
 // the list/panel query the analysis cache; stub these by default so tests that don't
@@ -19,10 +22,17 @@ beforeEach(() => {
   // Local archive/pins have no login gate and load on mount; stub them empty.
   vi.spyOn(swarmApi, 'bilibiliArchiveList').mockResolvedValue([])
   vi.spyOn(swarmApi, 'bilibiliPinsList').mockResolvedValue([])
-  // The detail panel calls window.swarm.subscribeEvents on mount; stub a no-op
-  // unsubscribe so it doesn't touch the absent preload bridge.
+  // The detail panel calls window.swarm.subscribeEvents on mount. Save the
+  // callback so tests can emit bilibili.analysis* events (the summary now
+  // arrives via the event stream, not the IPC return value).
+  eventCb = null
   ;(globalThis as unknown as { window: Window }).window.swarm = {
-    subscribeEvents: vi.fn().mockReturnValue(() => {}),
+    subscribeEvents: vi.fn((cb: (e: unknown) => void) => {
+      eventCb = cb
+      return () => {
+        eventCb = null
+      }
+    }),
   } as unknown as typeof window.swarm
 })
 
@@ -125,7 +135,7 @@ describe('BilibiliView', () => {
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
     // The panel mounts with the AI-analysis prompt (no cached summary yet).
-    expect(await screen.findByText('点击「AI 分析」生成结构化摘要。')).toBeInTheDocument()
+    expect(await screen.findByText('点击「AI 分析」生成结构化摘要')).toBeInTheDocument()
   })
 
   it('does not mount the detail panel until a video is selected', async () => {
@@ -134,7 +144,7 @@ describe('BilibiliView', () => {
     render(wrap(<BilibiliView />))
     await screen.findByText('视频甲') // list rendered
     // Panel is collapsed (unmounted) with nothing selected — grid gets full width.
-    expect(screen.queryByText('点击「AI 分析」生成结构化摘要。')).not.toBeInTheDocument()
+    expect(screen.queryByText('点击「AI 分析」生成结构化摘要')).not.toBeInTheDocument()
   })
 
   it('runs AI analysis from the detail panel and shows the summary', async () => {
@@ -148,6 +158,15 @@ describe('BilibiliView', () => {
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
     fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
+    // The summary now arrives via the event stream (not the IPC return value).
+    await act(async () => {
+      eventCb?.({
+        kind: 'bilibili.analysisComplete',
+        bvid: 'BV1',
+        summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+        ts: Date.now(),
+      })
+    })
     expect(await screen.findByText('AI主旨')).toBeInTheDocument()
     expect(screen.getByText('要点一')).toBeInTheDocument()
   })
@@ -184,6 +203,15 @@ describe('BilibiliView', () => {
     fireEvent.click(await screen.findByText('视频甲'))
     fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
     fireEvent.click(await screen.findByRole('button', { name: /本地转写/ }))
+    // The transcribed summary arrives via the same event stream.
+    await act(async () => {
+      eventCb?.({
+        kind: 'bilibili.analysisComplete',
+        bvid: 'BV1',
+        summary: { gist: '转写主旨', points: ['转写要点'], experience: [], pitfalls: [], steps: [] },
+        ts: Date.now(),
+      })
+    })
     expect(await screen.findByText('转写主旨')).toBeInTheDocument()
     expect(screen.getByText('转写要点')).toBeInTheDocument()
     expect(transcribe).toHaveBeenCalledWith('BV1')
@@ -254,6 +282,14 @@ describe('BilibiliView', () => {
     render(wrap(<BilibiliView />))
     fireEvent.click(await screen.findByText('视频甲'))
     fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
+    await act(async () => {
+      eventCb?.({
+        kind: 'bilibili.analysisComplete',
+        bvid: 'BV1',
+        summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
+        ts: Date.now(),
+      })
+    })
     await screen.findByText('AI主旨')
     fireEvent.click(screen.getByRole('button', { name: /保存到 Obsidian/ }))
     await waitFor(() => expect(save).toHaveBeenCalled())
