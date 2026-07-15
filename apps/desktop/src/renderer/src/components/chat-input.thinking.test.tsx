@@ -32,6 +32,13 @@ vi.mock('@/components/attachment-viewer-sheet', () => ({
   AttachmentViewerSheet: () => null,
 }))
 
+// ComposerMention (mounted inside PromptInput) pulls in useSkills, which hits
+// window.swarm over IPC. These tests cover the thinking stepper, not the
+// mention autocomplete, so stub the hook to return an empty skill list.
+vi.mock('@/hooks/use-skills', () => ({
+  useSkills: () => ({ skills: [], setSkills: vi.fn(), reload: vi.fn() }),
+}))
+
 const setThinkingLevel = vi.fn<() => Promise<void>>()
 
 beforeEach(() => {

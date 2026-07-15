@@ -25,6 +25,7 @@ import {
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { AttachmentViewerSheet, type ViewerFile } from '@/components/attachment-viewer-sheet'
+import { ComposerMention } from '@/components/composer-mention'
 import { ContextRing } from '@/components/context-ring'
 import { useProviders } from '@/hooks/use-providers'
 import { imageAttachmentsFrom } from '@/lib/attachments'
@@ -601,6 +602,7 @@ export function ChatInput({
                                       commitThinkingIndex(current + 1)
                                     }
                                   }}
+                                  onPointerCancel={() => setDragging(false)}
                                   onPointerDown={(e) => {
                                     e.stopPropagation()
                                     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -615,7 +617,6 @@ export function ChatInput({
                                     ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
                                     setDragging(false)
                                   }}
-                                  onPointerCancel={() => setDragging(false)}
                                   ref={stepTrackRef}
                                   role="slider"
                                   tabIndex={0}
@@ -678,6 +679,7 @@ export function ChatInput({
               </div>
             </div>
           </PromptInputFooter>
+          <ComposerMention anchor={composerRef} cwd={cwd} />
         </PromptInput>
       </div>
       <AttachmentViewerSheet file={viewerFile} onOpenChange={(open) => !open && setViewerFile(null)} />
