@@ -24,21 +24,29 @@ vi.mock('@/components/attachment-viewer-sheet', () => ({
 }))
 
 // ComposerMention (mounted inside PromptInput) pulls in useSkills, which hits
-// window.swarm over IPC. These tests cover the composer controls, not the
-// mention autocomplete, so stub the hook to return an empty skill list.
+// window.swarm over IPC. The composer-control tests don't exercise the mention
+// autocomplete, so the default is an empty skill list. The mention-selection
+// tests below override `skillsHolder.current` to inject candidates per test.
+const skillsHolder = vi.hoisted<Array<{ current: Array<{ name: string; description: string; body: string }> }>>(() => [
+  { current: [] },
+])
 vi.mock('@/hooks/use-skills', () => ({
-  useSkills: () => ({ skills: [], setSkills: vi.fn(), reload: vi.fn() }),
+  useSkills: () => ({ skills: skillsHolder[0].current, setSkills: vi.fn(), reload: vi.fn() }),
 }))
 
 const pickDirectory = vi.fn<() => Promise<string | null>>()
 const pickFile = vi.fn<() => Promise<string | null>>()
+const listDir = vi.fn<(dir: string, prefix?: string) => Promise<{ name: string; isDir: boolean }[]>>()
 
 beforeEach(() => {
   pickDirectory.mockReset()
   pickFile.mockReset()
+  listDir.mockReset().mockResolvedValue([])
+  skillsHolder[0].current = []
   ;(globalThis as unknown as { window: Window }).window.swarm = {
     pickDirectory,
     pickFile,
+    listDir,
   } as unknown as Window['swarm']
 })
 
@@ -54,6 +62,19 @@ function openAddMenu() {
   const trigger = document.querySelector('[aria-haspopup="menu"]')
   if (!trigger) throw new Error('add-menu trigger not found')
   fireEvent.click(trigger)
+}
+
+// ComposerMention listens for `input`/`keyup`/`click` on the textarea and reads
+// `value` + `selectionStart` to detect a mention. fireEvent.change goes through
+// React's synthetic value setter, but the popover's commit path uses the native
+// value setter — so drive the textarea the same way here to keep the two in
+// sync, then place the caret so extractMention sees the `/` or `@` trigger.
+function typeIntoTextarea(ta: HTMLTextAreaElement, value: string, caret?: number): void {
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(ta, value)
+  const at = caret ?? value.length
+  ta.setSelectionRange(at, at)
+  ta.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 describe('ChatInput composer controls', () => {
@@ -154,5 +175,53 @@ describe('ChatInput composer controls', () => {
 
     rerender(<ChatInput executionMode="direct" onSubmit={vi.fn()} permissionMode="ask" />)
     expect(screen.queryByText('Agent 训练团队')).not.toBeInTheDocument()
+  })
+
+  // ComposerMention's input listener is attached in a useEffect that may run one
+  // tick after the textarea mounts. Poll until the textarea reflects the typed
+  // value, so the `input` event (which fires `recheck` → setMention) is the one
+  // that opens the popover rather than the initial synthetic set.
+  async function waitForTextareaReady(container: HTMLElement): Promise<HTMLTextAreaElement> {
+    return waitFor(() => {
+      const ta = container.querySelector('textarea[name="message"]') as HTMLTextAreaElement | null
+      expect(ta).not.toBeNull()
+      return ta as HTMLTextAreaElement
+    })
+  }
+
+  // End-to-end: typing `/query` opens the skill popover, and committing the
+  // first candidate replaces the mention range with `/skill-name ` in the
+  // textarea. Verifies the commit path (replace + caret + input event) reaches
+  // the uncontrolled textarea owned by PromptInput.
+  it('inserts /skill-name when a skill is selected from the / popover', async () => {
+    skillsHolder[0].current = [{ name: 'summarize', description: 'makes a summary', body: '' }]
+    const { container } = renderChatInput()
+
+    const ta = await waitForTextareaReady(container)
+    typeIntoTextarea(ta, '/sum')
+    // The skill candidate renders inside the popover once the mention opens.
+    const candidate = await screen.findByText('summarize')
+    expect(candidate).toBeInTheDocument()
+
+    // Enter is the popover's commit key for the active (first) candidate.
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    await waitFor(() => expect(ta.value).toBe('/summarize '))
+  })
+
+  // End-to-end: typing `@query` (with a cwd so listDir fires) opens the file
+  // popover, and committing the first file replaces the mention range with
+  // `@filename ` in the textarea.
+  it('inserts @path when a file is selected from the @ popover', async () => {
+    listDir.mockResolvedValue([{ name: 'readme.md', isDir: false }])
+    const { container } = renderChatInput({ cwd: '/proj' })
+
+    const ta = await waitForTextareaReady(container)
+    typeIntoTextarea(ta, '@rea')
+    // listDir is debounced (80ms); wait for the file candidate to render.
+    const candidate = await screen.findByText('readme.md')
+    expect(candidate).toBeInTheDocument()
+
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    await waitFor(() => expect(ta.value).toBe('@readme.md '))
   })
 })
