@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnalysisStream } from '@/hooks/use-analysis-stream'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { AnalysisContent } from './analysis-primitives'
 import { colorForSite } from './article-colors'
 
 type DetailTab = 'analysis' | 'text'
@@ -88,21 +89,6 @@ function SummaryView({ summary, readMin }: { summary: ArticleSummary; readMin: n
           </ul>
         </section>
       ) : null}
-    </div>
-  )
-}
-
-// Reading-area placeholder while an analysis is in flight but no text has
-// streamed yet: pulsing skeletons so the panel reads as "working".
-function AnalyzingPlaceholder(): React.JSX.Element {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1.5 font-semibold text-[13px] text-violet-600 dark:text-violet-300">
-        <Loader2 className="size-3.5 animate-spin" /> AI 分析中…
-      </div>
-      <div className="h-16 animate-pulse rounded-md bg-muted" />
-      <div className="h-24 animate-pulse rounded-md bg-muted" />
-      <div className="h-24 animate-pulse rounded-md bg-muted" />
     </div>
   )
 }
@@ -225,24 +211,13 @@ export function ArticleDetailPanel({
 
           {/* Content. */}
           {detailTab === 'analysis' ? (
-            phase === 'streaming' ? (
-              streamText ? (
-                <div className="text-[14px] text-foreground/85 leading-relaxed">
-                  <Streamdown>{streamText}</Streamdown>
-                </div>
-              ) : (
-                <AnalyzingPlaceholder />
-              )
-            ) : summary ? (
-              <SummaryView readMin={readMin} summary={summary} />
-            ) : phase === 'error' ? (
-              <p className="text-destructive text-sm">{error}</p>
-            ) : (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <Sparkles className="size-7 text-muted-foreground/40" />
-                <p className="text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要</p>
-              </div>
-            )
+            <AnalysisContent
+              emptyPrompt="点击「AI 分析」生成结构化摘要"
+              error={error}
+              phase={phase}
+              resultCard={summary ? <SummaryView readMin={readMin} summary={summary} /> : undefined}
+              streamText={streamText}
+            />
           ) : (
             <div className="text-[13px] text-foreground/85 leading-relaxed">
               <Streamdown>{article.contentMarkdown}</Streamdown>

@@ -19,12 +19,12 @@ import {
   Star,
   Users,
 } from 'lucide-react'
-import { Streamdown } from 'streamdown'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnalysisStream } from '@/hooks/use-analysis-stream'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { AnalysisContent } from './analysis-primitives'
 
 // Verdict tone → accent classes (green / violet / amber / gray), matching the
 // design's four verdict families. The agent picks the tone; the label text
@@ -106,19 +106,6 @@ function ResearchView({ research }: { research: RepoResearch }): React.JSX.Eleme
           <span className="text-[12px] text-foreground/85 leading-relaxed">{research.verdict}</span>
         </div>
       </div>
-    </div>
-  )
-}
-
-function ResearchingPlaceholder(): React.JSX.Element {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1.5 font-semibold text-[13px] text-violet-600 dark:text-violet-300">
-        <Loader2 className="size-3.5 animate-spin" /> Agent 调研中…
-      </div>
-      <div className="h-16 animate-pulse rounded-md bg-muted" />
-      <div className="h-24 animate-pulse rounded-md bg-muted" />
-      <div className="h-20 animate-pulse rounded-md bg-muted" />
     </div>
   )
 }
@@ -234,31 +221,15 @@ export function TrendingResearchPanel({
 
       <ScrollArea className="min-h-0 flex-1" edgeFade>
         <div className="p-4 pt-2">
-          {phase === 'streaming' ? (
-            streamText ? (
-              <div className="text-[13px] text-foreground/85 leading-relaxed">
-                <Streamdown>{streamText}</Streamdown>
-              </div>
-            ) : (
-              <ResearchingPlaceholder />
-            )
-          ) : research ? (
-            <div className="flex flex-col gap-3.5">
-              {summary ? (
-                <div className="text-[13px] text-foreground/85 leading-relaxed">
-                  <Streamdown>{summary}</Streamdown>
-                </div>
-              ) : null}
-              <ResearchView research={research} />
-            </div>
-          ) : phase === 'error' ? (
-            <p className="text-destructive text-sm">{error}</p>
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <Sparkles className="size-7 text-muted-foreground/40" />
-              <p className="text-muted-foreground text-sm">点击「让 Agent 深入调研」生成结构化简报</p>
-            </div>
-          )}
+          <AnalysisContent
+            analyzingLabel="Agent 调研中…"
+            doneMarkdown={summary || undefined}
+            emptyPrompt="点击「让 Agent 深入调研」生成结构化简报"
+            error={error}
+            phase={phase}
+            resultCard={research ? <ResearchView research={research} /> : undefined}
+            streamText={streamText}
+          />
         </div>
       </ScrollArea>
     </aside>

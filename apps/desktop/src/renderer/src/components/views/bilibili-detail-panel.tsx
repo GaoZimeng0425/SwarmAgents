@@ -8,22 +8,13 @@ import type { BiliSummary, BiliVideo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { compact } from 'es-toolkit'
-import {
-  Lightbulb,
-  ListOrdered,
-  Loader2,
-  PanelRightClose,
-  Sparkles,
-  SquareCheckBig,
-  TriangleAlert,
-  Upload,
-} from 'lucide-react'
-import { Streamdown } from 'streamdown'
+import { Lightbulb, ListOrdered, PanelRightClose, Sparkles, SquareCheckBig, TriangleAlert, Upload } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnalysisStream } from '@/hooks/use-analysis-stream'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { AnalysisContent } from './analysis-primitives'
 import { BilibiliVideoMenu } from './bilibili-video-menu'
 import { formatDuration, type VideoListContext } from './bilibili-view'
 import { TranscribeProgress } from './transcribe-progress'
@@ -124,22 +115,6 @@ function SummaryView({ summary, source }: { summary: BiliSummary; source?: strin
           </div>
         </div>
       ) : null}
-    </div>
-  )
-}
-
-// Content-area placeholder while an AI analysis is in flight: mirrors the
-// SummaryView layout (hero card + bullet blocks) with pulsing skeletons so the
-// panel reads as "working" instead of showing the empty-state prompt.
-function AnalyzingPlaceholder(): React.JSX.Element {
-  return (
-    <div className="flex flex-col gap-3.5">
-      <div className="flex items-center gap-1.5 font-semibold text-[11.5px] text-violet-600 dark:text-violet-300">
-        <Loader2 className="size-3 animate-spin" /> AI 分析中…
-      </div>
-      <div className="h-16 animate-pulse rounded-xl bg-muted" />
-      <div className="h-24 animate-pulse rounded-xl bg-muted" />
-      <div className="h-24 animate-pulse rounded-xl bg-muted" />
     </div>
   )
 }
@@ -396,18 +371,17 @@ export function BilibiliDetailPanel({
             ) : null}
 
             {/* Content: structured analysis or raw text. */}
-            {detailTab === 'analysis' && summary ? (
-              <SummaryView source={fullText?.source} summary={summary} />
-            ) : detailTab === 'text' && fullText ? (
+            {detailTab === 'text' && fullText ? (
               <FullTextView label={textLabel} text={fullText.text} />
-            ) : streamText ? (
-              <Streamdown>{streamText}</Streamdown>
-            ) : analysisError ? (
-              <p className="text-destructive text-sm">{analysisError}</p>
-            ) : mutation.isPending || transcribeMutation.isPending ? (
-              <AnalyzingPlaceholder />
             ) : (
-              <p className="py-8 text-center text-muted-foreground text-sm">点击「AI 分析」生成结构化摘要。</p>
+              <AnalysisContent
+                emptyPrompt="点击「AI 分析」生成结构化摘要"
+                error={analysisError}
+                isPending={mutation.isPending || transcribeMutation.isPending}
+                phase={analysisState.phase}
+                resultCard={summary ? <SummaryView source={fullText?.source} summary={summary} /> : undefined}
+                streamText={streamText}
+              />
             )}
           </div>
         </ScrollArea>
