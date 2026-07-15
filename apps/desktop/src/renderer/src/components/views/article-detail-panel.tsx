@@ -5,19 +5,18 @@
 // horizontal action row, segmented tabs, gradient gist card, and iconed
 // 核心要点 / 可带走洞察 sections.
 import { useEffect, useState } from 'react'
-import type { ArticleSummary, CollectedArticleWithAnalysis, UIEvent } from '@swarm/protocol'
+import type { ArticleSummary, CollectedArticleWithAnalysis } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
-import { useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, ChevronRight, ExternalLink, ListChecks, Loader2, Sparkles, Trash2 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useAnalysisStream } from '@/hooks/use-analysis-stream'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { colorForSite } from './article-colors'
 
 type DetailTab = 'analysis' | 'text'
-type Phase = 'idle' | 'streaming' | 'done' | 'error'
 
 function hostnameOf(url: string): string {
   try {
@@ -121,66 +120,37 @@ export function ArticleDetailPanel({
    *  badge that card. */
   onAnalyzingChange?: (id: string | null) => void
 }): React.JSX.Element {
-  const queryClient = useQueryClient()
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [streamText, setStreamText] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  // Summary surfaced in the reading area: the cached summary from the article
-  // object until a fresh analysis completes, then the freshly streamed summary.
-  const [liveSummary, setLiveSummary] = useState<ArticleSummary | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('analysis')
 
-  // Reset all in-flight/streamed state when the user switches article cards.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: article.id is the reset trigger, not read in the body
-  useEffect(() => {
-    setPhase('idle')
-    setStreamText('')
-    setError(null)
-    setLiveSummary(null)
-    setDetailTab('analysis')
-  }, [article.id])
-
-  // Subscribe to analysis stream events once per article; events for other ids are ignored.
-  useEffect(() => {
-    return window.swarm.subscribeEvents((e: UIEvent) => {
-      if (e.kind === 'article.analysisDelta' && e.articleId === article.id) {
-        setStreamText((prev) => prev + e.text)
-        setPhase('streaming')
-      } else if (e.kind === 'article.analysisComplete' && e.articleId === article.id) {
-        setLiveSummary(e.summary)
-        setStreamText('')
-        setPhase('done')
-        void queryClient.invalidateQueries({ queryKey: ['articles', 'list'] })
-      } else if (e.kind === 'article.analysisError' && e.articleId === article.id) {
-        setError(e.error)
-        setPhase('error')
-      }
-    })
-  }, [article.id, queryClient])
+  const { state, analyze } = useAnalysisStream<ArticleSummary>({
+    id: article.id,
+    events: { delta: 'article.analysisDelta', complete: 'article.analysisComplete', error: 'article.analysisError' },
+    idField: 'articleId',
+    parseComplete: (e) => (e as { summary: ArticleSummary }).summary,
+    trigger: () => swarmApi.articleAnalyze(article.id),
+    cachedResult: article.summary ?? null,
+    invalidateOnComplete: [['articles', 'list']],
+  })
 
   // Surface the in-flight id to the grid so it can badge the matching card;
   // clear it when idle or when the panel unmounts.
+  const phase = state.phase
   useEffect(() => {
     onAnalyzingChange?.(phase === 'streaming' ? article.id : null)
     return () => onAnalyzingChange?.(null)
   }, [phase, article.id, onAnalyzingChange])
 
+  const streamText = state.phase === 'streaming' || state.phase === 'done' ? state.streamText : ''
+  const error = state.phase === 'error' ? state.error : null
+  const liveSummary = state.phase === 'done' ? state.result : null
   const summary = liveSummary ?? article.summary
   const site = article.siteName ?? hostnameOf(article.url)
   const initial = site.slice(0, 1).toUpperCase()
   const readMin = readMinutes(article.contentMarkdown)
 
-  async function handleAnalyze(): Promise<void> {
-    setError(null)
-    setStreamText('')
-    setLiveSummary(null)
-    setPhase('streaming')
+  function handleAnalyze(): void {
     setDetailTab('analysis')
-    const res = await swarmApi.articleAnalyze(article.id)
-    if (!res.ok) {
-      setError(res.message)
-      setPhase('error')
-    }
+    analyze()
   }
 
   async function handleDelete(): Promise<void> {
