@@ -57,6 +57,10 @@ export function wireGmailIpc(args: { service: Service }): {
       const opts = (input as { limit?: number; label?: string } | undefined) ?? {}
       return Promise.resolve(service.listRecent({ limit: opts.limit ?? 20, label: opts.label }))
     },
+    'gmail.save_thread_analysis': (threadId, analysis) =>
+      Promise.resolve(
+        service.saveThreadAnalysis(String(threadId), analysis as import('@swarm/protocol').ThreadAnalysisPayload)
+      ),
   }
 
   log.info({ msg: 'gmail IPC wired' })

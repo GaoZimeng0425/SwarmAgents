@@ -63,6 +63,7 @@ export type MainMethod =
   | 'gmail.search'
   | 'gmail.get_thread'
   | 'gmail.list_recent'
+  | 'gmail.save_thread_analysis'
   | 'calendar.list_upcoming'
   | 'calendar.get_event'
   | 'calendar.create_local'

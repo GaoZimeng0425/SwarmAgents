@@ -1,14 +1,15 @@
-// One-shot analysis of a Bilibili video transcript. Mirrors service/article/analyze.ts:
-// a PRIVATE LaunchPorts binding (silent seq, no store append, no-op slot/abort ports),
-// a broadcast adapter translating message.* wire events into bilibili.analysis* events
-// keyed by bvid. The agent streams a natural-language markdown summary (shown live) and
-// emits its structured fields via a render_ui({type:'analysis', props:{gist, points,
-// experience, pitfalls, steps}}) tool call, captured with readAnalysisCard.
+// One-shot analysis of a Bilibili video transcript. This is the one flow NOT yet
+// on the shared analysis-run factory: bilibili's pipeline is async (Main awaits
+// the summary to persist it alongside the transcript text), which conflicts with
+// the factory's sync-ack model. It will be migrated to the factory when the
+// frontend is unified (the renderer must stop reading the IPC return value and
+// switch to the streamed bilibili.analysisComplete event first).
 //
-// Unlike article/gmail, this service does NOT own persistence: the Main process fetched
-// the transcript and owns the analysis cache, so this function awaits launchMessage and
-// returns the structured BiliSummary for Main to persist. The bilibili.analysisComplete
-// broadcast is still emitted so the renderer can render immediately.
+// Mirrors the factory skeleton: a PRIVATE LaunchPorts binding (silent seq, no-op
+// slot/abort ports), a broadcast adapter translating message.* wire into
+// bilibili.analysis* events keyed by bvid. The agent streams markdown (shown
+// live) and emits structured fields via render_ui({type:'analysis', props:{gist,
+// points, experience, pitfalls, steps}}), captured with readAnalysisCard.
 import { createLogger } from '@shared/logger'
 import type { AnalyzeBilibiliRequest, AnalyzeBilibiliResult, BiliSummary, BudgetConfig } from '@swarm/protocol'
 import { applyAgentModel, defaultAgents } from '@swarm/shared'
@@ -69,14 +70,6 @@ export function createAnalyzeBilibili(
       return { ok: false, code: 'no_agent', message: 'bilibili-analyst agent 不可用。' }
     }
 
-    // PRIVATE emit ports: a silent seq (no session/store), no persistence, no
-    // terminal registry — the analysis lives entirely in the broadcast stream.
-    // The broadcast port translates the message.* wire into bilibili.analysis*
-    // events keyed by bvid:
-    // message.progress llm.message → analysisDelta (streamed prose),
-    // run.progress tool.call (analysis card) → capture BiliSummary,
-    // message.complete → analysisComplete (or analysisError if no valid card),
-    // message.error → analysisError.
     let card: BiliSummary | null = null
     let runError: string | null = null
 
@@ -124,9 +117,6 @@ export function createAnalyzeBilibili(
       },
     }
 
-    // No-op slot/abort ports and a no-op permission gate: a self-contained run
-    // (only the low-risk render_ui structured-output tool) that competes for
-    // nothing and prompts for nothing.
     const ports: LaunchPorts = {
       emit: emitPorts,
       toolRegistry: deps.toolRegistry,
@@ -150,9 +140,7 @@ export function createAnalyzeBilibili(
 
     const t0 = Date.now()
     log.info({ msg: 'bilibili analyze started', bvid: req.bvid, contentLen: req.text.length })
-    // launchMessage never rejects: every failure path emits message.error, which the
-    // broadcast port forwards as analysisError. Await the run so Main can persist the
-    // resulting summary (Main owns the cache).
+    // Await the run so Main can persist the summary alongside the transcript text.
     const r = await run(spec, ports)
     log.info({ msg: 'bilibili analyze complete', bvid: req.bvid, status: r.status, durationMs: Date.now() - t0 })
 
