@@ -10,6 +10,7 @@ import type {
   AnalyzeBilibiliRequest,
   AnalyzeBilibiliResult,
   BiliAnalysis,
+  BiliAnalysisSource,
   BiliCredentials,
   BiliDeleteResult,
   BiliFavFolder,
@@ -114,17 +115,17 @@ export function wireBilibiliIpc(opts: {
   const { auth, store, analysisStore, archiveStore, pinStore } = opts
   const deps: ListDeps = { getFavFolders, getFavResources, getWatchLater }
 
-  // Local adapter preserving the (inj, input) => Promise<BiliSummary> signature the
-  // pipeline/transcribe-queue expect, but delegating to the service-process
-  // bilibili-analyst agent. The agent streams bilibili.analysis* events back to the
-  // renderer; on completion it returns the structured BiliSummary for Main to persist.
-  const summarize = async (
+  // Trigger the service-process bilibili-analyst agent. Returns a sync ack —
+  // the structured BiliSummary streams back via bilibili.analysis* events and
+  // persists via the service's onComplete (bilibili.save_analysis RPC). This
+  // adapter only surfaces preflight failures (no_provider / no_agent); the LLM
+  // outcome arrives asynchronously.
+  const triggerAnalyze = async (
     inj: ProviderInjection,
-    input: { bvid: string; title: string; author: string; text: string }
-  ): Promise<BiliSummary> => {
+    input: { bvid: string; title: string; author: string; text: string; source: BiliAnalysisSource }
+  ): Promise<void> => {
     const result = await opts.analyzeBilibili({ ...input, provider: inj })
     if (!result.ok) throw new Error(result.message)
-    return result.summary
   }
 
   // Populated when bilibili:list resolves so pipeline can look up title/author without refetch.
@@ -148,27 +149,11 @@ export function wireBilibiliIpc(opts: {
     getDashAudioUrl: (c, id) => getDashAudioUrl(defaultPlayUrlDeps, c, id),
     extractWav: (a) => extractWav(defaultAudioDeps, a),
     transcribeWav,
-    summarize,
+    triggerAnalyze,
     workDir,
     cleanup: (wav) => fs.rm(wav, { force: true }),
   })
   queue.onProgress(broadcast)
-
-  // Cache a successful analysis (summary + full text) so the list can badge it and
-  // the detail panel can show it instantly on reopen. A write failure must not change
-  // the user-facing result, so it is logged and swallowed.
-  const persistAnalysis = async (
-    bvid: string,
-    summary: BiliSummary,
-    text: string,
-    source: BiliAnalysis['source']
-  ): Promise<void> => {
-    try {
-      await analysisStore.put({ bvid, summary, text, source, analyzedAt: new Date().toISOString() })
-    } catch (err) {
-      log.warn({ msg: 'analysis cache write failed', bvid, err: err instanceof Error ? err.message : String(err) })
-    }
-  }
 
   ipcMain.handle('bilibili:status', async () => {
     const st = await auth.status()
@@ -246,12 +231,11 @@ export function wireBilibiliIpc(opts: {
           getInjection: opts.getInjection,
           getMeta: (id) => metaIndex.get(id) ?? null,
           getSubtitleText: (c, id) => getSubtitleText(defaultSubtitleDeps, c, id),
-          summarize,
+          triggerAnalyze,
         },
         cfg.credentials,
         bvid
       )
-      if (result.ok) await persistAnalysis(bvid, result.summary, result.text, result.source)
       return result
     })()
     inflight.set(bvid, run)
@@ -315,7 +299,6 @@ export function wireBilibiliIpc(opts: {
     }
     log.info({ msg: 'transcribe requested', bvid })
     const result = await queue.enqueue(bvid)
-    if (result.ok) await persistAnalysis(bvid, result.summary, result.text, result.source)
     return result
   })
 

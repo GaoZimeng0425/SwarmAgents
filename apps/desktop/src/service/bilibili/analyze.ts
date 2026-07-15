@@ -1,37 +1,42 @@
-// One-shot analysis of a Bilibili video transcript. This is the one flow NOT yet
-// on the shared analysis-run factory: bilibili's pipeline is async (Main awaits
-// the summary to persist it alongside the transcript text), which conflicts with
-// the factory's sync-ack model. It will be migrated to the factory when the
-// frontend is unified (the renderer must stop reading the IPC return value and
-// switch to the streamed bilibili.analysisComplete event first).
-//
-// Mirrors the factory skeleton: a PRIVATE LaunchPorts binding (silent seq, no-op
-// slot/abort ports), a broadcast adapter translating message.* wire into
-// bilibili.analysis* events keyed by bvid. The agent streams markdown (shown
-// live) and emits structured fields via render_ui({type:'analysis', props:{gist,
-// points, experience, pitfalls, steps}}), captured with readAnalysisCard.
-import { createLogger } from '@shared/logger'
-import type { AnalyzeBilibiliRequest, AnalyzeBilibiliResult, BiliSummary, BudgetConfig } from '@swarm/protocol'
-import { applyAgentModel, defaultAgents } from '@swarm/shared'
-import { ulid } from 'ulid'
+// One-shot analysis of a Bilibili video transcript. Thin config over the shared
+// analysis-run factory (service/analysis/run.ts). The agent streams markdown
+// (shown live) and emits structured fields via render_ui({type:'analysis',
+// props:{gist, points, experience, pitfalls, steps}}). On message.complete the
+// result persists back to Main's analysisStore via the bilibili.save_analysis RPC.
+import type {
+  AnalyzeBilibiliRequest,
+  AnalyzeBilibiliResult,
+  BiliAnalysisSource,
+  BiliSummary,
+  BudgetConfig,
+  MainMethod,
+} from '@swarm/protocol'
 
 import type { AgentStore } from '../agents/store'
+import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../analysis/run'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { MessageEmitPorts } from '../message-engine/emit'
-import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
-import { createPermissionRegistry } from '../session/permission-registry'
+import type { launchMessage } from '../message-engine/launch'
 import type { ToolRegistry } from '../tools/registry'
-import { readAnalysisCard } from '../tools/render-ui'
 
-const log = createLogger({ process: 'service' }).child({ component: 'bilibili-analyze' })
+type CallMain = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
-const BILIBILI_ANALYST_ID = 'bilibili-analyst'
+const BILIBILI_CONFIG: AnalysisConfig<BiliSummary> = {
+  agentId: 'bilibili-analyst',
+  events: { delta: 'bilibili.analysisDelta', complete: 'bilibili.analysisComplete', error: 'bilibili.analysisError' },
+  idKey: 'bvid',
+  validateCard: toBiliSummary,
+  buildCompletePayload: (card) => (card ? { summary: card } : {}),
+  accumulateSummary: false,
+  noCardBehavior: 'error',
+}
 
 export type AnalyzeBilibiliDeps = {
   broadcaster: Broadcaster
   agentStore: Pick<AgentStore, 'get'>
   toolRegistry: ToolRegistry
   getBudgetConfig(): BudgetConfig
+  /** Cross-process RPC to Main (for persisting the analysis result). */
+  callMain: CallMain
   /** Injectable so tests can drive the emit adapter without a real provider/engine. */
   launch?: typeof launchMessage
 }
@@ -57,95 +62,31 @@ export function toBiliSummary(props: Record<string, unknown>): BiliSummary | nul
   return null
 }
 
+// Per-request extra data carried through the factory to onComplete.
+type BiliExtra = { text: string; source: BiliAnalysisSource }
+
 export function createAnalyzeBilibili(
   deps: AnalyzeBilibiliDeps
-): (req: AnalyzeBilibiliRequest) => Promise<AnalyzeBilibiliResult> {
-  const run = deps.launch ?? launchMessage
-  return async (req) => {
-    if (!req.provider) {
-      return { ok: false, code: 'no_provider', message: '请先在 设置 → 模型 配置提供商。' }
-    }
-    const def = deps.agentStore.get(BILIBILI_ANALYST_ID) ?? defaultAgents.find((a) => a.id === BILIBILI_ANALYST_ID)
-    if (!def) {
-      return { ok: false, code: 'no_agent', message: 'bilibili-analyst agent 不可用。' }
-    }
-
-    let card: BiliSummary | null = null
-    let runError: string | null = null
-
-    let seq = 0
-    const emitPorts: MessageEmitPorts = {
-      nextSeq: () => seq++,
-      appendEvent: () => undefined,
-      markTerminal: () => undefined,
-      broadcast: (evt) => {
-        if (evt.kind === 'message.progress') {
-          const ev = evt.event
-          if (ev?.kind === 'llm.message' && ev.role === 'assistant' && typeof ev.content === 'string') {
-            deps.broadcaster.broadcast('bilibili.analysisDelta', {
-              bvid: req.bvid,
-              text: ev.content,
-              ts: Date.now(),
-            })
-            return
-          }
-          const props = readAnalysisCard(evt)
-          if (props) card = toBiliSummary(props)
-        } else if (evt.kind === 'message.complete') {
-          if (card) {
-            deps.broadcaster.broadcast('bilibili.analysisComplete', {
-              bvid: req.bvid,
-              summary: card,
-              ts: Date.now(),
-            })
-          } else {
-            log.warn({ msg: 'bilibili analysis produced no valid analysis card', bvid: req.bvid })
-            deps.broadcaster.broadcast('bilibili.analysisError', {
-              bvid: req.bvid,
-              error: '分析结果解析失败',
-              ts: Date.now(),
-            })
-          }
-        } else if (evt.kind === 'message.error') {
-          runError = evt.error?.message ?? 'analysis failed'
-          deps.broadcaster.broadcast('bilibili.analysisError', {
-            bvid: req.bvid,
-            error: runError,
-            ts: Date.now(),
-          })
-        }
-      },
-    }
-
-    const ports: LaunchPorts = {
-      emit: emitPorts,
-      toolRegistry: deps.toolRegistry,
-      permissionRegistry: createPermissionRegistry(() => undefined),
-      acquireSlot: async () => () => undefined,
-      registerAbort: () => undefined,
-      unregisterAbort: () => undefined,
-    }
-
-    const analyzePrompt = `分析下面这个视频的字幕。\n\nTitle: ${req.title}\nAuthor: ${req.author}\n\n${req.text}`
-    const spec: MessageSpec = {
-      kind: 'work',
-      sessionId: `analyze-bilibili:${ulid()}`,
-      agent: def,
-      provider: applyAgentModel(req.provider, def),
-      prompt: analyzePrompt,
-      budget: deps.getBudgetConfig().sub,
-      tools: ['ui.render_ui'],
-      maxIterationsOverride: def.maxIterations,
-    }
-
-    const t0 = Date.now()
-    log.info({ msg: 'bilibili analyze started', bvid: req.bvid, contentLen: req.text.length })
-    // Await the run so Main can persist the summary alongside the transcript text.
-    const r = await run(spec, ports)
-    log.info({ msg: 'bilibili analyze complete', bvid: req.bvid, status: r.status, durationMs: Date.now() - t0 })
-
-    if (runError) return { ok: false, code: 'llm_failed', message: runError }
-    if (!card) return { ok: false, code: 'no_card', message: '分析结果解析失败' }
-    return { ok: true, summary: card }
+): (req: AnalyzeBilibiliRequest) => AnalyzeBilibiliResult {
+  const analysisDeps: AnalysisDeps = {
+    broadcaster: deps.broadcaster,
+    agentStore: deps.agentStore,
+    toolRegistry: deps.toolRegistry,
+    getBudgetConfig: deps.getBudgetConfig,
+    launch: deps.launch,
+    onComplete: (bvid, summary, _accumulated, extra) => {
+      const { text, source } = extra as BiliExtra
+      void deps.callMain('bilibili.save_analysis', [
+        bvid,
+        { bvid, summary, text, source, analyzedAt: new Date().toISOString() },
+      ])
+    },
+  }
+  const run = createAnalysisRun(analysisDeps, BILIBILI_CONFIG)
+  return (req) => {
+    const prompt = `分析下面这个视频的字幕。\n\nTitle: ${req.title}\nAuthor: ${req.author}\n\n${req.text}`
+    const result = run({ provider: req.provider, id: req.bvid, prompt, extra: { text: req.text, source: req.source } })
+    if (!result.ok) return result
+    return { ok: true }
   }
 }

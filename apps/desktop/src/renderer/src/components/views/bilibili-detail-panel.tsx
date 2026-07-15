@@ -4,7 +4,7 @@
 // area. Always mounted as a sibling of the video grid; shows an empty-state
 // prompt when no video is selected.
 import { useEffect, useState } from 'react'
-import type { BiliSummary, BiliVideo, UIEvent } from '@swarm/protocol'
+import type { BiliSummary, BiliVideo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { compact } from 'es-toolkit'
@@ -21,6 +21,7 @@ import {
 import { Streamdown } from 'streamdown'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useAnalysisStream } from '@/hooks/use-analysis-stream'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { BilibiliVideoMenu } from './bilibili-video-menu'
@@ -199,9 +200,6 @@ export function BilibiliDetailPanel({
   })
   const [stage, setStage] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('analysis')
-  // Streamed analysis prose while the bilibili-analyst agent runs. Cleared on
-  // completion (SummaryView takes over) or on video switch.
-  const [streamText, setStreamText] = useState('')
   // Surfaces errors from the action menu (delete/pin). Cleared on video switch.
   const [menuError, setMenuError] = useState<string | null>(null)
 
@@ -212,6 +210,21 @@ export function BilibiliDetailPanel({
     enabled: video !== null,
   })
 
+  const { state: analysisState } = useAnalysisStream<BiliSummary>({
+    id: video?.bvid ?? null,
+    events: { delta: 'bilibili.analysisDelta', complete: 'bilibili.analysisComplete', error: 'bilibili.analysisError' },
+    idField: 'bvid',
+    // trigger is not called — mutations (process/transcribe) fire the analysis;
+    // the hook's state is driven purely by the streamed events.
+    trigger: () => Promise.resolve({ ok: true } as { ok: true }),
+    parseComplete: (e) => (e as { summary: BiliSummary }).summary,
+    cachedResult: analysisQuery.data?.summary ?? null,
+    invalidateOnComplete: [
+      ['bilibili', 'analyzedBvids'],
+      ['bilibili', 'analysis', video?.bvid],
+    ],
+  })
+
   // Reset mutations, stage, and the text toggle when the user switches video cards.
   useEffect(() => {
     mutation.reset()
@@ -219,7 +232,6 @@ export function BilibiliDetailPanel({
     saveMutation.reset()
     setStage(null)
     setDetailTab('analysis')
-    setStreamText('')
     setMenuError(null)
     // We intentionally omit the mutation objects from deps — we only want to reset on bvid change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,32 +246,15 @@ export function BilibiliDetailPanel({
     return off
   }, [video?.bvid])
 
-  // Subscribe to the streamed analysis from the bilibili-analyst agent. Deltas
-  // accumulate into streamText (shown live via Streamdown); completion refreshes
-  // the cached analysis so SummaryView takes over.
-  useEffect(() => {
-    if (!video?.bvid) return
-    return window.swarm.subscribeEvents((e: UIEvent) => {
-      if (e.kind === 'bilibili.analysisDelta' && e.bvid === video.bvid) {
-        setStreamText((prev) => prev + e.text)
-      } else if (e.kind === 'bilibili.analysisComplete' && e.bvid === video.bvid) {
-        setStreamText('')
-        invalidateAnalysis()
-      } else if (e.kind === 'bilibili.analysisError' && e.bvid === video.bvid) {
-        setStreamText('')
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [video?.bvid])
-
-  // Summary/full-text can come from a fresh subtitle run, a fresh transcription, or
-  // the cached analysis loaded on open.
+  // Summary/full-text: the structured summary comes from the analysis stream
+  // (hook) or the cache; the raw text/source comes from the mutation (subtitle
+  // or transcribe run) or the cache.
   const cached = analysisQuery.data ?? null
-  const summary = mutation.data?.ok
-    ? mutation.data.summary
-    : transcribeMutation.data?.ok
-      ? transcribeMutation.data.summary
-      : (cached?.summary ?? null)
+  const liveSummary = analysisState.phase === 'done' ? analysisState.result : null
+  const summary = liveSummary ?? cached?.summary ?? null
+  const streamText =
+    analysisState.phase === 'streaming' || analysisState.phase === 'done' ? analysisState.streamText : ''
+  const analysisError = analysisState.phase === 'error' ? analysisState.error : null
   const fullText = mutation.data?.ok
     ? { text: mutation.data.text, source: mutation.data.source }
     : transcribeMutation.data?.ok
@@ -313,14 +308,7 @@ export function BilibiliDetailPanel({
 
             {/* Action row: analyze / watch / save / more-menu (rightmost). */}
             <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                disabled={mutation.isPending}
-                onClick={() => {
-                  setStreamText('')
-                  mutation.mutate(video.bvid)
-                }}
-              >
+              <Button className="flex-1" disabled={mutation.isPending} onClick={() => mutation.mutate(video.bvid)}>
                 {mutation.isPending ? '分析中…' : cached ? '重新分析' : 'AI 分析'}
               </Button>
               <Button onClick={() => void swarmApi.bilibiliOpen(video.bvid)} variant="outline">
@@ -362,7 +350,6 @@ export function BilibiliDetailPanel({
                   disabled={transcribeMutation.isPending}
                   onClick={() => {
                     if (!video) return
-                    setStreamText('')
                     transcribeMutation.mutate(video.bvid)
                   }}
                   variant="outline"
@@ -415,6 +402,8 @@ export function BilibiliDetailPanel({
               <FullTextView label={textLabel} text={fullText.text} />
             ) : streamText ? (
               <Streamdown>{streamText}</Streamdown>
+            ) : analysisError ? (
+              <p className="text-destructive text-sm">{analysisError}</p>
             ) : mutation.isPending || transcribeMutation.isPending ? (
               <AnalyzingPlaceholder />
             ) : (

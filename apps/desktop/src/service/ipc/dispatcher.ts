@@ -30,7 +30,7 @@ type DispatcherConfig = {
   analyzeArticle(req: import('@swarm/protocol').AnalyzeArticleRequest): import('@swarm/protocol').AnalyzeArticleResult
   analyzeBilibili(
     req: import('@swarm/protocol').AnalyzeBilibiliRequest
-  ): Promise<import('@swarm/protocol').AnalyzeBilibiliResult>
+  ): import('@swarm/protocol').AnalyzeBilibiliResult
   listArticles(): Promise<import('@swarm/protocol').CollectedArticleWithAnalysis[]>
   getArticleAnalysis(
     articleId: string

@@ -9,7 +9,7 @@ const baseDeps = {
   getInjection: () => ({ apiKey: 'k', apiStyle: 'openai', models: ['m'] }) as any,
   getMeta: () => META,
   getSubtitleText: async () => '字幕文本',
-  summarize: async () => ({ gist: 'g', points: [], experience: [], pitfalls: [], steps: [] }),
+  triggerAnalyze: async () => {},
 }
 
 describe('processVideo', () => {
@@ -24,21 +24,16 @@ describe('processVideo', () => {
     if (!r.ok) expect(r.code).toBe('no_subtitle')
   })
 
-  it('returns the summary on the happy path', async () => {
+  it('returns the text + source on the happy path', async () => {
     const r = await processVideo(baseDeps, CRED, 'BV1')
-    expect(r).toEqual({
-      ok: true,
-      summary: { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] },
-      text: '字幕文本',
-      source: 'subtitle',
-    })
+    expect(r).toEqual({ ok: true, text: '字幕文本', source: 'subtitle' })
   })
 
-  it('maps a summarize throw to llm_failed', async () => {
+  it('maps a triggerAnalyze throw to llm_failed', async () => {
     const r = await processVideo(
       {
         ...baseDeps,
-        summarize: async () => {
+        triggerAnalyze: async () => {
           throw new Error('boom')
         },
       },

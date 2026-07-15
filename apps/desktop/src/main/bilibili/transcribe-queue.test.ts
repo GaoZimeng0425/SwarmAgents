@@ -1,10 +1,4 @@
-import type {
-  BiliCredentials,
-  BiliSummary,
-  BiliTranscribeProgress,
-  ProviderInjection,
-  TranscriptionConfig,
-} from '@swarm/protocol'
+import type { BiliCredentials, BiliTranscribeProgress, ProviderInjection, TranscriptionConfig } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { FfmpegError } from './audio'
@@ -13,7 +7,6 @@ import { createTranscribeQueue, type TranscribeQueueDeps } from './transcribe-qu
 const CRED: BiliCredentials = { sessdata: 's', biliJct: 'j', dedeUserId: 'u' }
 const CFG: TranscriptionConfig = { ffmpegPath: 'ffmpeg', modelDir: '/m' }
 const INJ = { apiKey: 'k', model: 'm', apiStyle: 'openai' } as unknown as ProviderInjection
-const SUMMARY: BiliSummary = { gist: 'g', points: [], experience: [], pitfalls: [], steps: [] }
 
 function baseDeps(over: Partial<TranscribeQueueDeps> = {}): TranscribeQueueDeps {
   return {
@@ -24,7 +17,7 @@ function baseDeps(over: Partial<TranscribeQueueDeps> = {}): TranscribeQueueDeps 
     getDashAudioUrl: async () => 'https://x/low.m4s',
     extractWav: async () => '/tmp/a.wav',
     transcribeWav: async () => '转写文本',
-    summarize: async () => SUMMARY,
+    triggerAnalyze: async () => {},
     workDir: '/tmp',
     cleanup: async () => {},
     ...over,
@@ -37,7 +30,7 @@ describe('createTranscribeQueue', () => {
     const stages: string[] = []
     q.onProgress((p: BiliTranscribeProgress) => stages.push(p.stage))
     const res = await q.enqueue('BV1')
-    expect(res).toEqual({ ok: true, summary: SUMMARY, text: '转写文本', source: 'transcript' })
+    expect(res).toEqual({ ok: true, text: '转写文本', source: 'transcript' })
     expect(stages).toEqual(['queued', 'audio', 'transcribing', 'summarizing', 'done'])
   })
 

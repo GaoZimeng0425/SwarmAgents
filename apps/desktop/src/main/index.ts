@@ -159,6 +159,7 @@ app.whenReady().then(async () => {
     gmail.registerRpcHandlers(serviceClient)
     calendar.registerRpcHandlers(serviceClient)
     weather.registerRpcHandlers(serviceClient)
+    bilibili.registerRpcHandlers(serviceClient)
 
     // Command palette artifacts: join bilibili analyses.
     // The analysis store is re-created from the same on-disk file the bilibili

@@ -142,7 +142,6 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
     vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
       ok: true,
-      summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
       text: '字幕全文',
       source: 'subtitle',
     })
@@ -178,7 +177,6 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'bilibiliOnTranscribeProgress').mockReturnValue(() => {})
     const transcribe = vi.spyOn(swarmApi, 'bilibiliTranscribe').mockResolvedValue({
       ok: true,
-      summary: { gist: '转写主旨', points: ['转写要点'], experience: [], pitfalls: [], steps: [] },
       text: '转写全文',
       source: 'transcript',
     })
@@ -249,7 +247,6 @@ describe('BilibiliView', () => {
     vi.spyOn(swarmApi, 'getBilibiliList').mockResolvedValue(SAMPLE)
     vi.spyOn(swarmApi, 'bilibiliProcess').mockResolvedValue({
       ok: true,
-      summary: { gist: 'AI主旨', points: ['要点一'], experience: [], pitfalls: [], steps: [] },
       text: '字幕全文',
       source: 'subtitle',
     })
