@@ -32,12 +32,19 @@ whether to act (lazy loading, model-driven). This intentionally matches Claude C
 
 ## Prefix convention decision
 
-The command palette already defines `>` = command, `@` = agent, `#` = task,
-`/` = file (`lib/palette/scope.ts:32`). The composer will use the **opposite**:
-`/` = skill, `@` = file path. This is accepted because the two are distinct entry
-points (⌘K floating palette vs. the session composer). Users interact with them in
-different contexts, so the same prefix carrying different meaning in each is
-tolerable.
+The command palette (⌘K) already defines `>` = command, `@` = agent, `#` = task,
+`/` = file (`lib/palette/scope.ts:32`). The composer uses a different convention:
+`/` = skill (a slash-command, hence "command-class"), `@` = file path (an
+@-mention, hence "invoke/mention-class").
+
+The user's guiding principle is: `/` is command-class, `@` is invoke/mention-class.
+Under that lens the composer's `/` = skill fits (a skill invocation is a command),
+and `@` = file path fits (referencing a file is a mention). The command palette's
+`@` = agent also fits (calling an agent is an invocation). The one genuine mismatch
+is the command palette's `/` = file, which is **not** command-class — but unifying
+that is a separate change to the palette and is explicitly out of scope here. The
+palette is left untouched in this spec; the known `/` semantic divergence between
+the two entry points is accepted for this iteration.
 
 ## Architecture
 
