@@ -3,10 +3,10 @@
 // subscription) and renders the structured briefing (一句话结论 / 为什么上榜 /
 // 核心亮点 / 适合谁用 / 结论) or the live-streaming markdown. Mirrors
 // article-detail-panel.tsx. Always mounted as a sibling of the repo list.
-import { useEffect, useMemo, useState } from 'react'
-import type { RepoResearch, RepoVerdictTone, TrendingPeriod, TrendingRepo, UIEvent } from '@swarm/protocol'
+import { useEffect, useMemo } from 'react'
+import type { RepoResearch, RepoVerdictTone, TrendingPeriod, TrendingRepo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   Check,
   ChevronRight,
@@ -22,10 +22,9 @@ import {
 import { Streamdown } from 'streamdown'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useAnalysisStream } from '@/hooks/use-analysis-stream'
 import { swarmApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
-
-type Phase = 'idle' | 'streaming' | 'done' | 'error'
 
 // Verdict tone → accent classes (green / violet / amber / gray), matching the
 // design's four verdict families. The agent picks the tone; the label text
@@ -137,16 +136,6 @@ export function TrendingResearchPanel({
    *  list row can badge it. */
   onResearchingChange?: (repoName: string | null) => void
 }): React.JSX.Element {
-  const qc = useQueryClient()
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [streamText, setStreamText] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [liveResearch, setLiveResearch] = useState<RepoResearch | null>(null)
-  // The Markdown briefing surfaced in the done state. Mirrors gmail-assistant-card's
-  // use of analysis.summary: the streamed markdown is kept (not discarded) so the
-  // user sees both the briefing and the structured card on completion.
-  const [liveSummary, setLiveSummary] = useState('')
-
   const slashIndex = repo.repoName.indexOf('/')
   const owner = slashIndex >= 0 ? repo.repoName.slice(0, slashIndex) : repo.repoName
   const name = slashIndex >= 0 ? repo.repoName.slice(slashIndex + 1) : ''
@@ -157,58 +146,36 @@ export function TrendingResearchPanel({
     queryFn: () => swarmApi.getRepoResearch(repo.repoName),
   })
 
-  // Reset all in-flight/streamed state when the user switches repos.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: repo.repoName is the reset trigger, not read in the body
-  useEffect(() => {
-    setPhase('idle')
-    setStreamText('')
-    setError(null)
-    setLiveResearch(null)
-    setLiveSummary('')
-  }, [repo.repoName])
-
-  // Subscribe to research stream events; events for other repos are ignored.
-  useEffect(() => {
-    return window.swarm.subscribeEvents((e: UIEvent) => {
-      if (e.kind === 'trending.researchDelta' && e.repoName === repo.repoName) {
-        setStreamText((prev) => prev + e.text)
-        setPhase('streaming')
-      } else if (e.kind === 'trending.researchComplete' && e.repoName === repo.repoName) {
-        setLiveResearch(e.research)
-        setLiveSummary(e.summary)
-        setStreamText('')
-        setPhase('done')
-        void qc.invalidateQueries({ queryKey: ['trending', 'research', repo.repoName] })
-        void qc.invalidateQueries({ queryKey: ['trending', 'researchedNames'] })
-      } else if (e.kind === 'trending.researchError' && e.repoName === repo.repoName) {
-        setError(e.error)
-        setPhase('error')
-      }
-    })
-  }, [repo.repoName, qc])
+  const { state, analyze } = useAnalysisStream<RepoResearch>({
+    id: repo.repoName,
+    events: { delta: 'trending.researchDelta', complete: 'trending.researchComplete', error: 'trending.researchError' },
+    idField: 'repoName',
+    parseComplete: (e) => (e as { research: RepoResearch }).research,
+    trigger: () => swarmApi.researchRepo(repo, period),
+    cachedResult: cached.data?.research ?? null,
+    invalidateOnComplete: [
+      ['trending', 'research', repo.repoName],
+      ['trending', 'researchedNames'],
+    ],
+  })
 
   // Surface the in-flight repo to the list so it can badge the matching row.
+  const phase = state.phase
   useEffect(() => {
     onResearchingChange?.(phase === 'streaming' ? repo.repoName : null)
     return () => onResearchingChange?.(null)
   }, [phase, repo.repoName, onResearchingChange])
 
+  const streamText = state.phase === 'streaming' || state.phase === 'done' ? state.streamText : ''
+  const error = state.phase === 'error' ? state.error : null
+  const liveResearch = state.phase === 'done' ? state.result : null
   const research = liveResearch ?? cached.data?.research ?? null
   // Markdown briefing for the done state: the freshly streamed summary wins, then
   // a cached research's persisted summary (so a re-view also shows the briefing).
-  const summary = liveSummary || research?.summary || ''
+  const summary = streamText || research?.summary || ''
 
-  async function handleResearch(): Promise<void> {
-    setError(null)
-    setStreamText('')
-    setLiveResearch(null)
-    setLiveSummary('')
-    setPhase('streaming')
-    const res = await swarmApi.researchRepo(repo, period)
-    if (!res.ok) {
-      setError(res.message)
-      setPhase('error')
-    }
+  function handleResearch(): void {
+    analyze()
   }
 
   const metrics = useMemo(
