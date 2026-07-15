@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport" >
+<title>Agent 委托流程图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117; color: #e6edf3;
+    font-family: -apple-system, 'Segoe UI', Helvetica, sans-serif;
+    padding: 40px 20px; min-height: 100vh;
+  }
+  .container { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #8b949e; margin-bottom: 40px; }
+
+  /* flowchart */
+  .flowchart { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+  .step {
+    border-radius: 10px; padding: 16px 24px; text-align: center;
+    width: 100%; max-width: 520px; position: relative;
+  }
+  .step-num {
+    position: absolute; top: -11px; left: 20px;
+    width: 24px; height: 24px; border-radius: 50%;
+    font-size: 12px; font-weight: 700; display: flex;
+    align-items: center; justify-content: center;
+  }
+
+  /* colors */
+  .c-leader { background: #161b22; border: 2px solid #58a6ff; }
+  .c-leader .step-num { background: #58a6ff; color: #0d1117; }
+  .c-child  { background: #161b22; border: 2px solid #d29922; }
+  .c-child  .step-num { background: #d29922; color: #0d1117; }
+  .c-event  { background: #161b22; border: 2px solid #3fb950; }
+  .c-event  .step-num { background: #3fb950; color: #0d1117; }
+  .c-ui     { background: #161b22; border: 2px solid #bc8cff; }
+  .c-ui     .step-num { background: #bc8cff; color: #0d1117; }
+
+  .step-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .step-desc { font-size: 12px; color: #8b949e; line-height: 1.6; }
+  .step-desc code { color: #e6edf3; background: #21262d; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+  /* arrows */
+  .arrow {
+    height: 36px; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 2px;
+  }
+  .arrow-line { width: 2px; height: 22px; background: #30363d; }
+  .arrow-head { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #30363d; }
+  .arrow-label { font-size: 10px; color: #6e7681; font-family: 'SF Mono', monospace; margin-top: 2px; }
+
+  /* section dividers */
+  .divider {
+    width: 100%; max-width: 520px; margin: 8px 0;
+    border-top: 1px dashed #30363d; position: relative; text-align: center;
+  }
+  .divider span {
+    position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+    background: #0d1117; padding: 0 12px; font-size: 11px; color: #6e7681;
+  }
+
+  /* branch (child run) */
+  .branch-wrap { width: 100%; max-width: 520px; position: relative; }
+  .branch-line {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    width: 2px; background: #30363d;
+  }
+  .child-block {
+    border: 2px dashed #d29922; border-radius: 10px; padding: 16px;
+    margin: 0 auto; max-width: 460px;
+  }
+  .child-label {
+    font-size: 11px; color: #d29922; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; text-align: center;
+  }
+
+  .legend { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; margin-bottom: 40px; }
+  .legend-item { font-size: 12px; color: #8b949e; display: flex; align-items: center; gap: 6px; }
+  .legend-box { width: 14px; height: 14px; border-radius: 3px; border: 2px solid; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Agent 委托流程</h1>
+<p class="subtitle">一个 Leader 怎么把任务交给子 Agent，结果怎么回来</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-box" style="border-color:#58a6ff;background:#161b22"></div>Leader（主 Agent）</div>
+  <div class="legend-item"><div class="legend-box" style="border-color:#d29922;background:#161b22"></div>Child（子 Agent）</div>
+  <div class="legend-item"><div class="legend-box" style="border-color:#3fb950;background:#161b22"></div>事件 / 存储</div>
+  <div class="legend-item"><div class="legend-box" style="border-color:#bc8cff;background:#161b22"></div>UI 可视化</div>
+</div>
+
+<div class="flowchart">
+
+  <!-- Step 1 -->
+  <div class="step c-leader">
+    <div class="step-num">1</div>
+    <div class="step-title">Leader 制定计划</div>
+    <div class="step-desc">调用 <code>set_delegation_plan</code> 工具<br>记录任务拆分：<code>[d1: 查资料, d2: 写报告, d3: 审核]</code></div>
+  </div>
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">保存到 planState + 发出 delegation_plan 事件</div></div>
+
+  <!-- Step 2 -->
+  <div class="step c-event">
+    <div class="step-num">2</div>
+    <div class="step-title">编排图出现</div>
+    <div class="step-desc">前端收到 <code>delegation_plan</code> 事件<br>画布上出现 3 个灰色方块（pending 状态）<br>方块之间有依赖箭头（dependsOn）</div>
+  </div>
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">Leader 开始执行，调用 delegate 工具</div></div>
+
+  <!-- Step 3 -->
+  <div class="step c-leader">
+    <div class="step-num">3</div>
+    <div class="step-title">Leader 委派 d1</div>
+    <div class="step-desc">调用 <code>delegate({ prompt: "查资料", itemId: "d1" })</code><br>带上 <code>itemId</code> 告诉系统"这是 plan 里的 d1"</div>
+  </div>
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">d1 标记为蓝色（running）· 启动子 Agent</div></div>
+
+  <!-- Child run block -->
+  <div class="child-block">
+    <div class="child-label">━━ 子 Agent 运行（child run）━━</div>
+
+    <div class="step c-child" style="border-style: dashed;">
+      <div class="step-num" style="background:#d29922;color:#0d1117;">4</div>
+      <div class="step-title">子 Agent 干活</div>
+      <div class="step-desc">独立的 LLM 对话循环<br>有自己的工具（读写文件、搜索等）<br>自动注入了 <code>report_result</code> 工具</div>
+    </div>
+    <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">任务完成</div></div>
+
+    <div class="step c-child" style="border-style: dashed;">
+      <div class="step-num" style="background:#d29922;color:#0d1117;">5</div>
+      <div class="step-title">子 Agent 提交结构化结果</div>
+      <div class="step-desc">调用 <code>report_result({ artifacts: [...] })</code><br>不只是写文字总结，还提交机器可读的产出物</div>
+    </div>
+    <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">run 结束，结果向上传递</div></div>
+  </div>
+
+  <!-- Step 6 -->
+  <div class="step c-event">
+    <div class="step-num">6</div>
+    <div class="step-title">d1 变绿 + 结果归档</div>
+    <div class="step-desc">
+      三件事同时发生：<br>
+      <span style="color:#3fb950;">①</span> 发出 <code>delegation_update</code> 事件 → 编排图 d1 变绿色<br>
+      <span style="color:#58a6ff;">②</span> artifacts 存入 planState → session 级保存（跨轮不丢）<br>
+      <span style="color:#d29922;">③</span> artifacts 塞进 tool_result → Leader 直接读
+    </div>
+  </div>
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">Leader 拿到结果，继续委派下一个</div></div>
+
+  <!-- Step 7 -->
+  <div class="step c-leader">
+    <div class="step-num">7</div>
+    <div class="step-title">Leader 委派 d2、d3…</div>
+    <div class="step-desc">重复步骤 3-6，编排图实时更新<br>每个 item 从 <span style="color:#8b949e">灰(pending)</span> → <span style="color:#58a6ff">蓝(running)</span> → <span style="color:#3fb950">绿(completed)</span></div>
+  </div>
+
+  <div class="divider"><span>全部完成后</span></div>
+
+  <!-- Step 8 -->
+  <div class="step c-ui">
+    <div class="step-num">8</div>
+    <div class="step-title">用户可以 Fork</div>
+    <div class="step-desc">在任意已完成的对话消息上 hover<br>点击"从这里分支" → 输入新指令<br>系统从那个时间点复制对话历史，开一个新 session</div>
+  </div>
+
+</div>
+
+<div style="margin-top: 48px; padding: 20px; background: #161b22; border-radius: 10px; border: 1px solid #30363d;">
+  <div style="font-size: 13px; font-weight: 700; margin-bottom: 12px;">一句话总结</div>
+  <div style="font-size: 13px; color: #8b949e; line-height: 1.8;">
+    Leader 拆任务（<span style="color:#58a6ff">plan</span>）→ 逐个委派给子 Agent（<span style="color:#d29922">delegate</span>）→
+    子 Agent 干完提交结构化结果（<span style="color:#d29922">report_result</span>）→
+    结果同时给 Leader 用（<span style="color:#3fb950">artifacts</span>）和给用户看（<span style="color:#bc8cff">编排图</span>）→
+    全程事件持久化，随时可以 Fork 重跑
+  </div>
+</div>
+
+</div>
+</body>
+</html>

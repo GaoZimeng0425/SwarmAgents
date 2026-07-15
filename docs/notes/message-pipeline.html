@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport" >
+<title>消息处理全流程</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0d1117; color: #e6edf3;
+  font-family: -apple-system, 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 12px; padding: 32px 16px;
+}
+h1 { font-size: 18px; margin-bottom: 4px; font-family: -apple-system, sans-serif; }
+.sub { font-size: 12px; color: #8b949e; margin-bottom: 32px; font-family: -apple-system, sans-serif; }
+
+/* Layout: two columns */
+.cols { display: flex; gap: 48px; max-width: 1200px; margin: 0 auto; align-items: flex-start; }
+.col-main { flex: 1; min-width: 0; }
+.col-side { width: 340px; flex-shrink: 0; }
+.col-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; margin-bottom: 16px; padding-bottom: 8px;
+  border-bottom: 1px solid #30363d; font-family: -apple-system, sans-serif;
+}
+.col-main .col-title { color: #58a6ff; }
+.col-side .col-title { color: #3fb950; }
+
+/* Flow nodes */
+.row { display: flex; align-items: stretch; margin-bottom: 2px; }
+.lane-tag {
+  width: 100px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: flex-end; padding-right: 10px;
+  font-size: 10px; color: #6e7681; text-align: right;
+  border-right: 1px solid #30363d;
+}
+
+.node-box {
+  flex: 1; padding: 10px 14px; border-radius: 6px; margin-left: 12px;
+  background: #161b22; border: 1px solid #30363d; position: relative;
+}
+.nb-fn {
+  font-weight: 700; color: #e6edf3; font-size: 12px;
+}
+.nb-file { font-size: 10px; color: #6e7681; margin-top: 1px; }
+.nb-detail {
+  font-size: 11px; color: #8b949e; margin-top: 6px; line-height: 1.6;
+}
+
+/* Color-coded by layer */
+.nb-renderer { border-left: 3px solid #bc8cff; }
+.nb-ipc      { border-left: 3px solid #39c5cf; }
+.nb-service  { border-left: 3px solid #58a6ff; }
+.nb-engine   { border-left: 3px solid #d29922; }
+.nb-store    { border-left: 3px solid #3fb950; }
+
+/* Arrows */
+.vline { margin-left: 112px; width: 1px; height: 20px; background: #30363d; }
+.vline-dashed { margin-left: 112px; width: 0; height: 16px; border-left: 1px dashed #30363d; }
+.vlabel {
+  margin-left: 124px; font-size: 10px; color: #6e7681; margin-bottom: 2px; margin-top: -4px;
+}
+
+/* Decision diamond */
+.diamond-wrap { margin-left: 112px; margin-bottom: 2px; }
+.diamond {
+  display: inline-block; padding: 6px 16px;
+  background: #21262d; border: 1px solid #d29922; color: #d29922;
+  border-radius: 4px; font-size: 11px; font-weight: 600;
+  position: relative;
+}
+.diamond::before {
+  content: "◇"; margin-right: 6px; font-size: 10px;
+}
+
+/* Branch container */
+.branch {
+  margin-left: 112px; border-left: 2px solid #30363d; padding-left: 20px;
+  margin-bottom: 8px;
+}
+.branch-item {
+  padding: 8px 12px; background: #161b22; border-radius: 5px;
+  border: 1px solid #30363d; margin-bottom: 6px; font-size: 11px;
+}
+.branch-item code { color: #d29922; }
+.branch-result { font-size: 10px; color: #6e7681; margin-top: 3px; }
+
+/* Recursion box */
+.recurse {
+  margin-left: 112px; border: 2px dashed #f85149; border-radius: 8px;
+  padding: 12px 16px; margin-bottom: 8px; background: #1a0d0d;
+}
+.recurse-label {
+  font-size: 10px; color: #f85149; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 8px;
+}
+
+/* Side column: event stream */
+.event-item {
+  padding: 8px 12px; background: #161b22; border-radius: 5px;
+  border: 1px solid #30363d; border-left: 3px solid #3fb950;
+  margin-bottom: 6px; font-size: 11px;
+}
+.event-item .ev-kind { font-weight: 700; color: #3fb950; }
+.event-item .ev-when { font-size: 10px; color: #6e7681; margin-top: 2px; }
+.event-arrow { text-align: center; font-size: 10px; color: #6e7681; margin: 2px 0; }
+
+/* Legend */
+.legend {
+  display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 28px;
+  padding: 10px 16px; background: #161b22; border-radius: 8px; border: 1px solid #30363d;
+  font-family: -apple-system, sans-serif;
+}
+.lg { font-size: 11px; color: #8b949e; display: flex; align-items: center; gap: 5px; }
+.lg-bar { width: 3px; height: 14px; border-radius: 1px; }
+
+.note {
+  margin-top: 32px; padding: 16px; background: #161b22; border-radius: 8px;
+  border: 1px solid #30363d; font-family: -apple-system, sans-serif;
+  font-size: 12px; color: #8b949e; line-height: 1.8;
+}
+</style>
+</head>
+<body>
+
+<h1>一条消息的技术旅程</h1>
+<p class="sub">从你在输入框打字 → LLM 回复出现在屏幕上，中间每一步发生了什么</p>
+
+<div class="legend">
+  <div class="lg"><div class="lg-bar" style="background:#bc8cff"></div>Renderer 前端</div>
+  <div class="lg"><div class="lg-bar" style="background:#39c5cf"></div>IPC / Preload</div>
+  <div class="lg"><div class="lg-bar" style="background:#58a6ff"></div>Session Service</div>
+  <div class="lg"><div class="lg-bar" style="background:#d29922"></div>Engine / LLM</div>
+  <div class="lg"><div class="lg-bar" style="background:#3fb950"></div>Event Store</div>
+</div>
+
+<div class="cols">
+
+<!-- ==================== MAIN FLOW ==================== -->
+<div class="col-main">
+<div class="col-title">主流程：input → LLM → output</div>
+
+<!-- 1. User input -->
+<div class="row">
+  <div class="lane-tag">renderer</div>
+  <div class="node-box nb-renderer">
+    <div class="nb-fn">ChatInput.onSubmit(prompt)</div>
+    <div class="nb-file">components/chat-input.tsx</div>
+    <div class="nb-detail">用户按回车 → 调 <code>swarmApi.submitPrompt(sid, prompt, attachments)</code></div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<!-- 2. IPC -->
+<div class="row">
+  <div class="lane-tag">preload</div>
+  <div class="node-box nb-ipc">
+    <div class="nb-fn">ipcRenderer.invoke('swarm:submitPrompt', ...)</div>
+    <div class="nb-file">preload/index.ts → swarm-ipc.ts</div>
+    <div class="nb-detail">Electron contextBridge 跨进程调用 → main 进程的 handler</div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<!-- 3. submitPrompt -->
+<div class="row">
+  <div class="lane-tag">service</div>
+  <div class="node-box nb-service">
+    <div class="nb-fn">service.submitPrompt(sid, prompt, attachments)</div>
+    <div class="nb-file">session-service.ts:100</div>
+    <div class="nb-detail">
+      构造 <code>MessageSpec</code>：<code>kind: 'turn'</code><br>
+      传 <code>onDelegationPlan</code> + <code>onDelegationUpdate</code> 回调（绑到 session 闭包 planState）<br>
+      调 <code>launchMessage(spec, basePorts(session))</code>
+    </div>
+  </div>
+</div>
+<div class="vline"></div>
+<div class="vlabel">↓ 进入 launchMessage</div>
+
+<!-- 4. launchMessage: created -->
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-service">
+    <div class="nb-fn">① mint messageId + createMessageEmit</div>
+    <div class="nb-file">launch.ts:116</div>
+    <div class="nb-detail">生成 ulid → 创建 emit 函数（后续所有事件都经它发出）</div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-store">
+    <div class="nb-fn">② emit({ kind: 'message.created' })</div>
+    <div class="nb-file">launch.ts:168</div>
+    <div class="nb-detail">→ 写入 message_events 表 → SSE 广播 → 前端收到 → 对话区出现用户消息气泡</div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<!-- 5. waitTurn -->
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-service">
+    <div class="nb-fn">③ waitTurn (仅 kind='turn')</div>
+    <div class="nb-file">launch.ts:176</div>
+    <div class="nb-detail">
+      会话级 FIFO 排队：同一 session 的消息必须排队执行<br>
+      ← 如果前面有消息在跑，这里阻塞等待
+    </div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<!-- 6. acquireSlot -->
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-service">
+    <div class="nb-fn">④ acquireSlot(signal)</div>
+    <div class="nb-file">launch.ts:189</div>
+    <div class="nb-detail">
+      全局并发池：最多 <code>maxConcurrent</code> 个 run 同时执行<br>
+      ← 如果池满了（其他 session 在跑），这里阻塞等待
+    </div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-store">
+    <div class="nb-fn">⑤ emit({ kind: 'message.dispatched' })</div>
+    <div class="nb-file">launch.ts:194</div>
+    <div class="nb-detail">→ 前端消息状态变 "running"（转圈）</div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<!-- 7. build ctx + resolve tools -->
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-service">
+    <div class="nb-fn">⑥ 构建 ToolRunContext + resolve tools</div>
+    <div class="nb-file">launch.ts:200-240</div>
+    <div class="nb-detail">
+      ctx 包含：spawnChild, createTask, setDelegationPlan, mergeDelegationResult, reportResult ...<br>
+      按 agent allowlist 解析可用工具<br>
+      如果 <code>kind='child'</code>：追加自动注入的 <code>report_result</code>
+    </div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<!-- 8. createEngine -->
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-engine">
+    <div class="nb-fn">⑦ createEngine(deps) → engine.run(prompt)</div>
+    <div class="nb-file">launch.ts:242 → engine.ts:71</div>
+    <div class="nb-detail">pi Agent 循环启动。以下是 engine 内部的 LLM loop：</div>
+  </div>
+</div>
+<div class="vline"></div>
+<div class="vlabel">↓ 进入 engine.run（LLM 循环）</div>
+
+<!-- 9. LLM loop -->
+<div class="row">
+  <div class="lane-tag">engine</div>
+  <div class="node-box nb-engine">
+    <div class="nb-fn">⑧ 组装 system prompt + 发请求给 LLM</div>
+    <div class="nb-file">engine.ts → provider.request()</div>
+    <div class="nb-detail">history + tools schema + 用户 prompt → HTTP 请求 → 等待 LLM 响应</div>
+  </div>
+</div>
+<div class="vline"></div>
+<div class="vlabel">← LLM 返回响应</div>
+
+<!-- DECISION: response type -->
+<div class="diamond-wrap">
+  <div class="diamond">LLM 响应里有没有 tool_call？</div>
+</div>
+
+<!-- BRANCH A: no tools → done -->
+<div class="branch" style="border-color: #3fb950;">
+  <div class="branch-item" style="border-left: 3px solid #3fb950;">
+    <strong style="color:#3fb950;">分支 A：没有 tool_call（纯文本回复）</strong>
+    <div class="branch-result">
+      LLM 给出最终文字回答 → engine 组装 summary → 结束循环
+    </div>
+  </div>
+</div>
+
+<!-- BRANCH B: tool calls -->
+<div class="branch" style="border-color: #d29922;">
+  <div class="branch-item" style="border-left: 3px solid #d29922;">
+    <strong style="color:#d29922;">分支 B：有 tool_call → 逐个执行</strong>
+    <div class="branch-result">engine 并行/串行执行每个 tool_call，以下是不同工具的不同路径：</div>
+  </div>
+</div>
+
+<!-- Sub-branches for each tool type -->
+<div style="margin-left: 132px; margin-bottom: 10px;">
+
+  <div class="branch-item" style="border-left: 3px solid #6e7681;">
+    <strong>普通工具（read_file, web_search...）</strong><br>
+    <span style="color:#8b949e;">execute → emit(message.progress: tool.call) → 执行 → emit(tool.result) → 结果喂回 LLM → 继续循环 ⑧</span>
+  </div>
+
+  <div class="branch-item" style="border-left: 3px solid #bc8cff; margin-top: 6px;">
+    <strong style="color:#bc8cff;">set_delegation_plan</strong><br>
+    <span style="color:#8b949e;">→ ctx.setDelegationPlan(items) → emit(delegation_plan) → planState 重置 → 继续循环 ⑧</span>
+  </div>
+
+  <div class="branch-item" style="border-left: 3px solid #f85149; margin-top: 6px;">
+    <strong style="color:#f85149;">delegate（核心分支：递归启动子 Agent）</strong>
+  </div>
+</div>
+
+<!-- RECURSION: delegate -->
+<div class="recurse">
+  <div class="recurse-label">↻ 递归：delegate 触发一次完整的子 run</div>
+
+  <div style="font-size: 11px; color: #8b949e; line-height: 1.8;">
+    <strong style="color:#f85149;">delegate execute:</strong><br>
+    ① 若带 itemId → <code>mergeDelegationResult(itemId, { status: 'running' })</code> → emit update<br>
+    ② <code>ctx.spawnChild(prompt)</code> → <code>withSlotReleased</code>（让出父的并发槽位）<br>
+    &nbsp;&nbsp;&nbsp;→ <code>ports.delegate(messageId, prompt, opts)</code><br>
+    &nbsp;&nbsp;&nbsp;→ session-service <code>delegate(session, ...)</code><br>
+    &nbsp;&nbsp;&nbsp;→ <strong style="color:#58a6ff;">launchMessage({ kind: 'child', ... })</strong> ← 递归回到步骤 ①<br>
+    <br>
+    <span style="color:#6e7681;">子 run 走完和父 run 完全一样的流程（created → waitTurn 跳过 → acquireSlot → dispatched → engine.run → ...）<br>
+    子 run 内部的 LLM 也可以调 delegate → 无限嵌套（受 budget 和 maxIterations 限制）</span>
+    <br><br>
+    ③ 子 run 返回 → <code>mergeDelegationResult(itemId, { status, artifacts })</code><br>
+    &nbsp;&nbsp;&nbsp;若异常 → <code>mergeDelegationResult(itemId, { status: 'failed' })</code> + rethrow<br>
+    ④ 结果塞进 tool_result → 喂回父 Agent 的 LLM → <strong>继续父的循环 ⑧</strong>
+  </div>
+</div>
+
+<div class="vline-dashed"></div>
+<div class="vlabel">↓ engine.run 结束</div>
+
+<!-- 10. return -->
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-store">
+    <div class="nb-fn">⑨ emit({ kind: 'message.complete' | 'message.error' })</div>
+    <div class="nb-file">engine.ts → launch.ts:268</div>
+    <div class="nb-detail">终态事件 → 前端消息停止转圈，显示 summary 或错误</div>
+  </div>
+</div>
+<div class="vline"></div>
+
+<div class="row">
+  <div class="lane-tag">launch</div>
+  <div class="node-box nb-service">
+    <div class="nb-fn">⑩ return { messageId, status, summary, messages, used, artifacts }</div>
+    <div class="nb-file">launch.ts:268</div>
+    <div class="nb-detail">
+      释放并发槽位（finally: release()）→ 注销 abort handle<br>
+      如果是被 delegate 调起的 → 返回值回到父的 tool_result<br>
+      如果是顶层 turn → submitPrompt 的调用者拿到结果（IPC 返回）
+    </div>
+  </div>
+</div>
+
+</div><!-- /col-main -->
+
+<!-- ==================== SIDE: EVENT STREAM ==================== -->
+<div class="col-side">
+<div class="col-title">并行流：事件如何到前端</div>
+
+<div style="font-size: 11px; color: #8b949e; margin-bottom: 16px; line-height: 1.7; font-family: -apple-system, sans-serif;">
+  主流程里每次 <code>emit()</code> 都同时做三件事——这是<strong>异步并行</strong>的，不阻塞 LLM 循环：
+</div>
+
+<div class="event-item">
+  <div class="ev-kind">emit() 内部</div>
+  <div class="ev-when">每次调用做 3 件事</div>
+</div>
+
+<div class="event-arrow">↓ ① 持久化</div>
+<div class="event-item">
+  <div class="ev-kind">appendEvent(evt)</div>
+  <div class="ev-when">→ message_events 表 (SQLite)<br>带 seq 序号，永久存储</div>
+</div>
+
+<div class="event-arrow">↓ ② 标记终态</div>
+<div class="event-item">
+  <div class="ev-kind">markTerminal(messageId, status)</div>
+  <div class="ev-when">如果是 complete/error → 注册终态<br>first-wins（只记第一次）</div>
+</div>
+
+<div class="event-arrow">↓ ③ 广播</div>
+<div class="event-item">
+  <div class="ev-kind">broadcast(evt)</div>
+  <div class="ev-when">→ SSE 推送到 renderer<br>即使广播失败也不影响 engine（log-only）</div>
+</div>
+
+<div class="event-arrow" style="margin-top: 16px;">↓</div>
+
+<div class="event-item" style="border-left-color: #bc8cff;">
+  <div class="ev-kind" style="color: #bc8cff;">subscribeEvents(cb)</div>
+  <div class="ev-when">renderer 侧全局监听<br>每个事件 → applyEvent() reducer</div>
+</div>
+
+<div class="event-arrow">↓</div>
+
+<div class="event-item" style="border-left-color: #bc8cff;">
+  <div class="ev-kind" style="color: #bc8cff;">applyEvent(messages, event)</div>
+  <div class="ev-when">按 event.kind 更新 MessageRecord<br>写入 react-query 缓存 (MESSAGES_KEY)</div>
+</div>
+
+<div class="event-arrow">↓ React 重渲染</div>
+
+<div class="event-item" style="border-left-color: #bc8cff;">
+  <div class="ev-kind" style="color: #bc8cff;">UI 更新</div>
+  <div class="ev-when">
+    <strong>message.created</strong> → 用户气泡出现<br>
+    <strong>message.dispatched</strong> → 转圈<br>
+    <strong>message.progress</strong> → 工具调用展开/收起<br>
+    <strong>delegation_plan</strong> → 编排图出现<br>
+    <strong>delegation_update</strong> → 节点变色<br>
+    <strong>message.complete</strong> → 停转圈，显示回复<br>
+    <strong>message.error</strong> → 显示错误
+  </div>
+</div>
+
+<div style="margin-top: 24px; padding: 14px; background: #161b22; border-radius: 8px; border: 1px solid #30363d; font-family: -apple-system, sans-serif;">
+  <div style="font-size: 12px; font-weight: 700; color: #3fb950; margin-bottom: 8px;">关键点</div>
+  <div style="font-size: 11px; color: #8b949e; line-height: 1.8;">
+    主流程（LLM 循环）和事件流是<strong>解耦</strong>的。<br><br>
+    LLM 在跑 → 边跑边 emit → 前端边收边渲染。<br>
+    用户看到的是<strong>实时流式</strong>更新，不是等 LLM 全跑完才显示。<br><br>
+    事件先写 SQLite（崩溃不丢），再推前端（挂了不影响 engine）。
+  </div>
+</div>
+
+</div><!-- /col-side -->
+
+</div><!-- /cols -->
+
+<div class="note" style="max-width: 1200px; margin: 32px auto 0;">
+  <strong style="color:#e6edf3;">全流程一句话串起来：</strong><br>
+  用户打字 → IPC → submitPrompt → launchMessage（排队 + 拿槽位）→ engine.run（LLM 循环）→
+  LLM 要么直接回复（分支 A），要么调工具（分支 B）→
+  工具里最特殊的是 delegate，它会<strong style="color:#f85149;">递归启动一整个子 run</strong>（和父走一样的流程）→
+  全程每个节点 emit 事件 → 写库 + 推前端 → 用户看到实时更新。
+  <br><br>
+  <strong style="color:#e6edf3;">三个并发管控点</strong>（图中步骤 ③④ + delegate 的 withSlotReleased）：<br>
+  • <code>waitTurn</code>：同 session 内 FIFO，消息排队不抢<br>
+  • <code>acquireSlot</code>：全局并发池，限制同时跑的 run 数量<br>
+  • <code>withSlotReleased</code>：父 delegate 子时让出自己的槽位，避免满池父 run 互相卡死
+</div>
+
+</body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport" >
+<title>SwarmAgents — Agent 信息流转架构图</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2330; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --text-faint: #6e7681;
+    --blue: #58a6ff; --blue-bg: #0d2847; --green: #3fb950; --green-bg: #0d2818;
+    --orange: #d29922; --orange-bg: #2d2200; --purple: #bc8cff; --purple-bg: #250a47;
+    --red: #f85149; --red-bg: #2d0a0a; --cyan: #39c5cf; --cyan-bg: #0a2d2f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, 'Segoe UI', Helvetica, sans-serif;
+    line-height: 1.5; padding: 32px 24px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: var(--text-dim); font-weight: 400; margin-bottom: 32px; }
+  h3 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-dim); margin: 36px 0 16px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ---- Layer swim-lanes ---- */
+  .lane { margin-bottom: 8px; }
+  .lane-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; padding: 4px 12px; border-radius: 4px;
+    display: inline-block; margin-bottom: 10px;
+  }
+  .lane-renderer .lane-label { background: var(--purple-bg); color: var(--purple); }
+  .lane-bridge .lane-label { background: var(--cyan-bg); color: var(--cyan); }
+  .lane-backend .lane-label { background: var(--blue-bg); color: var(--blue); }
+  .lane-storage .lane-label { background: var(--green-bg); color: var(--green); }
+
+  .lane-content {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    padding: 16px; border-radius: 8px; border: 1px solid var(--border);
+  }
+  .lane-renderer .lane-content { border-color: #3d2c5e; background: #120d1a; }
+  .lane-bridge .lane-content { border-color: #1a4d52; background: #0a1a1c; }
+  .lane-backend .lane-content { border-color: #1a3d5e; background: #0a121e; }
+  .lane-storage .lane-content { border-color: #1a4d2e; background: #0a1a12; }
+
+  /* ---- Node card ---- */
+  .node {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; min-width: 180px; max-width: 260px;
+    position: relative; transition: border-color .2s;
+  }
+  .node:hover { border-color: var(--blue); }
+  .node-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .node-sub { font-size: 11px; color: var(--text-faint); margin-bottom: 8px; font-family: 'SF Mono', monospace; }
+  .node-body { font-size: 12px; color: var(--text-dim); }
+  .node-body code { color: var(--text); background: var(--surface2); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+
+  .node-blue { border-top: 3px solid var(--blue); }
+  .node-green { border-top: 3px solid var(--green); }
+  .node-orange { border-top: 3px solid var(--orange); }
+  .node-purple { border-top: 3px solid var(--purple); }
+  .node-cyan { border-top: 3px solid var(--cyan); }
+  .node-red { border-top: 3px solid var(--red); }
+
+  /* ---- Flow arrows between lanes ---- */
+  .flow-section { margin: 16px 0; }
+  .flow-arrow {
+    text-align: center; padding: 12px 0; font-size: 11px; color: var(--text-dim);
+    font-family: 'SF Mono', monospace;
+  }
+  .flow-arrow .label {
+    background: var(--surface2); padding: 3px 10px; border-radius: 4px;
+    border: 1px solid var(--border); white-space: nowrap;
+  }
+
+  /* ---- Data path badges ---- */
+  .path-badge {
+    display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 10px; margin: 2px; font-family: 'SF Mono', monospace;
+  }
+  .path-blue { background: var(--blue-bg); color: var(--blue); }
+  .path-green { background: var(--green-bg); color: var(--green); }
+  .path-orange { background: var(--orange-bg); color: var(--orange); }
+  .path-red { background: var(--red-bg); color: var(--red); }
+
+  /* ---- Legend ---- */
+  .legend {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 28px;
+    padding: 12px 16px; background: var(--surface); border-radius: 8px; border: 1px solid var(--border);
+  }
+  .legend-item { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ---- Sequence diagram ---- */
+  .seq-container { overflow-x: auto; }
+  .seq-diagram {
+    font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: 12px;
+    line-height: 1.7; white-space: pre; color: var(--text-dim);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px; overflow-x: auto;
+  }
+  .seq-diagram .hl { color: var(--text); font-weight: 700; }
+  .seq-diagram .blue { color: var(--blue); }
+  .seq-diagram .green { color: var(--green); }
+  .seq-diagram .orange { color: var(--orange); }
+  .seq-diagram .purple { color: var(--purple); }
+  .seq-diagram .cyan { color: var(--cyan); }
+  .seq-diagram .dim { color: var(--text-faint); }
+
+  .footer { margin-top: 40px; font-size: 11px; color: var(--text-faint); border-top: 1px solid var(--border); padding-top: 16px; }
+</style>
+</head>
+<body>
+
+<h1>SwarmAgents — Agent 委托信息流转架构</h1>
+<h2>结构化 State · 事件重放 planState · Checkpoint Fork · 编排可视化</h2>
+
+<!-- ============ LEGEND ============ -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>Renderer（前端）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div>IPC Bridge（进程间通信）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Backend Service（主进程）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Storage / Event Stream（持久层）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>LLM / Engine（模型引擎）</div>
+</div>
+
+<!-- ============ LAYER 1: RENDERER ============ -->
+<h3>① Renderer Layer — 前端状态与 UI</h3>
+<div class="lane lane-renderer">
+  <div class="lane-content">
+    <div class="node node-purple">
+      <div class="node-title">useMessages()</div>
+      <div class="node-sub">hooks/use-messages.ts</div>
+      <div class="node-body">
+        react-query 缓存 <code>MESSAGES_KEY</code><br>
+        <code>MessageRecord[]</code>（含 <code>delegationPlan</code> + <code>delegationUpdates</code>）
+      </div>
+    </div>
+    <div class="node node-purple">
+      <div class="node-title">useDelegationPlan(sessionId)</div>
+      <div class="node-sub">hooks/use-delegation-plan.ts</div>
+      <div class="node-body">
+        从 message 缓存派生 plan 状态<br>
+        过滤 <code>sessionId</code> → 找最后 plan → 重放 updates<br>
+        返回 <code>Map&lt;itemId, PlanItemState&gt;</code>
+      </div>
+    </div>
+    <div class="node node-purple">
+      <div class="node-title">OrchestrationGraph</div>
+      <div class="node-sub">components/orchestration/</div>
+      <div class="node-body">
+        @xyflow/react 画布<br>
+        plan-item 节点（状态色）+ run 节点（委托树）<br>
+        dependsOn 边 + parent→child 边
+      </div>
+    </div>
+    <div class="node node-purple">
+      <div class="node-title">Fork 按钮 / 弹窗</div>
+      <div class="node-sub">task-transcript.tsx</div>
+      <div class="node-body">
+        terminal 消息 hover 显示"从这里分支"<br>
+        点击 → 输入框 → 调 <code>forkSession</code> IPC<br>
+        成功后 navigate 到新 session
+      </div>
+    </div>
+    <div class="node node-purple">
+      <div class="node-title">sessions store</div>
+      <div class="node-sub">stores/sessions.ts (zustand)</div>
+      <div class="node-body">
+        <code>forkedFrom</code> Map 追踪 fork 关系<br>
+        session-header 显示"forked from"标记
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow"><span class="label">↕ subscribeEvents(cb) · forkSession IPC · getMessageEvents</span></div>
+
+<!-- ============ LAYER 2: IPC BRIDGE ============ -->
+<h3>② IPC Bridge — Electron 进程间通信</h3>
+<div class="lane lane-bridge">
+  <div class="lane-content">
+    <div class="node node-cyan">
+      <div class="node-title">preload (contextBridge)</div>
+      <div class="node-sub">preload/index.ts</div>
+      <div class="node-body">
+        <code>window.swarm.forkSession(...)</code><br>
+        <code>window.swarm.subscribeEvents(cb)</code><br>
+        <code>window.swarm.sessions.getMessageEvents</code>
+      </div>
+    </div>
+    <div class="node node-cyan">
+      <div class="node-title">swarm-ipc handlers</div>
+      <div class="node-sub">main/ipc/swarm-ipc.ts</div>
+      <div class="node-body">
+        <code>swarm:forkSession</code> → serviceClient<br>
+        <code>swarm:event</code> → SSE 事件转发<br>
+        <code>forward-event.ts</code> 适配器
+      </div>
+    </div>
+    <div class="node node-cyan">
+      <div class="node-title">ServiceClient (RPC)</div>
+      <div class="node-sub">protocol/service-client.ts</div>
+      <div class="node-body">
+        <code>forkToNewSession</code> 方法<br>
+        dispatcher 路由 → SessionService
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow"><span class="label">↕ LaunchPorts 注入 · MessageSpec 回调 · delegate/createTask</span></div>
+
+<!-- ============ LAYER 3: BACKEND ============ -->
+<h3>③ Backend Service — 会话管理与编排核心</h3>
+<div class="lane lane-backend">
+  <div class="lane-content">
+    <div class="node node-blue" style="max-width: 320px;">
+      <div class="node-title">createSessionService 闭包</div>
+      <div class="node-sub">session/session-service.ts</div>
+      <div class="node-body" style="margin-bottom: 10px;">
+        <strong>planStates</strong> — <code>Map&lt;sessionId, Map&lt;itemId, PlanItemState&gt;&gt;</code><br>
+        session 级，事件重放派生缓存
+      </div>
+      <div style="border-top: 1px solid var(--border); padding-top: 8px;">
+        <span class="path-badge path-blue">ensurePlanState(sid)</span>
+        <span class="path-badge path-green">lazy replay</span>
+        <br>
+        <span class="path-badge path-blue">setDelegationPlanForSession</span>
+        <span class="path-badge path-orange">onDelegationPlan 回调</span>
+        <br>
+        <span class="path-badge path-blue">mergeDelegationResultForSession</span>
+        <span class="path-badge path-orange">onDelegationUpdate 回调</span>
+      </div>
+    </div>
+
+    <div class="node node-blue">
+      <div class="node-title">delegate() / createTask()</div>
+      <div class="node-sub">session-service.ts</div>
+      <div class="node-body">
+        递归启动 child/work run<br>
+        透传 <code>artifacts: r.artifacts ?? []</code><br>
+        传 <code>onDelegationPlan</code> + <code>onDelegationUpdate</code> 回调
+      </div>
+    </div>
+
+    <div class="node node-blue">
+      <div class="node-title">forkToNewSession()</div>
+      <div class="node-sub">session-service.ts</div>
+      <div class="node-body">
+        切片 transcript → 重建 history<br>
+        createSession(provider) → runWork(history)<br>
+        设置 <code>forkedFrom</code> 元数据
+      </div>
+    </div>
+
+    <div class="node node-orange">
+      <div class="node-title">launchMessage(spec, ports)</div>
+      <div class="node-sub">message-engine/launch.ts</div>
+      <div class="node-body">
+        构建 ctx（含 sinks）<br>
+        <code>setDelegationPlan</code>: emit + <code>spec.onDelegationPlan</code><br>
+        <code>mergeDelegationResult</code>: emit + <code>spec.onDelegationUpdate</code><br>
+        <code>reportResult</code>: push → <code>collectedArtifacts[]</code><br>
+        自动注入 report_result 到 child run<br>
+        返回 <code>{ ...r, artifacts: collectedArtifacts }</code>
+      </div>
+    </div>
+
+    <div class="node node-orange">
+      <div class="node-title">createEngine</div>
+      <div class="node-sub">message-engine/engine.ts</div>
+      <div class="node-body">
+        pi Agent loop（LLM ↔ tools）<br>
+        <code>EngineRunResult</code>: status, summary, messages, used, <strong>artifacts</strong><br>
+        每个 turn 调 tool → 产出 events
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow"><span class="label">↕ emit(MessageEmitInput) · appendEvent · broadcast</span></div>
+
+<!-- ============ LAYER 4: TOOLS ============ -->
+<h3>④ Tools — Agent 可调用的工具</h3>
+<div class="lane">
+  <div class="lane-content" style="border-color: var(--orange); background: #1a1207;">
+    <div class="node node-orange">
+      <div class="node-title">delegate</div>
+      <div class="node-sub">tools/delegate.ts</div>
+      <div class="node-body">
+        <code>itemId?</code> 可选参数<br>
+        <span class="path-badge path-blue">① running</span> 派出前 merge<br>
+        <span class="path-badge path-green">② terminal</span> 返回后 merge<br>
+        <span class="path-badge path-red">③ failed</span> catch 里 merge + rethrow
+      </div>
+    </div>
+    <div class="node node-orange">
+      <div class="node-title">set_delegation_plan</div>
+      <div class="node-sub">tools/delegation-plan.ts</div>
+      <div class="node-body">
+        Leader 记录 DAG（全量快照）<br>
+        → <code>ctx.setDelegationPlan(items)</code>
+      </div>
+    </div>
+    <div class="node node-orange">
+      <div class="node-title">report_result</div>
+      <div class="node-sub">tools/report-result.ts</div>
+      <div class="node-body">
+        子 agent 提交结构化 artifacts<br>
+        → <code>ctx.reportResult(artifacts)</code><br>
+        仅 child run 自动注入
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow"><span class="label">↓ emit → appendEvent + broadcast ↓</span></div>
+
+<!-- ============ LAYER 5: STORAGE ============ -->
+<h3>⑤ Storage & Event Stream — 持久层与事件真相源</h3>
+<div class="lane lane-storage">
+  <div class="lane-content">
+    <div class="node node-green" style="max-width: 320px;">
+      <div class="node-title">message_events 表</div>
+      <div class="node-sub">conversation/store.ts — SQLite</div>
+      <div class="node-body">
+        <code>(id, session_id, message_id, parent_message_id, seq, ts, event)</code><br>
+        <strong>唯一真相源</strong> — 所有事件持久化于此<br>
+        <span class="path-badge path-green">message.delegation_plan</span>
+        <span class="path-badge path-green">message.delegation_update</span>
+        <span class="path-badge path-green">message.progress</span>
+        <span class="path-badge path-green">message.complete</span>
+      </div>
+    </div>
+    <div class="node node-green">
+      <div class="node-title">getMessageEvents(sid)</div>
+      <div class="node-sub">store.ts</div>
+      <div class="node-body">
+        按 <code>seq</code> 返回完整事件流<br>
+        planState 懒加载重放的数据源<br>
+        fork transcript 切片的数据源
+      </div>
+    </div>
+    <div class="node node-green">
+      <div class="node-title">delegation-reducer</div>
+      <div class="node-sub">shared/messages/delegation-reducer.ts</div>
+      <div class="node-body">
+        <strong>前后端共用</strong> reducer<br>
+        <code>applyDelegationPlan</code> — 全量覆盖<br>
+        <code>applyDelegationUpdate</code> — 按 itemId merge<br>
+        <code>replayDelegationEvents</code> — 重放重建
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SEQUENCE: delegate with itemId ============ -->
+<h3>完整时序：Leader delegate 一个 plan item（d1）</h3>
+<div class="seq-container">
+<div class="seq-diagram"><span class="dim">┌─────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="dim">│</span>  <span class="hl">Leader Agent</span> (turn run)                <span class="blue">launchMessage</span>              <span class="orange">delegate tool</span>            <span class="blue">session-service</span>         <span class="green">message_events</span>    <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                                            <span class="dim">│</span>
+<span class="dim">│</span>  <span class="purple">1. set_delegation_plan([d1, d2])</span>                                                                   <span class="dim">│</span>
+<span class="dim">│</span>  ────────────────────────────────▶  ctx.setDelegationPlan(plan)                                          <span class="dim">│</span>
+<span class="dim">│</span>                                          ┌─── emit(<span class="green">delegation_plan</span>) ──────────────▶  <span class="green">appendEvent</span>  <span class="dim">│</span>
+<span class="dim">│</span>                                          └─── spec.onDelegationPlan(plan) ──▶  setDelegationPlanForSession  <span class="dim">│</span>
+<span class="dim">│</span>                                                                                    └── planStates.set(sid, ...) <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                                            <span class="dim">│</span>
+<span class="dim">│</span>  <span class="purple">2. delegate({ prompt: "...", itemId: "d1" })</span>                                                        <span class="dim">│</span>
+<span class="dim">│</span>  ──────────────────────────────────────────────────────▶  execute starts                                                 <span class="dim">│</span>
+<span class="dim">│</span>                                                             <span class="blue">①</span> ctx.mergeDelegationResult("d1", {status:"running"})               <span class="dim">│</span>
+<span class="dim">│</span>                                                                ┌── emit(<span class="green">delegation_update</span> running) ──▶  <span class="green">appendEvent</span>  <span class="dim">│</span>
+<span class="dim">│</span>                                                                └── spec.onDelegationUpdate ──▶  mergeDelegationResultForSession    <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                                            <span class="dim">│</span>
+<span class="dim">│</span>                                                             <span class="blue">spawnChild</span>(prompt) ──────▶  delegate(session, ...)                      <span class="dim">│</span>
+<span class="dim">│</span>                                                                                      └──▶ launchMessage({kind:"child"})       <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                                            <span class="dim">│</span>
+<span class="dim">│</span>  ┌───────────────────  <span class="orange">Child Agent</span> (child run)  ──────────────────┐                                    <span class="dim">│</span>
+<span class="dim">│</span>  │  3. LLM loop with tools + auto-injected <span class="purple">report_result</span>           │                                    <span class="dim">│</span>
+<span class="dim">│</span>  │     report_result({ artifacts: [{kind:"note", text:"结果"}] })   │                                    <span class="dim">│</span>
+<span class="dim">│</span>  │     └─▶ ctx.reportResult(artifacts)                              │                                    <span class="dim">│</span>
+<span class="dim">│</span>  │            └─▶ collectedArtifacts.push(...)                      │                                    <span class="dim">│</span>
+<span class="dim">│</span>  │  4. run ends → EngineRunResult { ..., artifacts: collected }     │                                    <span class="dim">│</span>
+<span class="dim">│</span>  └─────────────────────────────────────────────────────────────────┘                                    <span class="dim">│</span>
+<span class="dim">│</span>                                                             ◀── { messageId, status, summary, <span class="hl">artifacts</span> }      <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                                            <span class="dim">│</span>
+<span class="dim">│</span>                                                             <span class="green">②</span> ctx.mergeDelegationResult("d1", {status:"completed", artifacts})    <span class="dim">│</span>
+<span class="dim">│</span>                                                                ┌── emit(<span class="green">delegation_update</span> completed) ─▶  <span class="green">appendEvent</span>  <span class="dim">│</span>
+<span class="dim">│</span>                                                                └── spec.onDelegationUpdate ──▶  mergeDelegationResultForSession    <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                                            <span class="dim">│</span>
+<span class="dim">│</span>  ◀── tool_result: { details: { messageId, status, summary, artifacts } }                                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">(Leader 读到结构化 artifacts，继续 loop)</span>                                                                   <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                                            <span class="dim">│</span>
+<span class="dim">│</span>  <span class="red">✗ 如果 spawnChild 抛异常</span>                                                                            <span class="dim">│</span>
+<span class="dim">│</span>                                                             <span class="red">③</span> catch: mergeDelegationResult("d1", {status:"failed"}) then rethrow    <span class="dim">│</span>
+<span class="dim">│</span>                                                                └── emit(<span class="red">delegation_update failed</span>) ──────▶  <span class="green">appendEvent</span>  <span class="dim">│</span>
+<span class="dim">└─────────────────────────────────────────────────────────────────────────────┘</span>
+</div>
+</div>
+
+<!-- ============ SEQUENCE: fork ============ -->
+<h3>完整时序：Checkpoint Fork</h3>
+<div class="seq-container">
+<div class="seq-diagram"><span class="dim">┌──────────────────────────────────────────────────────────────────────────┐</span>
+<span class="dim">│</span>  <span class="hl">User</span>                    <span class="purple">Renderer</span>              <span class="cyan">IPC</span>                <span class="blue">session-service</span>         <span class="green">store</span>     <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                        <span class="dim">│</span>
+<span class="dim">│</span>  hover terminal msg                                                                       <span class="dim">│</span>
+<span class="dim">│</span>  click "从这里分支"                                                                       <span class="dim">│</span>
+<span class="dim">│</span>  input new prompt                                                                         <span class="dim">│</span>
+<span class="dim">│</span>  ─────────────▶  forkSession(sid, msgId, prompt)                                           <span class="dim">│</span>
+<span class="dim">│</span>                  ────────────▶  swarm:forkSession                                                         <span class="dim">│</span>
+<span class="dim">│</span>                                   ──────────▶  forkToNewSession(srcSid, forkMsgId, prompt)                 <span class="dim">│</span>
+<span class="dim">│</span>                                                                  ──────▶ getMessageEvents(srcSid)  <span class="dim">│</span>
+<span class="dim">│</span>                                                                  ◀── events[] (by seq)             <span class="dim">│</span>
+<span class="dim">│</span>                                                                  切片到 forkMsgId (terminal 边界)      <span class="dim">│</span>
+<span class="dim">│</span>                                                                  reconstructHistoryFromEvents()       <span class="dim">│</span>
+<span class="dim">│</span>                                                                  → AgentMessage[] (user/assistant)    <span class="dim">│</span>
+<span class="dim">│</span>                                                                                                        <span class="dim">│</span>
+<span class="dim">│</span>                                                                  createSession(srcProvider)            <span class="dim">│</span>
+<span class="dim">│</span>                                                                  set forkedFrom = { srcSid, forkMsgId }<span class="dim">│</span>
+<span class="dim">│</span>                                                                  runWork(newSid, prompt, { history })  <span class="dim">│</span>
+<span class="dim">│</span>                                                                   └──▶ launchMessage(kind:"work",      <span class="dim">│</span>
+<span class="dim">│</span>                                                                          history, ...)                 <span class="dim">│</span>
+<span class="dim">│</span>                                                                  ◀── { sessionId, messageId: "" }      <span class="dim">│</span>
+<span class="dim">│</span>                                   ◀──────────                                                          <span class="dim">│</span>
+<span class="dim">│</span>                  ◀──────────                                                                           <span class="dim">│</span>
+<span class="dim">│</span>  markForked(newSid, srcSid)  <span class="dim">(zustand)</span>                                                             <span class="dim">│</span>
+<span class="dim">│</span>  navigate("/session/" + newSid)                                                                <span class="dim">│</span>
+<span class="dim">│</span>  session-header 显示 "forked from session"                                                      <span class="dim">│</span>
+<span class="dim">│</span>  新 session 从 fork 点 transcript 继续，走自己的 loop                                            <span class="dim">│</span>
+<span class="dim">└──────────────────────────────────────────────────────────────────────────┘</span>
+</div>
+</div>
+
+<!-- ============ DATA FLOW SUMMARY ============ -->
+<h3>两条独立数据通路</h3>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  <div class="node node-green" style="max-width: none;">
+    <div class="node-title">🟢 Artifacts 透传通路（per-run · 父子当次传递）</div>
+    <div class="node-body" style="margin-top: 8px;">
+      <code>report_result</code> 工具 → ctx.reportResult<br>
+      → <code>collectedArtifacts[]</code> sink<br>
+      → <code>EngineRunResult.artifacts</code><br>
+      → delegate / createTask 透传<br>
+      → <code>tool_result.details.artifacts</code><br>
+      → <strong>父 agent 直接读取</strong>
+      <br><br>
+      <span class="path-badge path-green">per-run 生命周期</span>
+      <span class="path-badge path-green">父子之间</span>
+    </div>
+  </div>
+  <div class="node node-blue" style="max-width: none;">
+    <div class="node-title">🔵 Plan 状态通路（session 级 · 跨轮累积 · UI 视图）</div>
+    <div class="node-body" style="margin-top: 8px;">
+      delegate merge → ctx.mergeDelegationResult<br>
+      → emit <code>delegation_update</code> 事件<br>
+      → session-service 闭包 planState<br>
+      → message_events 持久化<br>
+      → 前端 apply-event reducer<br>
+      → <strong>useDelegationPlan hook</strong>
+      <br><br>
+      <span class="path-badge path-blue">session 级</span>
+      <span class="path-badge path-blue">跨轮累积</span>
+      <span class="path-badge path-blue">事件重放</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PLAN STATE LIFECYCLE ============ -->
+<h3>planState 生命周期：事件重放（方案 B）</h3>
+<div class="seq-container">
+<div class="seq-diagram"><span class="dim">  message_events 表（唯一真相源）
+  ┌──────────────────────────────────────────────────────┐
+  │  seq=1  delegation_plan  [d1, d2, d3]                 │
+  │  seq=2  delegation_update  d1 running                 │
+  │  seq=3  delegation_update  d1 completed [{note:"A"}]  │
+  │  seq=4  delegation_update  d2 running                 │
+  │  ...                                                  │
+  └───────────────────────┬──────────────────────────────┘
+                          │ 首次访问时懒加载重放
+                          ▼
+  ┌──────────────────────────────────────────────────────┐
+  │  session-service 闭包 planStates (派生缓存)            │
+  │                                                      │
+  │  ensurePlanState(sid):                               │
+  │    events = store.getMessageEvents(sid)              │
+  │    replayDelegationEvents(events)                    │
+  │    → Map { d1 → completed, d2 → running, d3 → pending}│
+  │                                                      │
+  │  运行中增量: setDelegationPlan / mergeDelegationResult│
+  │  崩溃恢复: 进程重启后再次 ensurePlanState → 免费恢复   │
+  └──────────────────────────────────────────────────────┘</span>
+</div>
+</div>
+
+<div class="footer">
+  SwarmAgents · 委托信息流转架构 · 基于 develop 分支 commit <code>f7fc4332</code>（2026-07-14）<br>
+  生成自 spec <code>docs/superpowers/specs/2026-07-13-delegation-state-checkpoint-viz-design.md</code> + 实现 plan <code>docs/superpowers/plans/2026-07-13-delegation-state-checkpoint-viz.md</code>
+</div>
+
+</body>
+</html>
