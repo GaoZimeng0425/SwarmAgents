@@ -242,3 +242,26 @@ describe('SessionAgent + createRunHooks integration (abortRun / shared used)', (
     expect(result.summary).toBe('Budget exhausted (usdCents).')
   })
 })
+
+describe('SessionAgent call counting (single point of truth)', () => {
+  it('counts calls unconditionally even with no hooks wired, so turn_end usage reports calls>0', async () => {
+    installDrivenAgent(async ({ beforeToolCall, emitUsage }) => {
+      await beforeToolCall({ toolCall: { name: 'x' }, args: {} })
+      // Triggers usageSnapshot()/turn_end so the current used.calls is on the wire.
+      emitUsage(0)
+    })
+
+    const events: AgentWireEvent[] = []
+    // Deliberately NO `hooks` dep — regressing this must not silently zero out
+    // call counting (Task 3 guarantee).
+    const agent = new SessionAgent(makeDeps({ broadcast: (e) => events.push(e) }))
+
+    agent.submitUserMessage('hi')
+    const result = await agent.waitForCompletion()
+
+    expect(result.status).toBe('completed')
+    const turnEnd = events.find((e) => e.kind === 'turn_end')
+    expect(turnEnd).toBeDefined()
+    if (turnEnd?.kind === 'turn_end') expect(turnEnd.used.calls).toBeGreaterThan(0)
+  })
+})

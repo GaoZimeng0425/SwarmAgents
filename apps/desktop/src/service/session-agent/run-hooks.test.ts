@@ -84,7 +84,10 @@ describe('createRunHooks', () => {
     expect(result).toBeUndefined()
     expect(requestPermission).not.toHaveBeenCalled()
     expect(broadcasts).toHaveLength(0)
-    expect(hooks.used.calls).toBe(1)
+    // Call counting is SessionAgent's job now (single point of truth, so
+    // turn_end usage stays accurate even with no gate wired) — run-hooks.ts
+    // only reads `used.calls` for its budget check, so it stays untouched here.
+    expect(hooks.used.calls).toBe(0)
   })
 
   it('medium risk in ask mode broadcasts permission_request and blocks on deny, correlated by actionId', async () => {
@@ -130,13 +133,19 @@ describe('createRunHooks', () => {
   })
 
   it('blocks once the call budget is exceeded, with a budget reason, and aborts the run', async () => {
-    const { opts, abortRunCalls } = makeOpts({ budget: { calls: 1, wallMs: 60_000, usdCents: 100_000 } })
+    // used.calls is incremented by the CALLER (SessionAgent) before each
+    // beforeToolCall invocation now — simulate that here, since this test
+    // drives createRunHooks directly rather than through SessionAgent.
+    const used = emptyUsed()
+    const { opts, abortRunCalls } = makeOpts({ budget: { calls: 1, wallMs: 60_000, usdCents: 100_000 }, used })
     const hooks = createRunHooks(opts)
 
+    used.calls += 1
     const first = await hooks.beforeToolCall(beforeCtx('read_file'))
     expect(first).toBeUndefined()
     expect(abortRunCalls).toHaveLength(0)
 
+    used.calls += 1
     const second = await hooks.beforeToolCall(beforeCtx('read_file'))
     expect(second).toEqual({ block: true, reason: 'Budget exhausted (calls).' })
     expect(abortRunCalls).toEqual(['Budget exhausted (calls).'])
@@ -171,7 +180,6 @@ describe('createRunHooks', () => {
     expect(result).toEqual({ block: true, reason: 'Stopped by user.' })
     expect(requestPermission).not.toHaveBeenCalled()
     expect(broadcasts).toHaveLength(0)
-    expect(hooks.used.calls).toBe(0)
   })
 
   it('a requestPermission throw is a fail-safe deny, logged, never a grant', async () => {

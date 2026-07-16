@@ -231,6 +231,12 @@ export class SessionAgent {
       // runs (see runOnce's `this.agent ??= ...`), but currentHooks is rebuilt
       // per run in runOnce so each run's gate sees its own runId/used.
       beforeToolCall: async (ctx, signal) => {
+        // Single point of truth for call counting (Task 3 guarantee): always
+        // incremented, even when no gate hook is wired, so turn_end usage
+        // always reports calls>0 after a tool-calling turn. run-hooks.ts's
+        // budget gate only READS this same `used.calls` now — it no longer
+        // increments it itself, so there is exactly one counter, not two.
+        this.used.calls += 1
         return (await this.currentHooks?.beforeToolCall?.(ctx, signal)) ?? undefined
       },
       afterToolCall: async (ctx, signal) => {

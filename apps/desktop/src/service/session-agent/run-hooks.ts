@@ -34,10 +34,12 @@ export type RunHooksOpts = {
     payload: unknown
   }) => Promise<PermissionDecision>
   budget: ResourceBudget
-  // Live accumulator, owned and reset per-run by the caller (SessionAgent);
-  // createRunHooks mutates it in place rather than tracking its own copy, so
-  // usage collected elsewhere (turn usage/cost) and calls counted here share
-  // one source of truth for the budget gate.
+  // Live accumulator, owned, reset, and INCREMENTED (calls) by the caller
+  // (SessionAgent) — the single point of truth for call counting, so
+  // turn_end usage still reports calls>0 even when no gate hook is wired.
+  // createRunHooks only READS `used` for its budget gate (and lets
+  // usageSnapshot()'s cost tracking feed the same object for the usdCents
+  // check); it never increments `calls` itself.
   used: ConsumedResources
   broadcast: (e: AgentWireEvent) => void
   log: Logger
@@ -86,7 +88,9 @@ export function createRunHooks(opts: RunHooksOpts): RunHooks {
       })
       return { block: true, reason: 'Stopped by user.' }
     }
-    used.calls += 1
+    // NOT incremented here — the caller (SessionAgent) already bumped
+    // used.calls unconditionally before invoking this hook (single point of
+    // counting; see SessionAgentDeps.hooks / buildAgent's beforeToolCall).
     const dim = overBudget()
     if (dim) {
       const reason = `Budget exhausted (${dim}).`
