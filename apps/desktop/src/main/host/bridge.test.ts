@@ -88,11 +88,11 @@ describe('ws bridge', () => {
     peerA.on('message', (raw) => seenA.push(JSON.parse(raw.toString())))
     peerB.on('message', (raw) => seenB.push(JSON.parse(raw.toString())))
 
-    svc.emit({ kind: 'event', event: 'message.progress', data: { messageId: 'r1' } })
+    svc.emit({ kind: 'event', event: 'turn_end', data: { messageId: 'r1' } })
     await new Promise((res) => setTimeout(res, 50))
 
-    expect(seenA).toEqual([{ kind: 'event', event: 'message.progress', data: { messageId: 'r1' } }])
-    expect(seenB).toEqual([{ kind: 'event', event: 'message.progress', data: { messageId: 'r1' } }])
+    expect(seenA).toEqual([{ kind: 'event', event: 'turn_end', data: { messageId: 'r1' } }])
+    expect(seenB).toEqual([{ kind: 'event', event: 'turn_end', data: { messageId: 'r1' } }])
     peerA.close()
     peerB.close()
   })

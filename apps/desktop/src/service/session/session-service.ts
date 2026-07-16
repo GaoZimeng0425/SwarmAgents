@@ -16,9 +16,9 @@ import type {
   PermissionMode,
   ProviderInjection,
   Risk,
-  SubmitOptions,
   RunStatus,
   SessionEntry,
+  SubmitOptions,
 } from '@swarm/protocol'
 import { allowlistForAgent, type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
 import { applyAgentModel, DEFAULT_AGENT_DEF, SYSTEM_SESSION_ID } from '@swarm/shared'
@@ -61,7 +61,7 @@ const PLAN_READONLY_ALLOWLIST = [
 
 // Per-session run controller. One SessionAgent per session (spec §3.3); slot
 // yield for delegate is per-session (a child rides the pool while its parent
-// yields — ledger #5, ported from message-engine/launch.ts:127-139).
+// yields — ledger #5, ported from the old launch path).
 type SlotController = {
   acquire: (signal: AbortSignal) => Promise<() => void>
   yieldWhile: <T>(fn: () => Promise<T>) => Promise<T>
@@ -376,7 +376,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     riskOf: () => 'medium',
   })
 
-  // Assemble this run's tool context (moved from message-engine/launch.ts:208-242)
+  // Assemble this run's tool context (moved from the old launch path)
   // and the composed system prompt / model / thinking level / tools. Resolved
   // fresh per run so a mid-session model switch or settings change takes effect.
   const buildAgentConfig = (session: SessionState, runCtx: { runId: string; used: ConsumedResources }) => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PlanTodo, TaskStatus } from '@swarm/protocol'
+import type { MessageStatus } from '@shared/lib/apply-event'
+import type { PlanTodo } from '@swarm/protocol'
 import { Check, ChevronRight, Circle, ListChecks, Loader2 } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -10,7 +11,7 @@ export type PlanGroup = {
   messageId: string
   prompt: string
   plan: PlanTodo[]
-  status: TaskStatus
+  status: MessageStatus
   createdAt: number
 }
 

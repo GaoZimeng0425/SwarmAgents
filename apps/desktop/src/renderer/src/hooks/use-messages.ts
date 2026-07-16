@@ -1,30 +1,9 @@
 import type { PermissionDecision } from '@swarm/protocol'
-import { MESSAGES_KEY, type MessageRecord } from '@swarm/shared'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
-
-export type { MessageRecord }
-// Re-export the shared constants so existing desktop imports keep resolving.
-export { MESSAGES_KEY }
-
-/**
- * Compat shim during the wire-v3 renderer swap. The global cross-session
- * MessageRecord cache is gone — transcripts read per-session SessionViews via
- * useSessionView. Consumers not yet migrated (delegation plan, palette
- * continue, agent activity) still call this; it now resolves empty. Removed in
- * Task 9 once every consumer is off the message rails.
- */
-export function useMessages(): MessageRecord[] {
-  const { data } = useQuery<MessageRecord[]>({
-    queryKey: MESSAGES_KEY,
-    queryFn: () => [],
-    staleTime: Number.POSITIVE_INFINITY,
-  })
-  return data ?? []
-}
 
 /**
  * Submit a prompt to the currently-selected session, creating one if needed.
@@ -41,7 +20,7 @@ export function useSubmitPrompt() {
     }: {
       prompt: string
       attachments?: import('@swarm/protocol').Attachment[]
-      options?: import('@swarm/protocol').RunOptions
+      options?: import('@swarm/protocol').SubmitOptions
       forceNew?: boolean
     }): Promise<{ sessionId: string }> => {
       let sessionId = forceNew ? null : useSessionsStore.getState().selectedSessionId

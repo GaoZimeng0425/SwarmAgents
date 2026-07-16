@@ -4,7 +4,7 @@ import Database from 'better-sqlite3'
 import type { Logger } from 'pino'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Hook-capturing mock (same style as message-engine/engine.test.ts): swaps out
+// Hook-capturing mock (same style as the old engine test): swaps out
 // only `Agent` so beforeToolCall/afterToolCall passed to its constructor can be
 // invoked directly, without driving a real tool-call round trip through a fake
 // LLM stream.

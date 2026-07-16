@@ -268,7 +268,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
   // On reopen, mark every session left 'active' by a crashed process as
   // 'interrupted' (matches the pre-4b session-status side of markAndGetInterrupted;
   // the tasks-side cleanup is gone now that the tasks table is dropped — orphaned
-  // runs are settled by markInterruptedRunsTerminal in the manager, not here).
+  // runs are settled by the manager on reopen, not here).
   const markAndGetInterrupted = db.transaction((): StoredSession[] => {
     const active = db.prepare(`SELECT * FROM sessions WHERE status = 'active'`).all() as Record<string, unknown>[]
     db.prepare(`UPDATE sessions SET status = 'interrupted' WHERE status = 'active'`).run()

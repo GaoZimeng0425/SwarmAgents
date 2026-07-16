@@ -8,8 +8,8 @@
 // Counting rule (locked in the spec): "running" = active runs only; awaiting
 // renders in the section but does NOT count toward the headline.
 
+import type { MessageStatus } from '@shared/lib/apply-event'
 import type { SessionSummary } from '@swarm/protocol'
-import type { MessageStatus } from '@swarm/shared'
 
 import type { TeamOption } from '@/hooks/use-agents'
 

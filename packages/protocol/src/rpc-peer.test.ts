@@ -103,8 +103,8 @@ describe('createRpcPeer', () => {
     const received: Array<{ e: string; d: unknown }> = []
     const peer = createRpcPeer({ transport: t, onEvent: (e, d) => received.push({ e, d }) })
     await peer.connect()
-    t.fire({ kind: 'event', event: 'run.progress', data: { runId: 'r1' } })
-    expect(received).toEqual([{ e: 'run.progress', d: { runId: 'r1' } }])
+    t.fire({ kind: 'event', event: 'demo.progress', data: { runId: 'r1' } })
+    expect(received).toEqual([{ e: 'demo.progress', d: { runId: 'r1' } }])
   })
 
   it('disconnect() rejects every in-flight call instead of leaving it hanging', async () => {

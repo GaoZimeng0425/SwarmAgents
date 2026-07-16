@@ -56,8 +56,8 @@ describe('ServiceClient', () => {
     const t = mockTransport()
     const client = createServiceClient({ transport: t, onEvent: (e, d) => received.push({ e, d }) })
     await client.connect()
-    t.fire({ kind: 'event', event: 'run.complete', data: { runId: 'x' } })
-    expect(received).toEqual([{ e: 'run.complete', d: { runId: 'x' } }])
+    t.fire({ kind: 'event', event: 'demo.complete', data: { runId: 'x' } })
+    expect(received).toEqual([{ e: 'demo.complete', d: { runId: 'x' } }])
   })
 
   it('stops forwarding after disconnect', async () => {
@@ -66,7 +66,7 @@ describe('ServiceClient', () => {
     const client = createServiceClient({ transport: t, onEvent: (e, d) => received.push({ e, d }) })
     await client.connect()
     client.disconnect()
-    t.fire({ kind: 'event', event: 'run.progress', data: {} })
+    t.fire({ kind: 'event', event: 'demo.progress', data: {} })
     expect(received).toHaveLength(0)
   })
 })

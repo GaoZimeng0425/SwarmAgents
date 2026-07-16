@@ -60,8 +60,8 @@ export type RunHooks = {
 /**
  * Permission gate + resource budget + plan capture, as a pair of pi Agent
  * hooks. One instance per run — ported verbatim in behavior from
- * message-engine/engine.ts:199-236 (deleted in Task 9), with the old
- * `emit('message.permission_request', ...)` replaced by a v3 `AgentWireEvent`
+ * the old engine (deleted in Task 9), with the old
+ * `the old permission-request emit` replaced by a v3 `AgentWireEvent`
  * broadcast.
  */
 export function createRunHooks(opts: RunHooksOpts): RunHooks {

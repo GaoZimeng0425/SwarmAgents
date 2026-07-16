@@ -30,10 +30,10 @@ import type {
   PermissionDecision,
   RepoResearch,
   ResearchRepoResult,
-  RunOptions,
   ScheduledTask,
   SessionSettings,
   SessionSummary,
+  SubmitOptions,
   SubmitPromptResult,
   TranscriptionConfig,
   TrendingPeriod,
@@ -47,7 +47,7 @@ export const swarmApi = {
     sessionId: string,
     prompt: string,
     attachments?: Attachment[],
-    options?: RunOptions
+    options?: SubmitOptions
   ): Promise<SubmitPromptResult> => window.swarm.submitPrompt(sessionId, prompt, attachments, options),
   cancelRun: (sessionId: string): Promise<void> => window.swarm.cancelRun(sessionId),
   forkSession: (sourceSessionId: string, upToRowId: number): Promise<{ sessionId: string }> =>

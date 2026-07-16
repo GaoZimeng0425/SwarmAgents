@@ -66,7 +66,7 @@ describe('SqliteSessionStorage (pi SessionStorage contract)', () => {
       parentId: null,
       timestamp: 't',
       message: { role: 'user', content: 'hi' },
-    })
+    } as SessionTreeEntry)
     expect((await storage.getEntries()).map((e) => e.id)).toEqual([id])
     expect(await storage.getLeafId()).toBe(id)
     expect((await storage.getPathToRoot(id)).length).toBe(1)

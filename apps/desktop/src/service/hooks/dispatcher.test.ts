@@ -41,48 +41,74 @@ function captureCmd(out: string): string {
   return `cat > ${JSON.stringify(out)}`
 }
 
+const userEntryEvent = {
+  kind: 'entry_appended',
+  sessionId: 's',
+  rowId: 1,
+  entry: { type: 'message', id: 'e1', parentId: null, timestamp: '', message: { role: 'user', content: 'hi' } },
+}
+
 describe('hook dispatcher', () => {
-  it('fires UserPromptSubmit on run.created (turn)', async () => {
+  it('fires UserPromptSubmit on entry_appended of a user message', async () => {
     const out = join(tmpdir(), `swarm-hooks-ups-${Date.now()}.json`)
     const { dispatch, cleanup } = setup({
       UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
     })
     try {
-      dispatch('message.created', {
-        kind: 'message.created',
-        sessionId: 's',
-        messageId: 'r',
-        prompt: 'hi',
-        seq: 1,
-        ts: 1,
-      })
+      dispatch('entry_appended', userEntryEvent)
       await waitForOutfile(out)
       const parsed = JSON.parse(readFileSync(out, 'utf8'))
       expect(parsed.event).toBe('UserPromptSubmit')
-      expect(parsed.hookEventName).toBe('message.created')
+      expect(parsed.hookEventName).toBe('entry_appended')
       expect(parsed.sessionId).toBe('s')
-      expect(parsed.messageId).toBe('r')
       // identity fields are promoted to the top level for shell convenience
-      expect(parsed.seq).toBe(1)
+      expect(parsed.rowId).toBe(1)
     } finally {
       cleanup()
       if (existsSync(out)) rmSync(out, { force: true })
     }
   })
 
-  it('fires PostToolUse on message.progress wrapping a tool.call', async () => {
+  it('does NOT fire UserPromptSubmit for a non-user (assistant) entry', async () => {
+    const out = join(tmpdir(), `swarm-hooks-ups2-${Date.now()}.json`)
+    const { dispatch, cleanup } = setup({
+      UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
+    })
+    try {
+      dispatch('entry_appended', {
+        kind: 'entry_appended',
+        sessionId: 's',
+        rowId: 2,
+        entry: {
+          type: 'message',
+          id: 'e2',
+          parentId: null,
+          timestamp: '',
+          message: { role: 'assistant', content: 'x' },
+        },
+      })
+      await new Promise((r) => setTimeout(r, 150))
+      expect(existsSync(out)).toBe(false)
+    } finally {
+      cleanup()
+      if (existsSync(out)) rmSync(out, { force: true })
+    }
+  })
+
+  it('fires PostToolUse on tool_execution_end', async () => {
     const out = join(tmpdir(), `swarm-hooks-ptu-${Date.now()}.json`)
     const { dispatch, cleanup } = setup({
       PostToolUse: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
     })
     try {
-      dispatch('message.progress', {
-        kind: 'message.progress',
+      dispatch('tool_execution_end', {
+        kind: 'tool_execution_end',
         sessionId: 's',
-        messageId: 'r',
-        seq: 1,
-        ts: 1,
-        event: { kind: 'tool.call', server: 'agent', tool: 'run_shell', args: {}, ts: 1 },
+        runId: 'r',
+        toolCallId: 'c',
+        toolName: 'run_shell',
+        result: {},
+        isError: false,
       })
       await waitForOutfile(out)
       expect(JSON.parse(readFileSync(out, 'utf8')).event).toBe('PostToolUse')
@@ -92,7 +118,7 @@ describe('hook dispatcher', () => {
     }
   })
 
-  it('fires both Notification and PermissionRequest on run.permission_request', async () => {
+  it('fires both Notification and PermissionRequest on permission_request', async () => {
     const nOut = join(tmpdir(), `swarm-hooks-n-${Date.now()}.json`)
     const pOut = join(tmpdir(), `swarm-hooks-p-${Date.now()}.json`)
     const { dispatch, cleanup } = setup({
@@ -100,16 +126,14 @@ describe('hook dispatcher', () => {
       PermissionRequest: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(pOut) }] }],
     })
     try {
-      dispatch('message.permission_request', {
-        kind: 'message.permission_request',
+      dispatch('permission_request', {
+        kind: 'permission_request',
         sessionId: 's',
-        messageId: 'r',
+        runId: 'r',
         actionId: 'a',
         risk: 'high',
         summary: 'rm',
         payload: {},
-        seq: 1,
-        ts: 1,
       })
       await waitForOutfile(nOut)
       await waitForOutfile(pOut)
@@ -122,21 +146,13 @@ describe('hook dispatcher', () => {
     }
   })
 
-  it('fires Stop on run.complete of a top-level run', async () => {
+  it('fires Stop on agent_end', async () => {
     const stopOut = join(tmpdir(), `swarm-hooks-stop-${Date.now()}.json`)
     const { dispatch, cleanup } = setup({
       Stop: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(stopOut) }] }],
     })
     try {
-      // No parentMessageId → top-level → Stop
-      dispatch('message.complete', {
-        kind: 'message.complete',
-        sessionId: 's',
-        messageId: 'r',
-        summary: 'done',
-        seq: 1,
-        ts: 1,
-      })
+      dispatch('agent_end', { kind: 'agent_end', sessionId: 's', runId: 'r', status: 'completed' })
       await waitForOutfile(stopOut)
       expect(JSON.parse(readFileSync(stopOut, 'utf8')).event).toBe('Stop')
     } finally {
@@ -145,64 +161,13 @@ describe('hook dispatcher', () => {
     }
   })
 
-  it('fires SubagentStop (not Stop) on run.complete of a child run', async () => {
-    const stopOut = join(tmpdir(), `swarm-hooks-stop2-${Date.now()}.json`)
-    const subOut = join(tmpdir(), `swarm-hooks-sub-${Date.now()}.json`)
-    const { dispatch, cleanup } = setup({
-      Stop: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(stopOut) }] }],
-      SubagentStop: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(subOut) }] }],
-    })
-    try {
-      // parentMessageId present → child → SubagentStop, NOT Stop
-      dispatch('message.complete', {
-        kind: 'message.complete',
-        sessionId: 's',
-        messageId: 'child',
-        parentMessageId: 'parent',
-        summary: 'done',
-        seq: 1,
-        ts: 1,
-      })
-      await waitForOutfile(subOut)
-      await new Promise((r) => setTimeout(r, 150))
-      expect(existsSync(stopOut)).toBe(false)
-      expect(JSON.parse(readFileSync(subOut, 'utf8')).event).toBe('SubagentStop')
-    } finally {
-      cleanup()
-      if (existsSync(stopOut)) rmSync(stopOut, { force: true })
-      if (existsSync(subOut)) rmSync(subOut, { force: true })
-    }
-  })
-
-  it('fires SubagentStart on run.spawned', async () => {
-    const out = join(tmpdir(), `swarm-hooks-ss-${Date.now()}.json`)
-    const { dispatch, cleanup } = setup({
-      SubagentStart: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(out) }] }],
-    })
-    try {
-      dispatch('message.spawned', {
-        kind: 'message.spawned',
-        sessionId: 's',
-        messageId: 'r',
-        childMessageId: 'c',
-        seq: 1,
-        ts: 1,
-      })
-      await waitForOutfile(out)
-      expect(JSON.parse(readFileSync(out, 'utf8')).event).toBe('SubagentStart')
-    } finally {
-      cleanup()
-      if (existsSync(out)) rmSync(out, { force: true })
-    }
-  })
-
-  it('does not spawn anything for an event with no mapping (e.g. run.usage)', async () => {
-    const sentinel = join(tmpdir(), `swarm-hooks-usage-${Date.now()}.json`)
+  it('does not spawn anything for an event with no mapping (e.g. turn_end)', async () => {
+    const sentinel = join(tmpdir(), `swarm-hooks-turn-${Date.now()}.json`)
     const { dispatch, cleanup } = setup({
       UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: captureCmd(sentinel) }] }],
     })
     try {
-      dispatch('message.usage', { kind: 'message.usage', sessionId: 's', messageId: 'r', used: {}, seq: 1, ts: 1 })
+      dispatch('turn_end', { kind: 'turn_end', sessionId: 's', runId: 'r', used: {} })
       await new Promise((r) => setTimeout(r, 150))
       expect(existsSync(sentinel)).toBe(false)
     } finally {
@@ -220,14 +185,7 @@ describe('hook dispatcher', () => {
       Stop: [{ matcher: '', hooks: [{ type: 'command', command: `~/${basename(scriptPath)}` }] }],
     })
     try {
-      dispatch('message.complete', {
-        kind: 'message.complete',
-        sessionId: 's',
-        messageId: 'r',
-        summary: 'x',
-        seq: 1,
-        ts: 1,
-      })
+      dispatch('agent_end', { kind: 'agent_end', sessionId: 's', runId: 'r', status: 'completed' })
       await waitForOutfile(out)
       expect(JSON.parse(readFileSync(out, 'utf8')).event).toBe('Stop')
     } finally {
@@ -241,14 +199,7 @@ describe('hook dispatcher', () => {
     const store = createHooksStore({ filePath: join(tmpdir(), 'definitely-missing-hooks.json') })
     const dispatch = createHookDispatcher({ store })
     expect(() =>
-      dispatch('message.complete', {
-        kind: 'message.complete',
-        sessionId: 's',
-        messageId: 'r',
-        summary: 'x',
-        seq: 1,
-        ts: 1,
-      })
+      dispatch('agent_end', { kind: 'agent_end', sessionId: 's', runId: 'r', status: 'completed' })
     ).not.toThrow()
   })
 })

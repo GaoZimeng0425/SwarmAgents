@@ -21,15 +21,15 @@ import type {
 import { emptyUsed } from '@swarm/protocol'
 import type { Logger } from 'pino'
 
+import { hasUnansweredUserTail, messagesFromEntries } from './context'
 // Type-only: pulls resolveModel's real return shape into SessionAgentDeps
-// without importing message-engine/engine.ts (which drags the whole old
+// without importing the old engine module (which drags the whole old
 // engine — deleted in Task 9). resolveModel/composeSystemPrompt/
 // clampThinkingLevel are NOT called from this file: cfg.systemPrompt and
 // cfg.thinkingLevel arrive already composed/clamped from SessionService
 // (Task 5), which owns calling those helpers before invoking
 // buildAgentConfig(). See task-3-report.md for the full rationale.
 import type { resolveModel } from './models'
-import { hasUnansweredUserTail, messagesFromEntries } from './context'
 import type { EntryStore } from './sqlite-storage'
 
 const UPDATE_COALESCE_MS = 40
@@ -42,7 +42,7 @@ export type SessionAgentDeps = {
   buildAgentConfig: (runCtx: { runId: string; used: ConsumedResources }) => {
     systemPrompt: string
     model: ReturnType<typeof resolveModel>
-    // resolveModel (message-engine/models.ts) returns a bare pi Model<Api> —
+    // resolveModel (session-agent/models.ts) returns a bare pi Model<Api> —
     // no embedded credential (see engine.ts:78-83, where the API key comes
     // from `deps.provider.apiKey`, a sibling of the model, not a field on it).
     // Carried here as its own field so getApiKey() has something to read.
@@ -99,7 +99,7 @@ export class SessionAgent {
   // instead of collapsing every forced stop to the same fixed string.
   private forcedStatus: { status: RunStatus; reason: string } | null = null
   // Per-run usage accumulator (reset in runOnce; ported semantics from
-  // message-engine/engine.ts:104-121,256-268, deleted in Task 9). The SAME
+  // the old engine (deleted in Task 9)). The SAME
   // object is handed to this run's hooks (see `hooks` in SessionAgentDeps) so
   // a run-hooks.ts budget gate and usageSnapshot() share one source of truth
   // — no separate/duplicate call or cost counters.
@@ -502,7 +502,7 @@ export class SessionAgent {
     }
   }
 
-  // Ported from message-engine/engine.ts:256-268 (deleted in Task 9): tokens/
+  // Ported from the old engine (deleted in Task 9): tokens/
   // cache are latest-turn snapshots (each turn re-sends the whole
   // conversation), usdCents accumulates across turns, contextTokens is the
   // current occupancy snapshot.

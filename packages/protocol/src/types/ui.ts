@@ -11,6 +11,7 @@
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
 import type { AgentWireEvent } from './agent-events'
 import type { AnalyzeArticleResult, ArticleSummary, CollectedArticleWithAnalysis } from './article'
+import type { Attachment } from './artifact'
 import type {
   BiliAnalysis,
   BiliDeleteResult,
@@ -27,14 +28,12 @@ import type {
 } from './bilibili'
 import type { BudgetConfig } from './budgets'
 import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './calendar'
+import type { ExecutionMode, PermissionMode, SubmitOptions } from './execution'
 import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } from './gmail'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProviderInjection, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
-import type { Attachment } from './artifact'
-import type { DelegateResult } from './delegation'
-import type { ExecutionMode, PermissionMode, SubmitOptions } from './execution'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { RepoResearch } from './trending'
 import type { WeatherConfig, WeatherConfigView, WeatherForecast } from './weather'

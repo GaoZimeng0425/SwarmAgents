@@ -1,6 +1,8 @@
+import type { AgentEvent } from '@earendil-works/pi-agent-core'
 import type { RepoResearch } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { OneShotRunner } from '../session-agent/one-shot'
 import { createResearchRepo, toRepoCard } from './research'
 import type { RepoResearchStore } from './research-store'
 
@@ -39,14 +41,28 @@ const research: RepoResearch = {
   verdictTag: '值得关注',
   verdictTone: 'recommend',
 }
-const agent = {
-  id: 'repo-researcher',
-  name: 'R',
-  systemPrompt: 'x',
-  maxIterations: 2,
-  role: 'repo-researcher',
-  capabilities: [],
-  skills: [],
+const agent = { id: 'repo-researcher', name: 'R', description: '', systemPrompt: 'x', maxIterations: 2 }
+const toolRegistry = { resolve: () => ({ tools: [], riskOf: () => 'low' }) } as never
+
+// Drives run.ts's pi-AgentEvent adapter: streams a markdown briefing then an
+// optional render_ui card, mirroring a real one-shot run.
+function fakeRunOneShot(opts: { text?: string; card?: unknown }): OneShotRunner {
+  return async (spec) => {
+    const emit = (e: unknown): void => spec.onEvent?.(e as AgentEvent)
+    if (opts.text) {
+      emit({ type: 'message_start', message: { role: 'assistant' } })
+      emit({ type: 'message_end', message: { role: 'assistant', content: opts.text } })
+    }
+    if (opts.card !== undefined) {
+      emit({
+        type: 'tool_execution_start',
+        toolCallId: 'c1',
+        toolName: 'render_ui',
+        args: { type: 'analysis', props: opts.card },
+      })
+    }
+    return { status: 'completed', summary: opts.text ?? '' }
+  }
 }
 
 describe('toRepoCard', () => {
@@ -63,14 +79,14 @@ describe('toRepoCard', () => {
 
 describe('createResearchRepo early returns', () => {
   it('returns no_provider when provider missing', () => {
-    const research = createResearchRepo({
+    const run = createResearchRepo({
       broadcaster: fakeBroadcaster() as never,
       agentStore: { get: () => null } as never,
       store: fakeStore(),
       toolRegistry: {} as never,
-      getBudgetConfig: () => ({ main: {}, sub: {} }) as never,
+      acquireSlot: async () => () => undefined,
     })
-    const r = research({ repo, period: 'past_24_hours', provider: undefined as never })
+    const r = run({ repo, period: 'past_24_hours', provider: undefined as never })
     expect(r).toEqual({ ok: false, code: 'no_provider', message: expect.any(String) })
   })
 })
@@ -79,31 +95,17 @@ describe('createResearchRepo broadcast', () => {
   it('broadcasts researchComplete (with kept summary) + saves on a valid render_ui card', async () => {
     const broadcaster = fakeBroadcaster()
     const store = fakeStore()
-    const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
-      // Streamed markdown briefing — accumulated into the summary and kept on
-      // completion (the fix that mirrors gmail analyze-thread).
-      ports.emit.broadcast({
-        kind: 'message.progress',
-        event: { kind: 'llm.message', role: 'assistant', content: '## 简报\n这是一个终端 agent。' },
-      })
-      ports.emit.broadcast({
-        kind: 'message.progress',
-        event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props: research } },
-      })
-      ports.emit.broadcast({ kind: 'message.complete' })
-      return Promise.resolve({ status: 'complete', messageId: 'r' })
-    })
     const run = createResearchRepo({
       broadcaster: broadcaster as never,
       agentStore: { get: () => agent } as never,
       store,
-      toolRegistry: {} as never,
-      getBudgetConfig: () => ({ main: {}, sub: {} }) as never,
-      launch: fakeLaunch as never,
+      toolRegistry,
+      acquireSlot: async () => () => undefined,
+      runOneShot: fakeRunOneShot({ text: '## 简报\n这是一个终端 agent。', card: research }),
     })
     const r = run({ repo, period: 'past_24_hours', provider: injection as never })
     expect(r).toEqual({ ok: true })
-    await Promise.resolve()
+    await new Promise((res) => setTimeout(res, 0))
     const researchWithSummary = { ...research, summary: '## 简报\n这是一个终端 agent。' }
     expect(broadcaster.broadcast).toHaveBeenCalledWith('trending.researchDelta', expect.any(Object))
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
@@ -120,20 +122,16 @@ describe('createResearchRepo broadcast', () => {
   it('broadcasts researchError when the agent emits no valid card', async () => {
     const broadcaster = fakeBroadcaster()
     const store = fakeStore()
-    const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
-      ports.emit.broadcast({ kind: 'message.complete' })
-      return Promise.resolve({ status: 'complete', messageId: 'r' })
-    })
     const run = createResearchRepo({
       broadcaster: broadcaster as never,
       agentStore: { get: () => agent } as never,
       store,
-      toolRegistry: {} as never,
-      getBudgetConfig: () => ({ main: {}, sub: {} }) as never,
-      launch: fakeLaunch as never,
+      toolRegistry,
+      acquireSlot: async () => () => undefined,
+      runOneShot: fakeRunOneShot({ text: '简报但没有卡片' }),
     })
     run({ repo, period: 'past_24_hours', provider: injection as never })
-    await Promise.resolve()
+    await new Promise((res) => setTimeout(res, 0))
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
       'trending.researchError',
       expect.objectContaining({ repoName: 'sst/opencode' })

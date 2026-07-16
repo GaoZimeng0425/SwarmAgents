@@ -1,6 +1,8 @@
+import type { AgentEvent } from '@earendil-works/pi-agent-core'
 import type { ArticleSummary } from '@swarm/protocol'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { OneShotRunner } from '../session-agent/one-shot'
 import { createAnalyzeArticle } from './analyze'
 import type { ArticleStore } from './store'
 
@@ -38,6 +40,33 @@ function fakeBroadcaster() {
 
 const injection = { id: 'p', apiStyle: 'openai' as const, model: 'gpt-4o', apiKey: 'k' }
 
+const agentStore = {
+  get: () => ({ id: 'article-analyst', name: 'A', description: '', systemPrompt: 'x', maxIterations: 2 }),
+} as never
+
+const toolRegistry = { resolve: () => ({ tools: [], riskOf: () => 'low' }) } as never
+
+// Drives run.ts's pi-AgentEvent adapter: streams optional assistant text then an
+// optional render_ui analysis card, mirroring a real one-shot run.
+function fakeRunOneShot(opts: { text?: string; card?: unknown }): OneShotRunner {
+  return async (spec) => {
+    const emit = (e: unknown): void => spec.onEvent?.(e as AgentEvent)
+    if (opts.text) {
+      emit({ type: 'message_start', message: { role: 'assistant' } })
+      emit({ type: 'message_end', message: { role: 'assistant', content: opts.text } })
+    }
+    if (opts.card !== undefined) {
+      emit({
+        type: 'tool_execution_start',
+        toolCallId: 'c1',
+        toolName: 'render_ui',
+        args: { type: 'analysis', props: opts.card },
+      })
+    }
+    return { status: 'completed', summary: opts.text ?? '' }
+  }
+}
+
 describe('createAnalyzeArticle early returns', () => {
   it('returns no_provider when provider missing', () => {
     const broadcaster = fakeBroadcaster()
@@ -46,7 +75,7 @@ describe('createAnalyzeArticle early returns', () => {
       agentStore: { get: () => null } as never,
       store: fakeStore(),
       toolRegistry: {} as never,
-      getBudgetConfig: () => ({ main: {}, sub: {} }) as never,
+      acquireSlot: async () => () => undefined,
     })
     const r = analyze({ articleId: '01ID', provider: undefined as never })
     expect(r).toEqual({ ok: false, code: 'no_provider', message: expect.any(String) })
@@ -54,44 +83,22 @@ describe('createAnalyzeArticle early returns', () => {
 })
 
 describe('createAnalyzeArticle broadcast', () => {
-  it('broadcasts analysisComplete with the render_ui card summary on run.complete', async () => {
+  it('broadcasts analysisComplete with the render_ui card summary on completion', async () => {
     const broadcaster = fakeBroadcaster()
     const summary: ArticleSummary = { gist: 'g', points: ['p'], takeaways: [] }
-
-    // Fake launch: emits a render_ui analysis card carrying the structured
-    // summary, then run.complete — the adapter builds the summary from the card.
-    const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
-      ports.emit.broadcast({
-        kind: 'message.progress',
-        event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props: summary } },
-      })
-      ports.emit.broadcast({ kind: 'message.complete', summary: 'streamed prose' })
-      return Promise.resolve({ status: 'complete', messageId: 'r' })
-    })
-
     const store = fakeStore()
     const analyze = createAnalyzeArticle({
       broadcaster: broadcaster as never,
-      agentStore: {
-        get: () => ({
-          id: 'article-analyst',
-          name: 'A',
-          systemPrompt: 'x',
-          maxIterations: 2,
-          role: 'article-analyst',
-          capabilities: [],
-          skills: [],
-        }),
-      } as never,
+      agentStore,
       store,
-      toolRegistry: {} as never,
-      getBudgetConfig: () => ({ main: {}, sub: {} }) as never,
-      launch: fakeLaunch as never,
+      toolRegistry,
+      acquireSlot: async () => () => undefined,
+      runOneShot: fakeRunOneShot({ text: 'streamed prose', card: summary }),
     })
 
     const r = analyze({ articleId: '01ID', provider: injection as never })
     expect(r).toEqual({ ok: true })
-    await Promise.resolve() // let the run promise tick
+    await new Promise((res) => setTimeout(res, 0))
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
       'article.analysisComplete',
       expect.objectContaining({ articleId: '01ID' })
@@ -101,32 +108,18 @@ describe('createAnalyzeArticle broadcast', () => {
 
   it('broadcasts analysisError when the agent emits no valid analysis card', async () => {
     const broadcaster = fakeBroadcaster()
-    const fakeLaunch = vi.fn((_spec: unknown, ports: { emit: { broadcast: (e: unknown) => void } }) => {
-      ports.emit.broadcast({ kind: 'message.complete', summary: 'prose without a card' })
-      return Promise.resolve({ status: 'complete', messageId: 'r' })
-    })
     const store = fakeStore()
     const analyze = createAnalyzeArticle({
       broadcaster: broadcaster as never,
-      agentStore: {
-        get: () => ({
-          id: 'article-analyst',
-          name: 'A',
-          systemPrompt: 'x',
-          maxIterations: 2,
-          role: 'article-analyst',
-          capabilities: [],
-          skills: [],
-        }),
-      } as never,
+      agentStore,
       store,
-      toolRegistry: {} as never,
-      getBudgetConfig: () => ({ main: {}, sub: {} }) as never,
-      launch: fakeLaunch as never,
+      toolRegistry,
+      acquireSlot: async () => () => undefined,
+      runOneShot: fakeRunOneShot({ text: 'prose without a card' }),
     })
     const r = analyze({ articleId: '01ID', provider: injection as never })
     expect(r).toEqual({ ok: true })
-    await Promise.resolve()
+    await new Promise((res) => setTimeout(res, 0))
     expect(broadcaster.broadcast).toHaveBeenCalledWith(
       'article.analysisError',
       expect.objectContaining({ articleId: '01ID' })
