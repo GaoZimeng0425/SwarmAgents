@@ -5,6 +5,7 @@ import { HEATMAP_DAYS } from '@swarm/protocol'
 import { SYSTEM_SESSION_ID } from '@swarm/shared'
 import Database from 'better-sqlite3'
 
+import { createEntryStore, type EntryStore, ensureEntriesSchema } from '../session-agent/sqlite-storage'
 import { currentStreak, dayKey, dayKeysEndingAt, rangeCutoffMs, zeroFillDaily } from './usage-stats'
 
 const log = createLogger({ process: 'service' }).child({ component: 'conversation-store' })
@@ -92,6 +93,7 @@ export type ConversationStore = {
   /** Every persisted run across all jobs, newest first (for the schedule calendar). */
   listAllCronRuns(): StoredCronRun[]
   listRunningCronRuns(): StoredCronRun[]
+  entries: EntryStore
   close(): void
 }
 
@@ -99,6 +101,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
+
+  ensureEntriesSchema(db)
 
   db.exec(`
     -- Drop legacy 4a-era tables if present. Order matters: task_events
@@ -595,6 +599,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
 
+  const entries = createEntryStore(db)
+
   return {
     createSession(id, provider) {
       const now = Date.now()
@@ -921,6 +927,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     listRunningCronRuns() {
       return (stmtListRunningCronRuns.all() as Record<string, unknown>[]).map(rowToCronRun)
     },
+    entries,
     close() {
       db.close()
     },
