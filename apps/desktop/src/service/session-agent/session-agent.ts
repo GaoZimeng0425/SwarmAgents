@@ -14,6 +14,7 @@ import type {
   Attachment,
   ConsumedResources,
   MessageEntry,
+  PlanTodo,
   RunStatus,
   SessionEntry,
 } from '@swarm/protocol'
@@ -56,6 +57,10 @@ export type SessionAgentDeps = {
     // (ported semantics of engine.ts's `used.calls += 1` in beforeToolCall)
     // regardless of whether a real hook is wired yet.
     beforeToolCall?: Agent['beforeToolCall']
+    // Forwarded as-is (no local bookkeeping needed, unlike beforeToolCall's
+    // turnCalls counter). Built per run via run-hooks.ts's createRunHooks,
+    // whose onPlanTodos callback should route back into appendPlanTodos below.
+    afterToolCall?: Agent['afterToolCall']
   }
   log: Logger
 }
@@ -140,23 +145,48 @@ export class SessionAgent {
     this.agent = null
   }
 
-  /** Appends (persist) then broadcasts entry_appended — the ONE write path. SessionAgent only ever appends 'message' entries. */
-  private appendMessageEntry(message: AgentMessage): number {
+  /** Persists an entry then broadcasts entry_appended — the ONE write path. Kept private: callers use a narrow, entry-type-specific method (appendMessageEntry, appendPlanTodos), never this directly. */
+  private appendEntry(entry: SessionEntry): number {
+    const rowId = this.deps.entries.append(this.deps.sessionId, entry)
+    this.deps.broadcast({ kind: 'entry_appended', sessionId: this.deps.sessionId, rowId, entry })
+    return rowId
+  }
+
+  private parentId(): string | null {
     const rows = this.deps.entries.list(this.deps.sessionId)
-    const entry: SessionEntry = {
+    return rows.length ? rows[rows.length - 1].entry.id : null
+  }
+
+  /** SessionAgent only ever appends 'message' entries here. */
+  private appendMessageEntry(message: AgentMessage): number {
+    return this.appendEntry({
       type: 'message',
       id: uuidv7(),
-      parentId: rows.length ? rows[rows.length - 1].entry.id : null,
+      parentId: this.parentId(),
       timestamp: new Date().toISOString(),
       // pi's AgentMessage vs. the wire schema's loose MessagePayload
       // (`{ role: string, ... }`, validated in sqlite-storage.ts's append()).
       // Safe here because we only ever construct 'message' entries; double
       // cast since the two types don't structurally overlap (see context.ts).
       message: message as unknown as MessageEntry['message'],
-    }
-    const rowId = this.deps.entries.append(this.deps.sessionId, entry)
-    this.deps.broadcast({ kind: 'entry_appended', sessionId: this.deps.sessionId, rowId, entry })
-    return rowId
+    })
+  }
+
+  /**
+   * Appends the agent's latest plan as a 'custom' entry (customType 'plan').
+   * Called from the afterToolCall hook (run-hooks.ts's onPlanTodos) when the
+   * update_plan tool reports a fresh todo list — replaces the old
+   * `message.plan` wire event.
+   */
+  appendPlanTodos(todos: PlanTodo[]): void {
+    this.appendEntry({
+      type: 'custom',
+      customType: 'plan',
+      id: uuidv7(),
+      parentId: this.parentId(),
+      timestamp: new Date().toISOString(),
+      data: { todos },
+    })
   }
 
   private appendMessageOnce(message: AgentMessage): void {
@@ -181,6 +211,9 @@ export class SessionAgent {
       beforeToolCall: async (ctx, signal) => {
         this.turnCalls += 1
         return (await this.deps.hooks?.beforeToolCall?.(ctx, signal)) ?? undefined
+      },
+      afterToolCall: async (ctx, signal) => {
+        return (await this.deps.hooks?.afterToolCall?.(ctx, signal)) ?? undefined
       },
       prepareNextTurn: () => {
         this.turns += 1
