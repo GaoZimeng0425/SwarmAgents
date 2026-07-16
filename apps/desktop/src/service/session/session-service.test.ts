@@ -15,12 +15,20 @@ import { createConversationStore } from '../conversation/store'
 import { createBroadcaster } from '../ipc/broadcaster'
 import { createSessionService } from './session-service'
 
+type BeforeToolCall = (
+  ctx: { toolCall: { name: string }; args: unknown },
+  signal?: AbortSignal
+) => Promise<{ block?: boolean; reason?: string } | undefined>
+
 // Per-prompt-text behavior for the mocked Agent.continue().
 type Behavior = {
   block?: Promise<void>
   delegatePrompt?: string
   stopReason?: 'stop' | 'error' | 'aborted'
   onContinue?: () => void
+  // Drives the REAL beforeToolCall the SessionAgent wired (which counts the call
+  // and delegates to the run-hooks permission/budget gate) — the assembly under test.
+  driveToolCall?: (beforeToolCall: BeforeToolCall) => Promise<void>
 }
 const behaviors = new Map<string, Behavior>()
 
@@ -36,7 +44,7 @@ function textOf(content: unknown): string {
 function installMockAgent(): void {
   MockAgent.mockImplementation(function (
     this: Record<string, unknown>,
-    opts: { initialState: { messages: unknown[] } }
+    opts: { initialState: { messages: unknown[] }; beforeToolCall?: BeforeToolCall }
   ) {
     let listener: (e: unknown) => void = () => undefined
     const state = {
@@ -57,6 +65,9 @@ function installMockAgent(): void {
       const b = behaviors.get(text)
       b?.onContinue?.()
       if (b?.block) await b.block
+      // Drive the SessionAgent-wired beforeToolCall (the real assembly: call
+      // counting + run-hooks permission/budget gate resolved via buildAgentConfig).
+      if (b?.driveToolCall && opts.beforeToolCall) await b.driveToolCall(opts.beforeToolCall)
       if (b?.delegatePrompt !== undefined) {
         const delegate = state.tools.find((t) => t.name === 'delegate')
         if (!delegate) throw new Error('delegate tool not resolved into agent state')
@@ -222,5 +233,59 @@ describe('SessionService', () => {
     const forkedEntries = service.getSessionEntries(forked)
     expect(forkedEntries).toHaveLength(sourceEntries.length)
     expect(forkedEntries.map((e) => e.entry.type)).toEqual(sourceEntries.map((e) => e.entry.type))
+  })
+
+  // Integration guard for the permission gate through the FULL assembly: real
+  // SessionService (getOrCreateAgent -> buildAgentConfig -> toolRegistry riskOf +
+  // createRunHooks + permissionRegistry), fake pi Agent driving the real
+  // beforeToolCall for a dangerous run_shell (risk 'high' via riskFor) in the
+  // default 'ask' mode. This is the test class whose absence let the gate ship
+  // unverified.
+  async function runGate(decision: 'grant' | 'deny') {
+    const { service, events } = makeService()
+    const sid = service.createSession(PROVIDER).sessionId
+
+    let btResult: { block?: boolean; reason?: string } | undefined
+    let seen: (v: unknown) => void
+    const btDone = new Promise((r) => {
+      seen = r
+    })
+    behaviors.set('go', {
+      driveToolCall: async (beforeToolCall) => {
+        btResult = await beforeToolCall(
+          { toolCall: { name: 'run_shell' }, args: { command: 'rm -rf /tmp/x' } },
+          undefined
+        )
+        seen(undefined)
+      },
+    })
+
+    const done = new Promise<string>((resolve) => service.submitPrompt(sid, 'go', [], (s) => resolve(s)))
+
+    // Wait for the gate to broadcast the request, then decide.
+    let pr: { actionId: string; risk: string } | undefined
+    for (let i = 0; i < 50 && !pr; i++) {
+      await tick()
+      const hit = events.find((e) => e.event === 'permission_request')
+      if (hit) pr = hit.data as { actionId: string; risk: string }
+    }
+    if (!pr) throw new Error('no permission_request broadcast')
+    service.resolvePermission(sid, pr.actionId, decision)
+    await btDone
+    await done
+    return { pr, btResult, events }
+  }
+
+  it('permission gate (ask mode, medium+ tool): broadcasts permission_request and deny blocks the call', async () => {
+    const { pr, btResult } = await runGate('deny')
+    expect(pr.risk).toBe('high')
+    expect(pr.actionId).toBeTruthy()
+    expect(btResult?.block).toBe(true)
+  })
+
+  it('permission gate (ask mode, medium+ tool): grant allows the call through', async () => {
+    const { pr, btResult } = await runGate('grant')
+    expect(pr.risk).toBe('high')
+    expect(btResult).toBeUndefined() // no block -> the tool call proceeds
   })
 })
