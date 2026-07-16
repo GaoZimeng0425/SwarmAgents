@@ -75,8 +75,18 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **Every business implementation gets logs, so failures are locatable from the log file alone.**
 
 This project uses structured logging via `pino` (`src/shared/logger.ts`). Logs tee to
-`userData/swarm-dev.log` (`SWARM_LOG_FILE`). When you add or change business logic, the
-log file — not a debugger — must be enough to answer "what happened and where did it fail."
+`~/.swarm-agents/swarm-dev.log` (`SWARM_LOG_FILE`; set in `main/index.ts` from
+`paths.log()` = `swarmHome()/swarm-dev.log`). **This single file is shared by dev and
+production** — there is no separate prod log. When investigating any issue, read it:
+
+```bash
+grep '<keyword>' ~/.swarm-agents/swarm-dev.log | tail -30        # recent matching lines
+grep '"level":\(40\|50\)' ~/.swarm-agents/swarm-dev.log | tail   # warns + errors only
+```
+
+`level` mapping: `30`=info, `40`=warn, `50`=error, `20`=debug. JSON Lines, append-only, no
+rotation. When you add or change business logic, the log file — not a debugger — must be
+enough to answer "what happened and where did it fail."
 
 Setup per module:
 - `const log = createLogger({ process }).child({ component: '<module>' })` — one child per module.
