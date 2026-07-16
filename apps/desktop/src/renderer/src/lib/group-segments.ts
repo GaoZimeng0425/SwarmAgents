@@ -1,4 +1,4 @@
-import type { Segment } from './task-segments'
+import type { Segment } from '@swarm/shared'
 
 // render_ui tool segments are interactive cards shown inline; collapsing one
 // behind a group header would hide it, so they never join a tool group.

@@ -1,9 +1,7 @@
 import { useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 
 import { TasksView } from '@/components/views/tasks-view'
-import { hydrateSession } from '@/hooks/use-messages'
 import { useSessionsStore } from '@/stores/sessions'
 
 export const Route = createFileRoute('/session/$sessionId')({
@@ -18,17 +16,15 @@ export const Route = createFileRoute('/session/$sessionId')({
 function SessionView(): React.JSX.Element {
   const { sessionId } = Route.useParams()
   const { task: focusTaskId } = Route.useSearch()
-  const qc = useQueryClient()
   const navigate = useNavigate()
   const select = useSessionsStore((s) => s.select)
   const sessions = useSessionsStore((s) => s.sessions)
 
-  // The URL is the source of truth; mirror it into the store and hydrate the
-  // session's tasks. Every existing consumer keeps reading selectedSessionId.
+  // The URL is the source of truth; mirror it into the store. useSessionView
+  // (mounted inside TasksView) owns loading the session's entries.
   useEffect(() => {
     select(sessionId)
-    void hydrateSession(qc, sessionId)
-  }, [sessionId, select, qc])
+  }, [sessionId, select])
 
   // Unknown id (stale hash / deleted elsewhere): once the list has loaded and
   // does not contain it, fall back to the session list (stays in the

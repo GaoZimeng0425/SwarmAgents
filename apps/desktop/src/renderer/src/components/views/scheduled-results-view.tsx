@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { TaskTimeline } from '@/components/task-transcript'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAllCronJobs, useAllCronRuns } from '@/hooks/use-cron'
-import { buildScheduledRows, collectSubtree, formatDuration } from '@/lib/scheduled-rows'
+import { buildScheduledRows, formatDuration } from '@/lib/scheduled-rows'
 import { cn } from '@/lib/utils'
 
 // Status → colored outcome icon, mirroring the calendar's run tones.
@@ -19,12 +19,14 @@ function StatusIcon({ status }: { status: MessageStatus }): React.JSX.Element {
 }
 
 export function ScheduledResultsView({
-  tasks,
+  tasks = [],
   focusTaskId,
 }: {
-  tasks: MessageRecord[]
+  // Scheduled-run transcripts are re-sourced from per-run session views in a
+  // later phase; on the entry rails this receives no tasks and renders empty.
+  tasks?: MessageRecord[]
   focusTaskId?: string
-}): React.JSX.Element {
+} = {}): React.JSX.Element {
   const { data: jobs = [] } = useAllCronJobs()
   const { data: runs = [] } = useAllCronRuns()
   const rows = buildScheduledRows(tasks, runs, jobs)
@@ -114,12 +116,7 @@ export function ScheduledResultsView({
               )}
               {open && (
                 <div className="user-content flex flex-col gap-4 border-border/50 border-t p-4">
-                  <TaskTimeline
-                    busy={false}
-                    onCopy={onCopy}
-                    showDayDividers={false}
-                    tasks={collectSubtree(tasks, row.messageId)}
-                  />
+                  <TaskTimeline busy={false} onCopy={onCopy} segments={[]} showDayDividers={false} />
                 </div>
               )}
             </div>

@@ -1,22 +1,19 @@
-import { useEffect, useMemo } from 'react'
-import type { MessageRecord } from '@shared/lib/apply-event'
+import { useMemo } from 'react'
+import type { Segment } from '@swarm/shared'
 import { Button, Spinner } from '@swarm/ui'
-import { useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, MessagesSquare } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { ConversationMinimap } from '@/components/conversation-minimap'
-import { buildThreadItems, useTimelineRenderer } from '@/components/task-transcript'
+import { buildThreadItems, type TimelineItem, useTimelineRenderer } from '@/components/task-transcript'
 import { StickToBottomList, useStickToBottomList } from '@/components/viewers/stick-to-bottom-list'
-import { MESSAGES_KEY } from '@/hooks/use-messages'
-import type { TimelineItem } from '@/lib/build-timeline-items'
 
 type Props = {
-  tasks: MessageRecord[]
+  /** Flattened render segments for the active session (buildSegments output). */
+  segments: Segment[]
+  /** Whether the session's run is in flight (drives the tail spinner). */
+  busy: boolean
   /** Start a new user turn with the given text (used by interactive UI cards). */
   onSend?: (text: string) => void
-  /** Deep-link target: scroll to and briefly highlight this task's turn (e.g. a scheduled run). */
-  focusTaskId?: string
 }
 
 // Self-drawn "scroll to latest" — replaces the library's ConversationScrollButton.
@@ -35,66 +32,29 @@ function ScrollToLatest() {
   )
 }
 
-// Deep-link probe — must live inside <StickToBottomList> to read its context.
-// scrollToKey brings the target task's goal bubble into the virtual window (even
-// when unmounted), then a short delay later we center it and flash a ring.
-function FocusProbe({ focusTaskId }: { focusTaskId?: string }) {
-  const { scrollToKey } = useStickToBottomList()
-  useEffect(() => {
-    if (!focusTaskId) return
-    scrollToKey(`${focusTaskId}-prompt`)
-    const id = window.setTimeout(() => {
-      const el = document.querySelector<HTMLElement>(`[data-message-id="${focusTaskId}"]`)
-      if (!el) return
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      el.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background', 'rounded-lg')
-      window.setTimeout(
-        () => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background', 'rounded-lg'),
-        2200
-      )
-    }, 120)
-    return () => window.clearTimeout(id)
-  }, [focusTaskId, scrollToKey])
-  return null
-}
-
-export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React.JSX.Element {
-  const qc = useQueryClient()
+export function ConversationThread({ segments, busy, onSend }: Props): React.JSX.Element {
   const onCopy = (text: string): void => {
     void navigator.clipboard.writeText(text)
     toast.success('Message copied to clipboard')
   }
-  const onDelete = (messageId: string): void => {
-    qc.setQueryData<MessageRecord[]>(MESSAGES_KEY, (prev = []) => prev.filter((t) => t.id !== messageId))
-    toast.info('Message removed from view')
-  }
-
-  // buildTimelineItems / minimapItems sort internally by seq; here we only need
-  // the last message (the live tail) to drive the busy spinner. Find it by seq
-  // instead of a redundant sortBy on startedAt.
-  const last = tasks.length === 0 ? undefined : tasks.reduce((a, b) => (b.order > a.order ? b : a))
-  // Optional-chain: hooks (useTimelineRenderer/useMemo) run before the empty-state
-  // early return, so `busy` must tolerate tasks=[] (last undefined → busy false).
-  const busy = last?.status === 'running' || last?.status === 'pending'
-  const { renderSegment, sheet, forkDialog } = useTimelineRenderer({ busy, onCopy, onDelete, onSend, tasks })
+  const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onSend })
 
   const items = useMemo(() => {
-    const thread = buildThreadItems(tasks, renderSegment, { busy, showDayDividers: true })
-    // While a turn is in flight, a thinking/queued spinner rides the tail so
-    // stick-to-bottom keeps it pinned (seq = MAX sorts it last). Token/cost
-    // detail lives in the composer's context ring, not a footer here.
+    const thread = buildThreadItems(segments, renderSegment, { showDayDividers: true })
+    // While a turn is in flight, a thinking spinner rides the tail so
+    // stick-to-bottom keeps it pinned (order = MAX sorts it last).
     const footer = busy ? (
       <div className="flex animate-pulse items-center gap-3 px-1 text-muted-foreground text-sm">
         <Spinner className="size-4 text-primary" />
-        <span className="font-medium">{last.status === 'pending' ? '排队中…' : '正在思考…'}</span>
+        <span className="font-medium">正在思考…</span>
       </div>
     ) : null
     return footer
       ? [...thread, { key: '__footer', node: footer, order: Number.MAX_SAFE_INTEGER, ts: Date.now() }]
       : thread
-  }, [tasks, renderSegment, busy, last])
+  }, [segments, renderSegment, busy])
 
-  if (tasks.length === 0) {
+  if (segments.length === 0) {
     return (
       <div className="flex size-full flex-col items-center justify-center gap-3 p-8 text-center">
         <div className="text-muted-foreground">
@@ -115,19 +75,12 @@ export function ConversationThread({ tasks, onSend, focusTaskId }: Props): React
       items={items}
       renderItem={(it: TimelineItem) => (
         // user-content re-enables text selection (globals.css disables it on chrome).
-        // px-4 + pb-5 sets the inter-turn spacing as bottom padding (not a flex
-        // `gap`), so it lives INSIDE measureElement's box — react-virtual's `gap`
-        // option interacted badly with dynamic re-measurement (overlapping rows,
-        // expand not reflowing). Padding is measured, so the virtualizer accounts
-        // for it correctly.
+        // px-4 + pb-5 sets the inter-turn spacing as measured bottom padding.
         <div className="user-content mx-auto max-w-3xl px-4 pb-5">{it.node}</div>
       )}
     >
-      <FocusProbe focusTaskId={focusTaskId} />
-      <ConversationMinimap tasks={tasks} />
       <ScrollToLatest />
       {sheet}
-      {forkDialog}
     </StickToBottomList>
   )
 }

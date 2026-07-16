@@ -1,7 +1,7 @@
+import type { Segment } from '@swarm/shared'
 import { describe, expect, it } from 'vitest'
 
 import { groupSegments } from './group-segments'
-import type { Segment } from './task-segments'
 
 let n = 0
 const tool = (name: string, extra: Partial<{ ok: boolean | null }> = {}): Segment =>
@@ -12,12 +12,10 @@ const tool = (name: string, extra: Partial<{ ok: boolean | null }> = {}): Segmen
     input: {},
     output: null,
     key: `k${n++}`,
-    messageId: 't',
     ts: n,
-    order: n,
     ...extra,
   }) as Segment
-const assistant = (): Segment => ({ kind: 'assistant', text: '', key: `k${n++}`, messageId: 't', ts: n, order: n })
+const assistant = (): Segment => ({ kind: 'assistant', text: '', key: `k${n++}`, ts: n })
 
 describe('groupSegments', () => {
   it('keeps a lone tool as a single item', () => {

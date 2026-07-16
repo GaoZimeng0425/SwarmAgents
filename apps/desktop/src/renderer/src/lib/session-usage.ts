@@ -1,53 +1,49 @@
-import type { MessageRecord } from '@shared/lib/apply-event'
 import type { ConsumedResources } from '@swarm/protocol'
+import type { SessionView } from '@swarm/shared'
 
-/**
- * The usage display (context ring, cost, transcript footer) reflects the
- * conversation's own turns, so it must read from top-level tasks only. Sub-agent
- * children are spawned mid-run — they sort newest by startedAt but persist no
- * usage and no contextWindow, so including them blanks the display once a session
- * is rehydrated from disk on restart. Returns the most recent top-level task, or
- * undefined if the session has none yet.
- */
-export function latestTopLevelTask(records: MessageRecord[]): MessageRecord | undefined {
-  let latest: MessageRecord | undefined
-  for (const r of records) {
-    if (r.parentMessageId) continue
-    if (!latest || r.createdAt > latest.createdAt) latest = r
+// The pi AgentMessage.usage shape carried on assistant message entries. Only the
+// fields we surface are typed; everything is optional/defensive since entries
+// are opaque JSON that reach the renderer without re-validation.
+type PiUsage = {
+  totalTokens?: number
+  cost?: { total?: number }
+  cacheRead?: number
+  cacheWrite?: number
+}
+
+function assistantUsage(view: SessionView): { usages: PiUsage[]; last: PiUsage | undefined } {
+  const usages: PiUsage[] = []
+  for (const { entry } of view.entries) {
+    if (entry.type !== 'message') continue
+    const msg = entry.message as { role?: string; usage?: PiUsage }
+    if (msg.role !== 'assistant' || !msg.usage) continue
+    usages.push(msg.usage)
   }
-  return latest
+  return { usages, last: usages[usages.length - 1] }
 }
 
 /**
  * Usage shown inside a session, mixing two scopes deliberately so the figures
  * match the session list:
- *  - `tokens` / `cacheRead` / `cacheWrite` are the latest top-level turn's
- *    snapshot — "current context size", a fill gauge, NOT a running total.
- *  - `usdCents` / `calls` / `wallMs` are cumulative across the session's
- *    top-level turns — "spent so far" — so the cost equals the session list's
- *    per-session total (which sums the same `used` snapshots). Sub-agent children
- *    persist zeroed usage, so summing top-level turns equals summing every task.
- * Returns undefined when the session has no top-level turn yet.
+ *  - `tokens` / `cacheRead` / `cacheWrite` are the current context size — the
+ *    live turn_end snapshot (view.usage) when present, else the latest assistant
+ *    message's usage. A fill gauge, NOT a running total.
+ *  - `usdCents` is cumulative across the session's assistant turns — "spent so
+ *    far" — summed from each assistant message's pi cost.
+ * Returns undefined when the session has produced no assistant usage yet.
  */
-export function sessionDisplayUsage(records: MessageRecord[]): ConsumedResources | undefined {
-  const latest = latestTopLevelTask(records)
-  if (!latest) return undefined
-  let usdCents = 0
-  let calls = 0
-  let wallMs = 0
-  for (const r of records) {
-    if (r.parentMessageId || !r.used) continue
-    usdCents += r.used.usdCents
-    calls += r.used.calls
-    wallMs += r.used.wallMs
-  }
-  const ctx = latest.used
+export function sessionDisplayUsage(view: SessionView): ConsumedResources | undefined {
+  const { usages, last } = assistantUsage(view)
+  if (usages.length === 0 && !view.usage) return undefined
+
+  const usdCents = usages.reduce((sum, u) => sum + Math.round((u.cost?.total ?? 0) * 100), 0)
+  const live = view.usage?.used
   return {
-    tokens: ctx?.tokens ?? 0,
-    cacheRead: ctx?.cacheRead ?? 0,
-    cacheWrite: ctx?.cacheWrite ?? 0,
+    tokens: view.usage?.contextTokens ?? last?.totalTokens ?? 0,
+    cacheRead: live?.cacheRead ?? last?.cacheRead ?? 0,
+    cacheWrite: live?.cacheWrite ?? last?.cacheWrite ?? 0,
     usdCents,
-    calls,
-    wallMs,
+    calls: live?.calls ?? usages.length,
+    wallMs: live?.wallMs ?? 0,
   }
 }
