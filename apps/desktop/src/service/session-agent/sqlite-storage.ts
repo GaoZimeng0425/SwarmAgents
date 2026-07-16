@@ -92,6 +92,10 @@ export class SqliteSessionStorage implements SessionStorage {
     return uuidv7()
   }
   async appendEntry(entry: SessionTreeEntry): Promise<void> {
+    // Lossy cast: pi entry kinds outside our 6-member SessionEntry union
+    // (label/leaf/session_info/branch_summary/active_tools_change) throw at
+    // SessionEntrySchema.parse inside append(). Callers (SessionAgent) must
+    // only ever append supported kinds.
     this.ops.append(this.sessionId, entry as SessionEntry)
   }
   async getEntry(id: string): Promise<SessionTreeEntry | undefined> {
