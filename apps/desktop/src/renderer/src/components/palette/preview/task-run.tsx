@@ -1,7 +1,8 @@
 // apps/desktop/src/renderer/src/components/palette/preview/task-run.tsx
 // Live preview of a running/pending task: goal + a progress bar derived from
-// the plan (completed / total) + a 实时日志 tail of the last 20 tool.call /
-// llm.message events from the session, rendered as monospace lines.
+// the plan (completed / total) + a 实时日志 tail of the last 20 tool / message
+// segments from the session, rendered as monospace lines.
+import { buildSegments, emptySessionView, hydrate } from '@swarm/shared'
 import { useQuery } from '@tanstack/react-query'
 
 import { swarmApi } from '../../../lib/api'
@@ -18,20 +19,14 @@ export function TaskRunPreview({ data }: { data: TaskRunPreviewData }): React.JS
 
   const q = useQuery({
     queryKey: ['session-preview', sessionId],
-    queryFn: () => swarmApi.getMessageEvents(sessionId),
+    queryFn: () => swarmApi.getSessionEntries(sessionId),
     enabled: !!sessionId,
     staleTime: 5_000,
   })
 
-  // Tail of the live log: message.progress events whose nested TaskEvent is either
-  // a tool.call or an llm.message, newest 20.
-  const log = (q.data ?? [])
-    .filter(
-      (r) =>
-        r.event.kind === 'message.progress' &&
-        ((r.event as any).event?.kind === 'tool.call' || (r.event as any).event?.kind === 'llm.message')
-    )
-    .slice(-20)
+  // Tail of the live log: tool + message segments, newest 20.
+  const segments = buildSegments(hydrate(emptySessionView(), q.data ?? []))
+  const log = segments.filter((s) => s.kind === 'tool' || s.kind === 'user' || s.kind === 'assistant').slice(-20)
 
   return (
     <div className="p-4">
@@ -56,21 +51,20 @@ export function TaskRunPreview({ data }: { data: TaskRunPreviewData }): React.JS
         <div className="mt-1 font-mono text-muted-foreground text-xs">暂无日志</div>
       ) : (
         <div className="cmdscroll mt-1 max-h-48 overflow-y-auto rounded-md bg-muted/50 p-2 font-mono text-[11px] leading-relaxed">
-          {log.map((l, i) => {
-            const ev = (l.event as any).event
-            if (ev.kind === 'tool.call') {
+          {log.map((seg) => {
+            if (seg.kind === 'tool') {
               return (
-                <div className="truncate" key={i}>
-                  <span className="text-muted-foreground">→ {String(ev.tool)}</span>{' '}
-                  <span className="text-foreground/70">{stringifyShort(ev.args)}</span>
+                <div className="truncate" key={seg.key}>
+                  <span className="text-muted-foreground">→ {seg.tool}</span>{' '}
+                  <span className="text-foreground/70">{stringifyShort(seg.input)}</span>
                 </div>
               )
             }
-            const role = ev.role === 'user' ? '你' : ev.role === 'assistant' ? 'Agent' : '工具'
+            const role = seg.kind === 'user' ? '你' : 'Agent'
             return (
-              <div className="truncate" key={i}>
+              <div className="truncate" key={seg.key}>
                 <span className="font-medium">{role}:</span>{' '}
-                <span className="text-foreground/70">{String(ev.content ?? '').slice(0, 120)}</span>
+                <span className="text-foreground/70">{seg.text.slice(0, 120)}</span>
               </div>
             )
           })}

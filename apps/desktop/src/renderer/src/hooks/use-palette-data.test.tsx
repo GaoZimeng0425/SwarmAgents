@@ -36,12 +36,10 @@ vi.mock('../stores/sessions', () => ({
       selectedSessionId: 's1',
     }),
 }))
-vi.mock('./use-messages', () => ({
-  useMessages: () => [
-    { id: 'r1', sessionId: 's1', prompt: 'g', status: 'running', summary: null, events: [] },
-    { id: 'r2', sessionId: 's2', prompt: 'g', status: 'completed', summary: null, events: [] },
-    { id: 'r3', sessionId: 's3', prompt: 'g', status: 'pending', summary: null, events: [] },
-  ],
+vi.mock('./use-session-view', () => ({
+  // s1 is running (and non-system); sys is running but the system session is
+  // excluded from 继续未完成.
+  useRunningSessions: () => new Set(['s1', 'sys']),
 }))
 vi.mock('./use-cron', () => ({
   useAllCronJobs: () => ({
@@ -84,10 +82,11 @@ describe('usePaletteData', () => {
     expect(result.current.currentSessionId).toBe('s1')
   })
 
-  it('keeps only running/pending runs', () => {
+  it('surfaces running non-system sessions (excludes the system session)', () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => usePaletteData(), { wrapper: makeWrapper(qc) })
-    expect(result.current.runningMessages.map((r) => r.id)).toEqual(['r1', 'r3'])
+    expect(result.current.runningMessages.map((r) => r.id)).toEqual(['s1'])
+    expect(result.current.runningMessages[0]).toMatchObject({ sessionId: 's1', prompt: 'Chat', status: 'running' })
   })
 
   it('maps cron lastRunAt → lastRun and passes through formations/services', () => {

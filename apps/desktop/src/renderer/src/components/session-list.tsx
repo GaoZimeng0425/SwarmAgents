@@ -3,7 +3,6 @@ import { closestCenter, DndContext, type DragEndEvent, PointerSensor, useSensor,
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { MessageRecord } from '@shared/lib/apply-event'
 import type { SessionSummary } from '@swarm/protocol'
 import {
   AlertDialog,
@@ -26,8 +25,8 @@ import { CalendarClock, ChevronRight, Folder, Loader2, Pencil, Pin, PinOff, Plus
 import { toast } from 'sonner'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useMessages } from '@/hooks/use-messages'
 import { useNow } from '@/hooks/use-now'
+import { useRunningSessions } from '@/hooks/use-session-view'
 import { swarmApi } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format-time'
 import { formatTokens } from '@/lib/format-usage'
@@ -35,6 +34,7 @@ import { type DirectoryGroup, flattenForReorder, groupSessionsByDirectory, UNGRO
 import { pickNextSession } from '@/lib/session-nav'
 import { cn } from '@/lib/utils'
 import { useForkLineage } from '@/stores/fork-lineage'
+import { usePermissionStore } from '@/stores/permission'
 import { useSearchDialog } from '@/stores/search-dialog'
 import { type SessionViewMode, useSessionView } from '@/stores/session-view'
 import { useSessionsStore } from '@/stores/sessions'
@@ -113,7 +113,8 @@ export function SessionList(): React.JSX.Element {
   const forgetFork = useForkLineage((s) => s.forget)
   const reorder = useSessionsStore((s) => s.reorder)
   const navigate = useNavigate()
-  const tasks = useMessages()
+  const runningSessions = useRunningSessions()
+  const permissionQueue = usePermissionStore((s) => s.queue)
   const now = useNow(30_000)
   const openSearch = useSearchDialog((s) => s.openSearch)
 
@@ -129,38 +130,19 @@ export function SessionList(): React.JSX.Element {
   const [pendingDelete, setPendingDelete] = useState<SessionSummary | null>(null)
 
   // Derive a live run-status per session so parallel work is visible while you
-  // view another conversation (events for every session stream into the cache).
+  // view another conversation. Run state comes from useRunningSessions
+  // (agent_start/agent_end); awaiting comes from the permission queue. Awaiting
+  // outranks running (a paused turn is still "your move").
   const statusBySession = useMemo(() => {
+    const awaiting = new Set(permissionQueue.map((p) => p.sessionId))
     const m = new Map<string, LiveStatus>()
-    for (const t of tasks) {
-      const cur = m.get(t.sessionId)
-      if (cur === 'awaiting') continue
-      if (t.status === 'awaiting_user') m.set(t.sessionId, 'awaiting')
-      else if (t.status === 'running' || t.status === 'pending') m.set(t.sessionId, 'running')
-      else if (!cur) m.set(t.sessionId, 'idle')
+    for (const s of sessions) {
+      if (awaiting.has(s.id)) m.set(s.id, 'awaiting')
+      else if (runningSessions.has(s.id)) m.set(s.id, 'running')
+      else m.set(s.id, 'idle')
     }
     return m
-  }, [tasks])
-
-  // Step progress for running sessions (Hi-fi 3b: "运行中 · N/M 步"). Take the
-  // latest running top-level turn that has a plan and count completed steps.
-  const progressBySession = useMemo(() => {
-    const best = new Map<string, MessageRecord>()
-    for (const t of tasks) {
-      if (t.parentMessageId) continue
-      if (t.status !== 'running' && t.status !== 'pending') continue
-      if (!t.plan || t.plan.length === 0) continue
-      const cur = best.get(t.sessionId)
-      if (!cur || (t.createdAt ?? 0) > (cur.createdAt ?? 0)) best.set(t.sessionId, t)
-    }
-    const m = new Map<string, { done: number; total: number }>()
-    for (const [sid, t] of best) {
-      const total = t.plan?.length ?? 0
-      const done = t.plan?.filter((p) => p.status === 'completed').length ?? 0
-      m.set(sid, { done, total })
-    }
-    return m
-  }, [tasks])
+  }, [sessions, runningSessions, permissionQueue])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -273,7 +255,6 @@ export function SessionList(): React.JSX.Element {
   // Row renderer for the sortable session list.
   const renderRow = (s: SessionSummary): React.JSX.Element => {
     const status = statusBySession.get(s.id) ?? 'idle'
-    const progress = progressBySession.get(s.id)
     const title = s.title ?? 'Untitled chat'
     // Cumulative session usage (persisted, so it shows without opening the
     // session). Prefer cost; fall back to tokens for free-model sessions.
@@ -284,14 +265,7 @@ export function SessionList(): React.JSX.Element {
     const isSelected = selected === s.id
     // Active sessions (running / awaiting) get a second line with their status
     // and cost (Hi-fi 3b); idle sessions stay single-line with cost inline.
-    const statusText =
-      status === 'running'
-        ? progress && progress.total > 0
-          ? `运行中 · ${progress.done}/${progress.total} 步`
-          : '运行中'
-        : status === 'awaiting'
-          ? '等待审批'
-          : null
+    const statusText = status === 'running' ? '运行中' : status === 'awaiting' ? '等待审批' : null
 
     if (renamingId === s.id) {
       return (

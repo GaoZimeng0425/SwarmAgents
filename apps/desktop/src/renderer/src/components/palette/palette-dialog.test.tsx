@@ -52,7 +52,10 @@ vi.mock('../../hooks/use-messages', () => ({
   useSubmitPrompt: () => ({
     mutateAsync: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
   }),
-  useMessages: () => [{ id: 'r1', sessionId: 's1', prompt: 'g', status: 'running', summary: null, events: [] }],
+}))
+
+vi.mock('../../hooks/use-session-view', () => ({
+  useRunningSessions: () => new Set(['s1']),
 }))
 
 vi.mock('../../hooks/use-cron', () => ({
@@ -88,14 +91,14 @@ vi.mock('../../hooks/use-skills', () => ({
   useSkills: () => ({ skills: [], setSkills: () => {}, reload: () => {} }),
 }))
 
-// swarmApi: listArtifacts drives a useQuery in usePaletteData; getMessageEvents
+// swarmApi: listArtifacts drives a useQuery in usePaletteData; getSessionEntries
 // drives the lazy preview queries for chat/task-run. Both resolve [] so the
 // preview pane never throws.
 vi.mock('../../lib/api', () => ({
   swarmApi: {
     listArtifacts: vi.fn().mockResolvedValue([]),
     exportSessionMarkdown: vi.fn().mockResolvedValue({ path: '/tmp/x.md' }),
-    getMessageEvents: vi.fn().mockResolvedValue([]),
+    getSessionEntries: vi.fn().mockResolvedValue([]),
     submitPrompt: vi.fn().mockResolvedValue({ sessionId: 'new-session' }),
   },
 }))
@@ -230,7 +233,10 @@ describe('SessionSearchDialog — palette integration smoke test', () => {
     // query, scope snaps back to mixed, and the recent-chat row reappears.
     fireEvent.keyDown(input, { key: 'Backspace' })
     expect(input.value).toBe('')
-    expect(screen.getByText('Chat')).toBeInTheDocument()
+    // 'Chat' reappears in mixed scope — the session row, its resume (running)
+    // item, and the right-pane preview can each surface the title, so assert on
+    // presence rather than a single occurrence.
+    expect(screen.getAllByText('Chat').length).toBeGreaterThan(0)
   })
 
   it('renders the empty-state message for a command-scope no-match query', () => {

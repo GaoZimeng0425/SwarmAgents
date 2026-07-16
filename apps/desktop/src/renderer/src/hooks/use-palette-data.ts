@@ -12,7 +12,7 @@ import { useSessionsStore } from '../stores/sessions'
 import { useTeamOptions } from './use-agents'
 import { useAllCronJobs } from './use-cron'
 import { useMemory } from './use-memory'
-import { useMessages } from './use-messages'
+import { useRunningSessions } from './use-session-view'
 import { useSkills } from './use-skills'
 
 // The mixed 「快捷入口」 group navigates to the four service routes. Hardcoded
@@ -33,7 +33,7 @@ const SERVICES = [
 export function usePaletteData(open = false): BuildInputs {
   const sessions = useSessionsStore((s) => s.sessions)
   const currentSessionId = useSessionsStore((s) => s.selectedSessionId)
-  const allMessages = useMessages()
+  const runningSessions = useRunningSessions()
   const cron = useAllCronJobs()
   const formations = useTeamOptions()
   const memory = useMemory()
@@ -86,17 +86,17 @@ export function usePaletteData(open = false): BuildInputs {
         .filter((s) => !s.isSystem)
         .map((s) => ({ id: s.id, title: s.title, lastActiveAt: s.lastActiveAt, agentType: s.agentType })),
       currentSessionId,
-      // 继续未完成 surfaces any live run: running/pending plus awaiting_user
-      // (paused for input). Clicking navigates to the session to continue it.
-      runningMessages: allMessages
-        .filter((r) => r.status === 'running' || r.status === 'pending' || r.status === 'awaiting_user')
-        .map((r) => ({
-          id: r.id,
-          sessionId: r.sessionId,
-          prompt: r.prompt,
-          status: r.status,
-          summary: r.summary,
-          plan: r.plan?.map((p) => ({ content: p.content, status: p.status })),
+      // 继续未完成 surfaces sessions with a live run (from useRunningSessions,
+      // fed by agent_start/agent_end). Clicking navigates to the session to
+      // continue it. Per-run plan/summary is deferred on the entry rails.
+      runningMessages: sessions
+        .filter((s) => !s.isSystem && runningSessions.has(s.id))
+        .map((s) => ({
+          id: s.id,
+          sessionId: s.id,
+          prompt: s.title ?? 'Untitled chat',
+          status: 'running',
+          summary: null,
         })),
       // Cron source field is `lastRunAt`; BuildInputs renames it to `lastRun`.
       // lastStatus isn't on the source summary, so it stays null until a future
@@ -132,7 +132,7 @@ export function usePaletteData(open = false): BuildInputs {
     [
       sessions,
       currentSessionId,
-      allMessages,
+      runningSessions,
       cron.data,
       formations,
       memory.entries,

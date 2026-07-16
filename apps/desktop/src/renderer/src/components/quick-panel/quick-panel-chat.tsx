@@ -1,27 +1,20 @@
 // Chat mode mini-session. On first Enter: creates a session + submits the
 // prompt. Subsequent Enter appends to the same session. Streaming is driven by
-// the shared MESSAGES_KEY query cache (updated by EventsBridge's swarm:event
-// subscription). Esc closes the panel; Backspace on empty input returns to
-// palette mode (Raycast-style).
+// the session's SessionView (folded from live wire events + catch-up load).
+// Esc closes the panel; Backspace on empty input returns to palette mode.
 //
-// Text extraction: MessageRecord has no content/role fields. We reuse
-// taskSegments() (the same pure function the main thread uses) to extract
-// user/assistant text segments from task.events[]. Only user + assistant
-// segments are rendered; tool/reasoning/error segments are skipped for the
-// mini view. Rendering uses the same Message/MessageContent/MessageResponse
-// components as the main conversation thread for visual consistency.
+// Text extraction: buildSegments (via useSessionView) flattens the session's
+// entries into render segments; only user + assistant segments are rendered for
+// the mini view. Rendering reuses the same Message components as the main
+// conversation thread for visual consistency.
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
-import { useMessages } from '@/hooks/use-messages'
+import { useSessionView } from '@/hooks/use-session-view'
 import { swarmApi } from '@/lib/api'
-import { taskSegments } from '@/lib/task-segments'
 import { useSessionsStore } from '@/stores/sessions'
 
 const DEFAULT_FORMATION = 'ceo'
-
-// Statuses where the agent is actively producing output.
-const STREAMING_STATUSES = new Set(['running', 'pending', 'awaiting_user'])
 
 type Bubble = {
   key: string
@@ -32,8 +25,8 @@ type Bubble = {
 export function QuickPanelChat({ onBack }: { onBack: () => void }): React.JSX.Element {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
-  const allMessages = useMessages()
+  const [pending, setPending] = useState(false)
+  const { view, segments } = useSessionView(sessionId)
   const selectSession = useSessionsStore((s) => s.select)
   const scrollRef = useRef<HTMLDivElement>(null)
   // Focus the input on mount so typing flows straight in. The panel window
@@ -46,25 +39,20 @@ export function QuickPanelChat({ onBack }: { onBack: () => void }): React.JSX.El
     inputRef.current?.focus()
   }, [])
 
-  // Filter + sort messages to the panel's session (by task.order for correct
-  // turn sequence, same as conversation-thread.tsx).
-  const tasks = useMemo(
-    () => (sessionId ? allMessages.filter((m) => m.sessionId === sessionId) : []).sort((a, b) => a.order - b.order),
-    [allMessages, sessionId]
-  )
+  // The run is in flight while the view reports running, or optimistically
+  // between submit and the first agent_start.
+  const isStreaming = view.running || pending
 
-  // Flatten tasks into user/assistant text bubbles via taskSegments.
+  // Flatten segments into user/assistant text bubbles.
   const bubbles = useMemo<Bubble[]>(() => {
     const out: Bubble[] = []
-    for (const task of tasks) {
-      for (const seg of taskSegments(task)) {
-        if (seg.kind === 'user' || seg.kind === 'assistant') {
-          out.push({ key: seg.key, role: seg.kind, text: seg.text })
-        }
+    for (const seg of segments) {
+      if (seg.kind === 'user' || seg.kind === 'assistant') {
+        out.push({ key: seg.key, role: seg.kind, text: seg.text })
       }
     }
     return out
-  }, [tasks])
+  }, [segments])
 
   // Auto-scroll to bottom on new content.
   useEffect(() => {
@@ -73,15 +61,10 @@ export function QuickPanelChat({ onBack }: { onBack: () => void }): React.JSX.El
     }
   }, [bubbles])
 
-  // Detect when streaming ends (last task is no longer in a streaming status).
+  // Clear the optimistic pending flag once the run actually starts.
   useEffect(() => {
-    const last = tasks[tasks.length - 1]
-    if (last && STREAMING_STATUSES.has(last.status)) {
-      setIsStreaming(true)
-    } else {
-      setIsStreaming(false)
-    }
-  }, [tasks])
+    if (view.running) setPending(false)
+  }, [view.running])
 
   // Resize the panel to fit content (grows with bubbles, capped at 600 by main).
   useEffect(() => {
@@ -107,13 +90,13 @@ export function QuickPanelChat({ onBack }: { onBack: () => void }): React.JSX.El
     }
 
     setInput('')
-    setIsStreaming(true)
+    setPending(true)
     try {
       await swarmApi.submitPrompt(sid, trimmed, undefined, { agentType: DEFAULT_FORMATION })
     } catch {
-      // submitPrompt rejected before any task event arrived — reset streaming
-      // so the input isn't permanently stuck disabled.
-      setIsStreaming(false)
+      // submitPrompt rejected before any run event arrived — reset pending so
+      // the input isn't permanently stuck disabled.
+      setPending(false)
     }
   }
 
