@@ -1,6 +1,6 @@
 import type { Risk } from './ipc'
 import type { SessionEntry } from './session-entry'
-import type { ConsumedResources } from './task'
+import type { ConsumedResources } from './budgets'
 
 export const runStatusValues = ['completed', 'failed', 'cancelled'] as const
 export type RunStatus = (typeof runStatusValues)[number]

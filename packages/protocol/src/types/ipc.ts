@@ -1,7 +1,5 @@
 import { z } from 'zod'
 
-import { TaskEventSchema } from './task'
-
 export const RiskSchema = z.enum(['low', 'medium', 'high'])
 export type Risk = z.infer<typeof RiskSchema>
 
@@ -42,7 +40,6 @@ export const OutboundSchema = z.discriminatedUnion('type', [
     summary: z.string(),
     payload: z.unknown(),
   }),
-  z.object({ type: z.literal('progress'), event: TaskEventSchema }),
   z.object({ type: z.literal('heartbeat'), ts: z.number() }),
 ])
 export type Outbound = z.infer<typeof OutboundSchema>

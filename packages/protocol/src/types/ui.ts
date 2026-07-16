@@ -32,7 +32,9 @@ import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverri
 import type { MemoryView } from './memory'
 import type { ApiStyle, ModelThinkingLevel, ProviderInjection, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
-import type { Attachment, DelegateResult, ExecutionMode, PermissionMode, RunOptions, TaskEvent } from './task'
+import type { Attachment } from './artifact'
+import type { DelegateResult } from './delegation'
+import type { ExecutionMode, PermissionMode, SubmitOptions } from './execution'
 import type { ToolGroupInfo, ToolToggles } from './tool-toggles'
 import type { RepoResearch } from './trending'
 import type { WeatherConfig, WeatherConfigView, WeatherForecast } from './weather'
@@ -447,7 +449,7 @@ export type SwarmBridge = {
     sessionId: string,
     prompt: string,
     attachments?: Attachment[],
-    options?: RunOptions
+    options?: SubmitOptions
   ): Promise<SubmitPromptResult>
   analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
   cancelRun(sessionId: string): Promise<void>
@@ -551,6 +553,3 @@ export type SwarmBridge = {
     setHotkey(accelerator: string): Promise<{ ok: boolean }>
   }
 }
-
-// Re-exported for renderer convenience without dragging task.ts types directly.
-export type { DelegateResult, TaskEvent }

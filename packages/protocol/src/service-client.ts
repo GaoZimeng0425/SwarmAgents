@@ -32,8 +32,8 @@ export type ServiceClient = {
   submitPrompt(
     sessionId: string,
     prompt: string,
-    attachments?: import('./types/task').Attachment[],
-    options?: import('./types/task').RunOptions
+    attachments?: import('./types/artifact').Attachment[],
+    options?: import('./types/execution').SubmitOptions
   ): Promise<{ runId: string }>
   analyzeThread(req: import('./types/ui').AnalyzeThreadRequest): Promise<import('./types/ui').AnalyzeThreadResult>
   collectArticle(input: ArticleSource): Promise<CollectArticleResult>

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { BudgetConfigSchema, defaultBudgetConfig } from './budgets'
+import { BudgetConfigSchema, defaultBudgetConfig, emptyBudget, emptyUsed } from './budgets'
+
+describe('resource shapes', () => {
+  it('emptyBudget returns zeroed limit counters', () => {
+    expect(emptyBudget()).toEqual({ calls: 0, wallMs: 0, usdCents: 0 })
+  })
+  it('emptyUsed returns zeroed usage counters incl. cache fields', () => {
+    expect(emptyUsed()).toEqual({ tokens: 0, calls: 0, wallMs: 0, usdCents: 0, cacheRead: 0, cacheWrite: 0 })
+  })
+})
 
 describe('BudgetConfigSchema', () => {
   it('accepts the default config', () => {
