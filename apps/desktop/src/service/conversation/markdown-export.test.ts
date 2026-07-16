@@ -1,125 +1,73 @@
-import type { MessageEvent, TaskEvent, UIEvent } from '@swarm/protocol'
+import type { EntryRow, SessionEntry } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import { buildMarkdown } from './markdown-export'
 
-// A MessageEvent row whose event is a run.* wire event. The markdown builder reads
-// the session's MessageEvent stream (UIEvent-shaped); messages/tools/errors live
-// inside run.progress events as TaskEvent payloads.
-const runRow = (messageId: string, event: UIEvent, parentMessageId: string | null = null): MessageEvent => ({
-  messageId,
-  parentMessageId,
-  seq: 1,
-  ts: 1000,
-  event,
-})
+let rowId = 0
+const row = (entry: SessionEntry): EntryRow => ({ rowId: ++rowId, entry })
 
-// A run.progress event wrapping a TaskEvent (the actual transcript content).
-const progress = (messageId: string, taskEvent: TaskEvent): MessageEvent =>
-  runRow(messageId, {
-    kind: 'message.progress',
-    sessionId: 's',
-    messageId,
-    seq: 1,
-    ts: 1000,
-    event: taskEvent,
-  })
+// A 'message' entry whose message is an opaque pi AgentMessage.
+const msg = (message: unknown): EntryRow =>
+  row({ type: 'message', id: `m${rowId}`, parentId: null, timestamp: '', message } as SessionEntry)
 
-const created = (messageId: string, parentMessageId?: string): MessageEvent =>
-  runRow(
-    messageId,
-    {
-      kind: 'message.created',
-      sessionId: 's',
-      messageId,
-      seq: 1,
-      ts: 1,
-    },
-    parentMessageId ?? null
-  )
-
-// A role:'user' progress event — the message's input content (also the
-// markdown section heading source).
-const userProgress = (messageId: string, content: string): MessageEvent =>
-  progress(messageId, { kind: 'llm.message', role: 'user', content, ts: 1 })
+const custom = (customType: string, data: unknown): EntryRow =>
+  row({ type: 'custom', customType, id: `c${rowId}`, parentId: null, timestamp: '', data } as SessionEntry)
 
 describe('buildMarkdown', () => {
   it('renders an assistant message as a bold Agent line', () => {
-    const out = buildMarkdown([
-      created('r1'),
-      userProgress('r1', 'g'),
-      progress('r1', { kind: 'llm.message', role: 'assistant', content: 'Hello there.', ts: 1 }),
-    ])
+    const out = buildMarkdown([msg({ role: 'user', content: 'g' }), msg({ role: 'assistant', content: 'Hello there.' })])
     expect(out).toContain('**Agent:**')
     expect(out).toContain('Hello there.')
   })
 
-  it('renders a user message as a bold You line', () => {
-    const out = buildMarkdown([
-      created('r1'),
-      userProgress('r1', 'g'),
-      progress('r1', { kind: 'llm.message', role: 'user', content: 'Do the thing.', ts: 1 }),
-    ])
-    expect(out).toContain('**You:**')
-    expect(out).toContain('Do the thing.')
+  it('renders a user message as a section heading', () => {
+    const out = buildMarkdown([msg({ role: 'user', content: 'Do the thing.' })])
+    expect(out).toContain('## Do the thing.')
+  })
+
+  it('renders text from an array-content assistant message', () => {
+    const out = buildMarkdown([msg({ role: 'assistant', content: [{ type: 'text', text: 'visible' }] })])
+    expect(out).toContain('visible')
   })
 
   it('renders a tool call as a fenced code block with the tool name', () => {
     const out = buildMarkdown([
-      created('r1'),
-      progress('r1', { kind: 'tool.call', server: 'fs', tool: 'read_file', args: { path: '/a' }, ts: 1 }),
+      msg({ role: 'assistant', content: [{ type: 'tool_use', name: 'read_file', input: { path: '/a' } }] }),
     ])
     expect(out).toContain('```')
     expect(out).toContain('read_file')
   })
 
-  it('renders a run.error as a blockquote', () => {
+  it('renders a plan custom entry as a checklist', () => {
     const out = buildMarkdown([
-      created('r1'),
-      runRow('r1', {
-        kind: 'message.error',
-        sessionId: 's',
-        messageId: 'r1',
-        seq: 2,
-        ts: 2,
-        error: { code: 'boom', message: 'it broke', tier: 'recoverable' },
+      custom('plan', {
+        todos: [
+          { content: 'first', status: 'completed' },
+          { content: 'second', status: 'pending' },
+        ],
       }),
     ])
-    expect(out).toContain('> ')
-    expect(out).toContain('it broke')
+    expect(out).toContain('- [x] first')
+    expect(out).toContain('- [ ] second')
   })
 
-  it('skips reasoning events (private to the model)', () => {
-    const out = buildMarkdown([
-      created('r1'),
-      progress('r1', { kind: 'reasoning', content: 'thinking secretly', ts: 1 }),
-      progress('r1', { kind: 'llm.message', role: 'assistant', content: 'visible', ts: 2 }),
-    ])
-    expect(out).not.toContain('thinking secretly')
-    expect(out).toContain('visible')
+  it('skips usage custom entries (app-data, not transcript)', () => {
+    const out = buildMarkdown([custom('usage', { runId: 'r', used: { tokens: 5 } })])
+    expect(out).not.toContain('tokens')
+    expect(out).not.toContain('runId')
+  })
+
+  it('skips tool-result messages (noise in an export)', () => {
+    const out = buildMarkdown([msg({ role: 'tool', content: [{ type: 'tool_result', content: 'x' }] })])
+    // Header only — no transcript body from a tool result.
+    expect(out).not.toContain('tool_result')
   })
 
   it('truncates large payloads (>2KB) with a marker', () => {
     const big = 'x'.repeat(3000)
-    const out = buildMarkdown([
-      created('r1'),
-      progress('r1', { kind: 'llm.message', role: 'assistant', content: big, ts: 1 }),
-    ])
+    const out = buildMarkdown([msg({ role: 'assistant', content: big })])
     expect(out).toContain('truncated')
     expect(out.length).toBeLessThan(big.length)
-  })
-
-  it('nests child runs under their parent with indentation', () => {
-    const out = buildMarkdown([
-      created('parent'),
-      userProgress('parent', 'parent goal'),
-      created('child', 'parent'),
-      userProgress('child', 'child goal'),
-      progress('child', { kind: 'llm.message', role: 'assistant', content: 'child body', ts: 1 }),
-    ])
-    expect(out).toContain('parent goal')
-    expect(out).toContain('child goal')
-    expect(out).toContain('child body')
   })
 
   it('returns a header-only doc for empty input', () => {

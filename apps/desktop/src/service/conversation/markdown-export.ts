@@ -1,120 +1,80 @@
-// Pure markdown builder for session exports. Turns a session's MessageEvent stream
-// into a human-readable transcript: messages as bold role lines, tool calls as
-// fenced code, errors as blockquotes. Child messages nest under their parent. Pure;
-// unit-tested. The file-write wrapper lives in session-service.
-//
-// Data shape: each MessageEvent's `event` is a UIEvent. The transcript content
-// (llm.message / tool.call / reasoning / error) lives INSIDE message.progress
-// events as a TaskEvent payload (`event.event`). message.error / message.complete
-// are also rendered at the message level. Pure; unit-tested.
-
-import type { MessageEvent, TaskEvent, UIEvent } from '@swarm/protocol'
+// Pure markdown builder for session exports. Turns a session's finalized entry
+// log (session_entries) into a human-readable transcript: user turns become `##`
+// section headings, assistant text becomes bold Agent lines, tool calls become
+// fenced JSON, and plan / delegation custom entries render as their own blocks.
+// Usage (and other app-data) custom entries are skipped. Pure; unit-tested. The
+// file-write wrapper lives in session-service.
+import type { EntryRow, SessionEntry } from '@swarm/protocol'
 
 const PAYLOAD_LIMIT = 2000
 
+type ContentPart = { type?: string; text?: string; name?: string; input?: unknown }
+
+/** Concatenate the text content of a pi message (string, or text parts of an array). */
+function textOf(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content
+      .filter((c): c is ContentPart => (c as ContentPart)?.type === 'text')
+      .map((c) => c.text ?? '')
+      .join('')
+  }
+  return ''
+}
+
+/** Tool-call parts of an assistant message (pi uses 'tool_use'; tolerate 'tool_call'). */
+function toolCallsOf(content: unknown): ContentPart[] {
+  if (!Array.isArray(content)) return []
+  return content.filter((c): c is ContentPart => {
+    const t = (c as ContentPart)?.type
+    return t === 'tool_use' || t === 'tool_call'
+  })
+}
+
 /**
- * Build a markdown transcript from a session's message-event rows. Rows must be in
- * insertion order (as returned by ConversationStore.getMessageEvents). Top-level
- * messages become `##` sections; child messages indent their contents.
+ * Build a markdown transcript from a session's finalized entries in log order.
+ * Linear history (spec D5): table order IS the transcript order.
  */
-export function buildMarkdown(rows: MessageEvent[]): string {
-  const byRun = new Map<string, MessageEvent[]>()
-  const parentOf = new Map<string, string | null>()
-  const promptByRun = new Map<string, string>()
-  const order: string[] = []
-  for (const r of rows) {
-    if (!byRun.has(r.messageId)) {
-      byRun.set(r.messageId, [])
-      order.push(r.messageId)
-      parentOf.set(r.messageId, r.parentMessageId)
-    }
-    // Capture the prompt from the role:'user' progress event for the section
-    // heading (message.created no longer carries the prompt).
-    if (r.event.kind === 'message.progress' && r.event.event.kind === 'llm.message' && r.event.event.role === 'user') {
-      promptByRun.set(
-        r.messageId,
-        typeof r.event.event.content === 'string' ? r.event.event.content : JSON.stringify(r.event.event.content)
-      )
-    }
-    byRun.get(r.messageId)!.push(r)
-  }
-
+export function buildMarkdown(rows: EntryRow[]): string {
   const lines: string[] = ['# SwarmAgents Session Export', '']
-
-  const renderRun = (messageId: string, depth: number): void => {
-    const events = byRun.get(messageId) ?? []
-    const prefix = '  '.repeat(depth)
-    const heading = '#'.repeat(Math.min(depth + 2, 6))
-    lines.push(`${prefix}${heading} ${promptByRun.get(messageId) ?? messageId}`, '')
-    for (const { event } of events) {
-      for (const body of renderEvent(event)) {
-        lines.push(`${prefix}${body}`, '')
-      }
-    }
+  for (const { entry } of rows) {
+    for (const body of renderEntry(entry)) lines.push(body, '')
   }
-
-  // Render top-level runs first; their children appear nested inline.
-  const rendered = new Set<string>()
-  for (const messageId of order) {
-    if (parentOf.get(messageId) !== null) continue // child — rendered by parent
-    renderRun(messageId, 0)
-    rendered.add(messageId)
-    for (const child of order) {
-      if (parentOf.get(child) === messageId && !rendered.has(child)) {
-        renderRun(child, 1)
-        rendered.add(child)
-      }
-    }
-  }
-
   return lines.join('\n').trimEnd() + '\n'
 }
 
-// Yields 0..n markdown lines for a single UIEvent. message.progress events unwrap
-// their nested TaskEvent and render its content; message-level lifecycle events
-// render directly. Returns empty for events that aren't transcript-worthy.
-function renderEvent(e: UIEvent): string[] {
-  switch (e.kind) {
-    case 'message.progress':
-      return renderTaskEvent(e.event)
-    case 'message.error':
-      return [`> ⚠️ ${e.error.message} (${e.error.code})`]
-    case 'message.complete':
-      return e.summary ? [`_✓ ${truncate(e.summary)}_`] : []
-    case 'message.created':
-    case 'message.dispatched':
-    case 'message.usage':
-    case 'message.plan':
-    case 'message.delegation_plan':
-    case 'message.spawned':
-    case 'message.permission_request':
-      return [] // lifecycle/plumbing — reflected in headings, not transcript body
-    default:
-      return [] // session.*/memory.*/gmail.* — not part of a message transcript
-  }
-}
-
-function renderTaskEvent(e: TaskEvent): string[] {
-  switch (e.kind) {
-    case 'llm.message': {
-      const role = e.role === 'user' ? 'You' : e.role === 'assistant' ? 'Agent' : 'Tool'
-      return [`**${role}:** ${truncate(stringify(e.content))}`]
+function renderEntry(entry: SessionEntry): string[] {
+  if (entry.type === 'message') {
+    const message = entry.message as { role?: string; content?: unknown }
+    if (message.role === 'user') {
+      const text = textOf(message.content)
+      return text ? [`## ${truncate(text)}`] : []
     }
-    case 'tool.call':
-      return ['```json', truncate(`tool: ${e.tool}\nserver: ${e.server}\nargs: ${stringify(e.args)}`), '```']
-    case 'tool.result':
-      return [] // results are noise in an export; the call + next message suffice
-    case 'error':
-      return [`> ⚠️ ${e.error.message} (${e.error.code})`]
-    case 'permission':
-      return [] // intra-run plumbing; not transcript-worthy
-    case 'reasoning':
-      return [] // model-private
-    case 'handoff':
-      return [] // sub-run plumbing
-    default:
-      return []
+    if (message.role === 'assistant') {
+      const out: string[] = []
+      const text = textOf(message.content)
+      if (text) out.push(`**Agent:** ${truncate(text)}`)
+      for (const call of toolCallsOf(message.content)) {
+        out.push('```json', truncate(`tool: ${call.name ?? ''}\nargs: ${stringify(call.input)}`), '```')
+      }
+      return out
+    }
+    // tool results are noise in an export; the call + next message suffice.
+    return []
   }
+  if (entry.type === 'custom') {
+    if (entry.customType === 'plan') {
+      const todos = (entry.data as { todos?: Array<{ content?: string; status?: string }> } | undefined)?.todos ?? []
+      if (todos.length === 0) return []
+      return ['**Plan:**', ...todos.map((t) => `- [${t.status === 'completed' ? 'x' : ' '}] ${t.content ?? ''}`)]
+    }
+    if (entry.customType?.startsWith('delegation')) {
+      return [`_→ ${entry.customType}: ${truncate(stringify(entry.data))}_`]
+    }
+    // usage / other app-data: not transcript-worthy.
+    return []
+  }
+  return []
 }
 
 function stringify(value: unknown): string {

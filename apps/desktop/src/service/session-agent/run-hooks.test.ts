@@ -164,6 +164,32 @@ describe('createRunHooks', () => {
     expect(abortRunCalls).toEqual(['Budget exhausted (usdCents).'])
   })
 
+  it('external usage (reportExternalUsage) folded into the shared used trips the budget gate', async () => {
+    // A3: session-service's ctx.reportExternalUsage mutates the SAME `used`
+    // object this run's hooks read. Replicate that mutation here and assert the
+    // usdCents gate then blocks + aborts — external spend counts toward budget.
+    const used: ConsumedResources = emptyUsed()
+    const { opts, abortRunCalls } = makeOpts({ used, budget: { calls: 100, wallMs: 60_000, usdCents: 5 } })
+    const hooks = createRunHooks(opts)
+
+    // Under budget before any external charge.
+    used.calls += 1
+    expect(await hooks.beforeToolCall(beforeCtx('read_file'))).toBeUndefined()
+
+    // A delegated Claude Code session reports $0.10 → +10 usdCents (the exact
+    // fold session-service.ts's reportExternalUsage performs).
+    const reportExternalUsage = (u: { costUsd?: number }): void => {
+      if (u.costUsd && u.costUsd > 0) used.usdCents += Math.round(u.costUsd * 100)
+    }
+    reportExternalUsage({ costUsd: 0.1 })
+    expect(used.usdCents).toBe(10)
+
+    used.calls += 1
+    const blocked = await hooks.beforeToolCall(beforeCtx('read_file'))
+    expect(blocked).toEqual({ block: true, reason: 'Budget exhausted (usdCents).' })
+    expect(abortRunCalls).toEqual(['Budget exhausted (usdCents).'])
+  })
+
   it('an aborted signal blocks with a fail-safe deny before any permission request', async () => {
     const requestPermission = vi.fn(async () => 'grant' as const)
     const controller = new AbortController()

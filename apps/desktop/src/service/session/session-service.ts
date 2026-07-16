@@ -749,7 +749,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     },
 
     async exportSessionMarkdown(sessionId) {
-      const rows = store.getMessageEvents(sessionId)
+      const rows = store.entries.list(sessionId)
       const md = buildMarkdown(rows)
       const dir = cfg.exportsDir
       if (!dir) throw new Error('exportSessionMarkdown: exportsDir not configured')
