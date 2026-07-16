@@ -4,7 +4,7 @@ import { create } from 'zustand'
 export type PermissionPrompt = {
   actionId: string
   sessionId: string
-  messageId: string
+  runId: string
   risk: Risk
   summary: string
   payload: unknown

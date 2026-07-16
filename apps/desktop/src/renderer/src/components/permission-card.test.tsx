@@ -10,7 +10,7 @@ import { PermissionCard } from './permission-card'
 const basePrompt: PermissionPrompt = {
   actionId: 'act-1',
   sessionId: 'sess-1',
-  messageId: 'task-1',
+  runId: 'run-1',
   risk: 'medium',
   summary: 'Run shell command',
   payload: { cmd: 'ls' },

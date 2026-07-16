@@ -1,25 +1,12 @@
 // @vitest-environment jsdom
 
-import type { UIEvent } from '@swarm/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as api from '../lib/api'
-import { usePermissionStore } from '../stores/permission'
 import { useSessionsStore } from '../stores/sessions'
-import { useEventsSubscription } from './use-events-subscription'
-import { hydrateSession, MESSAGES_KEY, useDecidePermission, useMessages, useSubmitPrompt } from './use-messages'
-
-// useEventsSubscription now navigates (toast jump) + toasts on background
-// activity + reads the settings search param via useSettingsNav; stub the
-// router hooks it touches so rendering it here needs no router/Toaster.
-vi.mock('sonner', () => ({ toast: vi.fn() }))
-vi.mock('@tanstack/react-router', async (orig) => ({
-  ...(await orig<typeof import('@tanstack/react-router')>()),
-  useNavigate: () => vi.fn(),
-  useSearch: () => ({}),
-}))
+import { useCancelRun, useDecidePermission, useSubmitPrompt } from './use-messages'
 
 function makeWrapper(qc: QueryClient) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
@@ -29,100 +16,16 @@ function makeWrapper(qc: QueryClient) {
 
 beforeEach(() => {
   useSessionsStore.setState({ sessions: [], selectedSessionId: null, unread: {} })
-  usePermissionStore.setState({ queue: [] })
-  // useEventsSubscription pulls deep links + subscribes to navigation on mount;
-  // stub both so tests that render it don't touch an undefined window.swarm.
-  vi.spyOn(api.swarmApi, 'consumePendingDeepLink').mockResolvedValue(null)
-  vi.spyOn(api.swarmApi, 'onNavigateToSession').mockReturnValue(() => {})
-  vi.spyOn(api.swarmApi, 'onNavigateToSettings').mockReturnValue(() => {})
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('use-tasks + use-events-subscription', () => {
-  it('a message.created event populates useMessages()', async () => {
-    let emit: (e: UIEvent) => void = () => {}
-    vi.spyOn(api.swarmApi, 'subscribeEvents').mockImplementation((cb) => {
-      emit = cb
-      return () => {}
-    })
-
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } } })
-
-    const view = renderHook(
-      () => {
-        useEventsSubscription()
-        return useMessages()
-      },
-      { wrapper: makeWrapper(qc) }
-    )
-
-    // Wait for initial query to settle (queryFn resolves async even though sync)
-    await waitFor(() => expect(view.result.current).toEqual([]))
-
-    await act(async () => {
-      emit({ kind: 'message.created', sessionId: 'ses-1', messageId: 't1', ts: 1, seq: 1 })
-    })
-
-    await waitFor(() => expect(view.result.current).toHaveLength(1))
-    expect(view.result.current[0].id).toBe('t1')
-    expect(view.result.current[0].sessionId).toBe('ses-1')
-  })
-
-  it('a high-risk permission_request goes into the permission store (no native dialog)', async () => {
-    let emit: (e: UIEvent) => void = () => {}
-    vi.spyOn(api.swarmApi, 'subscribeEvents').mockImplementation((cb) => {
-      emit = cb
-      return () => {}
-    })
-
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } } })
-    renderHook(() => useEventsSubscription(), { wrapper: makeWrapper(qc) })
-
-    act(() => {
-      emit({
-        kind: 'message.permission_request',
-        ts: 1,
-        seq: 1,
-        sessionId: 'sess-1',
-        messageId: 'task-1',
-        actionId: 'act-9',
-        risk: 'high',
-        summary: 'rm -rf /tmp/x',
-        payload: { cmd: 'rm -rf /tmp/x' },
-      })
-    })
-
-    await waitFor(() => {
-      expect(usePermissionStore.getState().queue.some((p) => p.actionId === 'act-9')).toBe(true)
-    })
-  })
-})
-
 describe('useSubmitPrompt', () => {
   it('creates a session first when none is selected, then submits prompt with that sessionId', async () => {
-    const mockCreate = vi.fn().mockResolvedValue({ sessionId: 'ses-test' })
-    const mockSubmitPrompt = vi.fn().mockResolvedValue({ messageId: 'task-1' })
-
-    // Stub window.swarm
-    Object.defineProperty(window, 'swarm', {
-      value: {
-        sessions: { create: mockCreate, list: vi.fn(), getMessageEvents: vi.fn() },
-        submitPrompt: mockSubmitPrompt,
-        cancelMessage: vi.fn(),
-        decidePermission: vi.fn(),
-        subscribeEvents: vi.fn(() => () => {}),
-      },
-      writable: true,
-      configurable: true,
-    })
-
-    vi.spyOn(api.swarmApi, 'createSession').mockImplementation(() => mockCreate())
-    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, prompt) =>
-      mockSubmitPrompt(sessionId, prompt)
-    )
+    vi.spyOn(api.swarmApi, 'createSession').mockResolvedValue({ sessionId: 'ses-test' })
+    vi.spyOn(api.swarmApi, 'submitPrompt').mockResolvedValue({ runId: '1' })
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => useSubmitPrompt(), { wrapper: makeWrapper(qc) })
@@ -133,19 +36,13 @@ describe('useSubmitPrompt', () => {
 
     expect(api.swarmApi.createSession).toHaveBeenCalledOnce()
     expect(api.swarmApi.submitPrompt).toHaveBeenCalledWith('ses-test', 'my prompt', undefined, undefined)
-    // Session should now be selected
     expect(useSessionsStore.getState().selectedSessionId).toBe('ses-test')
   })
 
   it('uses the pre-selected session without creating a new one', async () => {
     useSessionsStore.getState().select('ses-existing')
-
-    const mockSubmitPrompt = vi.fn().mockResolvedValue({ messageId: 'task-2' })
-    vi.spyOn(api.swarmApi, 'submitPrompt').mockImplementation((sessionId, prompt) =>
-      mockSubmitPrompt(sessionId, prompt)
-    )
-    const mockCreate = vi.fn()
-    vi.spyOn(api.swarmApi, 'createSession').mockImplementation(mockCreate)
+    vi.spyOn(api.swarmApi, 'submitPrompt').mockResolvedValue({ runId: '2' })
+    const mockCreate = vi.spyOn(api.swarmApi, 'createSession')
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => useSubmitPrompt(), { wrapper: makeWrapper(qc) })
@@ -154,15 +51,14 @@ describe('useSubmitPrompt', () => {
       await result.current.mutateAsync({ prompt: 'another prompt' })
     })
 
-    expect(api.swarmApi.createSession).not.toHaveBeenCalled()
+    expect(mockCreate).not.toHaveBeenCalled()
     expect(api.swarmApi.submitPrompt).toHaveBeenCalledWith('ses-existing', 'another prompt', undefined, undefined)
   })
 })
 
 describe('useDecidePermission', () => {
   it('calls decidePermission with sessionId, actionId, and decision', async () => {
-    const mockDecide = vi.fn().mockResolvedValue(undefined)
-    vi.spyOn(api.swarmApi, 'decidePermission').mockImplementation(mockDecide)
+    vi.spyOn(api.swarmApi, 'decidePermission').mockResolvedValue(undefined)
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = renderHook(() => useDecidePermission(), { wrapper: makeWrapper(qc) })
@@ -175,49 +71,17 @@ describe('useDecidePermission', () => {
   })
 })
 
-describe('hydrateSession', () => {
-  it('replays message_events into MessageRecords via applyEvent', async () => {
-    const rows: import('@swarm/protocol').MessageEvent[] = [
-      {
-        messageId: 'r1',
-        parentMessageId: null,
-        seq: 1,
-        ts: 1,
-        event: { kind: 'message.created', sessionId: 's', messageId: 'r1', ts: 1, seq: 1 },
-      },
-      {
-        messageId: 'r1',
-        parentMessageId: null,
-        seq: 2,
-        ts: 2,
-        event: {
-          kind: 'message.progress',
-          sessionId: 's',
-          messageId: 'r1',
-          ts: 2,
-          seq: 2,
-          event: { kind: 'llm.message', role: 'user', content: 'hi', ts: 2 },
-        },
-      },
-      {
-        messageId: 'r1',
-        parentMessageId: null,
-        seq: 3,
-        ts: 3,
-        event: { kind: 'message.complete', sessionId: 's', messageId: 'r1', summary: 'done', ts: 3, seq: 3 },
-      },
-    ]
-    const qc = new QueryClient({
-      defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY, retry: false } },
+describe('useCancelRun', () => {
+  it('cancels the run for a session', async () => {
+    vi.spyOn(api.swarmApi, 'cancelRun').mockResolvedValue(undefined)
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { result } = renderHook(() => useCancelRun(), { wrapper: makeWrapper(qc) })
+
+    await act(async () => {
+      await result.current.mutateAsync('ses-9')
     })
-    // The old adapter sources return nothing so the test fails on the assertion
-    // (status !== 'completed') until hydrateSession reads getMessageEvents.
-    vi.spyOn(api.swarmApi, 'getMessageEvents').mockResolvedValue(rows)
 
-    await hydrateSession(qc, 's')
-
-    const records = qc.getQueryData<import('@shared/lib/apply-event').MessageRecord[]>(MESSAGES_KEY) ?? []
-    expect(records.find((r) => r.id === 'r1')?.status).toBe('completed')
-    expect(records.find((r) => r.id === 'r1')?.prompt).toBe('hi')
+    expect(api.swarmApi.cancelRun).toHaveBeenCalledWith('ses-9')
   })
 })

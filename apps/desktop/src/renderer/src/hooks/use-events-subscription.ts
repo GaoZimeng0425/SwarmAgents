@@ -1,43 +1,34 @@
 import { useEffect } from 'react'
-import { applyEvent, type MessageRecord } from '@shared/lib/apply-event'
-import type { UIEvent } from '@swarm/protocol'
-import { SYSTEM_SESSION_ID } from '@swarm/shared'
+import type { AgentWireEvent, UIEvent } from '@swarm/protocol'
+import { isAgentWireEvent } from '@swarm/protocol'
+import { applyWireEvent, type SessionView, SYSTEM_SESSION_ID } from '@swarm/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import { MEMORY_KEY } from '@/hooks/use-memory'
-import { MESSAGES_KEY } from '@/hooks/use-messages'
+import { RUNNING_SESSIONS_KEY, sessionViewKey } from '@/hooks/use-session-view'
 import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { swarmApi } from '@/lib/api'
-import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 import { routeToSection } from '@/stores/settings-dialog'
 
-// Milestone events that warrant a toast for a background session. Streaming
-// noise (progress/usage/tool_call/plan/dispatched) only marks unread.
-const TOAST_KINDS = new Set(['message.created', 'message.complete', 'message.permission_request'])
+// Milestone wire events that warrant a toast for a background session. Streaming
+// noise (turn/message/tool events) only marks the session unread.
+const TOAST_KINDS = new Set<AgentWireEvent['kind']>(['agent_start', 'agent_end', 'permission_request'])
 
-function activityMessage(kind: string, title: string): string {
-  if (kind === 'message.created') return `「${title}」开始了新任务`
-  if (kind === 'message.complete') return `「${title}」任务已完成`
-  return `「${title}」需要你的回复` // message.permission_request
+function activityMessage(kind: AgentWireEvent['kind'], title: string): string {
+  if (kind === 'agent_start') return `「${title}」开始了新任务`
+  if (kind === 'agent_end') return `「${title}」任务已完成`
+  return `「${title}」需要你的回复` // permission_request
 }
 
-// Fire a native OS notification for a render_ui choice card. Guarded by the
-// browser permission; a no-op until the user grants it.
-function notifyChoice(title: string, body: string, messageId: string, onClick: () => void): void {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
-  const n = new Notification(title, { body, tag: `choice-${messageId}` })
-  n.onclick = onClick
-}
-
-function buildPrompt(e: Extract<UIEvent, { kind: 'message.permission_request' }>): PermissionPrompt {
+function buildPrompt(e: Extract<AgentWireEvent, { kind: 'permission_request' }>): PermissionPrompt {
   return {
     actionId: e.actionId,
     sessionId: e.sessionId,
-    messageId: e.messageId,
+    runId: e.runId,
     risk: e.risk,
     summary: e.summary,
     payload: e.payload,
@@ -50,16 +41,6 @@ export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): vo
   const push = usePermissionStore((s) => s.push)
   const navigate = useNavigate()
   const { openSettings } = useSettingsNav()
-
-  // Ask once for OS-notification permission so choice cards can ping the user.
-  // Skip in the quick panel — it's a hidden secondary window that shouldn't
-  // trigger the macOS notification permission prompt.
-  useEffect(() => {
-    if (isQuickPanel) return
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      void Notification.requestPermission()
-    }
-  }, [isQuickPanel])
 
   // swarmagents://chat/<id> deep links. Pull any link that arrived before this
   // mount (cold start), then subscribe to links pushed while the app runs.
@@ -81,9 +62,7 @@ export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): vo
   }, [navigate, isQuickPanel])
 
   // Main → renderer Settings open (menu / deep-link). Mounted app-wide via
-  // EventsBridge, so it works regardless of the current route. Opens the
-  // settings dialog at the mapped section by setting the ?settings= search
-  // param (router-derived now, via useSettingsNav).
+  // EventsBridge, so it works regardless of the current route.
   // Skip in the quick panel — settings navigation is main-window-only.
   useEffect(() => {
     if (isQuickPanel) return
@@ -93,30 +72,68 @@ export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): vo
   }, [openSettings, isQuickPanel])
 
   useEffect(() => {
-    return swarmApi.subscribeEvents((e) => {
-      qc.setQueryData<MessageRecord[]>(MESSAGES_KEY, (prev = []) => applyEvent(prev, e))
+    const setRunning = (sessionId: string, running: boolean): void => {
+      qc.setQueryData<Set<string>>(RUNNING_SESSIONS_KEY, (prev) => {
+        const next = new Set(prev ?? [])
+        if (running) next.add(sessionId)
+        else next.delete(sessionId)
+        return next
+      })
+    }
 
-      // Surface activity in sessions other than the one being viewed: mark the
-      // session unread (dot in the list) and toast on milestone events.
-      // Skip toasts in the quick panel — the main window handles them, and
-      // the hidden panel shouldn't fire invisible toast notifications.
-      if ('sessionId' in e && e.sessionId && e.kind.startsWith('message.')) {
+    // Fold a v3 agent wire event into per-session view state + cross-cutting stores.
+    const handleWireEvent = (e: AgentWireEvent): void => {
+      // Fold into the session's live view — but only when a view cache already
+      // exists (the session is being viewed / recently viewed). Creating one
+      // here from a mid-stream event would strand the history below its first
+      // rowId; unopened sessions get a full catch-up load in useSessionView.
+      qc.setQueryData<SessionView>(sessionViewKey(e.sessionId), (prev) => (prev ? applyWireEvent(prev, e) : prev))
+
+      // Cross-session running set (dashboard / session list live status).
+      if (e.kind === 'agent_start') setRunning(e.sessionId, true)
+      if (e.kind === 'agent_end') setRunning(e.sessionId, false)
+
+      // Live context-fill for the composer ring, without a listSessions refetch.
+      if (e.kind === 'turn_end') {
         const store = useSessionsStore.getState()
-        if (e.sessionId !== store.selectedSessionId) {
-          store.markUnread(e.sessionId)
-          if (!isQuickPanel && TOAST_KINDS.has(e.kind)) {
-            const sid = e.sessionId
-            const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
-            toast(activityMessage(e.kind, title), {
-              id: `activity-${sid}`,
-              action: {
-                label: '查看',
-                onClick: () => void navigate({ to: '/session/$sessionId', params: { sessionId: sid } }),
-              },
-            })
-          }
+        const existing = store.sessions.find((s) => s.id === e.sessionId)
+        if (existing) {
+          store.upsert({
+            ...existing,
+            contextTokens: e.contextTokens ?? existing.contextTokens,
+            contextWindow: e.contextWindow ?? existing.contextWindow,
+          })
         }
       }
+
+      // All risk levels surface in the inline permission panel.
+      if (e.kind === 'permission_request') push(buildPrompt(e))
+
+      // Background-session activity: mark unread + toast on milestones. Skip
+      // toasts in the quick panel (hidden secondary window).
+      const store = useSessionsStore.getState()
+      if (e.sessionId !== store.selectedSessionId) {
+        store.markUnread(e.sessionId)
+        if (!isQuickPanel && TOAST_KINDS.has(e.kind)) {
+          const sid = e.sessionId
+          const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
+          toast(activityMessage(e.kind, title), {
+            id: `activity-${sid}`,
+            action: {
+              label: '查看',
+              onClick: () => void navigate({ to: '/session/$sessionId', params: { sessionId: sid } }),
+            },
+          })
+        }
+      }
+    }
+
+    return swarmApi.subscribeEvents((e: UIEvent) => {
+      if (isAgentWireEvent(e)) {
+        handleWireEvent(e)
+        return
+      }
+      // Non-agent UIEvents: session/memory bookkeeping.
       if (e.kind === 'session.created' || e.kind === 'session.updated') {
         const existing = useSessionsStore.getState().sessions.find((s) => s.id === e.sessionId)
         useSessionsStore.getState().upsert({
@@ -128,52 +145,15 @@ export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): vo
           pinned: existing?.pinned ?? false,
           sortOrder: existing?.sortOrder ?? 0,
           isSystem: e.sessionId === SYSTEM_SESSION_ID,
-          // session.created/updated events don't carry composer settings; keep
-          // whatever the list/optimistic update already stored for this session.
           cwd: existing?.cwd,
           permissionMode: existing?.permissionMode,
           executionMode: existing?.executionMode,
-          // Likewise the usage totals — these events don't carry them, so keep
-          // the last listSessions value rather than blanking the list figure.
           tokensUsed: existing?.tokensUsed,
           usdCents: existing?.usdCents,
         })
       }
       if (e.kind === 'memory.changed') {
         void qc.invalidateQueries({ queryKey: MEMORY_KEY })
-      }
-      // Live-update contextTokens/contextWindow on the session store so the
-      // composer ring refreshes without waiting for a listSessions refetch.
-      if (e.kind === 'message.usage' && e.sessionId) {
-        const store = useSessionsStore.getState()
-        const existing = store.sessions.find((s) => s.id === e.sessionId)
-        if (existing) {
-          store.upsert({
-            ...existing,
-            contextTokens: e.contextTokens ?? existing.contextTokens,
-            contextWindow: e.contextWindow ?? existing.contextWindow,
-          })
-        }
-      }
-      if (e.kind === 'message.permission_request') {
-        // All risk levels (medium + high) surface in the inline permission panel.
-        push(buildPrompt(e))
-      }
-
-      // A render_ui single/multi-select card pings the OS, but only when the
-      // user can't already see it: window unfocused, or a non-active session.
-      // Skip in the quick panel — the main window handles OS notifications.
-      const choice = parseChoiceCard(e)
-      if (!isQuickPanel && choice && 'sessionId' in e && e.sessionId && 'messageId' in e) {
-        const store = useSessionsStore.getState()
-        const sid = e.sessionId
-        if (!document.hasFocus() || sid !== store.selectedSessionId) {
-          const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
-          notifyChoice(title, choice.question, e.messageId, () => {
-            window.focus()
-            void navigate({ to: '/session/$sessionId', params: { sessionId: sid } })
-          })
-        }
       }
     })
   }, [qc, push, navigate, isQuickPanel])

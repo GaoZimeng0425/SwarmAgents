@@ -159,8 +159,8 @@ export function wireSwarmIpc(args: {
 
   const listSessions = (): Promise<import('@swarm/protocol').SessionSummary[]> => serviceClient.listSessions()
 
-  const getMessageEvents = (_e: Electron.IpcMainInvokeEvent, sessionId: string) =>
-    serviceClient.getMessageEvents(sessionId)
+  const getSessionEntries = (_e: Electron.IpcMainInvokeEvent, sessionId: string, afterRowId?: number) =>
+    serviceClient.getSessionEntries(sessionId, afterRowId)
 
   const getUsageStats = (_e: Electron.IpcMainInvokeEvent, rangeDays: number) => serviceClient.getUsageStats(rangeDays)
 
@@ -187,47 +187,30 @@ export function wireSwarmIpc(args: {
     prompt: string,
     attachments?: import('@swarm/protocol').Attachment[],
     options?: import('@swarm/protocol').RunOptions
-  ): Promise<{ messageId: string }> => {
+  ): Promise<{ runId: string }> => {
     if (typeof prompt !== 'string' || prompt.trim().length === 0) {
       throw new Error('prompt must be a non-empty string')
     }
     const trimmedPrompt = prompt.trim()
-    const { messageId } = await serviceClient.submitPrompt(sessionId, trimmedPrompt, attachments, options)
+    const { runId } = await serviceClient.submitPrompt(sessionId, trimmedPrompt, attachments, options)
     log.info({
       msg: 'run submitted',
       sessionId,
-      messageId,
+      runId,
       attachments: attachments?.length ?? 0,
       cwd: options?.cwd ?? null,
       permissionMode: options?.permissionMode ?? 'ask',
       executionMode: options?.executionMode ?? 'direct',
     })
-    return { messageId }
+    return { runId }
   }
 
-  const cancelMessage = async (
-    _e: Electron.IpcMainInvokeEvent,
-    sessionId: string,
-    messageId: string
-  ): Promise<void> => {
+  const cancelRun = async (_e: Electron.IpcMainInvokeEvent, sessionId: string): Promise<void> => {
     try {
-      await serviceClient.cancelMessage(sessionId, messageId)
-      log.info({ msg: 'cancelMessage requested', sessionId, messageId })
+      await serviceClient.cancelRun(sessionId)
+      log.info({ msg: 'cancelRun requested', sessionId })
     } catch (err) {
-      log.warn({ msg: 'cancelMessage failed', sessionId, messageId, err: String(err) })
-    }
-  }
-
-  const promoteQueuedMessage = async (
-    _e: Electron.IpcMainInvokeEvent,
-    sessionId: string,
-    messageId: string
-  ): Promise<void> => {
-    try {
-      await serviceClient.promoteQueuedMessage(sessionId, messageId)
-      log.info({ msg: 'promoteQueuedMessage requested', sessionId, messageId })
-    } catch (err) {
-      log.warn({ msg: 'promoteQueuedMessage failed', sessionId, messageId, err: String(err) })
+      log.warn({ msg: 'cancelRun failed', sessionId, err: String(err) })
     }
   }
 
@@ -250,19 +233,12 @@ export function wireSwarmIpc(args: {
   const cancelCronJob = (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.cancelCronJob(id)
 
   ipcMain.handle('swarm:createSession', () => createSession())
-  ipcMain.handle(
-    'swarm:forkSession',
-    (
-      _e: Electron.IpcMainInvokeEvent,
-      sourceSessionId: string,
-      forkPointMessageId: string,
-      newPrompt: string,
-      opts?: { agentType?: string }
-    ) => serviceClient.forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts)
+  ipcMain.handle('swarm:forkSession', (_e: Electron.IpcMainInvokeEvent, sourceSessionId: string, upToRowId: number) =>
+    serviceClient.forkSession(sourceSessionId, upToRowId)
   )
   ipcMain.handle('swarm:analyzeThread', analyzeThread)
   ipcMain.handle('swarm:listSessions', () => listSessions())
-  ipcMain.handle('swarm:getMessageEvents', getMessageEvents)
+  ipcMain.handle('swarm:getSessionEntries', getSessionEntries)
   ipcMain.handle('swarm:getUsageStats', getUsageStats)
   ipcMain.handle('swarm:deleteSession', deleteSession)
   ipcMain.handle('swarm:renameSession', renameSession)
@@ -270,8 +246,7 @@ export function wireSwarmIpc(args: {
   ipcMain.handle('swarm:updateSessionSettings', updateSessionSettings)
   ipcMain.handle('swarm:reorderSessions', reorderSessions)
   ipcMain.handle('swarm:submitPrompt', submitPrompt)
-  ipcMain.handle('swarm:cancelMessage', cancelMessage)
-  ipcMain.handle('swarm:promoteQueuedMessage', promoteQueuedMessage)
+  ipcMain.handle('swarm:cancelRun', cancelRun)
   ipcMain.handle('swarm:decidePermission', decidePermission)
   ipcMain.handle('swarm:listCronJobsForSession', listCronJobsForSession)
   ipcMain.handle('swarm:listAllCronJobs', () => listAllCronJobs())
@@ -425,7 +400,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:forkSession')
       ipcMain.removeHandler('swarm:analyzeThread')
       ipcMain.removeHandler('swarm:listSessions')
-      ipcMain.removeHandler('swarm:getMessageEvents')
+      ipcMain.removeHandler('swarm:getSessionEntries')
       ipcMain.removeHandler('swarm:getUsageStats')
       ipcMain.removeHandler('swarm:deleteSession')
       ipcMain.removeHandler('swarm:renameSession')
@@ -433,8 +408,7 @@ export function wireSwarmIpc(args: {
       ipcMain.removeHandler('swarm:updateSessionSettings')
       ipcMain.removeHandler('swarm:reorderSessions')
       ipcMain.removeHandler('swarm:submitPrompt')
-      ipcMain.removeHandler('swarm:cancelMessage')
-      ipcMain.removeHandler('swarm:promoteQueuedMessage')
+      ipcMain.removeHandler('swarm:cancelRun')
       ipcMain.removeHandler('swarm:decidePermission')
       ipcMain.removeHandler('swarm:listCronJobsForSession')
       ipcMain.removeHandler('swarm:listAllCronJobs')

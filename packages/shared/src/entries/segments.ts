@@ -22,7 +22,17 @@ export type Segment =
       key: string
       ts: number
     }
-  | { kind: 'event'; label: string; detail: string; key: string; ts: number }
+  | {
+      kind: 'event'
+      label: string
+      detail: string
+      key: string
+      ts: number
+      // Set only for delegation events: lets the renderer re-key on the entry
+      // and lazily load the spawned child session's own view (SubagentBlock).
+      childSessionId?: string
+      agentDefId?: string
+    }
   | { kind: 'error'; label: 'error' | 'stopped'; detail: string; key: string; ts: number }
 
 type ToolSegment = Extract<Segment, { kind: 'tool' }>
@@ -74,7 +84,16 @@ function customEventSegment(entry: Extract<SessionEntry, { type: 'custom' }>, ke
     case 'delegation': {
       const agentDefId = typeof data?.agentDefId === 'string' ? data.agentDefId : 'unknown'
       const prompt = typeof data?.prompt === 'string' ? data.prompt : ''
-      return { kind: 'event', label: 'delegation', detail: `${agentDefId}: ${prompt}`, key, ts }
+      const childSessionId = typeof data?.childSessionId === 'string' ? data.childSessionId : undefined
+      return {
+        kind: 'event',
+        label: 'delegation',
+        detail: `${agentDefId}: ${prompt}`,
+        key,
+        ts,
+        childSessionId,
+        agentDefId,
+      }
     }
     case 'delegation_result': {
       const status = typeof data?.status === 'string' ? data.status : 'unknown'

@@ -1,16 +1,22 @@
-import { applyEvent, type MessageRecord, MESSAGES_KEY } from '@swarm/shared'
 import type { PermissionDecision } from '@swarm/protocol'
-import { useMutation, useQuery, type useQueryClient } from '@tanstack/react-query'
+import { MESSAGES_KEY, type MessageRecord } from '@swarm/shared'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { swarmApi } from '@/lib/api'
 import { usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 
-// Re-export the shared constants so all existing desktop imports resolve
-// to the same keys/types used by mobile.
-export { MESSAGES_KEY }
 export type { MessageRecord }
+// Re-export the shared constants so existing desktop imports keep resolving.
+export { MESSAGES_KEY }
 
+/**
+ * Compat shim during the wire-v3 renderer swap. The global cross-session
+ * MessageRecord cache is gone — transcripts read per-session SessionViews via
+ * useSessionView. Consumers not yet migrated (delegation plan, palette
+ * continue, agent activity) still call this; it now resolves empty. Removed in
+ * Task 9 once every consumer is off the message rails.
+ */
 export function useMessages(): MessageRecord[] {
   const { data } = useQuery<MessageRecord[]>({
     queryKey: MESSAGES_KEY,
@@ -73,19 +79,6 @@ export function useLoadSessions() {
   })
 }
 
-/** Replay a session's message_events into MessageRecords by reducing UIEvents through applyEvent. */
-export async function hydrateSession(qc: ReturnType<typeof useQueryClient>, sessionId: string): Promise<void> {
-  const rows = await swarmApi.getMessageEvents(sessionId)
-  const records = [...rows]
-    .sort((a, b) => a.seq - b.seq)
-    .reduce<MessageRecord[]>((acc, r) => applyEvent(acc, r.event), [])
-  qc.setQueryData<MessageRecord[]>(MESSAGES_KEY, (prev = []) => {
-    const known = new Set(prev.map((t) => t.id))
-    const fresh = records.filter((r) => !known.has(r.id))
-    return [...fresh, ...prev]
-  })
-}
-
 export function useDecidePermission() {
   const remove = usePermissionStore((s) => s.remove)
   return useMutation({
@@ -102,18 +95,9 @@ export function useDecidePermission() {
   })
 }
 
-/** Cancel an in-flight message (aborts the agent run server-side). */
-export function useCancelMessage() {
+/** Cancel the session's in-flight run (aborts the agent run server-side). */
+export function useCancelRun() {
   return useMutation({
-    mutationFn: ({ sessionId, messageId }: { sessionId: string; messageId: string }) =>
-      swarmApi.cancelMessage(sessionId, messageId),
-  })
-}
-
-/** Interrupt the running message and run a queued message next (promotes it to front). */
-export function usePromoteQueuedMessage() {
-  return useMutation({
-    mutationFn: ({ sessionId, messageId }: { sessionId: string; messageId: string }) =>
-      swarmApi.promoteQueuedMessage(sessionId, messageId),
+    mutationFn: (sessionId: string) => swarmApi.cancelRun(sessionId),
   })
 }
