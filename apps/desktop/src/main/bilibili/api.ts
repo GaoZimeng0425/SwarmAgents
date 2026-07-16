@@ -2,9 +2,13 @@
 // Bilibili public web-API client. Injects the user's cookies plus a desktop
 // UA + Referer (required to avoid -412 风控). All endpoints wrap responses as
 // { code, message, data }; a non-zero code is an error.
+
+import { createLogger } from '@shared/logger'
 import type { BiliCredentials, BiliFavFolder, BiliLoginStatus, BiliVideo } from '@swarm/protocol'
 
 import { encWbi, keyFromUrl } from './wbi'
+
+const log = createLogger({ process: 'main' }).child({ component: 'bilibili-api' })
 
 export const BILI_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
@@ -111,12 +115,14 @@ export class NavApiError extends Error {
 type FavFolderRow = { id: number; title: string; media_count: number }
 
 export async function getFavFolders(c: BiliCredentials, mid: number): Promise<BiliFavFolder[]> {
+  log.info({ msg: 'fetching fav folders', mid })
   const data = await getSigned<{ list: FavFolderRow[] | null }>(
     'https://api.bilibili.com/x/v3/fav/folder/created/list-all',
     { up_mid: String(mid) },
     c
   )
   const list = data.list ?? []
+  log.info({ msg: 'fav folders loaded', count: list.length, mid })
   return list.map((f) => ({ id: f.id, title: f.title, count: f.media_count }))
 }
 
@@ -132,12 +138,14 @@ type FavMediaRow = {
 }
 
 export async function getFavResources(c: BiliCredentials, mediaId: number, folderTitle: string): Promise<BiliVideo[]> {
+  log.info({ msg: 'fetching fav resources', mediaId, folder: folderTitle })
   const data = await getSigned<{ medias: FavMediaRow[] | null }>(
     'https://api.bilibili.com/x/v3/fav/resource/list',
     { media_id: String(mediaId), ps: '20', pn: '1', platform: 'web' },
     c
   )
   const medias = data.medias ?? []
+  log.info({ msg: 'fav resources loaded', mediaId, folder: folderTitle, count: medias.length })
   return medias.map((m) => ({
     bvid: m.bvid,
     title: m.title,
@@ -164,8 +172,10 @@ type ToViewRow = {
 }
 
 export async function getWatchLater(c: BiliCredentials): Promise<BiliVideo[]> {
+  log.info({ msg: 'fetching watch-later' })
   const data = await get<{ list: ToViewRow[] | null }>('https://api.bilibili.com/x/v2/history/toview', c)
   const list = data.list ?? []
+  log.info({ msg: 'watch-later loaded', count: list.length })
   return list.map((v) => ({
     bvid: v.bvid,
     title: v.title,
@@ -190,13 +200,18 @@ export function invalidateWbiKeys(): void {
 }
 
 export async function getWbiKeys(c: BiliCredentials): Promise<{ imgKey: string; subKey: string }> {
-  if (wbiCache && Date.now() < wbiCache.expiresAt) return wbiCache.keys
+  if (wbiCache && Date.now() < wbiCache.expiresAt) {
+    log.debug({ msg: 'wbi keys cache hit', expiresAt: wbiCache.expiresAt })
+    return wbiCache.keys
+  }
+  log.info({ msg: 'wbi keys cache miss, fetching from nav' })
   const data = await get<{ wbi_img: { img_url: string; sub_url: string } }>(
     'https://api.bilibili.com/x/web-interface/nav',
     c
   )
   const keys = { imgKey: keyFromUrl(data.wbi_img.img_url), subKey: keyFromUrl(data.wbi_img.sub_url) }
   wbiCache = { keys, expiresAt: Date.now() + WBI_TTL_MS }
+  log.info({ msg: 'wbi keys cached', ttlMs: WBI_TTL_MS })
   return keys
 }
 
@@ -213,12 +228,28 @@ async function getSigned<T>(baseUrl: string, params: Record<string, string>, c: 
   try {
     return await get<T>(`${baseUrl}?${query}`, c)
   } catch (err) {
-    // Retry once with fresh keys; if it still fails, surface the original error.
+    // First signed request failed — most likely the cached keys were rotated
+    // mid-TTL, or risk-control (-412/-352). Invalidate and retry once with
+    // fresh keys; log the attempt so the retry path is traceable.
+    log.warn({
+      msg: 'signed request failed, retrying with fresh wbi keys',
+      endpoint: baseUrl.split('/').pop() ?? baseUrl,
+      err: err instanceof Error ? err.message : String(err),
+    })
     invalidateWbiKeys()
     const retryQuery = await sign()
-    return get<T>(`${baseUrl}?${retryQuery}`, c).catch(() => {
+    try {
+      const result = await get<T>(`${baseUrl}?${retryQuery}`, c)
+      log.info({ msg: 'signed request retry succeeded', endpoint: baseUrl.split('/').pop() ?? baseUrl })
+      return result
+    } catch (retryErr) {
+      log.error({
+        msg: 'signed request retry failed',
+        endpoint: baseUrl.split('/').pop() ?? baseUrl,
+        err: retryErr instanceof Error ? retryErr.message : String(retryErr),
+      })
       throw err
-    })
+    }
   }
 }
 
