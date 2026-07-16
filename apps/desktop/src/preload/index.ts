@@ -349,27 +349,18 @@ const swarm: SwarmBridge = {
     ipcRenderer.invoke('swarm:submitPrompt', sessionId, prompt, attachments, options) as Promise<SubmitPromptResult>,
   analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) =>
     ipcRenderer.invoke('swarm:analyzeThread', input) as Promise<import('@swarm/protocol').AnalyzeThreadResult>,
-  cancelMessage: (sessionId, messageId) =>
-    ipcRenderer.invoke('swarm:cancelMessage', sessionId, messageId) as Promise<void>,
-  promoteQueuedMessage: (sessionId, messageId) =>
-    ipcRenderer.invoke('swarm:promoteQueuedMessage', sessionId, messageId) as Promise<void>,
+  cancelRun: (sessionId) => ipcRenderer.invoke('swarm:cancelRun', sessionId) as Promise<void>,
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
     ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
-  forkSession: (
-    sourceSessionId: string,
-    forkPointMessageId: string,
-    newPrompt: string,
-    opts?: { agentType?: string }
-  ) =>
-    ipcRenderer.invoke('swarm:forkSession', sourceSessionId, forkPointMessageId, newPrompt, opts) as Promise<{
-      sessionId: string
-      messageId: string
-    }>,
+  forkSession: (sourceSessionId: string, upToRowId: number) =>
+    ipcRenderer.invoke('swarm:forkSession', sourceSessionId, upToRowId) as Promise<{ sessionId: string }>,
   sessions: {
     list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('@swarm/protocol').SessionSummary[]>,
     create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
-    getMessageEvents: (sessionId: string) =>
-      ipcRenderer.invoke('swarm:getMessageEvents', sessionId) as Promise<import('@swarm/protocol').MessageEvent[]>,
+    getSessionEntries: (sessionId: string, afterRowId?: number) =>
+      ipcRenderer.invoke('swarm:getSessionEntries', sessionId, afterRowId) as Promise<
+        import('@swarm/protocol').EntryRow[]
+      >,
     delete: (sessionId: string) => ipcRenderer.invoke('swarm:deleteSession', sessionId) as Promise<void>,
     rename: (sessionId: string, title: string) =>
       ipcRenderer.invoke('swarm:renameSession', sessionId, title) as Promise<void>,

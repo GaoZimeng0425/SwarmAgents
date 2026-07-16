@@ -196,7 +196,7 @@ export type ArtifactEntry = {
   origin: string
 }
 
-export type SubmitPromptResult = { messageId: string }
+export type SubmitPromptResult = { runId: string }
 
 export type ProvidersSetResult = { ok: true } | { ok: false; code: 'invalid' | 'persist_failed'; message: string }
 
@@ -450,19 +450,13 @@ export type SwarmBridge = {
     options?: RunOptions
   ): Promise<SubmitPromptResult>
   analyzeThread(input: AnalyzeThreadInput): Promise<AnalyzeThreadResult>
-  cancelMessage(sessionId: string, messageId: string): Promise<void>
-  promoteQueuedMessage(sessionId: string, messageId: string): Promise<void>
-  forkSession(
-    sourceSessionId: string,
-    forkPointMessageId: string,
-    newPrompt: string,
-    opts?: { agentType?: string }
-  ): Promise<{ sessionId: string; messageId: string }>
+  cancelRun(sessionId: string): Promise<void>
+  forkSession(sourceSessionId: string, upToRowId: number): Promise<{ sessionId: string }>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
   sessions: {
     list(): Promise<SessionSummary[]>
     create(): Promise<{ sessionId: string }>
-    getMessageEvents(sessionId: string): Promise<import('./task').MessageEvent[]>
+    getSessionEntries(sessionId: string, afterRowId?: number): Promise<import('./session-entry').EntryRow[]>
     delete(sessionId: string): Promise<void>
     rename(sessionId: string, title: string): Promise<void>
     setPinned(sessionId: string, pinned: boolean): Promise<void>

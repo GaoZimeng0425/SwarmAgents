@@ -76,18 +76,12 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         registerProvider(provider)
         return service.createSession(provider)
       }
-      case 'forkToNewSession': {
-        const [sourceSessionId, forkPointMessageId, newPrompt, opts] = args as [
-          string,
-          string,
-          string,
-          { agentType?: string } | undefined,
-        ]
-        return service.forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts)
+      case 'forkSession': {
+        const [sourceSessionId, upToRowId] = args as [string, number]
+        return service.forkSession(sourceSessionId, upToRowId)
       }
       case 'submitPrompt': {
-        // The method name stays (ServiceMethod stability for the renderer API),
-        // but the call maps to SessionService.submitPrompt and returns { messageId }.
+        // Routes to SessionService.submitPrompt (entries-driven) and returns { runId }.
         const [sessionId, prompt, attachments, options] = args as [
           string,
           string,
@@ -135,9 +129,9 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         return cfg.researchedRepoNames()
       case 'listSessions':
         return service.listSessions()
-      case 'getMessageEvents': {
-        const [sessionId] = args as [string]
-        return service.getMessageEvents(sessionId)
+      case 'getSessionEntries': {
+        const [sessionId, afterRowId] = args as [string, number | undefined]
+        return service.getSessionEntries(sessionId, afterRowId)
       }
       case 'exportSessionMarkdown': {
         const [sessionId] = args as [string]
@@ -173,14 +167,9 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
         service.resolvePermission(sessionId, actionId, decision)
         return { ok: true }
       }
-      case 'cancelMessage': {
-        const [sessionId, messageId] = args as [string, string]
-        service.cancelMessage(sessionId, messageId)
-        return { ok: true }
-      }
-      case 'promoteQueuedMessage': {
-        const [sessionId, taskId] = args as [string, string]
-        service.promoteQueuedMessage(sessionId, taskId)
+      case 'cancelRun': {
+        const [sessionId] = args as [string]
+        service.cancelRun(sessionId)
         return { ok: true }
       }
       case 'setMcpServers': {

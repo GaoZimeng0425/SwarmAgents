@@ -13,15 +13,14 @@ export type ServiceMethod =
   | 'createSession'
   | 'submitPrompt'
   | 'listSessions'
-  | 'getMessageEvents'
+  | 'getSessionEntries'
   | 'deleteSession'
   | 'renameSession'
   | 'setSessionPinned'
   | 'updateSessionSettings'
   | 'reorderSessions'
   | 'decidePermission'
-  | 'cancelMessage'
-  | 'promoteQueuedMessage'
+  | 'cancelRun'
   | 'setMcpServers'
   | 'getMcpStatus'
   | 'setWebSearchConfig'
@@ -55,7 +54,7 @@ export type ServiceMethod =
   | 'getRepoResearch'
   | 'researchedRepoNames'
   | 'exportSessionMarkdown'
-  | 'forkToNewSession'
+  | 'forkSession'
 
 // Methods only Main can serve — the service process calls these when a tool
 // needs data only Main holds (the gmail/calendar cache, QWeather config).

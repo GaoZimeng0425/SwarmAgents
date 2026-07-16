@@ -6,9 +6,9 @@ import { createDispatcher } from './dispatcher'
 function mockService(): SessionService {
   return {
     createSession: vi.fn().mockReturnValue({ sessionId: 'ses-1' }),
-    submitPrompt: vi.fn().mockReturnValue({ messageId: 'run-1' }),
+    submitPrompt: vi.fn().mockReturnValue({ runId: 'run-1' }),
     resolvePermission: vi.fn(),
-    cancelMessage: vi.fn(),
+    cancelRun: vi.fn(),
     listSessions: vi.fn().mockReturnValue([{ id: 'ses-1' }]),
   } as unknown as SessionService
 }
@@ -73,12 +73,12 @@ describe('dispatcher', () => {
     expect(result).toEqual([{ id: 'ceo' }])
   })
 
-  it('submitPrompt maps to submitPrompt and returns { messageId }', () => {
+  it('submitPrompt maps to submitPrompt and returns { runId }', () => {
     const service = mockService()
     const dispatch = createDispatcher({ service, registerProvider: vi.fn(), ...mcpDeps() })
     const result = dispatch('submitPrompt', ['ses-1', 'do it'])
     expect(service.submitPrompt).toHaveBeenCalledWith('ses-1', 'do it', undefined, undefined, undefined)
-    expect(result).toEqual({ messageId: 'run-1' })
+    expect(result).toEqual({ runId: 'run-1' })
   })
 
   it('submitPrompt forwards composer options to submitPrompt', () => {
@@ -103,11 +103,11 @@ describe('dispatcher', () => {
     expect(dispatch('listSessions', [])).toEqual([{ id: 'ses-1' }])
   })
 
-  it('cancelMessage routes to service.cancelMessage and returns ok', () => {
+  it('cancelRun routes to service.cancelRun and returns ok', () => {
     const service = mockService()
     const dispatch = createDispatcher({ service, registerProvider: vi.fn(), ...mcpDeps() })
-    const result = dispatch('cancelMessage', ['ses-1', 'run-1'])
-    expect(service.cancelMessage).toHaveBeenCalledWith('ses-1', 'run-1')
+    const result = dispatch('cancelRun', ['ses-1'])
+    expect(service.cancelRun).toHaveBeenCalledWith('ses-1')
     expect(result).toEqual({ ok: true })
   })
 

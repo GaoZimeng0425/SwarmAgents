@@ -28,18 +28,13 @@ export type ServiceClient = {
   connect(): Promise<void>
   disconnect(): void
   createSession(provider: ProviderInjection): Promise<{ sessionId: string }>
-  forkToNewSession(
-    sourceSessionId: string,
-    forkPointMessageId: string,
-    newPrompt: string,
-    opts?: { agentType?: string }
-  ): Promise<{ sessionId: string; messageId: string }>
+  forkSession(sourceSessionId: string, upToRowId: number): Promise<{ sessionId: string }>
   submitPrompt(
     sessionId: string,
     prompt: string,
     attachments?: import('./types/task').Attachment[],
     options?: import('./types/task').RunOptions
-  ): Promise<{ messageId: string }>
+  ): Promise<{ runId: string }>
   analyzeThread(req: import('./types/ui').AnalyzeThreadRequest): Promise<import('./types/ui').AnalyzeThreadResult>
   collectArticle(input: ArticleSource): Promise<CollectArticleResult>
   analyzeArticle(req: AnalyzeArticleRequest): Promise<AnalyzeArticleResult>
@@ -51,7 +46,7 @@ export type ServiceClient = {
   getRepoResearch(repoName: string): Promise<{ research: RepoResearch | null; researchedAt: string | null }>
   researchedRepoNames(): Promise<string[]>
   listSessions(): Promise<import('./types/ui').SessionSummary[]>
-  getMessageEvents(sessionId: string): Promise<import('./types/task').MessageEvent[]>
+  getSessionEntries(sessionId: string, afterRowId?: number): Promise<import('./types/session-entry').EntryRow[]>
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
   deleteSession(sessionId: string): Promise<void>
   renameSession(sessionId: string, title: string): Promise<void>
@@ -59,8 +54,7 @@ export type ServiceClient = {
   updateSessionSettings(sessionId: string, settings: import('./types/ui').SessionSettings): Promise<void>
   reorderSessions(orderedIds: string[]): Promise<void>
   decidePermission(sessionId: string, actionId: string, decision: PermissionDecision): Promise<void>
-  cancelMessage(sessionId: string, messageId: string): Promise<void>
-  promoteQueuedMessage(sessionId: string, messageId: string): Promise<void>
+  cancelRun(sessionId: string): Promise<void>
   setMcpServers(configs: McpServerConfig[]): Promise<void>
   getMcpStatus(): Promise<McpServerStatus[]>
   setWebSearchConfig(config: WebSearchInjection): Promise<void>
@@ -114,8 +108,7 @@ export function createServiceClient(cfg: {
     disconnect: () => peer.disconnect(),
     registerHandler: (method, fn) => peer.registerHandler(method, fn),
     createSession: (provider) => peer.call('createSession', [provider]),
-    forkToNewSession: (sourceSessionId, forkPointMessageId, newPrompt, opts) =>
-      peer.call('forkToNewSession', [sourceSessionId, forkPointMessageId, newPrompt, opts]),
+    forkSession: (sourceSessionId, upToRowId) => peer.call('forkSession', [sourceSessionId, upToRowId]),
     submitPrompt: (sessionId, prompt, attachments, options) =>
       peer.call('submitPrompt', [sessionId, prompt, attachments, options]),
     analyzeThread: (req) => peer.call('analyzeThread', [req]),
@@ -131,7 +124,7 @@ export function createServiceClient(cfg: {
     getRepoResearch: (repoName) => peer.call('getRepoResearch', [repoName]),
     researchedRepoNames: () => peer.call('researchedRepoNames', []),
     listSessions: () => peer.call('listSessions', []),
-    getMessageEvents: (sessionId) => peer.call('getMessageEvents', [sessionId]),
+    getSessionEntries: (sessionId, afterRowId) => peer.call('getSessionEntries', [sessionId, afterRowId]),
     exportSessionMarkdown: (sessionId) => peer.call('exportSessionMarkdown', [sessionId]),
     async deleteSession(sessionId) {
       await peer.call('deleteSession', [sessionId])
@@ -151,11 +144,8 @@ export function createServiceClient(cfg: {
     async decidePermission(sessionId, actionId, decision) {
       await peer.call('decidePermission', [sessionId, actionId, decision])
     },
-    async cancelMessage(sessionId, messageId) {
-      await peer.call('cancelMessage', [sessionId, messageId])
-    },
-    async promoteQueuedMessage(sessionId, messageId) {
-      await peer.call('promoteQueuedMessage', [sessionId, messageId])
+    async cancelRun(sessionId) {
+      await peer.call('cancelRun', [sessionId])
     },
     async setMcpServers(configs) {
       await peer.call('setMcpServers', [configs])
