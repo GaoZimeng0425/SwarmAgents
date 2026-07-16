@@ -285,6 +285,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
   // v3: usage lives on 'usage' custom entries in session_entries (spec §3.6),
   // keyed by data.runId — the direct heir of the retired per-message message.usage
   // rows, so the aggregation shape (latest-per-key snapshot) is unchanged.
+  // contextTokens / contextWindow come from the session's single newest usage
+  // entry (by id) — the current context-occupancy snapshot the composer's fill
+  // ring reads at session load. User sessions have only top-level usage entries
+  // (sub-agent runs live in hidden child sessions), so no parent filtering.
   const stmtListSessions = db.prepare(
     `WITH latest_usage AS (
         SELECT session_id,
@@ -302,7 +306,13 @@ export function createConversationStore(dbPath: string): ConversationStore {
             s.agent_type AS agentType,
             (SELECT COUNT(DISTINCT lu.runId) FROM latest_usage lu WHERE lu.session_id = s.id) AS taskCount,
             COALESCE((SELECT SUM(lu.tokens)   FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS tokensUsed,
-            COALESCE((SELECT SUM(lu.usdCents) FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS usdCents
+            COALESCE((SELECT SUM(lu.usdCents) FROM latest_usage lu WHERE lu.session_id = s.id), 0) AS usdCents,
+            (SELECT json_extract(entry, '$.data.contextTokens') FROM session_entries e
+              WHERE e.session_id = s.id AND e.type = 'custom' AND json_extract(e.entry, '$.customType') = 'usage'
+              ORDER BY e.id DESC LIMIT 1) AS contextTokens,
+            (SELECT json_extract(entry, '$.data.contextWindow') FROM session_entries e
+              WHERE e.session_id = s.id AND e.type = 'custom' AND json_extract(e.entry, '$.customType') = 'usage'
+              ORDER BY e.id DESC LIMIT 1) AS contextWindow
        FROM sessions s
       WHERE s.status != 'ended' AND s.kind = 'user'
       ORDER BY s.pinned DESC, s.sort_order ASC`
@@ -372,6 +382,8 @@ export function createConversationStore(dbPath: string): ConversationStore {
         agentType: (r.agentType as string | null) ?? undefined,
         tokensUsed: r.tokensUsed as number,
         usdCents: r.usdCents as number,
+        contextTokens: (r.contextTokens as number | null) ?? undefined,
+        contextWindow: (r.contextWindow as number | null) ?? undefined,
       }))
     },
     setSessionSettings(id, settings) {
