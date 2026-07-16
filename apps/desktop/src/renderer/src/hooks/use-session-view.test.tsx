@@ -96,6 +96,47 @@ describe('useSessionView', () => {
     expect(getEntries).toHaveBeenCalledWith('s1', 1)
   })
 
+  it('does not strand early rows when a live entry_appended races the catch-up load (open a running session)', async () => {
+    // Catch-up load is deferred: getSessionEntries resolves only when we say so,
+    // so a live event can arrive first — the exact "open an actively-running
+    // session" race. The empty seed must NOT be in the cache, or the live event
+    // would anchor the cursor on it and the catch-up would drop rows below.
+    let resolveEntries: (rows: EntryRow[]) => void = () => {}
+    vi.spyOn(api.swarmApi, 'getSessionEntries').mockReturnValue(
+      new Promise<EntryRow[]>((resolve) => {
+        resolveEntries = resolve
+      })
+    )
+
+    const qc = newQc()
+    const { result } = renderHook(() => useSessionView('s1'), { wrapper: makeWrapper(qc) })
+
+    // While the catch-up is still pending, a live entry_appended (rowId 5) folds
+    // through the SAME guard use-events-subscription uses. With a persisted empty
+    // seed this would anchor cursor=5; the placeholder keeps prev undefined so
+    // the guard drops it (it will arrive in the catch-up rows anyway).
+    const live: AgentWireEvent = { kind: 'entry_appended', sessionId: 's1', rowId: 5, entry: userRow(5, 'five').entry }
+    act(() => {
+      qc.setQueryData<SessionView>(sessionViewKey('s1'), (prev) => (prev ? applyWireEvent(prev, live) : prev))
+    })
+
+    // The catch-up resolves with the full log rows 1..5.
+    await act(async () => {
+      resolveEntries([
+        userRow(1, 'one'),
+        userRow(2, 'two'),
+        userRow(3, 'three'),
+        userRow(4, 'four'),
+        userRow(5, 'five'),
+      ])
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(result.current.view.entries.map((e) => e.rowId)).toEqual([1, 2, 3, 4, 5]))
+    expect(result.current.view.cursor).toBe(5)
+    expect(result.current.view.gapDetected).toBe(false)
+  })
+
   it('streams an in-place assistant message, then finalizes it via entry_appended', async () => {
     vi.spyOn(api.swarmApi, 'getSessionEntries').mockResolvedValue([userRow(1, 'hi')])
     const qc = newQc()

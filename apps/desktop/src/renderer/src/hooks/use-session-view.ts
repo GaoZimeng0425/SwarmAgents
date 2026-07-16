@@ -29,11 +29,19 @@ export function useSessionView(sessionId: string | null): { view: SessionView; s
   // by the catch-up effect below and by use-events-subscription's live folding.
   // (A fetching queryFn would clobber those setQueryData writes when it
   // resolved, so the loading is driven from the effect instead.)
+  //
+  // The empty seed is `placeholderData`, NOT `initialData`: placeholderData is
+  // returned as `data` but is NOT written to the cache, so `qc.getQueryData`
+  // stays undefined until the catch-up hydrate lands. That keeps
+  // use-events-subscription's `prev ? applyWireEvent(prev, e) : prev` guard
+  // dropping live events until history is loaded — otherwise a mid-stream
+  // entry_appended would anchor the cursor on the empty view before catch-up,
+  // permanently stranding the rows below it (the "open a running session" case).
   const { data } = useQuery<SessionView>({
     queryKey: sessionId ? sessionViewKey(sessionId) : (['session-view', '__none__'] as const),
     queryFn: () => emptySessionView(),
     enabled: false,
-    initialData: emptySessionView,
+    placeholderData: emptySessionView,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: Number.POSITIVE_INFINITY,
   })
