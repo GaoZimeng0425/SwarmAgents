@@ -52,14 +52,15 @@ export type SessionAgentDeps = {
     maxTurns: number
     streamFn?: StreamFn // tests inject a fake here
   }
-  hooks?: {
-    // Task 4 fills this in; the wrapper below always counts the call attempt
-    // (ported semantics of engine.ts's `used.calls += 1` in beforeToolCall)
-    // regardless of whether a real hook is wired yet.
+  /**
+   * Per-run hook factory: called once per runOnce() with this run's id and its
+   * live `used` accumulator (the SAME object usageSnapshot() mutates — see
+   * run-hooks.ts's createRunHooks, which is expected to read/write `used`
+   * directly for its budget gate, and to call `abortRun` on overrun). Absent
+   * in tests that don't need a gate; both hooks are then no-ops.
+   */
+  hooks?: (ctx: { runId: string; used: ConsumedResources }) => {
     beforeToolCall?: Agent['beforeToolCall']
-    // Forwarded as-is (no local bookkeeping needed, unlike beforeToolCall's
-    // turnCalls counter). Built per run via run-hooks.ts's createRunHooks,
-    // whose onPlanTodos callback should route back into appendPlanTodos below.
     afterToolCall?: Agent['afterToolCall']
   }
   log: Logger
@@ -93,11 +94,17 @@ export class SessionAgent {
   private lastResult: RunResult | null = null
   private turns = 0
   private maxTurns = 25
-  private forcedStatus: RunStatus | null = null
-  // Per-run usage accumulators (reset in runOnce; ported semantics from
-  // message-engine/engine.ts:104-121,256-268, deleted in Task 9).
-  private turnUsed: ConsumedResources = emptyUsed()
-  private turnCalls = 0
+  // Carries a custom reason so a forced terminal (max-iterations, or a
+  // run-hooks.ts budget gate calling abortRun()) can report exactly why,
+  // instead of collapsing every forced stop to the same fixed string.
+  private forcedStatus: { status: RunStatus; reason: string } | null = null
+  // Per-run usage accumulator (reset in runOnce; ported semantics from
+  // message-engine/engine.ts:104-121,256-268, deleted in Task 9). The SAME
+  // object is handed to this run's hooks (see `hooks` in SessionAgentDeps) so
+  // a run-hooks.ts budget gate and usageSnapshot() share one source of truth
+  // — no separate/duplicate call or cost counters.
+  private used: ConsumedResources = emptyUsed()
+  private currentHooks: ReturnType<NonNullable<SessionAgentDeps['hooks']>> | undefined
   private contextTokens = 0
   private runStartedAt = 0
   private currentModel: Model<Api> | undefined
@@ -189,6 +196,17 @@ export class SessionAgent {
     })
   }
 
+  /**
+   * Force the current run to end early with a caller-supplied reason (e.g. a
+   * run-hooks.ts budget gate tripping). Generalizes the max-iterations guard
+   * in `prepareNextTurn` below to an arbitrary reason instead of a fixed string.
+   */
+  abortRun(reason: string): void {
+    this.forcedStatus = { status: 'cancelled', reason }
+    this.deps.log.warn({ msg: 'run force-aborted', sessionId: this.deps.sessionId, runId: this.runId, reason })
+    this.agent?.abort()
+  }
+
   private appendMessageOnce(message: AgentMessage): void {
     if (typeof message !== 'object' || message === null) return
     if (this.appended.has(message)) return
@@ -208,17 +226,20 @@ export class SessionAgent {
       convertToLlm,
       ...(cfg.streamFn ? { streamFn: cfg.streamFn } : {}),
       getApiKey: () => this.currentApiKey,
+      // Reads this.currentHooks fresh on every call (not captured once at
+      // Agent-construction time): the Agent instance is cached/reused across
+      // runs (see runOnce's `this.agent ??= ...`), but currentHooks is rebuilt
+      // per run in runOnce so each run's gate sees its own runId/used.
       beforeToolCall: async (ctx, signal) => {
-        this.turnCalls += 1
-        return (await this.deps.hooks?.beforeToolCall?.(ctx, signal)) ?? undefined
+        return (await this.currentHooks?.beforeToolCall?.(ctx, signal)) ?? undefined
       },
       afterToolCall: async (ctx, signal) => {
-        return (await this.deps.hooks?.afterToolCall?.(ctx, signal)) ?? undefined
+        return (await this.currentHooks?.afterToolCall?.(ctx, signal)) ?? undefined
       },
       prepareNextTurn: () => {
         this.turns += 1
         if (this.turns >= this.maxTurns) {
-          this.forcedStatus = 'cancelled'
+          this.forcedStatus = { status: 'cancelled', reason: 'max iterations reached' }
           this.deps.log.warn({
             msg: 'max iterations reached, aborting',
             sessionId: this.deps.sessionId,
@@ -325,11 +346,11 @@ export class SessionAgent {
   private async runOnce(): Promise<RunResult & { discardAgent?: boolean }> {
     this.runId = uuidv7()
     this.turns = 0
-    this.turnCalls = 0
-    this.turnUsed = emptyUsed()
+    this.used = emptyUsed()
     this.contextTokens = 0
     this.runStartedAt = Date.now()
     this.forcedStatus = null
+    this.currentHooks = this.deps.hooks?.({ runId: this.runId, used: this.used })
     const cfg = this.deps.buildAgentConfig()
     this.maxTurns = cfg.maxTurns
     this.currentModel = cfg.model
@@ -379,7 +400,14 @@ export class SessionAgent {
       // message's own errorMessage says — max-iterations is SessionAgent's
       // own guard firing, not a provider-reported failure, so it must not be
       // overridden by whatever stopReason/errorMessage pi's abort produced.
-      if (this.forcedStatus) return this.finishRun(this.forcedStatus, 'max iterations reached')
+      // Type assertion, not just a local alias: TS's control-flow narrowing for
+      // `this.x` sees the `this.forcedStatus = null` reset at the top of this
+      // method and — since it can't see abortRun()/prepareNextTurn() mutating
+      // it from inside the `await` above — keeps treating it as statically
+      // `null` here, narrowing this whole branch to `never`. It genuinely can
+      // change (that's the point of forcedStatus), so re-assert the real type.
+      const forced = this.forcedStatus as { status: RunStatus; reason: string } | null
+      if (forced) return this.finishRun(forced.status, forced.reason)
       if (last?.stopReason === 'error')
         return { ...this.finishRun('failed', last.errorMessage ?? 'request failed'), discardAgent: true }
       if (last?.stopReason === 'aborted') return this.finishRun('cancelled', 'Stopped by user.')
@@ -440,17 +468,17 @@ export class SessionAgent {
   } {
     const usage = (message as { usage?: Usage }).usage
     if (usage) {
-      this.turnUsed = {
-        ...this.turnUsed,
-        tokens: usage.totalTokens,
-        usdCents: this.turnUsed.usdCents + Math.round(usage.cost.total * 100),
-        cacheRead: usage.cacheRead,
-        cacheWrite: usage.cacheWrite,
-      }
+      this.used.tokens = usage.totalTokens
+      this.used.usdCents += Math.round(usage.cost.total * 100)
+      this.used.cacheRead = usage.cacheRead
+      this.used.cacheWrite = usage.cacheWrite
       this.contextTokens = usage.input + usage.cacheRead + usage.cacheWrite + usage.output
     }
+    this.used.wallMs = Date.now() - this.runStartedAt
     return {
-      used: { ...this.turnUsed, calls: this.turnCalls, wallMs: Date.now() - this.runStartedAt },
+      // Shallow copy: the wire event must not alias the live accumulator that
+      // run-hooks.ts's budget gate keeps mutating for the rest of the run.
+      used: { ...this.used },
       contextTokens: usage ? this.contextTokens : undefined,
       contextWindow: this.currentModel?.contextWindow,
       model: this.currentModel?.id,

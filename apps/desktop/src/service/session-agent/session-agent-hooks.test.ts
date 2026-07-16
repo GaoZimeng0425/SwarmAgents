@@ -1,8 +1,8 @@
 import { createLogger } from '@shared/logger'
-import type { AgentWireEvent, PlanTodo } from '@swarm/protocol'
+import type { AgentWireEvent, PlanTodo, ResourceBudget } from '@swarm/protocol'
 import Database from 'better-sqlite3'
 import type { Logger } from 'pino'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hook-capturing mock (same style as message-engine/engine.test.ts): swaps out
 // only `Agent` so beforeToolCall/afterToolCall passed to its constructor can be
@@ -14,6 +14,7 @@ vi.mock('@earendil-works/pi-agent-core', async (importOriginal) => {
   return { ...actual, Agent: MockAgent }
 })
 
+import { createRunHooks } from './run-hooks'
 import { SessionAgent, type SessionAgentDeps } from './session-agent'
 import { createEntryStore, ensureEntriesSchema } from './sqlite-storage'
 
@@ -23,8 +24,17 @@ function silentLogger(): Logger {
   return log
 }
 
-type Hook = (ctx: { toolCall: { name: string }; args?: unknown; result?: unknown }, signal?: AbortSignal) => Promise<unknown>
+type BlockResult = { block?: boolean; reason?: string } | undefined
+type Hook = (
+  ctx: { toolCall: { name: string }; args?: unknown; result?: unknown },
+  signal?: AbortSignal
+) => Promise<BlockResult>
 
+beforeEach(() => {
+  MockAgent.mockReset()
+})
+
+/** Captures afterToolCall for direct invocation, and auto-completes the run (no tool calls during continue()). */
 function installAgent(): { getAfterToolCall: () => Hook } {
   let afterToolCall: Hook = async () => undefined
   MockAgent.mockImplementation(function (this: Record<string, unknown>, opts: { afterToolCall: Hook }) {
@@ -51,12 +61,68 @@ function installAgent(): { getAfterToolCall: () => Hook } {
   return { getAfterToolCall: () => afterToolCall }
 }
 
-function makeDeps(over: Partial<SessionAgentDeps> = {}): SessionAgentDeps {
+/**
+ * Drives one simulated turn through the SessionAgent-wrapped beforeToolCall,
+ * plus an `emitUsage` escape hatch to simulate a turn_end usage/cost report
+ * (as the real pi Agent would emit) before the tool call — used to prove the
+ * shared `used` object flows from usageSnapshot() into run-hooks.ts's budget
+ * gate. Finishes with an 'aborted' assistant message iff any driven call was
+ * blocked, mirroring what a real Agent does when a hook blocks it mid-turn.
+ */
+function installDrivenAgent(
+  driveTurn: (ctx: { beforeToolCall: Hook; emitUsage: (costCents: number) => void }) => Promise<void>
+): void {
+  MockAgent.mockImplementation(function (this: Record<string, unknown>, opts: { beforeToolCall: Hook }) {
+    let listener: (e: unknown) => void = () => undefined
+    const state = { messages: [] as unknown[], model: undefined }
+    this.subscribe = (fn: (e: unknown) => void) => {
+      listener = fn
+      return () => undefined
+    }
+    this.abort = vi.fn()
+    this.continue = vi.fn(async () => {
+      let blocked = false
+      const wrappedBeforeToolCall: Hook = async (ctx, signal) => {
+        const result = await opts.beforeToolCall(ctx, signal)
+        if (result?.block) blocked = true
+        return result
+      }
+      const emitUsage = (costCents: number) => {
+        const usageMessage = {
+          role: 'assistant',
+          content: [],
+          stopReason: 'stop',
+          usage: {
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 2,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: costCents / 100 },
+          },
+        }
+        listener({ type: 'turn_end', message: usageMessage, toolResults: [] })
+      }
+      await driveTurn({ beforeToolCall: wrappedBeforeToolCall, emitUsage })
+      const assistantMsg = { role: 'assistant', content: [], stopReason: blocked ? 'aborted' : 'stop' }
+      state.messages.push(assistantMsg)
+      listener({ type: 'message_end', message: assistantMsg })
+      listener({ type: 'agent_end', messages: [assistantMsg] })
+    })
+    this.state = state
+  })
+}
+
+function makeEntries() {
   const db = new Database(':memory:')
   ensureEntriesSchema(db)
+  return createEntryStore(db)
+}
+
+function makeDeps(over: Partial<SessionAgentDeps> = {}): SessionAgentDeps {
   return {
     sessionId: 's1',
-    entries: createEntryStore(db),
+    entries: makeEntries(),
     broadcast: () => {},
     acquireSlot: async () => () => {},
     buildAgentConfig: () => ({
@@ -72,10 +138,10 @@ function makeDeps(over: Partial<SessionAgentDeps> = {}): SessionAgentDeps {
 }
 
 describe('SessionAgent hook forwarding', () => {
-  it('forwards afterToolCall to deps.hooks.afterToolCall', async () => {
+  it('forwards afterToolCall to deps.hooks(...).afterToolCall', async () => {
     const { getAfterToolCall } = installAgent()
     const hookSpy = vi.fn(async () => undefined)
-    const agent = new SessionAgent(makeDeps({ hooks: { afterToolCall: hookSpy } }))
+    const agent = new SessionAgent(makeDeps({ hooks: () => ({ afterToolCall: hookSpy }) }))
 
     agent.submitUserMessage('hi')
     await agent.waitForCompletion()
@@ -89,16 +155,9 @@ describe('SessionAgent hook forwarding', () => {
 
 describe('SessionAgent.appendPlanTodos', () => {
   it('persists a custom plan entry and broadcasts entry_appended', () => {
-    const db = new Database(':memory:')
-    ensureEntriesSchema(db)
-    const entries = createEntryStore(db)
+    const entries = makeEntries()
     const events: AgentWireEvent[] = []
-    const agent = new SessionAgent(
-      makeDeps({
-        entries,
-        broadcast: (e) => events.push(e),
-      })
-    )
+    const agent = new SessionAgent(makeDeps({ entries, broadcast: (e) => events.push(e) }))
 
     const todos: PlanTodo[] = [{ content: 'step one', status: 'in_progress' }]
     agent.appendPlanTodos(todos)
@@ -108,5 +167,78 @@ describe('SessionAgent.appendPlanTodos', () => {
     expect(rows[0].entry).toMatchObject({ type: 'custom', customType: 'plan', data: { todos } })
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({ kind: 'entry_appended', sessionId: 's1' })
+  })
+})
+
+describe('SessionAgent + createRunHooks integration (abortRun / shared used)', () => {
+  it('a run-hooks calls-budget gate ends the run cancelled with the budget reason', async () => {
+    installDrivenAgent(async ({ beforeToolCall }) => {
+      await beforeToolCall({ toolCall: { name: 'x' }, args: {} })
+      await beforeToolCall({ toolCall: { name: 'x' }, args: {} })
+    })
+    const budget: ResourceBudget = { calls: 1, wallMs: 60_000, usdCents: 100_000 }
+
+    const agent: SessionAgent = new SessionAgent(
+      makeDeps({
+        hooks: (ctx) =>
+          createRunHooks({
+            sessionId: 's1',
+            runId: ctx.runId,
+            used: ctx.used,
+            risk: () => 'low',
+            permissionMode: () => 'ask',
+            requestPermission: async () => 'grant',
+            budget,
+            broadcast: () => {},
+            log: silentLogger(),
+            signal: () => undefined,
+            onPlanTodos: () => {},
+            abortRun: (reason) => agent.abortRun(reason),
+          }),
+      })
+    )
+
+    agent.submitUserMessage('hi')
+    const result = await agent.waitForCompletion()
+
+    expect(result.status).toBe('cancelled')
+    expect(result.summary).toBe('Budget exhausted (calls).')
+  })
+
+  it('a usdCents overrun recorded via usageSnapshot trips the shared budget on the next tool call', async () => {
+    installDrivenAgent(async ({ beforeToolCall, emitUsage }) => {
+      // 10 cents of reported turn cost, over the 5-cent budget below — this
+      // goes through SessionAgent's real usageSnapshot(), which must write
+      // onto the SAME `used` object run-hooks.ts's gate reads.
+      emitUsage(10)
+      await beforeToolCall({ toolCall: { name: 'x' }, args: {} })
+    })
+    const budget: ResourceBudget = { calls: 100, wallMs: 60_000, usdCents: 5 }
+
+    const agent: SessionAgent = new SessionAgent(
+      makeDeps({
+        hooks: (ctx) =>
+          createRunHooks({
+            sessionId: 's1',
+            runId: ctx.runId,
+            used: ctx.used,
+            risk: () => 'low',
+            permissionMode: () => 'ask',
+            requestPermission: async () => 'grant',
+            budget,
+            broadcast: () => {},
+            log: silentLogger(),
+            signal: () => undefined,
+            onPlanTodos: () => {},
+            abortRun: (reason) => agent.abortRun(reason),
+          }),
+      })
+    )
+
+    agent.submitUserMessage('hi')
+    const result = await agent.waitForCompletion()
+
+    expect(result.status).toBe('cancelled')
+    expect(result.summary).toBe('Budget exhausted (usdCents).')
   })
 })
