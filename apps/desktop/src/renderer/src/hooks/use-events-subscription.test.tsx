@@ -110,6 +110,57 @@ describe('useEventsSubscription — background session activity', () => {
     await waitFor(() => expect(useSessionsStore.getState().unread).toEqual({ bg: true }))
     expect(toast).not.toHaveBeenCalled()
   })
+
+  it('ignores events for a session not in the store (hidden child/delegate) — no toast, no unread', async () => {
+    const emit = mount()
+    act(() => {
+      emit({ kind: 'agent_start', sessionId: 'child-xyz', runId: 'r1' })
+    })
+    await waitFor(() => expect(api.swarmApi.subscribeEvents).toHaveBeenCalled())
+    expect(toast).not.toHaveBeenCalled()
+    expect(useSessionsStore.getState().unread).toEqual({})
+  })
+})
+
+describe('useEventsSubscription — choice card OS notification', () => {
+  let NotificationMock: ReturnType<typeof vi.fn> & { permission?: string; requestPermission?: () => void }
+
+  beforeEach(() => {
+    NotificationMock = Object.assign(vi.fn(), { permission: 'granted', requestPermission: vi.fn() })
+    vi.stubGlobal('Notification', NotificationMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const choiceStart = (sessionId: string) =>
+    ({
+      kind: 'tool_execution_start',
+      sessionId,
+      runId: 'r1',
+      toolCallId: 'tc1',
+      toolName: 'render_ui',
+      args: { type: 'choice', props: { question: '继续吗?' } },
+    }) as unknown as UIEvent
+
+  it('fires an OS notification for a render_ui choice card in a known background session', async () => {
+    const emit = mount()
+    act(() => {
+      emit(choiceStart('bg'))
+    })
+    await waitFor(() => expect(NotificationMock).toHaveBeenCalled())
+    expect(NotificationMock).toHaveBeenCalledWith('Background', expect.objectContaining({ body: '继续吗?' }))
+  })
+
+  it('does not fire for a choice card in an unknown (child) session', async () => {
+    const emit = mount()
+    act(() => {
+      emit(choiceStart('child-xyz'))
+    })
+    await waitFor(() => expect(api.swarmApi.subscribeEvents).toHaveBeenCalled())
+    expect(NotificationMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('useEventsSubscription — settings navigation', () => {

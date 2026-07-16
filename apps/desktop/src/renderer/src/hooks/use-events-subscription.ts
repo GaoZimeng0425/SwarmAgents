@@ -10,6 +10,7 @@ import { MEMORY_KEY } from '@/hooks/use-memory'
 import { RUNNING_SESSIONS_KEY, sessionViewKey } from '@/hooks/use-session-view'
 import { useSettingsNav } from '@/hooks/use-settings-nav'
 import { swarmApi } from '@/lib/api'
+import { parseChoiceCard } from '@/lib/choice-notification'
 import { type PermissionPrompt, usePermissionStore } from '@/stores/permission'
 import { useSessionsStore } from '@/stores/sessions'
 import { routeToSection } from '@/stores/settings-dialog'
@@ -22,6 +23,14 @@ function activityMessage(kind: AgentWireEvent['kind'], title: string): string {
   if (kind === 'agent_start') return `「${title}」开始了新任务`
   if (kind === 'agent_end') return `「${title}」任务已完成`
   return `「${title}」需要你的回复` // permission_request
+}
+
+// Fire a native OS notification for a render_ui choice card. Guarded by the
+// browser permission; a no-op until the user grants it.
+function notifyChoice(title: string, body: string, tag: string, onClick: () => void): void {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+  const n = new Notification(title, { body, tag: `choice-${tag}` })
+  n.onclick = onClick
 }
 
 function buildPrompt(e: Extract<AgentWireEvent, { kind: 'permission_request' }>): PermissionPrompt {
@@ -41,6 +50,15 @@ export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): vo
   const push = usePermissionStore((s) => s.push)
   const navigate = useNavigate()
   const { openSettings } = useSettingsNav()
+
+  // Ask once for OS-notification permission so choice cards can ping the user.
+  // Main window only — the hidden quick panel doesn't own notifications.
+  useEffect(() => {
+    if (isQuickPanel) return
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      void Notification.requestPermission()
+    }
+  }, [isQuickPanel])
 
   // swarmagents://chat/<id> deep links. Pull any link that arrived before this
   // mount (cold start), then subscribe to links pushed while the app runs.
@@ -110,13 +128,17 @@ export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): vo
       if (e.kind === 'permission_request') push(buildPrompt(e))
 
       // Background-session activity: mark unread + toast on milestones. Skip
-      // toasts in the quick panel (hidden secondary window).
+      // toasts in the quick panel (hidden secondary window). Only for sessions
+      // the renderer actually lists (kind='user'): child/delegate sessions are
+      // filtered out of listSessions, so their events must not pop ghost
+      // "Untitled chat" toasts or pollute unread.
       const store = useSessionsStore.getState()
-      if (e.sessionId !== store.selectedSessionId) {
-        store.markUnread(e.sessionId)
+      const known = store.sessions.some((s) => s.id === e.sessionId)
+      if (known && e.sessionId !== store.selectedSessionId) {
+        const sid = e.sessionId
+        store.markUnread(sid)
+        const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
         if (!isQuickPanel && TOAST_KINDS.has(e.kind)) {
-          const sid = e.sessionId
-          const title = store.sessions.find((s) => s.id === sid)?.title ?? 'Untitled chat'
           toast(activityMessage(e.kind, title), {
             id: `activity-${sid}`,
             action: {
@@ -124,6 +146,17 @@ export function useEventsSubscription(opts: { isQuickPanel?: boolean } = {}): vo
               onClick: () => void navigate({ to: '/session/$sessionId', params: { sessionId: sid } }),
             },
           })
+        }
+        // A render_ui single/multi-select card pings the OS so the user can
+        // return to a background session that's waiting on their choice.
+        if (!isQuickPanel && e.kind === 'tool_execution_start') {
+          const choice = parseChoiceCard(e)
+          if (choice) {
+            notifyChoice(title, choice.question, e.toolCallId, () => {
+              window.focus()
+              void navigate({ to: '/session/$sessionId', params: { sessionId: sid } })
+            })
+          }
         }
       }
     }
