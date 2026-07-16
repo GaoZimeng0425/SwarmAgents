@@ -114,6 +114,47 @@ describe('buildSegments — messages', () => {
     const segments = buildSegments(viewWithEntries(rows))
     expect(segments).toEqual([expect.objectContaining({ kind: 'tool', tool: 'read_file', ok: true, output: 'ok' })])
   })
+
+  it('FIFO fallback closes tool calls in the ORDER they opened, not the order their results arrive last', () => {
+    // Two untagged (no toolCallId) toolCalls open in order A (read_file) then
+    // B (write_file); their results then arrive in the SAME order. If the
+    // fallback picked the wrong end of the queue (e.g. the last-opened call
+    // instead of the first), A's segment would end up with B's output.
+    const rows = [
+      row(1, {
+        type: 'message',
+        id: 'e1',
+        parentId: null,
+        timestamp: '2026-07-16T00:00:00Z',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', name: 'read_file', arguments: { path: 'a.ts' } },
+            { type: 'toolCall', name: 'write_file', arguments: { path: 'b.ts' } },
+          ],
+        },
+      }),
+      row(2, {
+        type: 'message',
+        id: 'e2',
+        parentId: 'e1',
+        timestamp: '2026-07-16T00:00:01Z',
+        message: { role: 'toolResult', content: [{ type: 'text', text: 'result for A' }] },
+      }),
+      row(3, {
+        type: 'message',
+        id: 'e3',
+        parentId: 'e2',
+        timestamp: '2026-07-16T00:00:02Z',
+        message: { role: 'toolResult', content: [{ type: 'text', text: 'result for B' }] },
+      }),
+    ]
+    const segments = buildSegments(viewWithEntries(rows))
+    expect(segments).toEqual([
+      expect.objectContaining({ kind: 'tool', tool: 'read_file', ok: true, output: 'result for A' }),
+      expect.objectContaining({ kind: 'tool', tool: 'write_file', ok: true, output: 'result for B' }),
+    ])
+  })
 })
 
 describe('buildSegments — custom entries', () => {
@@ -130,6 +171,48 @@ describe('buildSegments — custom entries', () => {
     ]
     const segments = buildSegments(viewWithEntries(rows))
     expect(segments).toEqual([expect.objectContaining({ kind: 'event', label: 'delegation' })])
+  })
+
+  it('renders a labeled event segment for customType plan, with the todos count in detail', () => {
+    const rows = [
+      row(1, {
+        type: 'custom',
+        id: 'e1',
+        parentId: null,
+        timestamp: '2026-07-16T00:00:00Z',
+        customType: 'plan',
+        data: {
+          todos: [
+            { id: 't1', text: 'do x' },
+            { id: 't2', text: 'do y' },
+          ],
+        },
+      }),
+    ]
+    const segments = buildSegments(viewWithEntries(rows))
+    expect(segments).toEqual([expect.objectContaining({ kind: 'event', label: 'plan', detail: '2 todo(s)' })])
+  })
+
+  it('renders a labeled event segment for customType delegation_result (real service payload shape)', () => {
+    const rows = [
+      row(1, {
+        type: 'custom',
+        id: 'e1',
+        parentId: null,
+        timestamp: '2026-07-16T00:00:00Z',
+        customType: 'delegation_result',
+        // Shape as appended by session-service.ts's appendCustomEntry(parentSession.id, 'delegation_result', ...).
+        data: { childSessionId: 's2', status: 'completed', summary: 'child finished the task' },
+      }),
+    ]
+    const segments = buildSegments(viewWithEntries(rows))
+    expect(segments).toEqual([
+      expect.objectContaining({
+        kind: 'event',
+        label: 'delegation result',
+        detail: 'completed: child finished the task',
+      }),
+    ])
   })
 
   it('renders a generic labeled event segment for an unknown customType (open-union bet)', () => {

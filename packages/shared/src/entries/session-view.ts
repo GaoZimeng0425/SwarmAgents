@@ -5,7 +5,12 @@ import type { AgentWireEvent, ConsumedResources, EntryRow } from '@swarm/protoco
 // the in-flight run's streaming assistant message, and its pending tool
 // calls. No React, no pi-agent-core — desktop/web/mobile all drive their
 // renderer state from this + buildSegments (segments.ts).
-export type PendingTool = { toolName: string; args: unknown; partialResult?: unknown }
+// `args` is optional rather than always-present: a tool_execution_update can
+// race ahead of its tool_execution_start (e.g. the start fell in a dropped
+// gap window before hydrate() catches up), leaving no known args. Rather than
+// fabricate `args: {}` — which would lie about a call we never actually saw —
+// an orphan update leaves it undefined; segments.ts renders that defensively.
+export type PendingTool = { toolName: string; args?: unknown; partialResult?: unknown }
 
 export type SessionView = {
   entries: EntryRow[] // finalized transcript (ordered by rowId)

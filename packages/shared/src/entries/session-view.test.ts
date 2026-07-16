@@ -66,6 +66,15 @@ describe('applyWireEvent — entry_appended', () => {
     expect(next.cursor).toBe(1)
     expect(next.gapDetected).toBe(false)
   })
+
+  it('anchors the cursor at the first-ever rowId even when it is not 1 (mid-session subscription)', () => {
+    const view = emptySessionView()
+    const e: AgentWireEvent = { kind: 'entry_appended', sessionId: 's1', rowId: 7, entry: entryRow(7).entry }
+    const next = applyWireEvent(view, e)
+    expect(next.entries).toEqual([entryRow(7)])
+    expect(next.cursor).toBe(7)
+    expect(next.gapDetected).toBe(false)
+  })
 })
 
 describe('hydrate', () => {
@@ -83,6 +92,14 @@ describe('hydrate', () => {
     const twice = hydrate(once, [entryRow(1), entryRow(2)])
     expect(twice.entries).toEqual([entryRow(1), entryRow(2)])
     expect(twice.cursor).toBe(2)
+  })
+
+  it('anchors an empty view at the first batch even when it does not start at rowId 1 (mid-session subscription)', () => {
+    const view = emptySessionView()
+    const next = hydrate(view, [entryRow(5), entryRow(6)])
+    expect(next.entries).toEqual([entryRow(5), entryRow(6)])
+    expect(next.cursor).toBe(6)
+    expect(next.gapDetected).toBe(false)
   })
 })
 
@@ -170,6 +187,21 @@ describe('applyWireEvent — pendingTools', () => {
       partialResult: 'chunk',
     })
     expect(next.pendingTools.t1.partialResult).toBe('chunk')
+  })
+
+  it('tool_execution_update with no prior tool_execution_start creates an orphan pending tool with args left undefined', () => {
+    // Post-gap race: the start fell in a dropped/un-hydrated window, so we
+    // only ever see the update. args must not be fabricated (see the
+    // PendingTool comment) — it stays undefined rather than `{}`.
+    const view = emptySessionView()
+    const next = applyWireEvent(view, {
+      ...scope,
+      kind: 'tool_execution_update',
+      toolCallId: 't2',
+      toolName: 'write_file',
+      partialResult: 'chunk',
+    })
+    expect(next.pendingTools.t2).toEqual({ toolName: 'write_file', args: undefined, partialResult: 'chunk' })
   })
 
   it('tool_execution_end removes the pending tool', () => {

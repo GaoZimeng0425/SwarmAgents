@@ -210,7 +210,9 @@ export function buildSegments(view: SessionView): Segment[] {
       kind: 'tool',
       tool: tool.toolName,
       ok: null,
-      input: tool.args,
+      // args is absent for an orphan update (start missed a gap) — render as
+      // null, consistent with ok/output's "unknown yet" convention below.
+      input: tool.args ?? null,
       output: tool.partialResult !== undefined ? safeStringify(tool.partialResult) : null,
       toolCallId,
       key: `pending-${toolCallId}`,
