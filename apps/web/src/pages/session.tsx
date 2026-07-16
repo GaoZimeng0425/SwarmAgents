@@ -1,68 +1,60 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { MessageWireEvent } from '@swarm/protocol'
-import { buildSegments, hydrateSession, useMessages } from '@swarm/shared'
+import { applyWireEvent, buildSegments, emptySessionView, hydrate, type SessionView } from '@swarm/shared'
 import { Button, Input } from '@swarm/ui'
-import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { PermissionCard, type PermissionPrompt } from '@/components/permission-card'
 import { SegmentView } from '@/components/segment-view'
+import { useSessionViewSource } from '@/hooks/use-session-view-source'
 import { useConnection } from '@/stores/connection-store'
 
 export function SessionDetailPage(): React.JSX.Element {
   const { id: sessionId } = useParams<{ id: string }>()
   const { client } = useConnection()
-  const qc = useQueryClient()
+  const subscribe = useSessionViewSource()
   const navigate = useNavigate()
-  const messages = useMessages()
+  const [view, setView] = useState<SessionView>(emptySessionView)
+  const [permissions, setPermissions] = useState<PermissionPrompt[]>([])
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Hydrate history on mount / session switch. The subscribeEvents half of the
-  // MessageEventSource is handled globally by EventsBridge, so here we pass a
-  // no-op subscribeEvents — hydrateSession only needs getMessageEvents.
+  // Catch-up load on mount / session switch: pull the full entry log and
+  // start a fresh view from it. Live events fold in separately below.
   useEffect(() => {
+    setView(emptySessionView())
+    setPermissions([])
     if (!client || !sessionId) return
-    void hydrateSession(
-      qc,
-      { getMessageEvents: (sid) => client.getMessageEvents(sid), subscribeEvents: () => () => {} },
-      sessionId
-    )
-  }, [client, sessionId, qc])
-
-  // Filter + order the global MessageRecord[] for this session, oldest-first
-  // (ascending order) so the newest message lands at the bottom — the
-  // conventional chat order and the direction the auto-scroll effect expects.
-  // Namespace each message's segment keys by message id: buildSegments keys are
-  // only unique within one message, so flatMapping multiple messages into one
-  // list would collide (two messages both emit seg-0, seg-1, …).
-  const segments = useMemo(() => {
-    const sessionMessages = messages.filter((m) => m.sessionId === sessionId).sort((a, b) => a.order - b.order)
-    return sessionMessages.flatMap((r) =>
-      buildSegments(r.events).map((seg) => ({ ...seg, key: `${r.id}:${seg.key}` }))
-    )
-  }, [messages, sessionId])
-
-  // Extract pending permission_request prompts for this session.
-  const permissions = useMemo<PermissionPrompt[]>(() => {
-    const perms: PermissionPrompt[] = []
-    for (const msg of messages.filter((m) => m.sessionId === sessionId)) {
-      for (const evt of msg.events) {
-        const wire = evt as MessageWireEvent
-        if (wire.kind === 'message.permission_request' && wire.sessionId === sessionId) {
-          perms.push({
-            messageId: wire.messageId,
-            actionId: wire.actionId,
-            risk: wire.risk,
-            summary: wire.summary,
-          })
-        }
-      }
+    let alive = true
+    void client.getSessionEntries(sessionId).then((rows) => {
+      if (!alive) return
+      setView((prev) => hydrate(prev, rows))
+    })
+    return () => {
+      alive = false
     }
-    return perms
-  }, [messages, sessionId])
+  }, [client, sessionId])
+
+  // Fold live wire events for this session into the view, and track pending
+  // permission_request prompts — cleared on decide or when the run ends.
+  useEffect(() => {
+    if (!subscribe || !sessionId) return
+    return subscribe((e) => {
+      if (e.sessionId !== sessionId) return
+      setView((prev) => applyWireEvent(prev, e))
+      if (e.kind === 'permission_request') {
+        setPermissions((prev) =>
+          prev.some((p) => p.actionId === e.actionId)
+            ? prev
+            : [...prev, { actionId: e.actionId, risk: e.risk, summary: e.summary }]
+        )
+      }
+      if (e.kind === 'agent_end') setPermissions([])
+    })
+  }, [subscribe, sessionId])
+
+  const segments = useMemo(() => buildSegments(view), [view])
 
   // Auto-scroll to bottom on new segments. segments.length is a trigger, not a
   // value read in the body, so biome's exhaustive-deps check would flag it —
@@ -87,6 +79,7 @@ export function SessionDetailPage(): React.JSX.Element {
     if (!client || !sessionId) return
     try {
       await client.decidePermission(sessionId, perm.actionId, decision)
+      setPermissions((prev) => prev.filter((p) => p.actionId !== perm.actionId))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }

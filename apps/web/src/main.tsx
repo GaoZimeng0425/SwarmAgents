@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 
-import { EventsBridge } from '@/components/events-bridge'
 import { ConnectionProvider } from '@/stores/connection-store'
 import App from './App'
 import './global.css'
@@ -16,7 +15,6 @@ createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ConnectionProvider>
-        <EventsBridge />
         <App />
       </ConnectionProvider>
     </QueryClientProvider>

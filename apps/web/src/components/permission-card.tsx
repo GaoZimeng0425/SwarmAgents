@@ -1,9 +1,9 @@
+import type { Risk } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
 
 export type PermissionPrompt = {
-  messageId: string
   actionId: string
-  risk: string
+  risk: Risk
   summary: string
 }
 

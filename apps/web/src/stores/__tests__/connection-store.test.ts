@@ -3,12 +3,12 @@ import { eventEmitter } from '../connection-store'
 describe('eventEmitter', () => {
   it('delivers events to specific subscribers', () => {
     const received: unknown[] = []
-    const unsub = eventEmitter.on('message.created', (data) => received.push(data))
+    const unsub = eventEmitter.on('entry_appended', (data) => received.push(data))
 
-    eventEmitter.emit('message.created', { sessionId: 's1', messageId: 'm1' })
-    eventEmitter.emit('message.progress', { event: 'thinking' })
+    eventEmitter.emit('entry_appended', { sessionId: 's1', rowId: 1 })
+    eventEmitter.emit('tool_execution_update', { toolCallId: 't1' })
 
-    expect(received).toEqual([{ sessionId: 's1', messageId: 'm1' }])
+    expect(received).toEqual([{ sessionId: 's1', rowId: 1 }])
     unsub()
   })
 
@@ -16,11 +16,11 @@ describe('eventEmitter', () => {
     const received: unknown[] = []
     const unsub = eventEmitter.on('*', (data) => received.push(data))
 
-    eventEmitter.emit('message.created', { a: 1 })
+    eventEmitter.emit('entry_appended', { a: 1 })
     eventEmitter.emit('session.updated', { b: 2 })
 
     expect(received).toEqual([
-      { event: 'message.created', data: { a: 1 } },
+      { event: 'entry_appended', data: { a: 1 } },
       { event: 'session.updated', data: { b: 2 } },
     ])
     unsub()
@@ -28,11 +28,11 @@ describe('eventEmitter', () => {
 
   it('unsubscribe stops delivery', () => {
     const received: unknown[] = []
-    const unsub = eventEmitter.on('message.created', (data) => received.push(data))
+    const unsub = eventEmitter.on('entry_appended', (data) => received.push(data))
 
-    eventEmitter.emit('message.created', { first: true })
+    eventEmitter.emit('entry_appended', { first: true })
     unsub()
-    eventEmitter.emit('message.created', { second: true })
+    eventEmitter.emit('entry_appended', { second: true })
 
     expect(received).toEqual([{ first: true }])
   })
