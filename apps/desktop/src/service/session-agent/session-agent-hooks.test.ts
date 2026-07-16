@@ -68,10 +68,17 @@ function installAgent(): { getAfterToolCall: () => Hook } {
  * shared `used` object flows from usageSnapshot() into run-hooks.ts's budget
  * gate. Finishes with an 'aborted' assistant message iff any driven call was
  * blocked, mirroring what a real Agent does when a hook blocks it mid-turn.
+ *
+ * Returns the mock's own AbortController: `agent.cancel()`/`abortRun()` call
+ * through to `this.abort` here, which aborts THIS controller — so a test can
+ * call the real `SessionAgent.cancel()` mid-turn and see the driven
+ * `beforeToolCall` receive an actually-aborted signal, exactly like pi's real
+ * Agent would hand it the run's live signal.
  */
 function installDrivenAgent(
   driveTurn: (ctx: { beforeToolCall: Hook; emitUsage: (costCents: number) => void }) => Promise<void>
-): void {
+): { controller: AbortController } {
+  const controller = new AbortController()
   MockAgent.mockImplementation(function (this: Record<string, unknown>, opts: { beforeToolCall: Hook }) {
     let listener: (e: unknown) => void = () => undefined
     const state = { messages: [] as unknown[], model: undefined }
@@ -79,11 +86,11 @@ function installDrivenAgent(
       listener = fn
       return () => undefined
     }
-    this.abort = vi.fn()
+    this.abort = vi.fn(() => controller.abort())
     this.continue = vi.fn(async () => {
       let blocked = false
       const wrappedBeforeToolCall: Hook = async (ctx, signal) => {
-        const result = await opts.beforeToolCall(ctx, signal)
+        const result = await opts.beforeToolCall(ctx, signal ?? controller.signal)
         if (result?.block) blocked = true
         return result
       }
@@ -111,6 +118,7 @@ function installDrivenAgent(
     })
     this.state = state
   })
+  return { controller }
 }
 
 function makeEntries() {
@@ -263,5 +271,36 @@ describe('SessionAgent call counting (single point of truth)', () => {
     const turnEnd = events.find((e) => e.kind === 'turn_end')
     expect(turnEnd).toBeDefined()
     if (turnEnd?.kind === 'turn_end') expect(turnEnd.used.calls).toBeGreaterThan(0)
+  })
+
+  it('cancelling the run blocks a subsequent beforeToolCall without counting it (ported abort -> count order)', async () => {
+    // Declared before installDrivenAgent so its driveTurn closure (defined
+    // now, invoked later once submitUserMessage below drives continue()) can
+    // reference it — by the time it actually runs, `agent` is assigned.
+    let agent: SessionAgent
+    installDrivenAgent(async ({ beforeToolCall, emitUsage }) => {
+      // Real SessionAgent abort path (what the app calls on user-cancel) —
+      // NOT a pre-aborted signal constructed by the test. This must block the
+      // very next beforeToolCall AND leave used.calls untouched: engine.ts's
+      // ported order is abort -> count -> budget, so an already-aborted call
+      // was never really attempted and must not count.
+      agent.cancel()
+      const result = await beforeToolCall({ toolCall: { name: 'x' }, args: {} })
+      expect(result).toEqual({ block: true, reason: 'Stopped by user.' })
+      // SessionAgent exposes no direct getter for `used` — read it off the
+      // turn_end wire event instead.
+      emitUsage(0)
+    })
+
+    const events: AgentWireEvent[] = []
+    agent = new SessionAgent(makeDeps({ broadcast: (e) => events.push(e) }))
+
+    agent.submitUserMessage('hi')
+    const result = await agent.waitForCompletion()
+
+    expect(result.status).toBe('cancelled')
+    const turnEnd = events.find((e) => e.kind === 'turn_end')
+    expect(turnEnd).toBeDefined()
+    if (turnEnd?.kind === 'turn_end') expect(turnEnd.used.calls).toBe(0)
   })
 })

@@ -231,6 +231,13 @@ export class SessionAgent {
       // runs (see runOnce's `this.agent ??= ...`), but currentHooks is rebuilt
       // per run in runOnce so each run's gate sees its own runId/used.
       beforeToolCall: async (ctx, signal) => {
+        // Ported order from engine.ts:199-236 — abort check FIRST, THEN count,
+        // THEN delegate: an already-aborted call must never be counted (the
+        // model never really "attempted" it once the run is stopping). Check
+        // the signal pi hands this hook directly, before touching `used` —
+        // run-hooks.ts's own signal()?.aborted check downstream is then just
+        // harmless defense-in-depth, not the source of truth for this guard.
+        if (signal?.aborted) return { block: true, reason: 'Stopped by user.' }
         // Single point of truth for call counting (Task 3 guarantee): always
         // incremented, even when no gate hook is wired, so turn_end usage
         // always reports calls>0 after a tool-calling turn. run-hooks.ts's
