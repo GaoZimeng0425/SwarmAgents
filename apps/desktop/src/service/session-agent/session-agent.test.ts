@@ -169,7 +169,7 @@ describe('SessionAgent', () => {
       await vi.advanceTimersByTimeAsync(40)
 
       const updates = events.filter((e) => e.kind === 'message_update')
-      expect(updates.length).toBeLessThanOrEqual(1)
+      expect(updates).toHaveLength(1)
     } finally {
       vi.useRealTimers()
     }
@@ -253,6 +253,39 @@ describe('SessionAgent', () => {
     const result = await agent.waitForCompletion()
 
     expect(result.status).toBe('cancelled')
+    expect(streamCalled).toBe(false)
+    const msgs = entries.list('s1').filter((r) => r.entry.type === 'message')
+    expect(msgs).toHaveLength(1)
+  })
+
+  it('a non-abort acquireSlot rejection maps to failed, not cancelled', async () => {
+    let streamCalled = false
+    const entries = makeStore()
+    const agent = new SessionAgent({
+      sessionId: 's1',
+      entries,
+      broadcast: () => {},
+      // Rejects on its own (e.g. the slot pool errored) — never aborted by cancel().
+      acquireSlot: () => Promise.reject(new Error('slot pool exploded')),
+      buildAgentConfig: () => ({
+        systemPrompt: 'test',
+        model: FAKE_MODEL,
+        thinkingLevel: 'off',
+        tools: [],
+        maxTurns: 5,
+        streamFn: () => {
+          streamCalled = true
+          throw new Error('streamFn should never be called: acquireSlot rejected before any LLM call')
+        },
+      }),
+      log: silentLogger(),
+    })
+
+    agent.submitUserMessage('q')
+    const result = await agent.waitForCompletion()
+
+    expect(result.status).toBe('failed')
+    expect(result.summary).toBe('slot pool exploded')
     expect(streamCalled).toBe(false)
     const msgs = entries.list('s1').filter((r) => r.entry.type === 'message')
     expect(msgs).toHaveLength(1)

@@ -308,8 +308,27 @@ export class SessionAgent {
     let release: (() => void) | null = null
     try {
       release = await this.deps.acquireSlot(this.slotAbort.signal)
-    } catch {
-      return this.finishRun('cancelled', 'Stopped by user.')
+    } catch (err) {
+      const errMessage = err instanceof Error ? err.message : String(err)
+      if (this.slotAbort?.signal.aborted) {
+        this.deps.log.info({
+          msg: 'slot wait aborted',
+          sessionId: this.deps.sessionId,
+          runId: this.runId,
+          err: errMessage,
+        })
+        return this.finishRun('cancelled', 'Stopped by user.')
+      }
+      // Not a user cancellation — acquireSlot itself failed (e.g. the slot
+      // pool errored). Conflating this with 'cancelled' would hide a real
+      // failure behind a benign-looking status.
+      this.deps.log.error({
+        msg: 'acquireSlot failed',
+        sessionId: this.deps.sessionId,
+        runId: this.runId,
+        err: errMessage,
+      })
+      return this.finishRun('failed', errMessage)
     }
     try {
       this.agent ??= this.buildAgent(cfg)
@@ -323,7 +342,11 @@ export class SessionAgent {
       this.agent.state.messages = messagesFromEntries(this.deps.entries.list(this.deps.sessionId))
       await this.agent.continue()
       const last = this.lastAssistant()
-      if (this.forcedStatus) return this.finishRun(this.forcedStatus, last?.errorMessage ?? 'max iterations reached')
+      // Force the exact reason regardless of what the (aborted) assistant
+      // message's own errorMessage says — max-iterations is SessionAgent's
+      // own guard firing, not a provider-reported failure, so it must not be
+      // overridden by whatever stopReason/errorMessage pi's abort produced.
+      if (this.forcedStatus) return this.finishRun(this.forcedStatus, 'max iterations reached')
       if (last?.stopReason === 'error')
         return { ...this.finishRun('failed', last.errorMessage ?? 'request failed'), discardAgent: true }
       if (last?.stopReason === 'aborted') return this.finishRun('cancelled', 'Stopped by user.')
