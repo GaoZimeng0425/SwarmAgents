@@ -1,6 +1,7 @@
 import type { AgentWireEvent, EntryRow } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
+import { buildSegments } from './segments'
 import { applyWireEvent, emptySessionView, hydrate } from './session-view'
 
 const scope = { sessionId: 's1', runId: 'r1' }
@@ -202,6 +203,23 @@ describe('applyWireEvent — pendingTools', () => {
       partialResult: 'chunk',
     })
     expect(next.pendingTools.t2).toEqual({ toolName: 'write_file', args: undefined, partialResult: 'chunk' })
+  })
+
+  it('agent_end clears pending tools so a cancel mid-execution leaves no running tool card', () => {
+    // A cancel during tool execution never emits tool_execution_end; agent_end
+    // must drop the in-flight tool, else buildSegments renders it forever.
+    let view = applyWireEvent(emptySessionView(), {
+      ...scope,
+      kind: 'tool_execution_start',
+      toolCallId: 't1',
+      toolName: 'read_file',
+      args: { path: 'a.ts' },
+    })
+    expect(buildSegments(view).some((s) => s.kind === 'tool' && s.ok === null)).toBe(true)
+
+    view = applyWireEvent(view, { ...scope, kind: 'agent_end', status: 'cancelled' })
+    expect(view.pendingTools).toEqual({})
+    expect(buildSegments(view).some((s) => s.kind === 'tool' && s.ok === null)).toBe(false)
   })
 
   it('tool_execution_end removes the pending tool', () => {

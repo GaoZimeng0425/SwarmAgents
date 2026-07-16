@@ -78,6 +78,9 @@ export function applyWireEvent(view: SessionView, e: AgentWireEvent): SessionVie
         running: false,
         lastError: e.status === 'failed' ? (e.errorMessage ?? 'agent failed') : undefined,
         streaming: undefined,
+        // A cancel mid-tool-execution never emits tool_execution_end; drop any
+        // in-flight tools so they don't render as running tool cards forever.
+        pendingTools: {},
       }
 
     case 'turn_end':

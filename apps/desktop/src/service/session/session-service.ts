@@ -707,7 +707,12 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     },
 
     resolvePermission(sessionId, actionId, decision) {
-      sessions.get(sessionId)?.permissionRegistry.resolve(actionId, decision)
+      const session = sessions.get(sessionId)
+      if (!session) {
+        log.warn({ msg: 'permission decision for unknown session', sessionId, actionId })
+        return
+      }
+      session.permissionRegistry.resolve(actionId, decision)
     },
 
     deleteSession(sessionId) {
