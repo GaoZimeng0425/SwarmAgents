@@ -9,6 +9,7 @@
  */
 
 import type { AgentDefinition, AgentListItem, AgentMutationResult } from './agent'
+import type { AgentWireEvent } from './agent-events'
 import type { AnalyzeArticleResult, ArticleSummary, CollectedArticleWithAnalysis } from './article'
 import type {
   BiliAnalysis,
@@ -73,7 +74,7 @@ export type ThreadAnalysisPayload = {
 export type GmailThreadAnalysis = ThreadAnalysisPayload & { updatedAt: number }
 
 export type UIEvent =
-  | MessageWireEvent
+  | AgentWireEvent
   | { kind: 'session.created'; sessionId: string; title: string | null; ts: number; seq?: number }
   | { kind: 'session.updated'; sessionId: string; title: string | null; lastActiveAt: number; ts: number; seq?: number }
   | { kind: 'memory.changed'; ts: number; seq?: number }
