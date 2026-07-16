@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { type AgentWireEvent, isAgentWireEvent } from '@swarm/protocol'
 
 import { type EventHandler, eventEmitter } from '@/stores/connection-store'
 
@@ -36,4 +37,23 @@ export function useEvents(filter?: (event: string) => boolean): ReceivedEvent[] 
   }, [])
 
   return events
+}
+
+// Subscribe to live wire-v3 AgentWireEvents (entry_appended/agent_start/.../
+// permission_request) for the lifetime of the component, e.g. to fold them
+// into a SessionView via applyWireEvent. Non-agent UIEvents (session.*,
+// memory.*) are filtered out.
+export function useAgentWireEvents(cb: (e: AgentWireEvent) => void): void {
+  // Keep the latest callback in a ref so the effect can subscribe once
+  // without re-attaching every time a new inline callback is passed.
+  const cbRef = useRef(cb)
+  cbRef.current = cb
+
+  useEffect(() => {
+    const handler: EventHandler = (envelope) => {
+      const { data } = envelope as { event: string; data: unknown }
+      if (isAgentWireEvent(data as { kind: string })) cbRef.current(data as AgentWireEvent)
+    }
+    return eventEmitter.on('*', handler)
+  }, [])
 }

@@ -5,16 +5,14 @@ import { MoonIcon, SunIcon } from '@/components/ui/icon'
 import '@/global.css'
 import { useEffect, useMemo } from 'react'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useFonts } from 'expo-font'
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
-import { ConnectionProvider, useConnection } from '@/stores/connection-store'
-import { type MessageEventSource, useMessageEventSubscription } from '@swarm/shared'
-import type { UIEvent } from '@swarm/protocol'
+import { ConnectionProvider } from '@/stores/connection-store'
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -22,33 +20,6 @@ export {
 } from 'expo-router'
 
 SplashScreen.preventAutoHideAsync()
-
-// Adapts the mobile connection (ServiceClient + eventEmitter) into the
-// MessageEventSource interface expected by @swarm/shared's useMessages.
-function useMessageEventSource(): MessageEventSource | null {
-  const { client } = useConnection()
-  return useMemo(() => {
-    if (!client) return null
-    return {
-      getMessageEvents: (sessionId) => client.getMessageEvents(sessionId),
-      subscribeEvents: (cb) => {
-        // The connection store's eventEmitter already forwards all RPC events.
-        // Import it lazily to avoid a circular dependency at module init.
-        const { eventEmitter } = require('@/stores/connection-store') as typeof import('@/stores/connection-store')
-        return eventEmitter.on('*', (envelope) => {
-          const { event, data } = envelope as { event: string; data: unknown }
-          cb(data as UIEvent)
-        })
-      },
-    }
-  }, [client])
-}
-
-function EventsBridge() {
-  const source = useMessageEventSource()
-  useMessageEventSubscription(source)
-  return null
-}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -72,7 +43,6 @@ export default function RootLayout() {
     <ColorModeProvider>
       <QueryClientProvider client={queryClient}>
         <ConnectionProvider>
-          <EventsBridge />
           <RootLayoutNav />
         </ConnectionProvider>
       </QueryClientProvider>

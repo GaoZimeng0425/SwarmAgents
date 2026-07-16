@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { MessageWireEvent } from '@swarm/protocol'
-import { buildSegments, hydrateSession, type Segment, useMessages } from '@swarm/shared'
-import { useQueryClient } from '@tanstack/react-query'
+import type { Risk } from '@swarm/protocol'
+import { applyWireEvent, buildSegments, emptySessionView, hydrate, type Segment, type SessionView } from '@swarm/shared'
 import { router, useLocalSearchParams } from 'expo-router'
 import { ChevronLeft } from 'lucide-react-native'
 import { FlatList, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native'
@@ -9,63 +8,56 @@ import Markdown from 'react-native-markdown-display'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { markdownRules } from '@/components/ui/chat-ai/message'
+import { useAgentWireEvents } from '@/hooks/use-events'
 import { useConnection } from '@/stores/connection-store'
 
 type PermissionPrompt = {
-  messageId: string
   actionId: string
-  risk: string
+  risk: Risk
   summary: string
 }
 
 export default function SessionDetailScreen(): React.JSX.Element {
   const { id: sessionId } = useLocalSearchParams<{ id: string }>()
   const { client } = useConnection()
-  const qc = useQueryClient()
-  const messages = useMessages()
+  const [view, setView] = useState<SessionView>(emptySessionView)
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<PermissionPrompt[]>([])
 
-  // Hydrate history on mount / session switch.
+  // Catch-up load on mount / session switch: pull the full entry log and
+  // start a fresh view from it. Live events fold in separately below.
   useEffect(() => {
+    setView(emptySessionView())
+    setPermissions([])
     if (!client || !sessionId) return
-    void hydrateSession(
-      qc,
-      { getMessageEvents: (sid) => client.getMessageEvents(sid), subscribeEvents: () => () => {} },
-      sessionId
-    )
-  }, [client, sessionId, qc])
-
-  // Watch for permission_request events in the message records.
-  useEffect(() => {
-    if (!sessionId) return
-    const sessionMessages = messages.filter((m) => m.sessionId === sessionId)
-    const perms: PermissionPrompt[] = []
-    for (const msg of sessionMessages) {
-      for (const evt of msg.events) {
-        const wire = evt as MessageWireEvent
-        if (wire.kind === 'message.permission_request' && wire.sessionId === sessionId) {
-          perms.push({
-            messageId: wire.messageId,
-            actionId: wire.actionId,
-            risk: wire.risk,
-            summary: wire.summary,
-          })
-        }
-      }
+    let alive = true
+    void client.getSessionEntries(sessionId).then((rows) => {
+      if (!alive) return
+      setView((prev) => hydrate(prev, rows))
+    })
+    return () => {
+      alive = false
     }
-    setPermissions(perms)
-  }, [messages, sessionId])
+  }, [client, sessionId])
 
-  // Flatten all MessageRecords for this session into render segments. Each
-  // message's segments are namespaced by message id: buildSegments keys are only
-  // unique within a single message (seg-0, seg-1, …), so flatMapping multiple
-  // messages into one list would collide (e.g. two messages both emit seg-22).
-  const segments = useMemo(() => {
-    const sessionMessages = messages.filter((m) => m.sessionId === sessionId).sort((a, b) => b.order - a.order)
-    return sessionMessages.flatMap((r) => buildSegments(r.events).map((seg) => ({ ...seg, key: `${r.id}:${seg.key}` })))
-  }, [messages, sessionId])
+  // Fold live wire events for this session into the view, and track pending
+  // permission_request prompts — cleared on decide or when the run ends.
+  useAgentWireEvents((e) => {
+    if (e.sessionId !== sessionId) return
+    setView((prev) => applyWireEvent(prev, e))
+    if (e.kind === 'permission_request') {
+      setPermissions((prev) =>
+        prev.some((p) => p.actionId === e.actionId)
+          ? prev
+          : [...prev, { actionId: e.actionId, risk: e.risk, summary: e.summary }]
+      )
+    }
+    if (e.kind === 'agent_end') setPermissions([])
+  })
+
+  // Flatten the session's entry log into render segments.
+  const segments = useMemo(() => buildSegments(view), [view])
 
   const handleSend = async (): Promise<void> => {
     if (!client || !sessionId || !input.trim()) return
