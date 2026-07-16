@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useAnalysisEventBridge } from '@/hooks/use-analysis-event-bridge'
 import { swarmApi } from '@/lib/api'
 import { useAnalysisStreamStore } from '@/stores/analysis-stream'
 import { BilibiliView, buildRows } from './bilibili-view'
@@ -39,7 +40,18 @@ beforeEach(() => {
 
 function wrap(node: React.ReactElement): React.ReactElement {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return <QueryClientProvider client={qc}>{node}</QueryClientProvider>
+  // Mounts the global analysis-event bridge so events emitted via `eventCb`
+  // reach the analysis-stream store — mirroring how the app root wires it.
+  function Bridge(): null {
+    useAnalysisEventBridge()
+    return null
+  }
+  return (
+    <QueryClientProvider client={qc}>
+      <Bridge />
+      {node}
+    </QueryClientProvider>
+  )
 }
 
 const SAMPLE: BiliListResult = {
@@ -206,7 +218,12 @@ describe('BilibiliView', () => {
     fireEvent.click(await screen.findByText('视频甲'))
     fireEvent.click(await screen.findByRole('button', { name: /AI 分析/ }))
     fireEvent.click(await screen.findByRole('button', { name: /本地转写/ }))
-    // The transcribed summary arrives via the same event stream.
+    // The transcribed summary arrives via the same event stream. Await a tick so
+    // the transcribe mutation settles (isPending clears) before emitting the
+    // Complete event — otherwise AnalysisContent stays on its streaming branch.
+    await act(async () => {
+      await Promise.resolve()
+    })
     await act(async () => {
       eventCb?.({
         kind: 'bilibili.analysisComplete',

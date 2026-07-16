@@ -136,14 +136,8 @@ export function TrendingResearchPanel({
   const { state, analyze } = useAnalysisStream<RepoResearch>({
     id: repo.repoName,
     events: { delta: 'trending.researchDelta', complete: 'trending.researchComplete', error: 'trending.researchError' },
-    idField: 'repoName',
-    parseComplete: (e) => (e as { research: RepoResearch }).research,
     trigger: () => swarmApi.researchRepo(repo, period),
     cachedResult: cached.data?.research ?? null,
-    invalidateOnComplete: [
-      ['trending', 'research', repo.repoName],
-      ['trending', 'researchedNames'],
-    ],
   })
 
   // Surface the in-flight repo to the list so it can badge the matching row.

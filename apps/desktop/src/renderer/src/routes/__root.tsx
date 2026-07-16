@@ -8,6 +8,7 @@ import { NoProviderBanner } from '@/components/no-provider-banner'
 import { SessionSearchDialog } from '@/components/session-search-dialog'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { TitleBar } from '@/components/title-bar'
+import { useAnalysisEventBridge } from '@/hooks/use-analysis-event-bridge'
 import { useLoadSessions } from '@/hooks/use-messages'
 import { isValidSection, type SettingsSection } from '@/stores/settings-dialog'
 
@@ -33,6 +34,10 @@ function RootLayout(): React.JSX.Element {
   const loadSessions = useLoadSessions()
   const matches = useMatches()
   const isQuickPanel = matches.some((m) => m.routeId === '/quick-panel')
+  // Global analysis-stream subscription: dispatches the four flows' streaming
+  // events into the analysis-stream store so state survives panel switches
+  // (the "切走丢失" fix). Main window only — quick-panel has no analysis panels.
+  useAnalysisEventBridge(!isQuickPanel)
   // Load the session list once at the root; the /session layout mounts the
   // SessionPanel, but the query cache persists across its mount/unmount.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only; loadSessions is a stable React Query mutation

@@ -1,15 +1,15 @@
 // Generic streaming-analysis hook shared by the four card-based analysis panels
 // (article / trending / bilibili / gmail-thread). Owns the phase state machine
-// (idle → streaming → done | error), accumulates streamed deltas, surfaces cached
-// results, and invalidates query caches on completion.
+// (idle → streaming → done | error), surfaces cached results, and triggers
+// analysis.
 //
 // State lives in a global zustand store (not useState) so it survives panel
-// unmount/remount — the "切走丢失" fix. When the user switches away mid-analysis
-// and comes back, the streaming progress / result is still there.
+// unmount/remount — the "切走丢失" fix. The store is the single source of truth;
+// streaming events (delta/complete/error) are dispatched into the store by the
+// global useEventsSubscription hook, NOT here — so entries keep updating even
+// when the user switches away from the panel mid-analysis.
 
 import { useCallback, useEffect } from 'react'
-import type { UIEvent } from '@swarm/protocol'
-import { useQueryClient } from '@tanstack/react-query'
 
 import { type AnalysisStreamState, streamKey, useAnalysisStreamStore } from '@/stores/analysis-stream'
 
@@ -20,19 +20,15 @@ export type { AnalysisStreamState }
 export type AnalysisStreamConfig<TResult> = {
   /** The analysis-target id, or null when nothing is selected. */
   id: string | null
-  /** Event kinds to subscribe to. */
+  /** Event kinds for this flow. Only `complete` is used here — as the store
+   *  namespace (so article-id '1' ≠ bilibili-bvid '1'). delta/complete/error
+   *  are handled centrally by useEventsSubscription. */
   events: { delta: string; complete: string; error: string }
-  /** The field name on the event payload carrying the id ('articleId' / 'bvid' / ...). */
-  idField: string
-  /** Extract the structured result from a Complete event. */
-  parseComplete: (e: UIEvent) => TResult
   /** Trigger the analysis (returns the sync ack). */
   trigger: () => Promise<{ ok: true } | { ok: false; message: string }>
   /** Previously-analyzed cached result, or null when none. The caller decides
    *  how to obtain it (object property, useQuery, etc.). */
   cachedResult: TResult | null
-  /** Query keys to invalidate on Complete (e.g. the list-badge key). */
-  invalidateOnComplete?: unknown[][]
 }
 
 export type AnalysisStreamStateTyped<TResult> =
@@ -48,8 +44,7 @@ export type UseAnalysisStream<TResult> = {
 }
 
 export function useAnalysisStream<TResult>(config: AnalysisStreamConfig<TResult>): UseAnalysisStream<TResult> {
-  const { id, events, idField, parseComplete, trigger, cachedResult, invalidateOnComplete } = config
-  const qc = useQueryClient()
+  const { id, events, trigger, cachedResult } = config
   const key = id ? streamKey(events.complete, id) : null
 
   // Read from the global store (survives unmount). Cast result back to TResult —
@@ -59,7 +54,6 @@ export function useAnalysisStream<TResult>(config: AnalysisStreamConfig<TResult>
   }
   const state = rawState as AnalysisStreamStateTyped<TResult>
   const storeSet = useAnalysisStreamStore((s) => s.set)
-  const storeUpdate = useAnalysisStreamStore((s) => s.update)
 
   // Surface a cached result as `done` once the cache resolves (and again after a
   // completed run invalidates the cache). This only ever UPGRADES to done — it
@@ -72,32 +66,6 @@ export function useAnalysisStream<TResult>(config: AnalysisStreamConfig<TResult>
       storeSet(key, { phase: 'done', result: cachedResult, streamText: '' })
     }
   }, [key, cachedResult, storeSet])
-
-  // Subscribe to stream events for the current id; events for other ids are ignored.
-  useEffect(() => {
-    if (id === null || !key) return
-    return window.swarm.subscribeEvents((e: UIEvent) => {
-      const eventObj = e as Record<string, unknown>
-      if (eventObj[idField] !== id) return
-      if (e.kind === events.delta) {
-        const text = (e as unknown as { text?: string }).text ?? ''
-        storeUpdate(key, (prev) => ({
-          phase: 'streaming',
-          streamText: (prev.phase === 'streaming' ? prev.streamText : '') + text,
-        }))
-      } else if (e.kind === events.complete) {
-        const result = parseComplete(e)
-        const streamText = (e as unknown as { summary?: string }).summary ?? ''
-        storeSet(key, { phase: 'done', result, streamText })
-        for (const k of invalidateOnComplete ?? []) {
-          void qc.invalidateQueries({ queryKey: k })
-        }
-      } else if (e.kind === events.error) {
-        const error = (e as unknown as { error?: string }).error ?? 'analysis failed'
-        storeSet(key, { phase: 'error', error })
-      }
-    })
-  }, [id, key, events, idField, parseComplete, qc, invalidateOnComplete, storeSet, storeUpdate])
 
   const analyze = useCallback(() => {
     if (id === null || !key) return

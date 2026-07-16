@@ -111,11 +111,8 @@ export function ArticleDetailPanel({
   const { state, analyze } = useAnalysisStream<ArticleSummary>({
     id: article.id,
     events: { delta: 'article.analysisDelta', complete: 'article.analysisComplete', error: 'article.analysisError' },
-    idField: 'articleId',
-    parseComplete: (e) => (e as { summary: ArticleSummary }).summary,
     trigger: () => swarmApi.articleAnalyze(article.id),
     cachedResult: article.summary ?? null,
-    invalidateOnComplete: [['articles', 'list']],
   })
 
   // Surface the in-flight id to the grid so it can badge the matching card;

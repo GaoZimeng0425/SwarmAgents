@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useAnalysisEventBridge } from '@/hooks/use-analysis-event-bridge'
 import { swarmApi } from '@/lib/api'
+import { useAnalysisStreamStore } from '@/stores/analysis-stream'
 import { type ThreadAnalysisInput, useThreadAnalysis } from './use-thread-analysis'
 
 let emit: ((e: UIEvent) => void) | null = null
@@ -29,11 +31,26 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  // Clear the global analysis-stream store so tests don't leak state.
+  useAnalysisStreamStore.setState({ entries: new Map() })
 })
 
 function makeWrapper(qc: QueryClient) {
+  // Mounts the global analysis-event bridge so streamed events dispatched via
+  // `emit` reach the analysis-stream store (the single source of truth), mirroring
+  // how the app root wires it. Without this, useThreadAnalysis would never see
+  // delta/complete/error because the hook no longer subscribes per-panel.
+  function Bridge(): null {
+    useAnalysisEventBridge()
+    return null
+  }
   return function Wrapper({ children }: { children: React.ReactNode }): React.ReactElement {
-    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={qc}>
+        <Bridge />
+        {children}
+      </QueryClientProvider>
+    )
   }
 }
 
@@ -177,7 +194,10 @@ describe('useThreadAnalysis', () => {
     }
   })
 
-  it('unsubscribes the previous subscription when the thread id changes', async () => {
+  it('keeps a single global subscription when the thread id changes', async () => {
+    // After the 切走丢失 fix, streaming events are dispatched by a single global
+    // bridge (mounted in the wrapper), not per-thread by the hook. So switching
+    // threads must NOT add or tear down subscriptions — the store is keyed by id.
     const unsubscribe = vi.fn()
     const subscribe = vi.fn(() => unsubscribe)
     ;(window.swarm as unknown as { subscribeEvents: unknown }).subscribeEvents = subscribe
@@ -186,12 +206,12 @@ describe('useThreadAnalysis', () => {
       wrapper: makeWrapper(qc),
       initialProps: { t: thread },
     })
-    // One always-on subscription per selected thread (no analyzeThread on mount).
+    // The wrapper's bridge subscribes exactly once; the hook itself never subscribes.
     await waitFor(() => expect(subscribe).toHaveBeenCalledTimes(1))
 
     rerender({ t: { ...thread, id: 't2' } })
-    // Switching to a new thread id tears down the prior subscription and makes a new one.
-    await waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2))
-    expect(unsubscribe).toHaveBeenCalled()
+    // Switching threads does not re-subscribe.
+    expect(subscribe).toHaveBeenCalledTimes(1)
+    expect(unsubscribe).not.toHaveBeenCalled()
   })
 })

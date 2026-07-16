@@ -47,20 +47,11 @@ export function useThreadAnalysis(thread: ThreadAnalysisInput | null): UseThread
       complete: 'gmail.threadAnalysisComplete',
       error: 'gmail.threadAnalysisError',
     },
-    idField: 'threadId',
-    parseComplete: (e) => {
-      const ev = e as { summary: string; todos: Todo[]; suggest: string }
-      return { summary: ev.summary, todos: ev.todos, suggest: ev.suggest }
-    },
     trigger: async () => {
       if (!thread) return { ok: false, message: 'no thread' }
       return swarmApi.analyzeThread({ threadId: thread.id, subject: thread.subject, messages: thread.messages })
     },
     cachedResult: cache.data ?? null,
-    invalidateOnComplete: [
-      ['gmail', 'threadAnalysis', threadId],
-      ['gmail', 'analyzedThreadIds'],
-    ],
   })
 
   // Map the generic AnalysisStreamState back to the ThreadAnalysisState shape

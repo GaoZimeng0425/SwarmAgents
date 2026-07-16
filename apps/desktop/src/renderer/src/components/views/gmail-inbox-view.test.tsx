@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useAnalysisEventBridge } from '@/hooks/use-analysis-event-bridge'
 import type { ThreadAnalysisState } from '@/hooks/use-thread-analysis'
 import { swarmApi } from '@/lib/api'
 import { useAnalysisStreamStore } from '@/stores/analysis-stream'
@@ -116,7 +117,18 @@ describe('GmailInboxView manual analysis', () => {
   let emits: ((e: UIEvent) => void)[] = []
 
   function wrap(node: React.ReactElement, qc: QueryClient): React.ReactElement {
-    return <QueryClientProvider client={qc}>{node}</QueryClientProvider>
+    // Mounts the global analysis-event bridge so events emitted via `emits`
+    // reach the analysis-stream store — mirroring how the app root wires it.
+    function Bridge(): null {
+      useAnalysisEventBridge()
+      return null
+    }
+    return (
+      <QueryClientProvider client={qc}>
+        <Bridge />
+        {node}
+      </QueryClientProvider>
+    )
   }
 
   // getThreadAnalysis is reassigned per-test (cached vs miss) before render.

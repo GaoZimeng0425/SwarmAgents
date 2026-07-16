@@ -188,16 +188,10 @@ export function BilibiliDetailPanel({
   const { state: analysisState } = useAnalysisStream<BiliSummary>({
     id: video?.bvid ?? null,
     events: { delta: 'bilibili.analysisDelta', complete: 'bilibili.analysisComplete', error: 'bilibili.analysisError' },
-    idField: 'bvid',
     // trigger is not called — mutations (process/transcribe) fire the analysis;
     // the hook's state is driven purely by the streamed events.
     trigger: () => Promise.resolve({ ok: true } as { ok: true }),
-    parseComplete: (e) => (e as { summary: BiliSummary }).summary,
     cachedResult: analysisQuery.data?.summary ?? null,
-    invalidateOnComplete: [
-      ['bilibili', 'analyzedBvids'],
-      ['bilibili', 'analysis', video?.bvid],
-    ],
   })
 
   // Reset mutations, stage, and the text toggle when the user switches video cards.
