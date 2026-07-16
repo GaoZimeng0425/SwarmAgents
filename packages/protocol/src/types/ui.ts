@@ -30,7 +30,6 @@ import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './c
 import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } from './gmail'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './mcp'
 import type { MemoryView } from './memory'
-import type { MessageWireEvent } from './message'
 import type { ApiStyle, ModelThinkingLevel, ProviderInjection, ProvidersStateView } from './provider'
 import type { Skill, SkillMutationResult } from './skill'
 import type { Attachment, DelegateResult, ExecutionMode, PermissionMode, RunOptions, TaskEvent } from './task'
