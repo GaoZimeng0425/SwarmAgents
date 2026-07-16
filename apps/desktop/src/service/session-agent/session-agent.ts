@@ -197,6 +197,37 @@ export class SessionAgent {
   }
 
   /**
+   * Persist this turn's usage as a 'custom' entry (customType 'usage') so the
+   * store's aggregate stats (getUsageStats / listSessions) can be computed over
+   * the entry log — v3's replacement for the retired per-turn message.usage rows
+   * (spec §3.6 P4). Row-per-turn keyed by runId; the store reads the latest per
+   * runId, mirroring v2's latest-message.usage snapshot semantics. Custom entries
+   * are app-data (messagesFromEntries projects 'message' only), so this never
+   * reaches the model's context.
+   */
+  private appendUsageEntry(snap: {
+    used: ConsumedResources
+    contextTokens?: number
+    contextWindow?: number
+    model?: string
+  }): void {
+    this.appendEntry({
+      type: 'custom',
+      customType: 'usage',
+      id: uuidv7(),
+      parentId: this.parentId(),
+      timestamp: new Date().toISOString(),
+      data: {
+        runId: this.runId,
+        ...(snap.model !== undefined ? { model: snap.model } : {}),
+        used: snap.used,
+        ...(snap.contextTokens !== undefined ? { contextTokens: snap.contextTokens } : {}),
+        ...(snap.contextWindow !== undefined ? { contextWindow: snap.contextWindow } : {}),
+      },
+    })
+  }
+
+  /**
    * Force the current run to end early with a caller-supplied reason (e.g. a
    * run-hooks.ts budget gate tripping). Generalizes the max-iterations guard
    * in `prepareNextTurn` below to an arbitrary reason instead of a fixed string.
@@ -293,7 +324,9 @@ export class SessionAgent {
         return
       case 'turn_end': {
         for (const tr of e.toolResults) this.appendMessageOnce(tr)
-        this.deps.broadcast({ kind: 'turn_end', ...scope, ...this.usageSnapshot(e.message) })
+        const snap = this.usageSnapshot(e.message)
+        this.appendUsageEntry(snap)
+        this.deps.broadcast({ kind: 'turn_end', ...scope, ...snap })
         return
       }
       case 'tool_execution_start':
