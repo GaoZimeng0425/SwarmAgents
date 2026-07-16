@@ -38,6 +38,18 @@ export function ComposerMention({
   const open = mention !== null
   const maxIndex = mention?.trigger === '/' ? skillItems.length - 1 : files.length - 1
 
+  // Match the popover width to the composer box so candidates don't truncate.
+  const [anchorWidth, setAnchorWidth] = useState<number | null>(null)
+  useEffect(() => {
+    const el = anchor.current
+    if (!el) return
+    const update = (): void => setAnchorWidth(el.offsetWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [anchor])
+
   // --- DOM listener: find the textarea and attach input/keydown handlers ---
   // The textarea lives inside PromptInput (prompt-input.tsx), which we don't
   // control. It may mount after our first render (PromptInput children commit
@@ -196,10 +208,7 @@ export function ComposerMention({
             type="button"
           >
             <Sparkles className="size-4 shrink-0 text-indigo-500" />
-            <span className="flex flex-col">
-              <span className="font-mono">{s.name}</span>
-              <span className="text-muted-foreground text-xs">{s.description}</span>
-            </span>
+            <span className="font-mono">{s.name}</span>
           </button>
         ))
       : files.map((f, i) => (
@@ -239,10 +248,11 @@ export function ComposerMention({
       <PopoverContent
         align="start"
         anchor={anchor}
-        className="max-h-64 w-72 overflow-y-auto p-0"
+        className="max-h-64 overflow-y-auto p-0"
         finalFocus={false}
         side="top"
         sideOffset={8}
+        style={anchorWidth ? { width: anchorWidth } : undefined}
       >
         {candidates}
       </PopoverContent>
