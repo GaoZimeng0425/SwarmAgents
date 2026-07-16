@@ -3,38 +3,35 @@ import { describe, expect, it, vi } from 'vitest'
 import { createPermissionRegistry } from './permission-registry'
 
 describe('PermissionRegistry', () => {
-  it('broadcasts run.permission_request on request and resolves on decision', async () => {
-    const broadcast = vi.fn()
-    const registry = createPermissionRegistry(broadcast)
+  it('resolves a request through the caller-supplied actionId (request→resolve round-trip)', async () => {
+    const registry = createPermissionRegistry()
 
+    const actionId = 'act-1'
     const promise = registry.request({
-      taskId: 'task-1',
+      actionId,
       toolName: 'fs.write',
       risk: 'high',
       summary: 'Write to /etc/hosts',
       payload: {},
     })
 
-    expect(broadcast).toHaveBeenCalledOnce()
-    const [event, data] = broadcast.mock.calls[0] as [string, { actionId: string }]
-    expect(event).toBe('message.permission_request')
-    expect(data.actionId).toBeTruthy()
-
-    registry.resolve(data.actionId, 'grant')
+    // The registry no longer broadcasts (run-hooks owns the permission_request
+    // event); resolution correlates purely by the caller-supplied actionId.
+    registry.resolve(actionId, 'grant')
     await expect(promise).resolves.toBe('grant')
   })
 
   it('ignores resolve for unknown actionId', () => {
-    const registry = createPermissionRegistry(vi.fn())
+    const registry = createPermissionRegistry()
     expect(() => registry.resolve('unknown', 'deny')).not.toThrow()
   })
 
   it('does not auto-resolve — waits indefinitely for an explicit decision', async () => {
     vi.useFakeTimers()
-    const registry = createPermissionRegistry(vi.fn())
+    const registry = createPermissionRegistry()
 
     const promise = registry.request({
-      taskId: 'task-1',
+      actionId: 'act-1',
       toolName: 'fs.write',
       risk: 'high',
       summary: 'test',
@@ -48,12 +45,12 @@ describe('PermissionRegistry', () => {
     vi.useRealTimers()
   })
 
-  it('fail-safe denies when the task is aborted while pending', async () => {
+  it('fail-safe denies when the run is aborted while pending', async () => {
     const ac = new AbortController()
-    const registry = createPermissionRegistry(vi.fn())
+    const registry = createPermissionRegistry()
 
     const promise = registry.request(
-      { taskId: 'task-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
+      { actionId: 'act-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
       ac.signal
     )
 
@@ -61,53 +58,42 @@ describe('PermissionRegistry', () => {
     await expect(promise).resolves.toBe('deny')
   })
 
-  it('fail-safe denies without prompting if the signal is already aborted', async () => {
+  it('fail-safe denies without registering if the signal is already aborted', async () => {
     const ac = new AbortController()
     ac.abort()
-    const broadcast = vi.fn()
-    const registry = createPermissionRegistry(broadcast)
+    const registry = createPermissionRegistry()
 
     await expect(
       registry.request(
-        { taskId: 'task-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
+        { actionId: 'act-1', toolName: 'fs.write', risk: 'high', summary: 'test', payload: {} },
         ac.signal
       )
     ).resolves.toBe('deny')
-    expect(broadcast).not.toHaveBeenCalled()
   })
 
   it('grant_always resolves the request as grant and auto-grants later same-tool requests', async () => {
-    const broadcast = vi.fn()
-    const registry = createPermissionRegistry(broadcast)
+    const registry = createPermissionRegistry()
 
-    const first = registry.request({ taskId: 't1', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
-    const [, data] = broadcast.mock.calls[0] as [string, { actionId: string }]
-    registry.resolve(data.actionId, 'grant_always')
-    // The engine only understands 'grant' — grant_always is translated.
+    const first = registry.request({ actionId: 'a1', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
+    registry.resolve('a1', 'grant_always')
+    // The gate only understands 'grant' — grant_always is translated.
     await expect(first).resolves.toBe('grant')
 
     // A later request for the SAME tool auto-grants with no new prompt.
-    broadcast.mockClear()
     await expect(
-      registry.request({ taskId: 't2', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
+      registry.request({ actionId: 'a2', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
     ).resolves.toBe('grant')
-    expect(broadcast).not.toHaveBeenCalled()
   })
 
-  it('grant_always is scoped per tool name — a different tool still prompts', async () => {
-    const broadcast = vi.fn()
-    const registry = createPermissionRegistry(broadcast)
+  it('grant_always is scoped per tool name — a different tool still waits for a decision', async () => {
+    const registry = createPermissionRegistry()
 
-    const first = registry.request({ taskId: 't1', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
-    const [, data] = broadcast.mock.calls[0] as [string, { actionId: string }]
-    registry.resolve(data.actionId, 'grant_always')
+    const first = registry.request({ actionId: 'a1', toolName: 'fs.write', risk: 'high', summary: 's', payload: {} })
+    registry.resolve('a1', 'grant_always')
     await first
 
-    broadcast.mockClear()
-    const other = registry.request({ taskId: 't2', toolName: 'shell.exec', risk: 'high', summary: 's', payload: {} })
-    expect(broadcast).toHaveBeenCalledOnce() // not auto-granted; a prompt is broadcast
-    const [, d2] = broadcast.mock.calls[0] as [string, { actionId: string }]
-    registry.resolve(d2.actionId, 'deny')
+    const other = registry.request({ actionId: 'a2', toolName: 'shell.exec', risk: 'high', summary: 's', payload: {} })
+    registry.resolve('a2', 'deny')
     await expect(other).resolves.toBe('deny')
   })
 })

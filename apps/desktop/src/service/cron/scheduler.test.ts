@@ -47,13 +47,9 @@ function fakeStore(initial: StoredCronJob[] = []) {
   }
 }
 
-// Default terminal-registry predicates for tests that don't exercise reconcile.
-// Reconcile only matters when isRunTerminal is wired; everything else just
-// needs the deps shape satisfied.
-const noTerminal = {
-  isRunTerminal: () => false,
-  runTerminalStatus: () => undefined as string | undefined,
-}
+// No extra deps beyond store/fire are required now that reconcile finalizes
+// orphaned runs unconditionally.
+const noTerminal = {}
 
 describe('createCronScheduler', () => {
   it('add persists a job and returns its next run', () => {
@@ -243,10 +239,10 @@ describe('createCronScheduler', () => {
     sched.dispose()
   })
 
-  it('reconciles orphaned running runs on start', () => {
+  it('reconciles every orphaned running run to failed on start', () => {
     const { store, sessions, runs } = fakeStore()
     sessions.add('ses-1')
-    // a leftover running run whose target run is terminal in the registry
+    // a leftover running run whose live state is gone after restart
     runs.set('run-done', {
       id: 'run-done',
       jobId: 'job-1',
@@ -269,18 +265,15 @@ describe('createCronScheduler', () => {
       error: null,
     })
 
-    // Registry-backed predicates: only 'r-done' is terminal.
-    const terminal = new Map([['r-done', 'completed']])
     const sched = createCronScheduler({
       store,
       fire: vi.fn().mockReturnValue({ taskId: 't' }),
-      isRunTerminal: (messageId) => terminal.has(messageId),
-      runTerminalStatus: (messageId) => terminal.get(messageId),
     })
     sched.start()
 
-    expect(runs.get('run-done')?.status).toBe('completed')
-    expect(runs.get('run-lost')?.status).toBe('interrupted')
+    // Orphaned runs can't resume after a restart, so both are marked failed.
+    expect(runs.get('run-done')?.status).toBe('failed')
+    expect(runs.get('run-lost')?.status).toBe('failed')
     sched.dispose()
   })
 

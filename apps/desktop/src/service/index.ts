@@ -128,25 +128,18 @@ const service = createSessionService({
 const scheduler = createCronScheduler({
   store,
   fire: (sessionId, prompt, onComplete) => {
-    // submitPrompt returns { messageId }; the scheduler records it as its task id.
-    const { messageId } = service.submitPrompt(sessionId, prompt, [], onComplete)
-    return { taskId: messageId }
+    // submitPrompt returns { runId }; the scheduler records it as its task id.
+    const { runId } = service.submitPrompt(sessionId, prompt, [], onComplete)
+    return { taskId: runId }
   },
   // Cron jobs are global: own + fire them in the dedicated system session, not
   // the conversation that issued schedule_task, so every session sees them and
   // they survive that conversation's deletion.
   resolveJobSession: (fromSessionId) => service.ensureSystemSession(fromSessionId),
-  isRunTerminal: (messageId) => service.terminalRegistry.isTerminal(messageId),
-  runTerminalStatus: (messageId) => service.terminalRegistry.getStatus(messageId),
 })
 // Drives Claude Code sessions the agent operates via cc_* tools. The SDK is
 // loaded lazily on first cc_start, so constructing it here is cheap.
 const claudeCode = createClaudeCodeManager()
-
-// Close out messages dispatched-but-never-terminal from a previous process: append
-// a synthetic message.error to message_events (replay reaches terminal) and mark each
-// terminal in the registry.
-service.markInterruptedRunsTerminal()
 
 // One symmetric RPC peer over parentPort, both directions: main sends
 // `request`s that this side answers via `dispatch` (registered below as the

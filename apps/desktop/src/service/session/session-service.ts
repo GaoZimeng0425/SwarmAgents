@@ -1,30 +1,26 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { StreamFn } from '@earendil-works/pi-agent-core'
+import { uuidv7 } from '@earendil-works/pi-agent-core'
+import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
 import type {
   AgentDefinition,
+  AgentWireEvent,
   Artifact,
   Attachment,
   DelegateResult,
-  DelegationItem,
-  DelegationItemStatus,
+  EntryRow,
   PermissionDecision,
   PermissionMode,
   ProviderInjection,
+  Risk,
   RunOptions,
-  UIEvent,
+  RunStatus,
+  SessionEntry,
 } from '@swarm/protocol'
 import { allowlistForAgent, type BudgetConfig, defaultBudgetConfig } from '@swarm/protocol'
-import {
-  applyAgentModel,
-  applyDelegationPlan,
-  applyDelegationUpdate,
-  DEFAULT_AGENT_DEF,
-  type PlanItemState,
-  replayDelegationEvents,
-  SYSTEM_SESSION_ID,
-} from '@swarm/shared'
+import { applyAgentModel, DEFAULT_AGENT_DEF, SYSTEM_SESSION_ID } from '@swarm/shared'
 import { ulid } from 'ulid'
 
 import { withAgentTypes } from '../agents/prompt'
@@ -33,21 +29,21 @@ import { buildMarkdown } from '../conversation/markdown-export'
 import type { ConversationStore } from '../conversation/store'
 import { createAgentDirectory } from '../directory/receptionist'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { MessageEmitPorts } from '../message-engine/emit'
-import { type LaunchPorts, launchMessage, type MessageSpec } from '../message-engine/launch'
+import { composeSystemPrompt, resolveModel } from '../message-engine/models'
+import { createRunHooks } from '../session-agent/run-hooks'
+import { type RunResult, SessionAgent } from '../session-agent/session-agent'
 import { withSkills } from '../skills/prompt'
 import type { SkillStore } from '../skills/store'
 import { registerBuiltinTools } from '../tools/builtins'
-import { createToolRegistry, type ToolRegistry } from '../tools/registry'
+import { createToolRegistry, type ToolRegistry, type ToolRunContext } from '../tools/registry'
+import { reportResultSpec } from '../tools/report-result'
 import { createPermissionRegistry, type PermissionRegistry } from './permission-registry'
-import { createSeqCounter } from './seq-counter'
-import { createTerminalRegistry, type TerminalRegistry } from './terminal-registry'
 
 const log = createLogger({ process: 'service' }).child({ component: 'session-service' })
 
 // Plan mode is read-only: it grants inspection tools but no shell, no fs writes,
 // and no peekaboo interactions, so the agent physically cannot mutate anything
-// while it produces a plan. Applies to the composer's main task only.
+// while it produces a plan. Applies to the composer's main run only.
 const PLAN_READONLY_ALLOWLIST = [
   'fs.read_file',
   'fs.list_dir',
@@ -61,14 +57,38 @@ const PLAN_READONLY_ALLOWLIST = [
   'agent.update_plan',
 ]
 
+// Per-session run controller. One SessionAgent per session (spec §3.3); slot
+// yield for delegate is per-session (a child rides the pool while its parent
+// yields — ledger #5, ported from message-engine/launch.ts:127-139).
+type SlotController = {
+  acquire: (signal: AbortSignal) => Promise<() => void>
+  yieldWhile: <T>(fn: () => Promise<T>) => Promise<T>
+  getSignal: () => AbortSignal | undefined
+}
+
 type SessionState = {
   id: string
   provider: ProviderInjection
   permissionRegistry: PermissionRegistry
-  messages: AgentMessage[]
-  /** Set when this session was created by forkToNewSession — links back to the
-   *  source session + the message id at the fork point. Optional metadata only. */
-  forkedFrom?: { sessionId: string; messageId: string }
+  /** Session id whose live permission mode governs this run's gate — a child
+   *  inherits the root user session's id so a session-level 'full' grant flows
+   *  down to delegated children (they must not re-prompt). */
+  permissionSessionId: string
+  slot: SlotController
+  kind: 'user' | 'child'
+  agent?: SessionAgent
+  /** Present only for a child (delegate) session: the fixed single-shot run
+   *  config, plus the artifact sink report_result writes into. */
+  childRun?: {
+    agentDef: AgentDefinition
+    tools: string[]
+    budgetKind: 'main' | 'sub'
+    artifacts: Artifact[]
+  }
+  /** Set fresh each run by buildAgentConfig so the run-hooks factory (which runs
+   *  BEFORE buildAgentConfig inside SessionAgent.runOnce) can read this run's
+   *  per-call risk classifier when a tool call finally fires. */
+  riskOf: (name: string, args?: unknown) => Risk
 }
 
 type SessionServiceConfig = {
@@ -79,19 +99,19 @@ type SessionServiceConfig = {
   toolRegistry?: ToolRegistry
   skillStore?: SkillStore
   agentStore?: AgentStore
-  /** Returns the user-configured per-task budgets; defaults apply when omitted. */
+  /** Returns the user-configured per-run budgets; defaults apply when omitted. */
   getBudgetConfig?: () => BudgetConfig
   /** Live predicate from the tool-toggles store; disabled skills are dropped from the catalog. */
   isSkillEnabled?: (name: string) => boolean
   /** Directory where session-markdown exports are written. Required for exportSessionMarkdown. */
   exportsDir?: string
   /**
-   * Optional Claude-Code-style hooks sink. Invoked once per emitted run.*
-   * event with (eventName, evt); the dispatcher maps run.* kinds to the
-   * configured Claude event names (Notification/PermissionRequest/Stop/…).
-   * Fire-and-forget — a throwing/slow sink must never block emit.
+   * Optional Claude-Code-style hooks sink. Invoked once per emitted AgentWireEvent
+   * with (eventName, evt). Fire-and-forget — a throwing/slow sink must never block emit.
    */
   dispatchHook?: (eventName: string, payload: unknown) => void
+  /** Test seam: inject a fake StreamFn so runs never hit the network (see session-agent.test). */
+  streamFn?: StreamFn
 }
 
 export type SessionService = {
@@ -101,52 +121,29 @@ export type SessionService = {
     sessionId: string,
     prompt: string,
     attachments?: Attachment[],
-    onComplete?: (status: 'completed' | 'failed' | 'cancelled', error?: string) => void,
+    onComplete?: (status: RunStatus, error?: string) => void,
     options?: RunOptions
-  ): { messageId: string }
-  runWork(
-    sessionId: string,
-    prompt: string,
-    options?: RunOptions
-  ): Promise<{ messageId: string; status: string; summary: string }>
+  ): { runId: string }
   /**
-   * Fork a session at a checkpoint: create a new session sharing the source's
-   * provider, reconstruct the transcript up to (and including) forkPointMessageId
-   * as prior context, and launch a work run with `newPrompt` on top of it.
-   * Returns the new session id and the fork's first message id (the latter is
-   * filled synchronously where possible, otherwise an empty string until the
-   * launched run mints one).
+   * Full-fidelity fork: create a new user session sharing the source's provider
+   * and copy the source's entries up to (and including) `upToRowId` — the exact
+   * transcript, not a lossy reconstruction. Returns the new session id.
    */
-  forkToNewSession(
-    sourceSessionId: string,
-    forkPointMessageId: string,
-    newPrompt: string,
-    opts?: { agentType?: string }
-  ): { sessionId: string; messageId: string }
+  forkSession(sourceSessionId: string, upToRowId: number): { sessionId: string }
+  /** The session's finalized entry log from `afterRowId` (exclusive; 0 = all). */
+  getSessionEntries(sessionId: string, afterRowId?: number): EntryRow[]
+  /** Cancel the session's active run (SessionAgent owns the abort). */
+  cancelRun(sessionId: string): void
   resolvePermission(sessionId: string, actionId: string, decision: PermissionDecision): void
-  cancelMessage(sessionId: string, messageId: string): void
-  promoteQueuedMessage(sessionId: string, messageId: string): void
   deleteSession(sessionId: string): void
   renameSession(sessionId: string, title: string): void
   setSessionPinned(sessionId: string, pinned: boolean): void
   updateSessionSettings(sessionId: string, settings: import('@swarm/protocol').SessionSettings): void
   reorderSessions(orderedIds: string[]): void
   listSessions(): import('@swarm/protocol').SessionSummary[]
-  getMessageEvents(sessionId: string): import('@swarm/protocol').MessageEvent[]
   /** Build a markdown transcript of the session and write it to exportsDir; returns the file path. */
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
-  /** In-memory terminal-status registry (query directly: isTerminal/getStatus). */
-  terminalRegistry: TerminalRegistry
-  /**
-   * Startup pass for interrupted-on-restart recovery: for every session marked
-   * interrupted by the store's restart cleanup, find runs that were dispatched
-   * but never reached a terminal event, append a synthetic run.error to
-   * run_events (so replay reaches terminal instead of stuck-running), and mark
-   * each terminal in the registry. Reads BOTH the legacy task.* and the new
-   * run.* vocabularies, so it stays correct across the W4 migration switchover.
-   */
-  markInterruptedRunsTerminal(): void
 }
 
 // session-service owns sensible defaults for the agent-execution subsystem. In
@@ -158,116 +155,13 @@ function buildDefaultRegistry(): ToolRegistry {
   return r
 }
 
-/**
- * Reconstruct an `AgentMessage[]` transcript from a session's persisted message
- * events, suitable for seeding a forked session's `history` (prior context).
- *
- * Minimal-fidelity by design — only the LLM-visible conversational turns are
- * rebuilt; tool.call/tool.result wiring (which would need full `ToolCall` /
- * `ToolResultMessage` reconstruction with stable callIds) is intentionally
- * omitted. The resulting context is enough for a forked run to continue a
- * conversation; it is NOT a byte-perfect replay of the source agent state.
- *
- * Mapping:
- *   message.created                     → identity only (no user content)
- *   message.progress llm.message(user)  → UserMessage(content)
- *   message.progress llm.message(assistant) → AssistantMessage (consecutive
- *                                             chunks coalesce into one bubble,
- *                                             like task-segments.ts does)
- *   everything else (reasoning, tool.*,
- *   permissions, terminals, metadata)   → skipped
- *
- * `provider` supplies the `api`/`provider`/`model` fields the AssistantMessage
- * shape requires; usage is zeroed and stopReason is 'stop' since these are
- * synthesized, not round-tripped from a real model response.
- */
-function reconstructHistoryFromEvents(
-  rows: Array<{ messageId: string; event: UIEvent }>,
-  provider: ProviderInjection
-): AgentMessage[] {
-  // pi-ai's `Api` is a union of KnownApi | string, so the wire-style→api-id
-  // mapping produces a valid Api without importing the type directly.
-  const api = provider.apiStyle === 'anthropic' ? 'anthropic-messages' : 'openai-completions'
-  const out: AgentMessage[] = []
-  // Pending assistant text accumulates across consecutive llm.message(assistant)
-  // chunks until a non-assistant event flushes it (mirrors task-segments.ts).
-  let pendingAssistantText = ''
-  let pendingAssistantTs: number | null = null
-  const flushAssistant = (): void => {
-    if (!pendingAssistantText) {
-      pendingAssistantTs = null
-      return
-    }
-    out.push({
-      role: 'assistant',
-      content: [{ type: 'text', text: pendingAssistantText }],
-      api,
-      provider: provider.id,
-      model: provider.model,
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
-      stopReason: 'stop',
-      timestamp: pendingAssistantTs ?? Date.now(),
-    })
-    pendingAssistantText = ''
-    pendingAssistantTs = null
-  }
-
-  for (const row of rows) {
-    const e = row.event
-    if (e.kind === 'message.created') {
-      // created only carries identity (id/session/parent); the user content
-      // arrives as a role:'user' message.progress event below.
-      flushAssistant()
-      continue
-    }
-    if (e.kind === 'message.progress') {
-      const task = e.event
-      if (task.kind === 'llm.message') {
-        if (task.role === 'assistant') {
-          // Coalesce consecutive assistant chunks (streaming emit flushes at
-          // sentence boundaries — task-segments.ts does the same).
-          if (!pendingAssistantTs) pendingAssistantTs = task.ts
-          pendingAssistantText += typeof task.content === 'string' ? task.content : JSON.stringify(task.content)
-        } else if (task.role === 'user') {
-          // The message's input content — the sole source of the user turn.
-          flushAssistant()
-          out.push({
-            role: 'user',
-            content: typeof task.content === 'string' ? task.content : JSON.stringify(task.content),
-            timestamp: task.ts,
-          })
-        }
-      }
-      // tool.call / tool.result / reasoning / error are skipped (minimal fidelity).
-      continue
-    }
-    // Any non-message-progress event flushes the pending assistant bubble so a
-    // later user turn doesn't get glued onto it.
-    flushAssistant()
-  }
-  flushAssistant()
-  return out
-}
-
 export function createSessionService(cfg: SessionServiceConfig): SessionService {
   const { store, broadcaster } = cfg
   const toolRegistry = cfg.toolRegistry ?? buildDefaultRegistry()
   const sessions = new Map<string, SessionState>()
-  // Service-lifetime guard: run_events has NO foreign key on session_id, so a
-  // background run's post-delete append would otherwise silently INSERT an
-  // orphan row (not a no-op). This is what makes deleteSession's persistence
-  // cutoff real; W4's migration should sweep any historical orphans.
-  const deletedSessions = new Set<string>()
 
   // Inject the available-skills list and sub-agent-type catalog into the agent's
-  // system prompt at task time, so newly-added skills/agents appear without a restart.
+  // system prompt at run time, so newly-added skills/agents appear without a restart.
   const withPrompt = (def: AgentDefinition): AgentDefinition => {
     let systemPrompt = def.systemPrompt
     if (cfg.skillStore) {
@@ -281,124 +175,24 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     return { ...def, systemPrompt }
   }
 
-  // Read the user-configured per-task budgets at task-creation time; defaults
-  // apply when no getter is wired (tests/scripts).
   const budgets = (): BudgetConfig => cfg.getBudgetConfig?.() ?? defaultBudgetConfig()
 
   // The permission gate is resolved live from the session's persisted settings
   // at each tool call, so toggling the composer's permission mode takes effect
-  // on any in-flight or queued run in the session. Defaults to 'ask'.
+  // on any in-flight run in the session. Defaults to 'ask'.
   const resolvePermissionMode = (sid: string): PermissionMode => store.getSessionSettings(sid)?.permissionMode ?? 'ask'
   const directory = createAgentDirectory({ listAgentDefs: () => cfg.agentStore?.list() ?? [] })
 
-  const seqCounter = createSeqCounter((sid: string) => store.getMessageEvents(sid))
-  const terminalRegistry = createTerminalRegistry(store.getTerminalMessageStatuses())
-
-  // Session-level planState: event-replay-derived cache of the Leader's
-  // delegation DAG + per-item status/result. Holds NO context here — the
-  // MessageSpec callbacks (onDelegationPlan / onDelegationUpdate) wired below
-  // are the ONLY mutators; launch.ts ctx just emits + delegates to them.
-  const planStates = new Map<string, Map<string, PlanItemState>>()
-  /** Lazy-load: replay delegation events from the store on first access. */
-  const ensurePlanState = (sessionId: string): Map<string, PlanItemState> => {
-    let state = planStates.get(sessionId)
-    if (state) return state
-    const events = store.getMessageEvents(sessionId).map((r) => r.event)
-    state = replayDelegationEvents(events as Array<{ kind: string; [k: string]: unknown }>)
-    planStates.set(sessionId, state)
-    return state
-  }
-  const setDelegationPlanForSession = (sessionId: string, plan: DelegationItem[]): void => {
-    const state = applyDelegationPlan(planStates.get(sessionId), plan)
-    planStates.set(sessionId, state)
-  }
-  const mergeDelegationResultForSession = (
-    sessionId: string,
-    itemId: string,
-    delta: { status: DelegationItemStatus; artifacts: Artifact[] }
-  ): void => {
-    const state = ensurePlanState(sessionId)
-    // The callback's `delta.artifacts` maps to the reducer's `result` field name.
-    const next = applyDelegationUpdate(state, { itemId, status: delta.status, result: delta.artifacts })
-    planStates.set(sessionId, next)
+  const resolveAgentDef = (agentType?: string): AgentDefinition => {
+    const r = agentType ? cfg.agentStore?.get(agentType) : undefined
+    if (agentType && !r) log.warn({ msg: 'agentType not found, falling back to default', agentType })
+    return r ?? DEFAULT_AGENT_DEF
   }
 
-  // The ONE emit-port adapter, shared by every message. Persists each message.* event
-  // to message_events, marks the first-wins terminal registry, broadcasts on the wire.
-  const emitPorts: MessageEmitPorts = {
-    nextSeq: (sid) => seqCounter.nextSeq(sid),
-    appendEvent: (evt) => {
-      // Deleted-session guard: skip persistence only — markTerminal/broadcast
-      // are separate port calls in createMessageEmit and proceed unaffected.
-      if (deletedSessions.has(evt.sessionId)) {
-        log.debug({ msg: 'message event dropped for deleted session', messageId: evt.messageId, kind: evt.kind })
-        return
-      }
-      store.appendMessageEvent(evt.sessionId, evt.messageId, evt.parentMessageId ?? null, evt)
-    },
-    markTerminal: (messageId, status) => terminalRegistry.markTerminal(messageId, status),
-    broadcast: (evt) => {
-      broadcaster.broadcast(evt.kind, evt)
-      // Hooks sink: fire-and-forget alongside the wire broadcast. Guarded so
-      // a throwing dispatcher can never reject the emit path.
-      try {
-        cfg.dispatchHook?.(evt.kind, evt)
-      } catch (err) {
-        log.warn({
-          msg: 'dispatchHook threw',
-          kind: evt.kind,
-          messageId: evt.messageId,
-          err: err instanceof Error ? err.message : String(err),
-        })
-      }
-    },
-  }
-
-  // The permission registry emits the `message.permission_request` event for
-  // whichever message is currently prompting; its messageId rides on the payload's
-  // `taskId` field (there is no closure identity). This dedicated adapter ports
-  // makeMessageEmit's payload-derived-messageId behavior for THIS event only: persist +
-  // broadcast under the message.* vocabulary (top-level `messageId`, no `taskId`).
-  const permissionEmit =
-    (sessionId: string) =>
-    (event: string, data: unknown): void => {
-      const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined
-      const seq = seqCounter.nextSeq(sessionId)
-      const ts = Date.now()
-      const messageId = obj?.taskId as string | undefined
-      const parent = (obj?.parentTaskId as string | undefined) ?? null
-      // Strip the source vocabulary keys so the emitted event is pure message.*.
-      const { taskId: _taskId, parentTaskId: _parentTaskId, ...rest } = obj ?? {}
-      if (messageId) {
-        store.appendMessageEvent(sessionId, messageId, parent, {
-          kind: event,
-          ...rest,
-          sessionId,
-          messageId,
-          seq,
-          ts,
-        } as UIEvent)
-      }
-      broadcaster.broadcast(event, obj ? { ...rest, sessionId, messageId, seq, ts } : data)
-      // Same hooks sink as emitPorts.broadcast — permissionEmit is the sole
-      // emit path for message.permission_request, so it must dispatch hooks too.
-      try {
-        if (messageId) cfg.dispatchHook?.(event, { ...rest, sessionId, messageId, seq, ts })
-      } catch (err) {
-        log.warn({
-          msg: 'dispatchHook threw',
-          kind: event,
-          messageId,
-          err: err instanceof Error ? err.message : String(err),
-        })
-      }
-    }
-
-  // ---- Global concurrency pool → launch's acquireSlot(signal) ---------------
+  // ---- Global concurrency pool ---------------------------------------------
   // CONTRACT (W2 final review): once `signal` aborts, resolve PROMPTLY — a
-  // parked waiter that ignores the signal wedges the cancelled run and the
-  // session FIFO behind it. Grants that land in the same tick as the abort are
-  // handed straight back.
+  // parked waiter that ignores the signal wedges the cancelled run. Grants that
+  // land in the same tick as the abort are handed straight back.
   let active = 0
   const waiters: Array<() => void> = []
   const releaseSlot = (): void => {
@@ -449,172 +243,256 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     }
   }
 
-  // Abort registry: launch registers the abort BEFORE any wait, so a cancel of a
-  // queued run finds the handle and terminates cleanly (ledger #4).
-  const aborts = new Map<string, () => void>()
+  // Per-session slot handle with a re-acquirable release, so a delegate tool
+  // call can yield the parent's slot while it awaits the child, then re-take one
+  // before the parent's run continues. The handle SessionAgent stores reads the
+  // CURRENT underlying release at call time, so a yield/re-acquire swap doesn't
+  // leak or double-release.
+  const makeSlotController = (): SlotController => {
+    let currentRelease: (() => void) | null = null
+    let currentSignal: AbortSignal | undefined
+    let yieldDepth = 0
 
-  // ---- Per-session FIFO turn tickets → launch's waitTurn -------------------
-  type Ticket = { messageId: string; grant: () => void }
-  const turnQueues = new Map<string, { current: string | null; queue: Ticket[] }>()
-  const q = (sid: string): { current: string | null; queue: Ticket[] } => {
-    const existing = turnQueues.get(sid)
-    if (existing) return existing
-    const created = { current: null as string | null, queue: [] as Ticket[] }
-    turnQueues.set(sid, created)
-    return created
-  }
-  const pumpTurns = (sid: string): void => {
-    const st = q(sid)
-    if (st.current) return
-    const next = st.queue.shift()
-    if (!next) return
-    st.current = next.messageId
-    log.info({ msg: 'turn granted', sessionId: sid, messageId: next.messageId, queueDepth: st.queue.length })
-    next.grant()
-  }
-  const waitTurn = (sid: string, messageId: string, _signal: AbortSignal): Promise<void> =>
-    new Promise<void>((grant) => {
-      q(sid).queue.push({ messageId, grant })
-      pumpTurns(sid)
-    })
-  // Called when a turn's launchMessage promise settles: clear it if current, or drop
-  // it from the queue if it aborted while still waiting, then pump the next one.
-  // Looks up (never creates): a settlement racing a deleteSession must not
-  // resurrect an empty queue entry for a session that's already gone.
-  const settleTurn = (sid: string, messageId: string): void => {
-    const st = turnQueues.get(sid)
-    if (!st) return
-    if (st.current === messageId) st.current = null
-    else {
-      const i = st.queue.findIndex((t) => t.messageId === messageId)
-      if (i !== -1) st.queue.splice(i, 1)
+    const acquire = async (signal: AbortSignal): Promise<() => void> => {
+      currentSignal = signal
+      const rel = await acquireSlot(signal)
+      // acquireSlot resolves with a no-op release when the signal aborted while
+      // queued; SessionAgent's contract wants a REJECTION so it can settle the
+      // run cancelled without ever calling the LLM (see session-agent.ts:363).
+      if (signal.aborted) {
+        rel()
+        throw new Error('slot wait aborted')
+      }
+      currentRelease = rel
+      return () => {
+        currentRelease?.()
+        currentRelease = null
+        currentSignal = undefined
+      }
     }
-    pumpTurns(sid)
+
+    const yieldWhile = async <T>(fn: () => Promise<T>): Promise<T> => {
+      yieldDepth++
+      if (yieldDepth === 1 && currentRelease) {
+        currentRelease()
+        currentRelease = null
+      }
+      try {
+        return await fn()
+      } finally {
+        yieldDepth--
+        // Re-acquire for the parent unless it was cancelled while we waited.
+        if (yieldDepth === 0 && currentSignal && !currentSignal.aborted) {
+          currentRelease = await acquireSlot(currentSignal)
+        }
+      }
+    }
+
+    return { acquire, yieldWhile, getSignal: () => currentSignal }
   }
 
-  // The launch ports bound into every run for this session (uniform capability —
-  // createTask + delegate are wired for EVERY run, killing per-path drift).
-  const basePorts = (session: SessionState): LaunchPorts => ({
-    emit: emitPorts,
-    toolRegistry,
-    permissionRegistry: session.permissionRegistry,
-    acquireSlot,
-    registerAbort: (id, abort) => aborts.set(id, abort),
-    unregisterAbort: (id) => aborts.delete(id),
-    waitTurn,
-    delegate: (parentMessageId, prompt, opts) => delegate(session, parentMessageId, prompt, opts),
-    createTask: (prompt, agentType) =>
-      runWork(session.id, prompt, agentType ? { agentType } : {}).then((r) => ({
-        messageId: r.messageId,
-        status: r.status,
-        summary: r.summary,
-        artifacts: r.artifacts ?? [],
-      })),
-    writeAgent: (def) =>
-      cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
-    writeSkill: (skill) =>
-      cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
-    findAgents: (query) => directory.find(query),
+  const broadcastWire = (e: AgentWireEvent): void => {
+    broadcaster.broadcast(e.kind, e)
+    // Hooks sink: fire-and-forget alongside the wire broadcast. Guarded so a
+    // throwing dispatcher can never reject the emit path.
+    try {
+      cfg.dispatchHook?.(e.kind, e)
+    } catch (err) {
+      log.warn({ msg: 'dispatchHook threw', kind: e.kind, err: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  // Append a 'custom' entry to a session's log and broadcast entry_appended.
+  // Replaces the old message.delegation_plan/delegation_update wire events +
+  // the in-memory planStates cache (spec: delegation state lives as entries).
+  const appendCustomEntry = (sessionId: string, customType: string, data: unknown): number => {
+    const rows = store.entries.list(sessionId)
+    const parentId = rows.length ? rows[rows.length - 1].entry.id : null
+    const entry: SessionEntry = {
+      type: 'custom',
+      customType,
+      id: uuidv7(),
+      parentId,
+      timestamp: new Date().toISOString(),
+      data,
+    }
+    const rowId = store.entries.append(sessionId, entry)
+    broadcastWire({ kind: 'entry_appended', sessionId, rowId, entry })
+    return rowId
+  }
+
+  const makeState = (id: string, provider: ProviderInjection, kind: 'user' | 'child' = 'user'): SessionState => ({
+    id,
+    provider,
+    permissionRegistry: createPermissionRegistry(),
+    permissionSessionId: id,
+    slot: makeSlotController(),
+    kind,
+    riskOf: () => 'medium',
   })
 
-  // Recursive child launch — resolve agentType/provider exactly like the old
-  // spawnChild, then a nested launchMessage({ kind: 'child' }). The child's STATUS
-  // survives to the tool layer (spec §4, ledger #6).
-  const delegate = async (
-    session: SessionState,
-    parentMessageId: string,
-    prompt: string,
-    opts: { suggestedTools?: string[]; providerKey?: string; agentType?: string }
-  ): Promise<DelegateResult & { messageId: string }> => {
-    const { agentType, providerKey, suggestedTools } = opts
-    // Resolve the sub-agent type; an unknown type falls back to the default.
-    const def = (agentType ? cfg.agentStore?.get(agentType) : undefined) ?? DEFAULT_AGENT_DEF
-    if (agentType && def.id !== agentType) {
-      log.warn({ msg: 'agentType not found, falling back to default', agentType })
+  // Assemble this run's tool context (moved from message-engine/launch.ts:208-242)
+  // and the composed system prompt / model / thinking level / tools. Resolved
+  // fresh per run so a mid-session model switch or settings change takes effect.
+  const buildAgentConfig = (session: SessionState) => {
+    const isChild = session.kind === 'child'
+    const settings = isChild ? undefined : store.getSessionSettings(session.id)
+    const agentDef = session.childRun?.agentDef ?? resolveAgentDef(settings?.agentType)
+    const executionMode = isChild ? undefined : settings?.executionMode
+    const cwd = isChild ? undefined : settings?.cwd
+    const allowlist =
+      session.childRun?.tools ?? (executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef))
+
+    const provider = session.provider
+    const model = resolveModel(provider)
+    const systemPrompt = composeSystemPrompt(withPrompt(agentDef).systemPrompt, { cwd, executionMode })
+    const thinkingLevel = clampThinkingLevel(model, provider.thinkingLevel ?? 'high')
+
+    const ctx: ToolRunContext = {
+      sessionId: session.id,
+      // One run at a time per session; the session id is the correlation key.
+      taskId: session.id,
+      cwd,
+      spawnChild: (prompt, opts) => delegate(session, prompt, { ...opts, budgetKind: 'sub' }),
+      createTask: (prompt, agentType) => delegate(session, prompt, { agentType, budgetKind: 'main' }),
+      // Tools must NOT self-gate: permission is enforced centrally in run-hooks.
+      requestPermission: () => Promise.resolve('grant' as const),
+      findPeers: (q) => directory.find(q),
+      writeAgent: (def) =>
+        cfg.agentStore?.save(def) ?? { ok: false, code: 'no_store', message: 'agent store unavailable' },
+      writeSkill: (skill) =>
+        cfg.skillStore?.save(skill) ?? { ok: false, code: 'no_store', message: 'skill store unavailable' },
+      setDelegationPlan: (plan) => void appendCustomEntry(session.id, 'delegation_plan', { plan }),
+      mergeDelegationResult: (itemId, delta) =>
+        void appendCustomEntry(session.id, 'delegation_update', {
+          itemId,
+          status: delta.status,
+          result: delta.artifacts,
+        }),
+      // report_result is a per-run sink for a child agent's structured results.
+      reportResult: session.childRun ? (artifacts) => session.childRun?.artifacts.push(...artifacts) : undefined,
     }
-    const lookedUp = providerKey ? cfg.getProvider(providerKey) : undefined
-    if (providerKey && !lookedUp) {
-      log.warn({ msg: 'providerKey not found, falling back to session provider', providerKey })
+
+    const { tools, riskOf } = toolRegistry.resolve(allowlist, ctx)
+    session.riskOf = riskOf
+    if (tools.length === 0) log.warn({ msg: 'no tools resolved for run', sessionId: session.id, allowlist })
+    // report_result is runtime infrastructure for child runs — always injected,
+    // bypassing the allowlist. It's how children submit structured results.
+    const finalTools = isChild ? [...tools, reportResultSpec().build(ctx)] : tools
+
+    const budgetCfg = budgets()
+    return {
+      systemPrompt,
+      model,
+      apiKey: provider.apiKey,
+      thinkingLevel,
+      tools: finalTools,
+      maxTurns: budgetCfg.maxIterations ?? agentDef.maxIterations ?? 25,
+      ...(cfg.streamFn ? { streamFn: cfg.streamFn } : {}),
+    }
+  }
+
+  const getOrCreateAgent = (session: SessionState): SessionAgent => {
+    if (session.agent) return session.agent
+    const agent: SessionAgent = new SessionAgent({
+      sessionId: session.id,
+      entries: store.entries,
+      broadcast: broadcastWire,
+      acquireSlot: session.slot.acquire,
+      buildAgentConfig: () => buildAgentConfig(session),
+      hooks: (hookCtx) => {
+        const budget = session.childRun ? budgets()[session.childRun.budgetKind] : budgets().main
+        return createRunHooks({
+          sessionId: session.id,
+          runId: hookCtx.runId,
+          used: hookCtx.used,
+          risk: (name, args) => session.riskOf(name, args),
+          permissionMode: () => resolvePermissionMode(session.permissionSessionId),
+          requestPermission: (req) => session.permissionRegistry.request(req, session.slot.getSignal()),
+          budget,
+          broadcast: broadcastWire,
+          log,
+          signal: () => session.slot.getSignal(),
+          abortRun: (reason) => agent.abortRun(reason),
+          onPlanTodos: (todos) => agent.appendPlanTodos(todos),
+        })
+      },
+      log,
+    })
+    session.agent = agent
+    return agent
+  }
+
+  // Delegate a run to a hidden child session (spec §4). Creates the child
+  // session, records the delegation on the PARENT timeline as custom entries,
+  // runs the child SessionAgent to completion while the parent yields its slot,
+  // then records the result. The child's terminal STATUS survives to the tool
+  // layer (ledger #6) so delegate can surface a failed/cancelled child.
+  const delegate = async (
+    parentSession: SessionState,
+    prompt: string,
+    opts: { agentType?: string; suggestedTools?: string[]; providerKey?: string; budgetKind: 'main' | 'sub' }
+  ): Promise<DelegateResult & { messageId: string }> => {
+    const def = resolveAgentDef(opts.agentType)
+    const lookedUp = opts.providerKey ? cfg.getProvider(opts.providerKey) : undefined
+    if (opts.providerKey && !lookedUp) {
+      log.warn({ msg: 'providerKey not found, falling back to session provider', providerKey: opts.providerKey })
     }
     // The agent type may pin a model tier; otherwise inherit the provider's.
     // applyAgentModel preserves the provider's fallback chain.
-    const resolvedProvider = applyAgentModel(lookedUp ?? session.provider, def)
-    log.info({ msg: 'child delegated', sessionId: session.id, parentMessageId, agentDefId: def.id })
-    const r = await launchMessage(
-      {
-        kind: 'child',
-        sessionId: session.id,
-        parentMessageId,
-        agent: withPrompt(def),
-        provider: resolvedProvider,
-        prompt,
-        budget: budgets().sub,
-        tools: suggestedTools ?? allowlistForAgent(def),
-        // A sub-agent inherits the session's live permission mode: once the user
-        // grants 'full' for the session, delegated children must not re-prompt.
-        getPermissionMode: () => resolvePermissionMode(session.id),
-        maxIterationsOverride: budgets().maxIterations,
-        // Path-Y injection: planState lives in this closure; launch ctx only
-        // emits events and routes back here via the callback.
-        onDelegationPlan: (plan) => setDelegationPlanForSession(session.id, plan),
-        onDelegationUpdate: (itemId, delta) => mergeDelegationResultForSession(session.id, itemId, delta),
-      },
-      basePorts(session)
-    )
-    return { messageId: r.messageId, status: r.status, summary: r.summary, artifacts: r.artifacts ?? [] }
-  }
+    const resolvedProvider = applyAgentModel(lookedUp ?? parentSession.provider, def)
 
-  // Agent-authored top-level work run (delegate topLevel): a self-contained
-  // run that does NOT touch the session buffer (no snapshot). Uses the main
-  // budget and a plan-mode-aware allowlist.
-  const runWork = async (
-    sessionId: string,
-    prompt: string,
-    options: RunOptions = {},
-    extra?: { history?: AgentMessage[] }
-  ): Promise<{
-    messageId: string
-    status: 'completed' | 'failed' | 'cancelled'
-    summary: string
-    artifacts: Artifact[]
-  }> => {
-    const session = getOrRehydrate(sessionId)
-    if (!session) throw new Error(`session ${sessionId} not found`)
-    const resolvedByType = options.agentType ? cfg.agentStore?.get(options.agentType) : undefined
-    if (options.agentType && !resolvedByType) {
-      log.warn({ msg: 'agentType not found, falling back to default', agentType: options.agentType })
+    const childSessionId = ulid()
+    store.createSession(childSessionId, resolvedProvider, 'child')
+    const childState = makeState(childSessionId, resolvedProvider, 'child')
+    // A child inherits the parent's permission registry + governing session id
+    // so a session-level 'full' grant is honored without re-prompting.
+    childState.permissionRegistry = parentSession.permissionRegistry
+    childState.permissionSessionId = parentSession.permissionSessionId
+    childState.childRun = {
+      agentDef: def,
+      tools: opts.suggestedTools ?? allowlistForAgent(def),
+      budgetKind: opts.budgetKind,
+      artifacts: [],
     }
-    const agentDef = resolvedByType ?? DEFAULT_AGENT_DEF
-    const tools = options.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
-    log.info({ msg: 'work run started', sessionId, agentDefId: agentDef.id, promptLen: prompt.length })
-    const r = await launchMessage(
-      {
-        kind: 'work',
-        sessionId,
-        agent: withPrompt(agentDef),
-        provider: session.provider,
-        prompt,
-        // Prior context ONLY — the prompt is NOT in history (spec D4); the
-        // engine appends the user turn from spec.prompt. Forked sessions seed
-        // this with the reconstructed transcript up to the fork point.
-        ...(extra?.history ? { history: extra.history } : {}),
-        budget: budgets().main,
-        tools,
-        cwd: options.cwd,
-        executionMode: options.executionMode,
-        // An explicit per-run override wins; otherwise inherit the session's live
-        // permission mode so agent-authored work runs honor a session 'full' grant.
-        getPermissionMode: () => options.permissionMode ?? resolvePermissionMode(sessionId),
-        maxIterationsOverride: budgets().maxIterations,
-        // Path-Y injection: planState lives in this closure; launch ctx only
-        // emits events and routes back here via the callback.
-        onDelegationPlan: (plan) => setDelegationPlanForSession(sessionId, plan),
-        onDelegationUpdate: (itemId, delta) => mergeDelegationResultForSession(sessionId, itemId, delta),
-      },
-      basePorts(session)
-    )
-    log.info({ msg: 'work run finished', sessionId, messageId: r.messageId, status: r.status })
-    return { messageId: r.messageId, status: r.status, summary: r.summary, artifacts: r.artifacts ?? [] }
+    sessions.set(childSessionId, childState)
+
+    appendCustomEntry(parentSession.id, 'delegation', { childSessionId, agentDefId: def.id, prompt })
+    log.info({ msg: 'child delegated', sessionId: parentSession.id, childSessionId, agentDefId: def.id })
+
+    const childAgent = getOrCreateAgent(childState)
+    // Cascade a parent cancel to the child, and yield the parent's slot while
+    // the child runs so a full pool of delegating parents can't wedge.
+    const parentSignal = parentSession.slot.getSignal()
+    const onAbort = (): void => childAgent.cancel()
+    parentSignal?.addEventListener('abort', onAbort, { once: true })
+    let result: RunResult
+    try {
+      result = await parentSession.slot.yieldWhile(() => {
+        childAgent.submitUserMessage(prompt)
+        return childAgent.waitForCompletion()
+      })
+    } finally {
+      parentSignal?.removeEventListener('abort', onAbort)
+    }
+
+    appendCustomEntry(parentSession.id, 'delegation_result', {
+      childSessionId,
+      status: result.status,
+      summary: result.summary,
+    })
+    log.info({
+      msg: 'child delegation finished',
+      sessionId: parentSession.id,
+      childSessionId,
+      status: result.status,
+    })
+    return {
+      messageId: childSessionId,
+      status: result.status,
+      summary: result.summary,
+      artifacts: childState.childRun.artifacts,
+    }
   }
 
   const getOrRehydrate = (sessionId: string): SessionState | undefined => {
@@ -622,157 +500,26 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     if (live) return live
     const stored = store.getSession(sessionId)
     if (!stored) return undefined
-    const rehydrated: SessionState = {
-      id: sessionId,
-      provider: stored.providerSnapshot,
-      permissionRegistry: createPermissionRegistry(permissionEmit(sessionId)),
-      messages: store.getAgentSnapshot(sessionId),
-    }
+    // Children are ephemeral (created + run in a single process); only user
+    // sessions are ever rehydrated after a restart.
+    const state = makeState(sessionId, stored.providerSnapshot, 'user')
     store.updateSessionStatus(sessionId, 'active')
-    sessions.set(sessionId, rehydrated)
-    return rehydrated
+    sessions.set(sessionId, state)
+    return state
   }
 
-  // Fork a session at a checkpoint: create a new session sharing the source's
-  // provider, reconstruct the transcript up to (and including) the fork point
-  // as prior context, and launch a work run with `newPrompt` on top of it.
-  // Defined as a closure (not a method) so it can compose with createSession /
-  // runWork / getOrRehydrate without `this`-binding gymnastics across the
-  // returned service literal.
-  const forkToNewSession = (
-    sourceSessionId: string,
-    forkPointMessageId: string,
-    newPrompt: string,
-    opts?: { agentType?: string }
-  ): { sessionId: string; messageId: string } => {
-    // 1. Resolve the source session (live or rehydrated) for its provider.
-    const sourceSession = getOrRehydrate(sourceSessionId)
-    if (!sourceSession) throw new Error(`session not found: ${sourceSessionId}`)
-
-    // 2. Slice the source's event stream up to AND INCLUDING the fork point.
-    //    Rows arrive in insertion order, so a linear scan with a break on the
-    //    fork messageId captures the terminal boundary. If the fork point is
-    //    never seen (stale id / race with deletion), we fork from the whole
-    //    transcript — same outcome as forking at the latest message.
-    const rows = store.getMessageEvents(sourceSessionId)
-    const slicedEvents: Array<{ messageId: string; event: UIEvent }> = []
-    let sawForkPoint = false
-    for (const row of rows) {
-      slicedEvents.push({ messageId: row.messageId, event: row.event })
-      if (row.messageId === forkPointMessageId) {
-        sawForkPoint = true
-        break
-      }
-    }
-    if (!sawForkPoint) {
-      log.warn({
-        msg: 'fork point messageId not found in source session; forking from whole transcript',
-        sourceSessionId,
-        forkPointMessageId,
-      })
-    }
-
-    // 3. Reconstruct AgentMessage[] prior context from the sliced events.
-    const history = reconstructHistoryFromEvents(slicedEvents, sourceSession.provider)
-
-    // 4. Mint the new session id and persist it — mirrors the createSession
-    //    method's persistence path (store row + live SessionState + broadcast)
-    //    without invoking the method itself (avoiding `this`/forward-ref issues
-    //    inside the returned literal). Keeps the system-session provider-refresh
-    //    side effect; a fork should behave like any other fresh session.
-    const sessionId = ulid()
-    store.createSession(sessionId, sourceSession.provider)
-    const newSession: SessionState = {
-      id: sessionId,
-      provider: sourceSession.provider,
-      permissionRegistry: createPermissionRegistry(permissionEmit(sessionId)),
-      messages: [],
-      forkedFrom: { sessionId: sourceSessionId, messageId: forkPointMessageId },
-    }
-    sessions.set(sessionId, newSession)
-    broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
-    if (store.getSession(SYSTEM_SESSION_ID)) {
-      store.updateSessionProvider(SYSTEM_SESSION_ID, sourceSession.provider)
-      const liveSystem = sessions.get(SYSTEM_SESSION_ID)
-      if (liveSystem) liveSystem.provider = sourceSession.provider
-    }
-
-    log.info({
-      msg: 'session forked',
-      sourceSessionId,
-      forkPointMessageId,
-      newSessionId: sessionId,
-      historyLen: history.length,
-    })
-
-    // 5. Launch a work run with the sliced history as prior context. Fire-
-    //    and-forget: forkToNewSession is synchronous (it must return the new
-    //    session id immediately so the renderer can navigate to it); the run
-    //    proceeds in the background and mints its own messageId on dispatch.
-    //    The returned messageId is left empty when we cannot know it yet
-    //    (launchMessage mints one internally); the renderer can list the new
-    //    session's events to find the fork's first message.
-    const runOpts = opts?.agentType ? { agentType: opts.agentType } : {}
-    void runWork(sessionId, newPrompt, runOpts, { history }).catch((err) => {
-      log.error({
-        msg: 'fork run failed',
-        sessionId,
-        sourceSessionId,
-        err: err instanceof Error ? err.message : String(err),
-      })
-    })
-
-    return { sessionId, messageId: '' }
-  }
-
-  // Interrupted-on-restart recovery. Runs synthesize a terminal close-out per
-  // orphaned run (started but never reached a terminal event) so renderer replay
-  // reaches terminal instead of a stuck 'running'. Reads BOTH vocabularies:
-  // pre-W4 rows are task.*, post-W4 rows are run.*; the synthetic close-out is
-  // always a run.error code 'cancelled' (the post-migration shape). Idempotent:
-  // a run with a terminal event is skipped by construction.
-  const markInterruptedRunsTerminal = (): void => {
-    const interrupted = store.listSessions().filter((s) => s.status === 'interrupted')
-    if (interrupted.length === 0) return
-    let closed = 0
-    for (const s of interrupted) {
-      const rows = store.getMessageEvents(s.id)
-      const started = new Set<string>()
-      const terminal = new Set<string>()
-      for (const r of rows) {
-        const kind = (r.event as { kind?: string }).kind
-        if (kind === 'task.created' || kind === 'message.created') started.add(r.messageId)
-        else if (
-          kind === 'task.complete' ||
-          kind === 'task.error' ||
-          kind === 'message.complete' ||
-          kind === 'message.error'
-        )
-          terminal.add(r.messageId)
-      }
-      for (const messageId of started) {
-        if (terminal.has(messageId)) continue
-        const seq = seqCounter.nextSeq(s.id)
-        const ts = Date.now()
-        store.appendMessageEvent(s.id, messageId, null, {
-          kind: 'message.error',
-          sessionId: s.id,
-          messageId,
-          // 'cancelled' keeps the reducer, the registry, and getTerminalMessageStatuses
-          // (next restart) all in sync.
-          error: { code: 'cancelled', message: 'run interrupted by restart', tier: 'fatal' },
-          seq,
-          ts,
-        } as unknown as UIEvent)
-        terminalRegistry.markTerminal(messageId, 'cancelled')
-        closed += 1
-      }
-    }
-    if (closed > 0) log.info({ msg: 'interrupted runs closed on restart', count: closed })
+  // Keep the long-lived system session's provider current whenever a fresh
+  // session is created/forked.
+  const refreshSystemSessionProvider = (provider: ProviderInjection): void => {
+    if (!store.getSession(SYSTEM_SESSION_ID)) return
+    store.updateSessionProvider(SYSTEM_SESSION_ID, provider)
+    const liveSystem = sessions.get(SYSTEM_SESSION_ID)
+    if (liveSystem) liveSystem.provider = provider
   }
 
   // Mark any sessions left 'active' from a previous run as interrupted. Do not
-  // broadcast here: at startup no renderer is connected.
+  // broadcast here: at startup no renderer is connected. Live run state does not
+  // survive a restart (entries persist, the SessionAgent does not).
   for (const s of store.getInterruptedSessions()) {
     store.updateSessionStatus(s.id, 'interrupted')
   }
@@ -781,16 +528,10 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     createSession(provider) {
       const sessionId = ulid()
       store.createSession(sessionId, provider)
-      const permissionRegistry = createPermissionRegistry(permissionEmit(sessionId))
-      sessions.set(sessionId, { id: sessionId, provider, permissionRegistry, messages: [] })
+      sessions.set(sessionId, makeState(sessionId, provider))
       broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
       log.info({ msg: 'session created', sessionId })
-      // Keep the long-lived system session's provider current.
-      if (store.getSession(SYSTEM_SESSION_ID)) {
-        store.updateSessionProvider(SYSTEM_SESSION_ID, provider)
-        const liveSystem = sessions.get(SYSTEM_SESSION_ID)
-        if (liveSystem) liveSystem.provider = provider
-      }
+      refreshSystemSessionProvider(provider)
       return { sessionId }
     },
 
@@ -805,12 +546,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         log.debug({ msg: 'system session provider refreshed', fromSessionId })
       } else {
         store.createSession(SYSTEM_SESSION_ID, from.provider)
-        sessions.set(SYSTEM_SESSION_ID, {
-          id: SYSTEM_SESSION_ID,
-          provider: from.provider,
-          permissionRegistry: createPermissionRegistry(permissionEmit(SYSTEM_SESSION_ID)),
-          messages: [],
-        })
+        sessions.set(SYSTEM_SESSION_ID, makeState(SYSTEM_SESSION_ID, from.provider))
         store.setSessionTitle(SYSTEM_SESSION_ID, 'Scheduled tasks')
         log.info({ msg: 'system session created', fromSessionId })
       }
@@ -820,61 +556,33 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     submitPrompt(sessionId, prompt, attachmentsArg, onComplete, options) {
       const session = getOrRehydrate(sessionId)
       if (!session) throw new Error(`session ${sessionId} not found`)
-
       const attachments = attachmentsArg ?? []
-      const messageId = ulid()
 
-      // Resolve agent definition: options.agentType, then DEFAULT_AGENT_DEF.
-      const resolvedByType = options?.agentType ? cfg.agentStore?.get(options.agentType) : undefined
-      if (options?.agentType && !resolvedByType) {
-        log.warn({ msg: 'agentType not found, falling back to default', agentType: options.agentType })
-      }
-      const agentDef = resolvedByType ?? DEFAULT_AGENT_DEF
-      // Plan mode forces the read-only tool set even for a conversation turn.
-      const tools = options?.executionMode === 'plan' ? PLAN_READONLY_ALLOWLIST : allowlistForAgent(agentDef)
-
-      const spec: MessageSpec = {
-        kind: 'turn',
-        messageId,
-        sessionId,
-        agent: withPrompt(agentDef),
-        provider: session.provider,
-        prompt,
-        // Prior context ONLY — the prompt is NOT in history (spec D4); the
-        // engine appends the user turn from spec.prompt.
-        history: session.messages,
-        attachments,
-        budget: budgets().main,
-        tools,
-        cwd: options?.cwd,
-        executionMode: options?.executionMode,
-        permissionMode: options?.permissionMode,
-        getPermissionMode: () => resolvePermissionMode(sessionId),
-        saveSnapshot: (messages) => {
-          session.messages = messages
-          store.saveAgentSnapshot(sessionId, messages)
-        },
-        maxIterationsOverride: budgets().maxIterations,
-        // Path-Y injection: planState lives in this closure; launch ctx only
-        // emits events and routes back here via the callback.
-        onDelegationPlan: (plan) => setDelegationPlanForSession(sessionId, plan),
-        onDelegationUpdate: (itemId, delta) => mergeDelegationResultForSession(sessionId, itemId, delta),
+      // Composer choices arrive per submit; persist them so buildAgentConfig
+      // (settings-driven in the entries model) picks them up for this run.
+      if (
+        options &&
+        (options.cwd !== undefined || options.permissionMode || options.executionMode || options.agentType)
+      ) {
+        const prev = store.getSessionSettings(sessionId) ?? {}
+        store.setSessionSettings(sessionId, {
+          cwd: options.cwd ?? prev.cwd,
+          permissionMode: options.permissionMode ?? prev.permissionMode,
+          executionMode: options.executionMode ?? prev.executionMode,
+          agentType: options.agentType ?? prev.agentType,
+        })
       }
 
-      // Fire the run IMMEDIATELY so message.created renders as a pending card.
-      // launchMessage emits message.created + the role:'user' progress (the
-      // user's input content) synchronously before its first await, then pushes
-      // the FIFO ticket before returning the pending promise.
-      const done = launchMessage(spec, basePorts(session))
+      const agent = getOrCreateAgent(session)
+      const { entryRowId } = agent.submitUserMessage(prompt, attachments)
+      // The submitted user entry's row id is the run's synchronous correlation
+      // handle (the pi runId is minted asynchronously once the loop starts).
+      const runId = String(entryRowId)
 
-      // Post-launch session bookkeeping only (the user-content emit moved into
-      // launchMessage so every kind carries its input uniformly). Guarded: a
-      // throwing store here must not escape to the dispatcher while the run is
-      // already streaming (Minor #3).
+      // Post-submit bookkeeping only. Guarded: a throwing store here must not
+      // escape to the dispatcher while the run is already streaming.
       try {
         store.updateSessionLastActive(sessionId)
-
-        // First prompt titles the session.
         if (!store.getSession(sessionId)?.title) {
           const title = prompt.slice(0, 60)
           store.setSessionTitle(sessionId, title)
@@ -882,101 +590,69 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         }
       } catch (err) {
         log.error({
-          msg: 'post-launch bookkeeping failed',
+          msg: 'post-submit bookkeeping failed',
           sessionId,
-          messageId,
           err: err instanceof Error ? err.message : String(err),
         })
       }
       log.info({
         msg: 'conversation turn submitted',
         sessionId,
-        messageId,
-        agentDefId: agentDef.id,
-        cwd: options?.cwd ?? null,
-        permissionMode: options?.permissionMode ?? 'ask',
-        executionMode: options?.executionMode ?? 'direct',
+        entryRowId,
+        agentType: options?.agentType ?? null,
+        executionMode: options?.executionMode ?? null,
       })
 
-      // launchMessage never rejects; on settlement advance the FIFO + notify caller.
-      void done.then((r) => {
-        settleTurn(sessionId, messageId)
-        try {
-          onComplete?.(r.status)
-        } catch (err) {
-          log.error({
-            msg: 'submitPrompt onComplete threw',
-            sessionId,
-            messageId,
-            err: err instanceof Error ? err.message : String(err),
-          })
-        }
-      })
+      if (onComplete) {
+        void agent.waitForCompletion().then((r) => {
+          try {
+            onComplete(r.status)
+          } catch (err) {
+            log.error({
+              msg: 'submitPrompt onComplete threw',
+              sessionId,
+              err: err instanceof Error ? err.message : String(err),
+            })
+          }
+        })
+      }
 
-      return { messageId }
+      return { runId }
     },
 
-    runWork(sessionId, prompt, options) {
-      return runWork(sessionId, prompt, options)
+    forkSession(sourceSessionId, upToRowId) {
+      const source = getOrRehydrate(sourceSessionId)
+      if (!source) throw new Error(`session not found: ${sourceSessionId}`)
+      const sessionId = ulid()
+      store.createSession(sessionId, source.provider)
+      store.entries.copyUpTo(sourceSessionId, sessionId, upToRowId)
+      sessions.set(sessionId, makeState(sessionId, source.provider))
+      broadcaster.broadcast('session.created', { sessionId, title: null, ts: Date.now() })
+      refreshSystemSessionProvider(source.provider)
+      log.info({ msg: 'session forked', sourceSessionId, upToRowId, newSessionId: sessionId })
+      return { sessionId }
     },
 
-    forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts) {
-      return forkToNewSession(sourceSessionId, forkPointMessageId, newPrompt, opts)
+    getSessionEntries(sessionId, afterRowId) {
+      return store.entries.list(sessionId, afterRowId)
+    },
+
+    cancelRun(sessionId) {
+      log.info({ msg: 'run cancel requested', sessionId })
+      const agent = sessions.get(sessionId)?.agent
+      if (agent) agent.cancel()
+      else log.warn({ msg: 'cancelRun: no live agent for session', sessionId })
     },
 
     resolvePermission(sessionId, actionId, decision) {
       sessions.get(sessionId)?.permissionRegistry.resolve(actionId, decision)
     },
 
-    cancelMessage(sessionId, messageId) {
-      log.info({ msg: 'run cancel requested', sessionId, messageId })
-      // Launch registers the abort BEFORE its waits, so a queued run cancels
-      // cleanly through the same handle — no queued-branch needed (ledger #4).
-      const abort = aborts.get(messageId)
-      if (abort) {
-        abort()
-        return
-      }
-      log.warn({ msg: 'cancelMessage: unknown or already-finished run', sessionId, messageId })
-    },
-
-    promoteQueuedMessage(sessionId, messageId) {
-      const st = turnQueues.get(sessionId)
-      const idx = st ? st.queue.findIndex((t) => t.messageId === messageId) : -1
-      if (!st || idx === -1) {
-        log.warn({ msg: 'promoteQueuedMessage: run not in queue', sessionId, messageId })
-        return
-      }
-      // Promote the chosen ticket to the front of the queue.
-      const [item] = st.queue.splice(idx, 1)
-      st.queue.unshift(item)
-      const cancelledRunId = st.current
-      log.info({ msg: 'run interrupted, promoted to front', sessionId, messageId, cancelledRunId })
-      if (cancelledRunId) {
-        // Abort the running run; its launchMessage settles cancelled (partial output
-        // already saved via saveSnapshot), settleTurn clears current and pumps
-        // the promoted ticket.
-        aborts.get(cancelledRunId)?.()
-      } else {
-        // Idle session — grant the promoted ticket immediately.
-        pumpTurns(sessionId)
-      }
-    },
-
     deleteSession(sessionId) {
       log.info({ msg: 'session deleted', sessionId })
-      // Mark deleted BEFORE aborting in-flight runs: run_events has no FK on
-      // session_id, so without this guard a background run's post-abort event
-      // would silently INSERT an orphan row — this in-memory set is what
-      // actually cuts off persistence.
-      deletedSessions.add(sessionId)
-      const st = turnQueues.get(sessionId)
-      if (st) {
-        if (st.current) aborts.get(st.current)?.()
-        for (const t of st.queue) aborts.get(t.messageId)?.()
-      }
+      // Stop any in-flight run before dropping state so it can't append orphans.
+      sessions.get(sessionId)?.agent?.cancel()
       sessions.delete(sessionId)
-      turnQueues.delete(sessionId)
       store.deleteSession(sessionId)
     },
 
@@ -989,9 +665,8 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     },
 
     updateSessionSettings(sessionId, settings) {
-      // Persisting is all that's needed for the permission gate to follow the
-      // toggle: the engine resolves permissionMode live from these settings on
-      // each tool call, so any in-flight or queued run picks up the change.
+      // Persisting is all that's needed: buildAgentConfig resolves the run's
+      // agent/cwd/permission/execution live from these settings each run.
       store.setSessionSettings(sessionId, settings)
       log.info({
         msg: 'session settings updated',
@@ -1011,10 +686,6 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       return store.listSessions()
     },
 
-    getMessageEvents(sessionId) {
-      return store.getMessageEvents(sessionId)
-    },
-
     async exportSessionMarkdown(sessionId) {
       const rows = store.getMessageEvents(sessionId)
       const md = buildMarkdown(rows)
@@ -1030,9 +701,5 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
     getUsageStats(rangeDays) {
       return store.getUsageStats(rangeDays)
     },
-
-    terminalRegistry,
-
-    markInterruptedRunsTerminal,
   }
 }

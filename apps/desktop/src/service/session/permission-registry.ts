@@ -1,6 +1,5 @@
 import { createLogger } from '@shared/logger'
 import type { PermissionDecision, Risk } from '@swarm/protocol'
-import { ulid } from 'ulid'
 
 const log = createLogger({ process: 'service' }).child({ component: 'permission' })
 
@@ -11,9 +10,16 @@ type PendingPermission = {
 }
 
 export type PermissionRegistry = {
+  /**
+   * Register a pending permission request keyed by the CALLER-supplied
+   * `actionId` (run-hooks.ts mints it and already broadcasts the v3
+   * `permission_request` event), and wait for a decision. The registry no
+   * longer broadcasts — it only correlates a later resolve(actionId, …) back
+   * to the awaiting promise.
+   */
   request(
     req: {
-      taskId: string
+      actionId: string
       toolName: string
       risk: Risk
       summary: string
@@ -24,7 +30,7 @@ export type PermissionRegistry = {
   resolve(actionId: string, decision: PermissionDecision): void
 }
 
-export function createPermissionRegistry(broadcast: (event: string, data: unknown) => void): PermissionRegistry {
+export function createPermissionRegistry(): PermissionRegistry {
   const pending = new Map<string, PendingPermission>()
   // Tool names the user chose to 'grant_always'. Session-lifetime, in-memory:
   // one registry per session, shared by every run (turn/work/child), so the
@@ -34,40 +40,34 @@ export function createPermissionRegistry(broadcast: (event: string, data: unknow
   return {
     // Approval is a human action, so a request waits indefinitely for an
     // explicit decision — there is no auto-deny timeout. The only non-user
-    // resolution is task abort via `signal`, which fail-safe denies so a
+    // resolution is run abort via `signal`, which fail-safe denies so a
     // pending medium/high tool never runs without consent.
     request(req, signal) {
-      const actionId = ulid()
+      const { actionId } = req
       return new Promise<PermissionDecision>((resolve) => {
         // Session-scoped standing grant for this tool: auto-approve without a
-        // prompt (no broadcast). Checked even when aborted-before-prompt below
-        // would deny — a standing grant means the user already consented.
+        // prompt. Checked even when aborted-before-prompt below would deny — a
+        // standing grant means the user already consented.
         if (alwaysAllow.has(req.toolName)) {
-          log.info({ msg: 'permission auto-granted (always allow)', taskId: req.taskId, toolName: req.toolName })
+          log.info({ msg: 'permission auto-granted (always allow)', actionId, toolName: req.toolName })
           resolve('grant')
           return
         }
         if (signal?.aborted) {
-          log.warn({ msg: 'permission request aborted before prompt', taskId: req.taskId, toolName: req.toolName })
+          log.warn({ msg: 'permission request aborted before prompt', actionId, toolName: req.toolName })
           resolve('deny')
           return
         }
         const onAbort = (): void => {
           if (pending.delete(actionId)) {
-            log.warn({
-              msg: 'permission request aborted while pending',
-              actionId,
-              taskId: req.taskId,
-              toolName: req.toolName,
-            })
+            log.warn({ msg: 'permission request aborted while pending', actionId, toolName: req.toolName })
             resolve('deny')
           }
         }
         const cleanup = (): void => signal?.removeEventListener('abort', onAbort)
         signal?.addEventListener('abort', onAbort, { once: true })
         pending.set(actionId, { toolName: req.toolName, resolve, cleanup })
-        log.info({ msg: 'permission requested', actionId, taskId: req.taskId, toolName: req.toolName, risk: req.risk })
-        broadcast('message.permission_request', { actionId, ...req })
+        log.info({ msg: 'permission requested', actionId, toolName: req.toolName, risk: req.risk })
       })
     },
 
@@ -82,7 +82,7 @@ export function createPermissionRegistry(broadcast: (event: string, data: unknow
       pending.delete(actionId)
       if (decision === 'grant_always') {
         // Record the standing grant, then resolve THIS request as a normal grant
-        // — the engine only understands 'grant'/'deny'/'skip'.
+        // — the run-hooks gate only understands 'grant'/'deny'/'skip'.
         alwaysAllow.add(p.toolName)
         log.info({ msg: 'permission resolved (always allow)', actionId, toolName: p.toolName })
         p.resolve('grant')

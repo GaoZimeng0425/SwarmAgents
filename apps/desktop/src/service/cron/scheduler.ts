@@ -33,9 +33,6 @@ export function createCronScheduler(deps: {
    * tests → jobs stay bound to the caller session.
    */
   resolveJobSession?: (fromSessionId: string) => string
-  /** Registry-backed terminal predicate, used to finalize crash-recovered runs. */
-  isRunTerminal: (runId: string) => boolean
-  runTerminalStatus: (runId: string) => string | undefined
 }): CronScheduler {
   const { store, fire, resolveJobSession } = deps
   const live = new Map<string, CronJob>()
@@ -105,21 +102,13 @@ export function createCronScheduler(deps: {
     return !!cj
   }
 
-  // Finalize runs left 'running' by a crash/restart: their in-memory onComplete
-  // is gone, so derive the outcome from the terminal registry, or mark
-  // 'interrupted' when the run can't be confirmed terminal.
+  // Finalize runs left 'running' by a crash/restart. Live run state does NOT
+  // survive a restart (the SessionAgent is gone; only entries persist), so an
+  // orphaned run can never resume — mark every one 'failed' unconditionally.
   const reconcile = (): void => {
     for (const run of store.listRunningCronRuns()) {
-      if (run.taskId && deps.isRunTerminal(run.taskId)) {
-        const status = deps.runTerminalStatus(run.taskId) ?? 'completed'
-        // error stays null here: a reconciled failure's message lives on the
-        // run (reachable via runId), unlike the live onComplete path.
-        store.finishCronRun(run.id, { status, error: null, endedAt: Date.now() })
-        log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status })
-      } else {
-        store.finishCronRun(run.id, { status: 'interrupted', error: null, endedAt: Date.now() })
-        log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status: 'interrupted' })
-      }
+      store.finishCronRun(run.id, { status: 'failed', error: null, endedAt: Date.now() })
+      log.warn({ msg: 'cron run reconciled', runId: run.id, jobId: run.jobId, status: 'failed' })
     }
   }
 

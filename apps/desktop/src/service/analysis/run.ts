@@ -118,7 +118,7 @@ export function createAnalysisRun<TSummary>(
     const ports: LaunchPorts = {
       emit: emitPorts,
       toolRegistry: deps.toolRegistry,
-      permissionRegistry: createPermissionRegistry(() => undefined),
+      permissionRegistry: createPermissionRegistry(),
       acquireSlot: async () => () => undefined,
       registerAbort: () => undefined,
       unregisterAbort: () => undefined,

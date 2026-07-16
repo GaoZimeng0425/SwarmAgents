@@ -44,7 +44,8 @@ export type StoredCronRun = {
 }
 
 export type ConversationStore = {
-  createSession(id: string, provider: ProviderInjection): StoredSession
+  /** `kind` defaults to 'user'; pass 'child' for a hidden delegate sub-session. */
+  createSession(id: string, provider: ProviderInjection, kind?: 'user' | 'child'): StoredSession
   getSession(id: string): StoredSession | undefined
   updateSessionStatus(id: string, status: StoredSession['status']): void
   /** Overwrite a session's persisted provider snapshot (e.g. to keep the system session's provider current). */
@@ -137,7 +138,10 @@ export function createConversationStore(dbPath: string): ConversationStore {
       cwd               TEXT,
       permission_mode   TEXT,
       execution_mode    TEXT,
-      agent_type        TEXT
+      agent_type        TEXT,
+      -- 'user' = a normal conversation shown in the session list; 'child' = a
+      -- hidden delegate sub-session (filtered out of listSessions).
+      kind              TEXT NOT NULL DEFAULT 'user'
     );
     CREATE TABLE IF NOT EXISTS message_events (
       id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -407,6 +411,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
     'ALTER TABLE sessions ADD COLUMN permission_mode TEXT',
     'ALTER TABLE sessions ADD COLUMN execution_mode TEXT',
     'ALTER TABLE sessions ADD COLUMN agent_type TEXT',
+    `ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'user'`,
     'ALTER TABLE cron_jobs ADD COLUMN origin_session_id TEXT',
   ]) {
     try {
@@ -500,9 +505,9 @@ export function createConversationStore(dbPath: string): ConversationStore {
   const stmtListRunningCronRuns = db.prepare("SELECT * FROM cron_runs WHERE status = 'running'")
 
   const stmtInsertSession = db.prepare(
-    `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot, sort_order)
+    `INSERT INTO sessions (id, created_at, last_active_at, status, provider_snapshot, title, agent_snapshot, sort_order, kind)
      VALUES (?, ?, ?, 'active', ?, NULL, '[]',
-       COALESCE((SELECT MIN(sort_order) FROM sessions), 0) - 1)`
+       COALESCE((SELECT MIN(sort_order) FROM sessions), 0) - 1, ?)`
   )
   const stmtGetSession = db.prepare('SELECT * FROM sessions WHERE id = ?')
   const stmtUpdateStatus = db.prepare('UPDATE sessions SET status = ? WHERE id = ?')
@@ -578,7 +583,7 @@ export function createConversationStore(dbPath: string): ConversationStore {
              WHERE lu.session_id = s.id AND me.parent_message_id IS NULL
              ORDER BY me.id DESC LIMIT 1) AS contextWindow
        FROM sessions s
-      WHERE s.status != 'ended'
+      WHERE s.status != 'ended' AND s.kind = 'user'
       ORDER BY s.pinned DESC, s.sort_order ASC`
   )
   const stmtSetSessionSettings = db.prepare(
@@ -596,15 +601,16 @@ export function createConversationStore(dbPath: string): ConversationStore {
     db.prepare('DELETE FROM cron_runs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM cron_jobs WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM message_events WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM session_entries WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
 
   const entries = createEntryStore(db)
 
   return {
-    createSession(id, provider) {
+    createSession(id, provider, kind = 'user') {
       const now = Date.now()
-      stmtInsertSession.run(id, now, now, JSON.stringify(provider))
+      stmtInsertSession.run(id, now, now, JSON.stringify(provider), kind)
       return {
         id,
         createdAt: now,
