@@ -1,15 +1,14 @@
 // Shared types for the analysis-run factory. The four card-based analysis flows
 // (article / trending / bilibili / gmail-thread) all share the same skeleton:
-// a private LaunchPorts binding, a broadcast adapter translating message.* wire
-// events into domain *.analysis* events, and a fire-and-forget launchMessage run.
+// a one-shot pi Agent run (session-agent/one-shot.ts, no persistence) whose pi
+// AgentEvents an adapter translates into domain *.analysis* events, fire-and-forget.
 // This file defines the config that parameterizes the per-flow differences.
 
-import type { BudgetConfig } from '@swarm/protocol'
 import type { Logger } from 'pino'
 
 import type { AgentStore } from '../agents/store'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { launchMessage } from '../message-engine/launch'
+import type { OneShotRunner } from '../session-agent/one-shot'
 import type { ToolRegistry } from '../tools/registry'
 
 /** The broadcast event names + the field name carrying the analysis id. */
@@ -49,10 +48,11 @@ export type AnalysisDeps = {
   broadcaster: Broadcaster
   agentStore: Pick<AgentStore, 'get'>
   toolRegistry: ToolRegistry
-  getBudgetConfig(): BudgetConfig
-  /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchMessage
-  /** Optional persistence callback fired on message.complete with the valid card.
+  /** Global concurrency pool — a one-shot analysis run competes for it like any run. */
+  acquireSlot: (signal: AbortSignal) => Promise<() => void>
+  /** Injectable so tests can drive the adapter without a real provider/agent. */
+  runOneShot?: OneShotRunner
+  /** Optional persistence callback fired on a completed run with the valid card.
    *  `extra` carries per-request data from AnalysisRunRequest.extra. */
   onComplete?: (id: string, summary: unknown, accumulated: string, extra: unknown, log: Logger) => void | Promise<void>
 }

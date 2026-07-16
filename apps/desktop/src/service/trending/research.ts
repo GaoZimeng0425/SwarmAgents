@@ -9,19 +9,13 @@
 // README/commit fetch). Upgrade path if freshness on brand-new repos matters:
 // grant it a web-fetch tool + agent-reach skill and expand the prompt to read
 // the README and recent commits before emitting the card.
-import type {
-  BudgetConfig,
-  RepoResearch,
-  RepoVerdictTone,
-  ResearchRepoRequest,
-  ResearchRepoResult,
-} from '@swarm/protocol'
+import type { RepoResearch, RepoVerdictTone, ResearchRepoRequest, ResearchRepoResult } from '@swarm/protocol'
 import { TRENDING_PERIOD_LABELS, type TrendingPeriod } from '@swarm/protocol'
 
 import type { AgentStore } from '../agents/store'
 import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../analysis/run'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { launchMessage } from '../message-engine/launch'
+import type { OneShotRunner } from '../session-agent/one-shot'
 import type { ToolRegistry } from '../tools/registry'
 import type { RepoResearchStore } from './research-store'
 
@@ -50,9 +44,10 @@ export type ResearchDeps = {
   agentStore: Pick<AgentStore, 'get'>
   store: RepoResearchStore
   toolRegistry: ToolRegistry
-  getBudgetConfig(): BudgetConfig
-  /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchMessage
+  /** Global concurrency pool shared with the session runs. */
+  acquireSlot: (signal: AbortSignal) => Promise<() => void>
+  /** Injectable so tests can drive the adapter without a real provider/agent. */
+  runOneShot?: OneShotRunner
 }
 
 // Validate the render_ui analysis card props into a RepoCard (no summary — that's
@@ -101,8 +96,8 @@ export function createResearchRepo(deps: ResearchDeps): (req: ResearchRepoReques
     broadcaster: deps.broadcaster,
     agentStore: deps.agentStore,
     toolRegistry: deps.toolRegistry,
-    getBudgetConfig: deps.getBudgetConfig,
-    launch: deps.launch,
+    acquireSlot: deps.acquireSlot,
+    runOneShot: deps.runOneShot,
     onComplete: (repoName, card, accumulated) => {
       const research: RepoResearch = { ...(card as RepoCard), summary: accumulated }
       deps.store.save(repoName, research)

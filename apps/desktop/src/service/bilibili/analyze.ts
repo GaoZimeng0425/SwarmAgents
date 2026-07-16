@@ -8,14 +8,13 @@ import type {
   AnalyzeBilibiliResult,
   BiliAnalysisSource,
   BiliSummary,
-  BudgetConfig,
   MainMethod,
 } from '@swarm/protocol'
 
 import type { AgentStore } from '../agents/store'
 import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../analysis/run'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { launchMessage } from '../message-engine/launch'
+import type { OneShotRunner } from '../session-agent/one-shot'
 import type { ToolRegistry } from '../tools/registry'
 
 type CallMain = (method: MainMethod, args: unknown[]) => Promise<unknown>
@@ -34,11 +33,12 @@ export type AnalyzeBilibiliDeps = {
   broadcaster: Broadcaster
   agentStore: Pick<AgentStore, 'get'>
   toolRegistry: ToolRegistry
-  getBudgetConfig(): BudgetConfig
+  /** Global concurrency pool shared with the session runs. */
+  acquireSlot: (signal: AbortSignal) => Promise<() => void>
   /** Cross-process RPC to Main (for persisting the analysis result). */
   callMain: CallMain
-  /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchMessage
+  /** Injectable so tests can drive the adapter without a real provider/agent. */
+  runOneShot?: OneShotRunner
 }
 
 // Validate the render_ui analysis card props into a BiliSummary. Returns null when
@@ -72,8 +72,8 @@ export function createAnalyzeBilibili(
     broadcaster: deps.broadcaster,
     agentStore: deps.agentStore,
     toolRegistry: deps.toolRegistry,
-    getBudgetConfig: deps.getBudgetConfig,
-    launch: deps.launch,
+    acquireSlot: deps.acquireSlot,
+    runOneShot: deps.runOneShot,
     onComplete: (bvid, summary, _accumulated, extra) => {
       const { text, source } = extra as BiliExtra
       void deps.callMain('bilibili.save_analysis', [

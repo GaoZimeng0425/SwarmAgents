@@ -10,7 +10,6 @@
 import type {
   AnalyzeThreadRequest,
   AnalyzeThreadResult,
-  BudgetConfig,
   MainMethod,
   ThreadAnalysisPayload,
   Todo,
@@ -19,7 +18,7 @@ import type {
 import type { AgentStore } from '../agents/store'
 import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../analysis/run'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { launchMessage } from '../message-engine/launch'
+import type { OneShotRunner } from '../session-agent/one-shot'
 import type { ToolRegistry } from '../tools/registry'
 
 type CallMain = (method: MainMethod, args: unknown[]) => Promise<unknown>
@@ -53,11 +52,12 @@ export type AnalyzeThreadDeps = {
   broadcaster: Broadcaster
   agentStore: Pick<AgentStore, 'get'>
   toolRegistry: ToolRegistry
-  getBudgetConfig(): BudgetConfig
+  /** Global concurrency pool shared with the session runs. */
+  acquireSlot: (signal: AbortSignal) => Promise<() => void>
   /** Cross-process RPC to Main (for persisting the thread analysis result). */
   callMain: CallMain
-  /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchMessage
+  /** Injectable so tests can drive the adapter without a real provider/agent. */
+  runOneShot?: OneShotRunner
 }
 
 export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThreadRequest) => AnalyzeThreadResult {
@@ -65,8 +65,8 @@ export function createAnalyzeThread(deps: AnalyzeThreadDeps): (req: AnalyzeThrea
     broadcaster: deps.broadcaster,
     agentStore: deps.agentStore,
     toolRegistry: deps.toolRegistry,
-    getBudgetConfig: deps.getBudgetConfig,
-    launch: deps.launch,
+    acquireSlot: deps.acquireSlot,
+    runOneShot: deps.runOneShot,
     onComplete: (threadId, card, accumulated) => {
       const c = (card ?? { todos: [], suggest: '' }) as ThreadCard
       const payload: ThreadAnalysisPayload = {

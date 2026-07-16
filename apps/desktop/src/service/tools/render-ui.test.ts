@@ -1,4 +1,3 @@
-import type { MessageWireEvent } from '@swarm/protocol'
 import { describe, expect, it } from 'vitest'
 
 import type { ToolRunContext } from './registry'
@@ -52,34 +51,25 @@ describe('render_ui', () => {
   })
 })
 
-const analysisEvent = (props: unknown): MessageWireEvent =>
-  ({
-    kind: 'message.progress',
-    event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props } },
-  }) as unknown as MessageWireEvent
-
 describe('readAnalysisCard', () => {
   it('extracts props from a render_ui analysis tool call', () => {
-    expect(readAnalysisCard(analysisEvent({ todos: [], suggest: 'x' }))).toEqual({ todos: [], suggest: 'x' })
+    expect(readAnalysisCard('render_ui', { type: 'analysis', props: { todos: [], suggest: 'x' } })).toEqual({
+      todos: [],
+      suggest: 'x',
+    })
   })
 
   it('coerces props delivered as a JSON string', () => {
-    expect(readAnalysisCard(analysisEvent(JSON.stringify({ gist: 'g' })))).toEqual({ gist: 'g' })
+    expect(readAnalysisCard('render_ui', { type: 'analysis', props: JSON.stringify({ gist: 'g' }) })).toEqual({
+      gist: 'g',
+    })
   })
 
   it('returns null for a non-analysis render_ui card', () => {
-    const e = {
-      kind: 'message.progress',
-      event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'choice' } },
-    } as unknown as MessageWireEvent
-    expect(readAnalysisCard(e)).toBeNull()
+    expect(readAnalysisCard('render_ui', { type: 'choice' })).toBeNull()
   })
 
-  it('returns null for a non-tool-call event', () => {
-    const e = {
-      kind: 'message.progress',
-      event: { kind: 'llm.message', role: 'assistant', content: 'hi' },
-    } as unknown as MessageWireEvent
-    expect(readAnalysisCard(e)).toBeNull()
+  it('returns null for a non-render_ui tool', () => {
+    expect(readAnalysisCard('web_fetch', { type: 'analysis', props: {} })).toBeNull()
   })
 })

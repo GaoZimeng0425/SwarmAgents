@@ -1,7 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
-import type { MessageWireEvent } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 
@@ -36,18 +35,16 @@ const INTERACTIVE_CARD_TYPES = new Set(['choice'])
 const TERMINAL_CARD_TYPES = new Set(['analysis'])
 
 /**
- * If a message.* wire event is a `render_ui` tool call carrying a `type:'analysis'`
- * card, return its coerced props (object as-is; JSON string parsed); otherwise
- * null. Lets the gmail/article analysis broadcast adapters pull structured
- * output from the tool call instead of parsing the streamed markdown.
+ * If a `render_ui` tool call carries a `type:'analysis'` card, return its coerced
+ * props (object as-is; JSON string parsed); otherwise null. Lets the analysis
+ * one-shot adapters pull structured output from the tool call (read off pi's
+ * tool_execution_start event) instead of parsing the streamed markdown.
  */
-export function readAnalysisCard(evt: MessageWireEvent): Record<string, unknown> | null {
-  if (evt.kind !== 'message.progress') return null
-  const inner = evt.event
-  if (inner?.kind !== 'tool.call' || inner.tool !== 'render_ui') return null
-  const args = (inner.args ?? {}) as { type?: unknown; props?: unknown }
-  if (args.type !== 'analysis') return null
-  const { props } = args
+export function readAnalysisCard(toolName: string, args: unknown): Record<string, unknown> | null {
+  if (toolName !== 'render_ui') return null
+  const a = (args ?? {}) as { type?: unknown; props?: unknown }
+  if (a.type !== 'analysis') return null
+  const { props } = a
   if (props && typeof props === 'object') return props as Record<string, unknown>
   if (typeof props === 'string') {
     try {

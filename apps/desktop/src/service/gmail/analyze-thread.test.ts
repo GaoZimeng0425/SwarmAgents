@@ -1,41 +1,46 @@
 // @vitest-environment node
 
-import { emptyUsed } from '@swarm/protocol'
+import type { AgentEvent } from '@earendil-works/pi-agent-core'
 import { describe, expect, it } from 'vitest'
 
-import type { MessageEmitInput } from '../message-engine/emit'
-import { createMessageEmit } from '../message-engine/emit'
-import type { launchMessage } from '../message-engine/launch'
+import type { OneShotRunner } from '../session-agent/one-shot'
 import { type AnalyzeThreadDeps, createAnalyzeThread } from './analyze-thread'
 
-const fakeProvider = { id: 'p', model: 'm', apiKey: 'k' } as unknown as import('@swarm/protocol').ProviderInjection
+// A resolvable custom provider (apiStyle path → 200k default window), so run.ts's
+// resolveModel(provider) succeeds and the completed path runs.
+const fakeProvider = {
+  id: 'p',
+  model: 'mystery-model',
+  apiKey: 'k',
+  apiStyle: 'openai',
+} as unknown as import('@swarm/protocol').ProviderInjection
 
-// A fake launchMessage that drives the real emit adapter: it feeds run.* wire events
-// through createMessageEmit (the same path the engine uses), so the analyze-thread
-// module's broadcast port is exercised end-to-end.
-function fakeLaunch(events: MessageEmitInput[]): typeof launchMessage {
-  return (async (spec, ports) => {
-    const emit = createMessageEmit(ports.emit, { sessionId: spec.sessionId, messageId: spec.messageId ?? 'r' })
-    for (const e of events) emit(e)
-    return {
-      messageId: spec.messageId ?? 'r',
-      status: 'completed' as const,
-      summary: 'ok',
-      messages: [],
-      used: emptyUsed(),
+// A fake one-shot runner that drives run.ts's pi-AgentEvent adapter: it streams an
+// assistant message then (optionally) a render_ui analysis tool call, exactly as a
+// real pi Agent run would, so the analyze-thread broadcast path is exercised end-to-end.
+function fakeRunOneShot(opts: { text: string; card?: unknown }): OneShotRunner {
+  return async (spec) => {
+    const emit = (e: unknown): void => spec.onEvent?.(e as AgentEvent)
+    emit({ type: 'message_start', message: { role: 'assistant' } })
+    emit({ type: 'message_end', message: { role: 'assistant', content: opts.text } })
+    if (opts.card !== undefined) {
+      emit({ type: 'tool_execution_start', toolCallId: 'c1', toolName: 'render_ui', args: { type: 'analysis', props: opts.card } })
     }
-  }) as unknown as typeof launchMessage
+    return { status: 'completed', summary: opts.text }
+  }
 }
 
-function run(events: MessageEmitInput[]): Promise<Array<[string, unknown]>> {
+function run(opts: { text: string; card?: unknown }): Promise<Array<[string, unknown]>> {
   const broadcasts: Array<[string, unknown]> = []
   const analyze = createAnalyzeThread({
     broadcaster: { broadcast: (e, d) => broadcasts.push([e, d]) } as AnalyzeThreadDeps['broadcaster'],
-    agentStore: { get: () => undefined } as AnalyzeThreadDeps['agentStore'],
-    toolRegistry: {} as AnalyzeThreadDeps['toolRegistry'],
-    getBudgetConfig: () => ({}) as import('@swarm/protocol').BudgetConfig,
+    agentStore: {
+      get: () => ({ id: 'gmail-thread-analyst', name: 'x', description: '', systemPrompt: 's', maxIterations: 3 }),
+    } as unknown as AnalyzeThreadDeps['agentStore'],
+    toolRegistry: { resolve: () => ({ tools: [], riskOf: () => 'low' }) } as unknown as AnalyzeThreadDeps['toolRegistry'],
+    acquireSlot: async () => () => undefined,
     callMain: async () => undefined,
-    launch: fakeLaunch(events),
+    runOneShot: fakeRunOneShot(opts),
   })
   const ack = analyze({
     threadId: 't1',
@@ -44,24 +49,16 @@ function run(events: MessageEmitInput[]): Promise<Array<[string, unknown]>> {
     provider: fakeProvider,
   })
   expect(ack).toEqual({ ok: true })
+  // Two ticks: the analysis IIFE awaits the (async) fake runner before broadcasting.
   return new Promise((r) => setTimeout(() => r(broadcasts), 0))
 }
 
-const renderUiCall = (props: unknown): MessageEmitInput => ({
-  kind: 'message.progress',
-  event: { kind: 'tool.call', server: 'agent', tool: 'render_ui', args: { type: 'analysis', props }, ts: 1 },
-})
-
 describe('analyzeThread complete handler', () => {
   it('uses streamed markdown as summary and the render_ui card for todos/suggest', async () => {
-    const broadcasts = await run([
-      {
-        kind: 'message.progress',
-        event: { kind: 'llm.message', role: 'assistant', content: '## 摘要\n要点一', ts: 1 },
-      },
-      renderUiCall({ todos: [{ t: '回复', due: true, dueLabel: '今天' }], suggest: '好的' }),
-      { kind: 'message.complete', summary: '## 摘要\n要点一' },
-    ])
+    const broadcasts = await run({
+      text: '## 摘要\n要点一',
+      card: { todos: [{ t: '回复', due: true, dueLabel: '今天' }], suggest: '好的' },
+    })
     const complete = broadcasts.find(([e]) => e === 'gmail.threadAnalysisComplete')?.[1] as {
       summary: string
       todos: unknown[]
@@ -75,10 +72,7 @@ describe('analyzeThread complete handler', () => {
   })
 
   it('degrades to empty todos/suggest when the agent emits no analysis card', async () => {
-    const broadcasts = await run([
-      { kind: 'message.progress', event: { kind: 'llm.message', role: 'assistant', content: '摘要正文', ts: 1 } },
-      { kind: 'message.complete', summary: '摘要正文' },
-    ])
+    const broadcasts = await run({ text: '摘要正文' })
     const complete = broadcasts.find(([e]) => e === 'gmail.threadAnalysisComplete')?.[1] as {
       summary: string
       todos: unknown[]
@@ -90,11 +84,7 @@ describe('analyzeThread complete handler', () => {
   })
 
   it('coerces render_ui props delivered as a JSON string', async () => {
-    const broadcasts = await run([
-      { kind: 'message.progress', event: { kind: 'llm.message', role: 'assistant', content: '摘要', ts: 1 } },
-      renderUiCall(JSON.stringify({ todos: [], suggest: '回复草稿' })),
-      { kind: 'message.complete', summary: '摘要' },
-    ])
+    const broadcasts = await run({ text: '摘要', card: JSON.stringify({ todos: [], suggest: '回复草稿' }) })
     const complete = broadcasts.find(([e]) => e === 'gmail.threadAnalysisComplete')?.[1] as { suggest: string }
     expect(complete.suggest).toBe('回复草稿')
   })

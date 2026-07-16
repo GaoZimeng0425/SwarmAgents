@@ -39,7 +39,7 @@ export type SessionAgentDeps = {
   entries: EntryStore
   broadcast: (e: AgentWireEvent) => void
   acquireSlot: (signal: AbortSignal) => Promise<() => void>
-  buildAgentConfig: () => {
+  buildAgentConfig: (runCtx: { runId: string; used: ConsumedResources }) => {
     systemPrompt: string
     model: ReturnType<typeof resolveModel>
     // resolveModel (message-engine/models.ts) returns a bare pi Model<Api> —
@@ -397,7 +397,7 @@ export class SessionAgent {
     this.runStartedAt = Date.now()
     this.forcedStatus = null
     this.currentHooks = this.deps.hooks?.({ runId: this.runId, used: this.used })
-    const cfg = this.deps.buildAgentConfig()
+    const cfg = this.deps.buildAgentConfig({ runId: this.runId, used: this.used })
     this.maxTurns = cfg.maxTurns
     this.currentModel = cfg.model
     this.currentApiKey = cfg.apiKey

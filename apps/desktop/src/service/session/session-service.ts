@@ -9,6 +9,7 @@ import type {
   AgentWireEvent,
   Artifact,
   Attachment,
+  ConsumedResources,
   DelegateResult,
   EntryRow,
   PermissionDecision,
@@ -29,7 +30,8 @@ import { buildMarkdown } from '../conversation/markdown-export'
 import type { ConversationStore } from '../conversation/store'
 import { createAgentDirectory } from '../directory/receptionist'
 import type { Broadcaster } from '../ipc/broadcaster'
-import { composeSystemPrompt, resolveModel } from '../session-agent/models'
+import { composeSystemPrompt, injectionSupportsImages, resolveModel } from '../session-agent/models'
+import { runOneShot } from '../session-agent/one-shot'
 import { createRunHooks } from '../session-agent/run-hooks'
 import { type RunResult, SessionAgent } from '../session-agent/session-agent'
 import { withSkills } from '../skills/prompt'
@@ -147,6 +149,46 @@ export type SessionService = {
   /** Diagnostics/tests: ids of sessions with live in-memory state (SessionAgent).
    *  A completed child delegate must NOT appear here (its state is freed). */
   liveSessionIds(): string[]
+  /** The shared global concurrency pool — reused by the one-shot analysis runs. */
+  acquireSlot: (signal: AbortSignal) => Promise<() => void>
+}
+
+/** System prompt for the one-shot vision/OCR sub-run (analyze_image capability). */
+const VISION_SYSTEM_PROMPT =
+  'You are a vision and OCR assistant. Look at the provided image and answer the request precisely. For OCR, return only the extracted text, preserving line breaks. Do not add commentary.'
+
+// The analyze_image tool ctx capability: a one-shot vision run on the first
+// image-capable model in the session's provider chain, so a cheap text-only main
+// model can still handle images. Returns undefined when no vision model exists.
+// The nested run rides the PARENT run's slot (a no-op pool) — competing for the
+// global pool would deadlock against the parent that's awaiting this call — and
+// shares the parent's cancellation via getSignal().
+function buildAnalyzeImage(
+  provider: ProviderInjection,
+  label: string,
+  getSignal: () => AbortSignal | undefined
+): ToolRunContext['analyzeImage'] {
+  const chain = [provider, ...(provider.fallbackProviders ?? [])].filter((p): p is ProviderInjection => !!p)
+  const vision = chain.find(injectionSupportsImages)
+  if (!vision) return undefined
+  return async (prompt, image) => {
+    const model = resolveModel(vision)
+    const r = await runOneShot(
+      {
+        label: `${label}:vision`,
+        systemPrompt: VISION_SYSTEM_PROMPT,
+        model,
+        apiKey: vision.apiKey,
+        thinkingLevel: clampThinkingLevel(model, vision.thinkingLevel ?? 'high'),
+        tools: [],
+        maxTurns: 2,
+        prompt,
+        attachments: [{ data: image.data, mimeType: image.mimeType }],
+      },
+      { acquireSlot: async () => () => undefined, signal: getSignal() }
+    )
+    return r.summary
+  }
 }
 
 // session-service owns sensible defaults for the agent-execution subsystem. In
@@ -337,7 +379,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   // Assemble this run's tool context (moved from message-engine/launch.ts:208-242)
   // and the composed system prompt / model / thinking level / tools. Resolved
   // fresh per run so a mid-session model switch or settings change takes effect.
-  const buildAgentConfig = (session: SessionState) => {
+  const buildAgentConfig = (session: SessionState, runCtx: { runId: string; used: ConsumedResources }) => {
     const isChild = session.kind === 'child'
     const settings = isChild ? undefined : store.getSessionSettings(session.id)
     const agentDef = session.childRun?.agentDef ?? resolveAgentDef(settings?.agentType)
@@ -374,6 +416,14 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
         }),
       // report_result is a per-run sink for a child agent's structured results.
       reportResult: session.childRun ? (artifacts) => session.childRun?.artifacts.push(...artifacts) : undefined,
+      // Vision capability: a one-shot sub-run on an image-capable model in the chain.
+      analyzeImage: buildAnalyzeImage(provider, session.id, () => session.slot.getSignal()),
+      // Fold externally-incurred spend (e.g. a delegated Claude Code session) into
+      // THIS run's live `used` accumulator, so it counts toward the budget gate
+      // (run-hooks reads the same object) and the turn_end usage snapshot.
+      reportExternalUsage: (usage) => {
+        if (usage.costUsd && usage.costUsd > 0) runCtx.used.usdCents += Math.round(usage.costUsd * 100)
+      },
     }
 
     const { tools, riskOf } = toolRegistry.resolve(allowlist, ctx)
@@ -402,7 +452,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       entries: store.entries,
       broadcast: broadcastWire,
       acquireSlot: session.slot.acquire,
-      buildAgentConfig: () => buildAgentConfig(session),
+      buildAgentConfig: (runCtx) => buildAgentConfig(session, runCtx),
       hooks: (hookCtx) => {
         const budget = session.childRun ? budgets()[session.childRun.budgetKind] : budgets().main
         return createRunHooks({
@@ -536,6 +586,7 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
   }
 
   return {
+    acquireSlot,
     createSession(provider) {
       const sessionId = ulid()
       store.createSession(sessionId, provider)

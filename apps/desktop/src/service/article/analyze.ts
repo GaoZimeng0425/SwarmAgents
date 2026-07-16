@@ -4,12 +4,12 @@
 // via a render_ui({type:'analysis', props:{gist, points, takeaways}}) tool call.
 // On message.complete a valid card persists to the article store (re-viewable);
 // no valid card degrades to analysisError.
-import type { AnalyzeArticleRequest, AnalyzeArticleResult, ArticleSummary, BudgetConfig } from '@swarm/protocol'
+import type { AnalyzeArticleRequest, AnalyzeArticleResult, ArticleSummary } from '@swarm/protocol'
 
 import type { AgentStore } from '../agents/store'
 import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../analysis/run'
 import type { Broadcaster } from '../ipc/broadcaster'
-import type { launchMessage } from '../message-engine/launch'
+import type { OneShotRunner } from '../session-agent/one-shot'
 import type { ToolRegistry } from '../tools/registry'
 import type { ArticleStore } from './store'
 
@@ -28,9 +28,10 @@ export type AnalyzeDeps = {
   agentStore: Pick<AgentStore, 'get'>
   store: ArticleStore
   toolRegistry: ToolRegistry
-  getBudgetConfig(): BudgetConfig
-  /** Injectable so tests can drive the emit adapter without a real provider/engine. */
-  launch?: typeof launchMessage
+  /** Global concurrency pool shared with the session runs. */
+  acquireSlot: (signal: AbortSignal) => Promise<() => void>
+  /** Injectable so tests can drive the adapter without a real provider/agent. */
+  runOneShot?: OneShotRunner
 }
 
 // Validate the render_ui analysis card props into an ArticleSummary. Returns
@@ -47,8 +48,8 @@ export function createAnalyzeArticle(deps: AnalyzeDeps): (req: AnalyzeArticleReq
     broadcaster: deps.broadcaster,
     agentStore: deps.agentStore,
     toolRegistry: deps.toolRegistry,
-    getBudgetConfig: deps.getBudgetConfig,
-    launch: deps.launch,
+    acquireSlot: deps.acquireSlot,
+    runOneShot: deps.runOneShot,
     onComplete: (id, summary) => {
       deps.store.saveAnalysis(id, summary as ArticleSummary)
     },
