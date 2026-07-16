@@ -28,7 +28,7 @@ import type { Logger } from 'pino'
 // cfg.thinkingLevel arrive already composed/clamped from SessionService
 // (Task 5), which owns calling those helpers before invoking
 // buildAgentConfig(). See task-3-report.md for the full rationale.
-import type { resolveModel } from '../message-engine/models'
+import type { resolveModel } from './models'
 import { hasUnansweredUserTail, messagesFromEntries } from './context'
 import type { EntryStore } from './sqlite-storage'
 
