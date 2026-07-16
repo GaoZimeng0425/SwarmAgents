@@ -186,7 +186,7 @@ export function wireSwarmIpc(args: {
     sessionId: string,
     prompt: string,
     attachments?: import('@swarm/protocol').Attachment[],
-    options?: import('@swarm/protocol').RunOptions
+    options?: import('@swarm/protocol').SubmitOptions
   ): Promise<{ runId: string }> => {
     if (typeof prompt !== 'string' || prompt.trim().length === 0) {
       throw new Error('prompt must be a non-empty string')

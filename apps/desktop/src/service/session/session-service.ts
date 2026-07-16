@@ -16,7 +16,7 @@ import type {
   PermissionMode,
   ProviderInjection,
   Risk,
-  RunOptions,
+  SubmitOptions,
   RunStatus,
   SessionEntry,
 } from '@swarm/protocol'
@@ -124,7 +124,7 @@ export type SessionService = {
     prompt: string,
     attachments?: Attachment[],
     onComplete?: (status: RunStatus, error?: string) => void,
-    options?: RunOptions
+    options?: SubmitOptions
   ): { runId: string }
   /**
    * Full-fidelity fork: create a new user session sharing the source's provider
