@@ -202,6 +202,12 @@ describe('SessionService', () => {
     expect(listed).toContain(parent)
     expect(listed).not.toContain(childSessionId)
     expect(service.getSessionEntries(childSessionId).length).toBeGreaterThan(0)
+
+    // The child's live in-memory state is freed once the delegate completes
+    // (no leak under fan-out); only the parent's session stays live.
+    const live = service.liveSessionIds()
+    expect(live).toContain(parent)
+    expect(live).not.toContain(childSessionId)
   })
 
   it('forkSession copies the source entries up to the given row', async () => {

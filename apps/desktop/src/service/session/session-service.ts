@@ -144,6 +144,9 @@ export type SessionService = {
   /** Build a markdown transcript of the session and write it to exportsDir; returns the file path. */
   exportSessionMarkdown(sessionId: string): Promise<{ path: string }>
   getUsageStats(rangeDays: number): import('@swarm/protocol').UsageStats
+  /** Diagnostics/tests: ids of sessions with live in-memory state (SessionAgent).
+   *  A completed child delegate must NOT appear here (its state is freed). */
+  liveSessionIds(): string[]
 }
 
 // session-service owns sensible defaults for the agent-execution subsystem. In
@@ -474,6 +477,14 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
       })
     } finally {
       parentSignal?.removeEventListener('abort', onAbort)
+      // Free the child's in-memory state (its SessionAgent, coalesce timer, and
+      // the sessions-map entry). The child's entries persist in the store and
+      // nothing reads the retained live state after completion, so keeping it
+      // would leak unboundedly under fan-out (CEO→leaders→subagents) workloads.
+      // dispose() is safe whatever the outcome (completed/failed/cancelled).
+      // childState (local) still backs the artifacts read below.
+      childAgent.dispose()
+      sessions.delete(childSessionId)
     }
 
     appendCustomEntry(parentSession.id, 'delegation_result', {
@@ -700,6 +711,10 @@ export function createSessionService(cfg: SessionServiceConfig): SessionService 
 
     getUsageStats(rangeDays) {
       return store.getUsageStats(rangeDays)
+    },
+
+    liveSessionIds() {
+      return [...sessions.keys()]
     },
   }
 }
