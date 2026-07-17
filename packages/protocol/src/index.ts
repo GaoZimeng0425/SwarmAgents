@@ -3,6 +3,7 @@
 export * from './rpc-peer'
 // RPC client + transport (consumed unchanged by desktop, extension, RN)
 export * from './service-client'
+export * from './service-methods'
 export * from './types/agent'
 export * from './types/agent-events'
 // Type modules

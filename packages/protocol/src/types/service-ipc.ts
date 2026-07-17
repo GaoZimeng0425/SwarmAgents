@@ -7,69 +7,11 @@
 // external peers sharing the same service transport — each numbers its own
 // requests from 1 independently.
 
-// Methods the service process can serve — main calls these on behalf of the
-// renderer (createSession, submitPrompt, listAgents, ...).
-export type ServiceMethod =
-  | 'createSession'
-  | 'submitPrompt'
-  | 'listSessions'
-  | 'getSessionEntries'
-  | 'deleteSession'
-  | 'renameSession'
-  | 'setSessionPinned'
-  | 'updateSessionSettings'
-  | 'reorderSessions'
-  | 'decidePermission'
-  | 'cancelRun'
-  | 'setMcpServers'
-  | 'getMcpStatus'
-  | 'setWebSearchConfig'
-  | 'setBudgetConfig'
-  | 'listSkills'
-  | 'listAgents'
-  | 'saveSkill'
-  | 'deleteSkill'
-  | 'saveAgent'
-  | 'deleteAgent'
-  | 'restoreDefaultAgents'
-  | 'importSkill'
-  | 'getToolToggles'
-  | 'setSkillEnabled'
-  | 'setToolGroupEnabled'
-  | 'listToolGroups'
-  | 'listMemory'
-  | 'getUsageStats'
-  | 'listCronJobsForSession'
-  | 'listAllCronJobs'
-  | 'listAllCronRuns'
-  | 'cancelCronJob'
-  | 'analyzeThread'
-  | 'collectArticle'
-  | 'analyzeArticle'
-  | 'analyzeBilibili'
-  | 'listArticles'
-  | 'getArticleAnalysis'
-  | 'deleteArticle'
-  | 'researchRepo'
-  | 'getRepoResearch'
-  | 'researchedRepoNames'
-  | 'exportSessionMarkdown'
-  | 'forkSession'
+// The method unions now live in the single-source table (service-methods.ts);
+// re-exported here so existing imports keep working.
+export type { MainMethod, ServiceMethod } from '../service-methods'
 
-// Methods only Main can serve — the service process calls these when a tool
-// needs data only Main holds (the gmail/calendar cache, QWeather config).
-export type MainMethod =
-  | 'gmail.search'
-  | 'gmail.get_thread'
-  | 'gmail.list_recent'
-  | 'gmail.save_thread_analysis'
-  | 'bilibili.save_analysis'
-  | 'calendar.list_upcoming'
-  | 'calendar.get_event'
-  | 'calendar.create_local'
-  | 'calendar.update_local'
-  | 'calendar.delete_local'
-  | 'weather.get_forecast'
+import type { MainMethod, ServiceMethod } from '../service-methods'
 
 export type RpcMethod = ServiceMethod | MainMethod
 
