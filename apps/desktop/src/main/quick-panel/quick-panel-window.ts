@@ -2,6 +2,12 @@
 // taskbar, blur-to-hide. Created once at app ready (show:false) and reused —
 // toggle()/show()/hide() never destroy it. show() recenters on the cursor's
 // display so the panel follows the user across multi-monitor setups.
+//
+// Fixed height: the panel never resizes (skill native-feel A.3/A.4 — a
+// count-based resize caused visible height jitter as the user typed and the
+// result list changed). Freezing the height removes the jitter entirely and
+// lets the results list scroll internally instead. Raycast/Alfred-class
+// launchers use the same fixed-height model.
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
@@ -14,13 +20,12 @@ const isMac = process.platform === 'darwin'
 let panelRef: BrowserWindow | null = null
 
 const PANEL_WIDTH = 640
-const PANEL_HEIGHT_INITIAL = 400
-const PANEL_HEIGHT_MAX = 600
+const PANEL_HEIGHT = 600
 
 export function createQuickPanelWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: PANEL_WIDTH,
-    height: PANEL_HEIGHT_INITIAL,
+    height: PANEL_HEIGHT,
     frame: false,
     show: false,
     resizable: false,
@@ -77,8 +82,6 @@ export function showQuickPanel(): void {
   const win = getQuickPanelWindow()
   if (!win) return
   recenter()
-  // Reset to initial height each time it's shown (chat mode may have grown it).
-  win.setSize(PANEL_WIDTH, PANEL_HEIGHT_INITIAL)
   win.show()
   win.focus()
   log.info({ msg: 'panel shown' })
@@ -99,14 +102,4 @@ export function toggleQuickPanel(): void {
   } else {
     showQuickPanel()
   }
-}
-
-/** Called by the resize IPC to grow/shrink the panel to fit content. */
-export function resizeQuickPanel(height: number): void {
-  const win = getQuickPanelWindow()
-  if (!win) return
-  const clamped = Math.max(PANEL_HEIGHT_INITIAL, Math.min(height, PANEL_HEIGHT_MAX))
-  const [w] = win.getSize()
-  win.setSize(w, clamped, false)
-  log.debug({ msg: 'panel resized', height: clamped })
 }

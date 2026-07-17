@@ -7,7 +7,7 @@ import { ipcMain } from 'electron'
 
 import { getMainWindow } from '../windows/main-window'
 import { openSettings } from '../windows/open-settings'
-import { hideQuickPanel, resizeQuickPanel } from './quick-panel-window'
+import { hideQuickPanel } from './quick-panel-window'
 import type { ShortcutManager } from './shortcut'
 
 const log = createLogger({ process: 'main' }).child({ component: 'quick-panel-ipc' })
@@ -22,10 +22,6 @@ export function wireQuickPanelIpc(opts: { shortcut: ShortcutManager }): void {
 
   ipcMain.handle('swarm:quickPanel:hide', () => {
     hideQuickPanel()
-  })
-
-  ipcMain.handle('swarm:quickPanel:resize', (_e, height: number) => {
-    resizeQuickPanel(height)
   })
 
   ipcMain.handle('swarm:quickPanel:focusMain', (_e, payload: FocusMainPayload) => {

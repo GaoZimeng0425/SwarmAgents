@@ -475,7 +475,6 @@ const swarm: SwarmBridge = {
   workbench,
   quickPanel: {
     hide: () => ipcRenderer.invoke('swarm:quickPanel:hide'),
-    resize: (height: number) => ipcRenderer.invoke('swarm:quickPanel:resize', height),
     focusMain: (payload: { navigate?: string; settings?: string }) =>
       ipcRenderer.invoke('swarm:quickPanel:focusMain', payload),
     getHotkey: () => ipcRenderer.invoke('swarm:quickPanel:getHotkey') as Promise<string>,

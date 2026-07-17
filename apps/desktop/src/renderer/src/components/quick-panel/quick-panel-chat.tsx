@@ -66,12 +66,6 @@ export function QuickPanelChat({ onBack }: { onBack: () => void }): React.JSX.El
     if (view.running) setPending(false)
   }, [view.running])
 
-  // Resize the panel to fit content (grows with bubbles, capped at 600 by main).
-  useEffect(() => {
-    const height = Math.min(400 + bubbles.length * 60, 600)
-    void swarmApi.quickPanelResize(height)
-  }, [bubbles.length])
-
   const handleSubmit = async (): Promise<void> => {
     const trimmed = input.trim()
     if (!trimmed || isStreaming) return

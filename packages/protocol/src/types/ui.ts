@@ -542,8 +542,6 @@ export type SwarmBridge = {
   quickPanel: {
     /** Hide the quick panel window. */
     hide(): Promise<void>
-    /** Resize the quick panel window to the given height. */
-    resize(height: number): Promise<void>
     /** Focus the main window, optionally navigating to a session or settings route. */
     focusMain(payload: { navigate?: string; settings?: string }): Promise<void>
     /** Get the currently registered global hotkey accelerator string. */

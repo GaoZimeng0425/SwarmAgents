@@ -4,7 +4,7 @@
 // All navigation happens via swarmApi.quickPanelFocusMain, which focuses the
 // main window and routes it there — the quick panel is its own window, so
 // in-renderer routing (useNavigate) wouldn't affect the visible surface.
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTheme } from 'next-themes'
 
 import { useSubmitPrompt } from '@/hooks/use-messages'
@@ -61,16 +61,6 @@ export function QuickPanel(): React.JSX.Element {
   )
 
   const state = useQuickPanelState({ inputs, cb })
-
-  // Resize the panel to fit palette results. Each result row is ~32px; the
-  // input is ~52px. Grow with results, capped at PANEL_HEIGHT_MAX (600).
-  useEffect(() => {
-    if (state.mode !== 'palette') return
-    const inputHeight = 52
-    const rowHeight = 32
-    const resultsHeight = state.flat.length * rowHeight
-    void swarmApi.quickPanelResize(inputHeight + resultsHeight)
-  }, [state.mode, state.flat.length])
 
   if (state.mode === 'chat') {
     return <QuickPanelChat onBack={state.backToPalette} />
