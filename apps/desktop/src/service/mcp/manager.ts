@@ -1,7 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import type { ImageContent, TextContent } from '@earendil-works/pi-ai'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { createLogger } from '@shared/logger'
@@ -91,8 +90,7 @@ export const defaultConnect: McpConnector = async (config) => {
     const url = new URL(expandVars(config.url))
     const headers = expandRecord(config.headers)
     const opts = headers ? { requestInit: { headers } } : undefined
-    const transport =
-      config.transport === 'sse' ? new SSEClientTransport(url, opts) : new StreamableHTTPClientTransport(url, opts)
+    const transport = new StreamableHTTPClientTransport(url, opts)
     await client.connect(transport)
   }
   return client as unknown as McpClientLike

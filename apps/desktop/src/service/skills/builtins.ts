@@ -30,8 +30,8 @@ Edits are picked up automatically (within ~1s) and the server reconnects — no 
 {
   "mcpServers": {
     "<name>": {
-      "type": "http",                            // "stdio" | "http" | "sse"
-      "url": "https://host/mcp",                 // http/sse only
+      "type": "http",                            // "stdio" | "http"
+      "url": "https://host/mcp",                 // http only
       "headers": { "Authorization": "Bearer <token>" },
       "command": "npx",                          // stdio only
       "args": ["-y", "some-server"],             // stdio only

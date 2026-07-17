@@ -6,8 +6,14 @@
 // connection status back to the renderer over the event pipe.
 import { z } from 'zod'
 
-export const McpTransport = z.enum(['stdio', 'http', 'sse'])
+export const McpTransport = z.enum(['stdio', 'http'])
 export type McpTransport = z.infer<typeof McpTransport>
+
+// Transports accepted when READING a hand-written/legacy config. The old
+// HTTP+SSE transport is deprecated and no longer connected — but a stored
+// `"sse"` entry must still parse (it is coerced to `http` on read) so one
+// legacy entry can't fail-parse the whole file. Never used for new configs.
+export const McpTransportRead = z.enum(['stdio', 'http', 'sse'])
 
 // Default risk for tools discovered from an MCP server. External tools are
 // untrusted, so they require confirmation unless the user lowers the risk.
@@ -34,7 +40,7 @@ export const McpServerConfigSchema = z.object({
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),
   cwd: z.string().optional(),
-  // remote (http / sse) transport. Not `.url()`: may hold a `${VAR}` reference
+  // remote (http) transport. Not `.url()`: may hold a `${VAR}` reference
   // that only becomes a valid URL after env expansion at connect time.
   url: z.string().min(1).optional(),
   headers: z.record(z.string(), z.string()).optional(),
@@ -49,8 +55,9 @@ export type McpServerConfig = z.infer<typeof McpServerConfigSchema>
 // server name is the map key, so it doubles as the stable id internally.
 export const McpServerEntrySchema = z.object({
   // `type` is the Claude Code key; `transport` is accepted as an alias on read.
-  type: McpTransport.optional(),
-  transport: McpTransport.optional(),
+  // Uses the lenient read enum so a legacy `"sse"` entry still parses.
+  type: McpTransportRead.optional(),
+  transport: McpTransportRead.optional(),
   command: z.string().optional(),
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),

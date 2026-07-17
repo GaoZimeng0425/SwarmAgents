@@ -28,7 +28,6 @@ const RISKS: McpToolRisk[] = ['low', 'medium', 'high']
 const TRANSPORT_LABELS: Record<McpTransport, string> = {
   stdio: 'stdio (local)',
   http: 'http (remote)',
-  sse: 'sse (remote)',
 }
 
 const STATE_BADGE: Record<McpConnectionState, { label: string; className: string }> = {
@@ -66,7 +65,9 @@ function coerceServer(name: string, raw: Record<string, unknown>): AddInput {
   const hasUrl = typeof raw.url === 'string' && raw.url.trim().length > 0
 
   let transport: McpTransport
-  if (declared === 'stdio' || declared === 'http' || declared === 'sse') transport = declared
+  // legacy sse is no longer supported; treat as http
+  if (declared === 'sse') transport = 'http'
+  else if (declared === 'stdio' || declared === 'http') transport = declared
   else if (hasCommand) transport = 'stdio'
   else if (hasUrl) transport = 'http'
   else throw new Error(`"${name}" needs a command (stdio) or a url (remote)`)
@@ -319,7 +320,6 @@ function ManualForm(): React.JSX.Element {
           <SelectContent>
             <SelectItem value="stdio">stdio (local)</SelectItem>
             <SelectItem value="http">http (remote)</SelectItem>
-            <SelectItem value="sse">sse (remote)</SelectItem>
           </SelectContent>
         </Select>
       </div>

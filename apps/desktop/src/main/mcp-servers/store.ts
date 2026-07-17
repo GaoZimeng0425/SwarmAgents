@@ -29,8 +29,14 @@ export type Store = {
 }
 
 /** Resolve a hand-written entry's transport: explicit, else inferred from fields. */
-function resolveTransport(entry: McpServerEntry): McpServerConfig['transport'] {
+function resolveTransport(entry: McpServerEntry, name: string): McpServerConfig['transport'] {
   const declared = entry.transport ?? entry.type
+  // The old HTTP+SSE transport is no longer supported. Coerce a legacy `sse`
+  // entry to `http` (keeps it visible/editable) instead of dropping the server.
+  if (declared === 'sse') {
+    log.warn({ msg: 'sse transport is no longer supported; treating as http', name })
+    return 'http'
+  }
   if (declared) return declared
   if (entry.command?.trim()) return 'stdio'
   return 'http'
@@ -40,7 +46,7 @@ function entryToConfig(name: string, entry: McpServerEntry): McpServerConfig {
   const candidate: McpServerConfig = {
     id: name, // the map key is the stable identity
     name,
-    transport: resolveTransport(entry),
+    transport: resolveTransport(entry, name),
     enabled: entry.enabled ?? true,
     command: entry.command,
     args: entry.args,

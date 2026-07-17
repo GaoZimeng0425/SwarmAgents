@@ -80,14 +80,16 @@ describe('mcp-servers store', () => {
         mcpServers: {
           local: { command: 'node', args: ['s.js'] }, // no type → stdio
           remote: { url: 'http://h/mcp' }, // no type → http
-          aliased: { transport: 'sse', url: 'http://h/sse' }, // `transport` alias
+          aliased: { transport: 'http', url: 'http://h/mcp' }, // `transport` alias
+          legacy: { type: 'sse', url: 'http://h/sse' }, // deprecated sse → coerced to http
         },
       })
     )
     const { servers } = await createStore({ filePath: path }).load()
     expect(servers.find((s) => s.name === 'local')!.transport).toBe('stdio')
     expect(servers.find((s) => s.name === 'remote')!.transport).toBe('http')
-    expect(servers.find((s) => s.name === 'aliased')!.transport).toBe('sse')
+    expect(servers.find((s) => s.name === 'aliased')!.transport).toBe('http')
+    expect(servers.find((s) => s.name === 'legacy')!.transport).toBe('http')
   })
 
   it('skips an invalid entry but keeps the valid ones', async () => {
