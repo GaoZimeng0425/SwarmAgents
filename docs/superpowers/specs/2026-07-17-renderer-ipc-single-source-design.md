@@ -168,21 +168,32 @@ same single-documented-cast pattern as the service dispatcher's choke point.
 
 ### 4. Migration phasing — one spec, three plans, three worktrees
 
-The table itself must be complete before preload can switch to typed `invoke`
-(every channel the preload touches needs an entry). Hence:
+The invoke table grows **per domain**: typed `invoke` only requires entries for the
+channels it is called with, so each plan adds its domains' table entries, switches
+those domains' preload members, and migrates those domains' main-side files —
+together, in one reviewable unit. (An earlier draft switched the preload wholesale
+in Plan 1; per-domain switching supersedes it because it removes the one big-bang
+step this spec's own risk section flagged.) The **events table is the exception**:
+all 14 event channels land in Plan 1 — it is small, and it lets the preload's
+subscription helpers switch to the typed `subscribe` in one pass; event *senders*
+still migrate per domain with their files.
 
-- **Plan 1 — mechanism + first domains:** full `RendererIpcSignatures` +
-  `RendererIpcEvents` tables (inventory task included), `wire.ts`, preload switched
-  wholesale to `invoke`/`subscribe`, and main-side migration of `ipc/swarm-ipc.ts`,
-  `ipc/article-ipc.ts`, `trending/ipc.ts`, `system/deep-link.ts`, `index.ts`'s inline
-  handlers, and the quick-panel channels. Ends with a `run-desktop` launch smoke test.
+- **Plan 1 — mechanism + first domains:** channel inventory (committed as a notes
+  doc for Plans 2/3), `RendererIpcSignatures` entries + preload members + main-side
+  migration for `ipc/swarm-ipc.ts`, `ipc/article-ipc.ts`, `trending/ipc.ts`,
+  `system/deep-link.ts`, `index.ts`'s inline handlers, and `quick-panel/ipc.ts`;
+  full `RendererIpcEvents` table + all preload subscriptions switched; `wire.ts`.
+  Ends with a `run-desktop` launch smoke test.
 - **Plan 2 — heavy domains:** `bilibili/ipc.ts` (24), `providers/ipc.ts` (16),
-  `mcp-servers/ipc.ts`, `web-search/ipc.ts`, `budgets/ipc.ts`.
+  `mcp-servers/ipc.ts`, `web-search/ipc.ts`, `budgets/ipc.ts` — table entries +
+  preload members + main files per domain.
 - **Plan 3 — remaining domains + closure:** `gmail/ipc.ts` (14), `calendar/ipc.ts`
   (10), `weather/ipc.ts`, `workbench/ipc.ts`; then the closure check — a grep gate
   asserting no bare `ipcMain.handle(` / window-loop `webContents.send` remains
-  outside `wire.ts`. Sole exclusion: the dev-only `ipcMain.on('ping')` listener in
-  `main/index.ts` uses `on` (not `handle`), predates this work, and stays as-is.
+  outside `wire.ts`, and no raw `ipcRenderer.invoke(` / `ipcRenderer.on(` remains
+  in the preload outside the `invoke`/`subscribe` helpers. Sole exclusion: the
+  dev-only `ipcMain.on('ping')` listener in `main/index.ts` uses `on` (not
+  `handle`), predates this work, and stays as-is.
 
 Each plan lands on develop independently; the app is fully functional after every
 merge (unmigrated domains keep their bare `ipcMain.handle` until their plan).
@@ -213,9 +224,10 @@ stays in handler bodies per the project's logging rules).
   or handles registered via constants — the inventory reconciles this, and any
   channel found in preload with no main handler is a latent dead call to surface,
   not silently table-ize).
-- **Preload wholesale switch** is the riskiest step (one file, 150 call sites) —
-  mitigated by: unchanged bridge shape (typecheck against existing `SwarmBridge`
-  types catches signature transcription errors), plus the Plan 1 smoke test.
+- **Preload switching is per-domain** (see §4), so no single step touches all 150
+  call sites; each domain's switch is typechecked against the existing `SwarmBridge`
+  member types (transcription errors surface at compile time) and Plan 1 carries a
+  `run-desktop` smoke test for the mechanism itself.
 - **Event-channel constants** (`STATE_CHANGED` consts per domain) become table keys;
   senders and subscribers must both move in the same plan as their domain.
 - `renderer-ipc.ts` is type-only, so it adds zero bytes to any runtime bundle.
