@@ -83,12 +83,16 @@ export const serviceMethodArgSchemas: {
   `z.looseObject` with the key fields pinned, rest passed through (mirrors the
   existing `MessagePayload` precedent in `session-entry.ts`).
 
-**Optional-arg rule (correctness-critical)**: every optional trailing arg schema uses
-`.nullish()`, never bare `.optional()`. The parentPort leg preserves `undefined`
-(structured clone), but the WS leg goes through `JSON.stringify`, which converts
-`undefined` array elements to `null`. `.optional()`-only schemas would reject every
-legal WS call that omits a trailing arg. Handlers already treat `null`/`undefined`
-optionals equivalently.
+**Optional-arg rule (correctness-critical)**: the parentPort leg preserves
+`undefined` (structured clone), but the WS leg goes through `JSON.stringify`, which
+converts `undefined` array elements to `null`. Rather than model `null` in every
+optional schema (`.nullish()` pollutes handler signatures with `null` and relies on
+zod's optional-element detection through pipes), the dispatcher entry normalizes
+**top-level** args before validation: `args.map(a => a === null ? undefined : a)`.
+No method in the table takes `null` as a meaningful top-level arg value (verified
+across all 45), and nested nulls inside objects are governed by their own schemas
+(e.g. `ArticleSource`'s nullable fields). Schemas then use plain `.optional()` for
+trailing optionals.
 
 ### 2. `MainMethodSignatures` (same file)
 
@@ -182,10 +186,11 @@ Error message always contains the method name and the first zod issue.
   mis-cast) will now be rejected with a typed error. This is the point of the change;
   the dispatcher tests enumerate the legal shapes.
 - **zod v4 tuples**: the repo is on zod 4 (`z.looseObject` already in use), which
-  supports optional/nullish tuple elements. Verify the inferred tuple type matches
-  the signature `args` during implementation. If inference fights back on a
-  specific method, the fallback is a fixed-prefix tuple plus a permissive rest
-  (`z.tuple([...]).rest(z.unknown())`) for that method only — the signature type
-  stays authoritative either way.
+  supports optional tuple elements (omittable from the end). Verify the inferred
+  tuple type matches the signature `args` during implementation — unit tests must
+  cover the short-array case (trailing optional omitted) and the normalized-null
+  case. If inference fights back on a specific method, the fallback is a
+  fixed-prefix tuple plus a permissive rest (`z.tuple([...]).rest(z.unknown())`)
+  for that method only — the signature type stays authoritative either way.
 - **Import cycles** in protocol: guarded by the one-way rule (table imports types,
   never the reverse).
