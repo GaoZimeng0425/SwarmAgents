@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { extname } from 'node:path'
 import { createLogger } from '@shared/logger'
 import type { ServiceClient } from '@swarm/protocol'
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
 
 import type { Service as BudgetsService } from '../budgets'
 import type { CmdPaletteHandle } from '../cmd-palette'
@@ -13,6 +13,7 @@ import type { Service as ProvidersService } from '../providers'
 import { getAccent, subscribeAccent } from '../system/accent'
 import { getMacPermissions, openPrivacySettings } from '../system/permissions'
 import type { Service as WebSearchService } from '../web-search'
+import { createIpcRegistrar, sendToAllWindows } from './wire'
 
 const log = createLogger({ process: 'main' }).child({ component: 'swarm-ipc' })
 
@@ -52,6 +53,7 @@ export function wireSwarmIpc(args: {
   cmdPalette?: CmdPaletteHandle
 }): { dispose: () => void } {
   const { serviceClient, providers, mcpServers, webSearch, budgets, cmdPalette } = args
+  const ipc = createIpcRegistrar()
 
   // ---- MCP config ↔ service bridge ----
   // Push the persisted config to the service now, and on every change. The
@@ -64,7 +66,7 @@ export function wireSwarmIpc(args: {
       log.warn({ msg: 'setMcpServers failed', err: String(err) })
     })
   })
-  ipcMain.handle('mcp:getStatus', () => serviceClient.getMcpStatus())
+  ipc.handle('mcp:getStatus', () => serviceClient.getMcpStatus())
 
   // ---- Web-search config ↔ service bridge ----
   // Push the persisted config (incl. keys) to the service now, and on every
@@ -91,18 +93,18 @@ export function wireSwarmIpc(args: {
   })
 
   // ---- Skills (service owns the files; main is a thin passthrough) ----
-  ipcMain.handle('skills:list', () => serviceClient.listSkills())
-  ipcMain.handle('agents:list', () => serviceClient.listAgents())
-  ipcMain.handle('skills:save', (_e: Electron.IpcMainInvokeEvent, skill: import('@swarm/protocol').Skill) =>
+  ipc.handle('skills:list', () => serviceClient.listSkills())
+  ipc.handle('agents:list', () => serviceClient.listAgents())
+  ipc.handle('skills:save', (_e: Electron.IpcMainInvokeEvent, skill: import('@swarm/protocol').Skill) =>
     serviceClient.saveSkill(skill)
   )
-  ipcMain.handle('skills:delete', (_e: Electron.IpcMainInvokeEvent, name: string) => serviceClient.deleteSkill(name))
-  ipcMain.handle('agents:save', (_e: Electron.IpcMainInvokeEvent, def: import('@swarm/protocol').AgentDefinition) =>
+  ipc.handle('skills:delete', (_e: Electron.IpcMainInvokeEvent, name: string) => serviceClient.deleteSkill(name))
+  ipc.handle('agents:save', (_e: Electron.IpcMainInvokeEvent, def: import('@swarm/protocol').AgentDefinition) =>
     serviceClient.saveAgent(def)
   )
-  ipcMain.handle('agents:delete', (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.deleteAgent(id))
-  ipcMain.handle('agents:restore-defaults', () => serviceClient.restoreDefaultAgents())
-  ipcMain.handle(
+  ipc.handle('agents:delete', (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.deleteAgent(id))
+  ipc.handle('agents:restore-defaults', () => serviceClient.restoreDefaultAgents())
+  ipc.handle(
     'skills:import',
     async (e: Electron.IpcMainInvokeEvent, arg?: { sourceDir?: string; overwrite?: boolean }) => {
       let sourceDir = arg?.sourceDir
@@ -124,19 +126,19 @@ export function wireSwarmIpc(args: {
       return r
     }
   )
-  ipcMain.handle('memory:list', (_e: Electron.IpcMainInvokeEvent, namespace?: string) =>
+  ipc.handle('memory:list', (_e: Electron.IpcMainInvokeEvent, namespace?: string) =>
     serviceClient.listMemory(namespace)
   )
 
   // ---- Tool toggles (service owns the state; main is a thin passthrough) ----
-  ipcMain.handle('toolToggles:get', () => serviceClient.getToolToggles())
-  ipcMain.handle('toolToggles:setSkill', (_e: Electron.IpcMainInvokeEvent, name: string, enabled: boolean) =>
+  ipc.handle('toolToggles:get', () => serviceClient.getToolToggles())
+  ipc.handle('toolToggles:setSkill', (_e: Electron.IpcMainInvokeEvent, name: string, enabled: boolean) =>
     serviceClient.setSkillEnabled(name, enabled)
   )
-  ipcMain.handle('toolToggles:setToolGroup', (_e: Electron.IpcMainInvokeEvent, group: string, enabled: boolean) =>
+  ipc.handle('toolToggles:setToolGroup', (_e: Electron.IpcMainInvokeEvent, group: string, enabled: boolean) =>
     serviceClient.setToolGroupEnabled(group, enabled)
   )
-  ipcMain.handle('tools:listGroups', () => serviceClient.listToolGroups())
+  ipc.handle('tools:listGroups', () => serviceClient.listToolGroups())
 
   // ---- Renderer → Main RPC handlers ----
 
@@ -232,50 +234,45 @@ export function wireSwarmIpc(args: {
   const listAllCronRuns = () => serviceClient.listAllCronRuns()
   const cancelCronJob = (_e: Electron.IpcMainInvokeEvent, id: string) => serviceClient.cancelCronJob(id)
 
-  ipcMain.handle('swarm:createSession', () => createSession())
-  ipcMain.handle('swarm:forkSession', (_e: Electron.IpcMainInvokeEvent, sourceSessionId: string, upToRowId: number) =>
+  ipc.handle('swarm:createSession', () => createSession())
+  ipc.handle('swarm:forkSession', (_e: Electron.IpcMainInvokeEvent, sourceSessionId: string, upToRowId: number) =>
     serviceClient.forkSession(sourceSessionId, upToRowId)
   )
-  ipcMain.handle('swarm:analyzeThread', analyzeThread)
-  ipcMain.handle('swarm:listSessions', () => listSessions())
-  ipcMain.handle('swarm:getSessionEntries', getSessionEntries)
-  ipcMain.handle('swarm:getUsageStats', getUsageStats)
-  ipcMain.handle('swarm:deleteSession', deleteSession)
-  ipcMain.handle('swarm:renameSession', renameSession)
-  ipcMain.handle('swarm:setSessionPinned', setSessionPinned)
-  ipcMain.handle('swarm:updateSessionSettings', updateSessionSettings)
-  ipcMain.handle('swarm:reorderSessions', reorderSessions)
-  ipcMain.handle('swarm:submitPrompt', submitPrompt)
-  ipcMain.handle('swarm:cancelRun', cancelRun)
-  ipcMain.handle('swarm:decidePermission', decidePermission)
-  ipcMain.handle('swarm:listCronJobsForSession', listCronJobsForSession)
-  ipcMain.handle('swarm:listAllCronJobs', () => listAllCronJobs())
-  ipcMain.handle('swarm:listAllCronRuns', () => listAllCronRuns())
-  ipcMain.handle('swarm:cancelCronJob', cancelCronJob)
+  ipc.handle('swarm:analyzeThread', analyzeThread)
+  ipc.handle('swarm:listSessions', () => listSessions())
+  ipc.handle('swarm:getSessionEntries', getSessionEntries)
+  ipc.handle('swarm:getUsageStats', getUsageStats)
+  ipc.handle('swarm:deleteSession', deleteSession)
+  ipc.handle('swarm:renameSession', renameSession)
+  ipc.handle('swarm:setSessionPinned', setSessionPinned)
+  ipc.handle('swarm:updateSessionSettings', updateSessionSettings)
+  ipc.handle('swarm:reorderSessions', reorderSessions)
+  ipc.handle('swarm:submitPrompt', submitPrompt)
+  ipc.handle('swarm:cancelRun', cancelRun)
+  ipc.handle('swarm:decidePermission', decidePermission)
+  ipc.handle('swarm:listCronJobsForSession', listCronJobsForSession)
+  ipc.handle('swarm:listAllCronJobs', () => listAllCronJobs())
+  ipc.handle('swarm:listAllCronRuns', () => listAllCronRuns())
+  ipc.handle('swarm:cancelCronJob', cancelCronJob)
 
   // ---- Command palette: session export + observable artifacts ----
-  ipcMain.handle('swarm:exportSessionMarkdown', (_e, sessionId: string) =>
-    serviceClient.exportSessionMarkdown(sessionId)
-  )
+  ipc.handle('swarm:exportSessionMarkdown', (_e, sessionId: string) => serviceClient.exportSessionMarkdown(sessionId))
   if (cmdPalette) {
-    ipcMain.handle('swarm:listArtifacts', (_e, opts?: { query?: string; limit?: number }) =>
+    ipc.handle('swarm:listArtifacts', (_e, opts?: { query?: string; limit?: number }) =>
       cmdPalette.listArtifacts(opts ?? {})
     )
   }
 
   const handleGetAccent = (): string | null => getAccent()
-  ipcMain.handle('system:getAccent', handleGetAccent)
+  ipc.handle('system:getAccent', handleGetAccent)
 
-  const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
   const unsubscribeAccent = subscribeAccent((hex) => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(ACCENT_CHANGE_CHANNEL, { hex })
-    }
+    sendToAllWindows('system:accentChange', { hex })
   })
 
   const readImageFile = async (
     _e: Electron.IpcMainInvokeEvent,
-    path: unknown
+    path: string
   ): Promise<{ mimeType: string; data: string } | null> => {
     if (typeof path !== 'string') return null
     const mimeType = IMAGE_MIME[extname(path).toLowerCase()]
@@ -289,11 +286,11 @@ export function wireSwarmIpc(args: {
       return null
     }
   }
-  ipcMain.handle('system:readImageFile', readImageFile)
+  ipc.handle('system:readImageFile', readImageFile)
 
   const readDocumentFile = async (
     _e: Electron.IpcMainInvokeEvent,
-    path: unknown
+    path: string
   ): Promise<{ mediaType: string; data: string } | null> => {
     if (typeof path !== 'string') return null
     const mediaType = DOCUMENT_MIME[extname(path).toLowerCase()]
@@ -307,14 +304,14 @@ export function wireSwarmIpc(args: {
       return null
     }
   }
-  ipcMain.handle('system:readDocumentFile', readDocumentFile)
+  ipc.handle('system:readDocumentFile', readDocumentFile)
 
-  const openPath = async (_e: Electron.IpcMainInvokeEvent, path: unknown): Promise<void> => {
+  const openPath = async (_e: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
     if (typeof path !== 'string') return
     const err = await shell.openPath(expandHome(path))
     if (err) log.warn({ msg: 'openPath failed', path, err })
   }
-  ipcMain.handle('system:openPath', openPath)
+  ipc.handle('system:openPath', openPath)
 
   // Reveal the ~/.swarm-agents folder so the user can drop in skill folders
   // (skills/<name>/SKILL.md), agent folders, edit mcp-servers.json, etc.
@@ -323,12 +320,12 @@ export function wireSwarmIpc(args: {
     const err = await shell.openPath(dir)
     if (err) log.warn({ msg: 'openUserDataDir failed', dir, err })
   }
-  ipcMain.handle('system:openUserDataDir', openUserDataDir)
+  ipc.handle('system:openUserDataDir', openUserDataDir)
 
   // Native folder/file picker for the composer's working-directory and
   // file-reference controls. Returns the chosen absolute path, or null when the
   // user cancels (or picks nothing).
-  const pickPath = async (e: Electron.IpcMainInvokeEvent, kind: unknown): Promise<string | null> => {
+  const pickPath = async (e: Electron.IpcMainInvokeEvent, kind: 'directory' | 'file'): Promise<string | null> => {
     const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const properties: Array<'openDirectory' | 'openFile'> = kind === 'directory' ? ['openDirectory'] : ['openFile']
     const result = parent
@@ -337,14 +334,14 @@ export function wireSwarmIpc(args: {
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
   }
-  ipcMain.handle('system:pickPath', pickPath)
+  ipc.handle('system:pickPath', pickPath)
 
   // List one directory level for the composer's @ file/folder autocomplete.
   // Non-recursive, dotfiles excluded, prefix-filtered, folders-first, capped.
   const listDir = async (
     _e: Electron.IpcMainInvokeEvent,
-    dir: unknown,
-    prefix?: unknown
+    dir: string,
+    prefix?: string
   ): Promise<{ name: string; isDir: boolean }[]> => {
     if (typeof dir !== 'string') return []
     try {
@@ -360,62 +357,20 @@ export function wireSwarmIpc(args: {
       return []
     }
   }
-  ipcMain.handle('system:listDir', listDir)
+  ipc.handle('system:listDir', listDir)
 
-  ipcMain.handle('system:getMacPermissions', () => getMacPermissions())
+  ipc.handle('system:getMacPermissions', () => getMacPermissions())
   const handleOpenPrivacySettings = (_e: Electron.IpcMainInvokeEvent, pane: unknown): Promise<void> =>
     openPrivacySettings(pane === 'accessibility' ? 'accessibility' : 'screen')
-  ipcMain.handle('system:openPrivacySettings', handleOpenPrivacySettings)
+  ipc.handle('system:openPrivacySettings', handleOpenPrivacySettings)
 
   return {
     dispose(): void {
       offMcpChange()
       offWebSearchChange()
       offBudgetsChange()
-      ipcMain.removeHandler('mcp:getStatus')
-      ipcMain.removeHandler('skills:list')
-      ipcMain.removeHandler('agents:list')
-      ipcMain.removeHandler('skills:save')
-      ipcMain.removeHandler('skills:delete')
-      ipcMain.removeHandler('agents:save')
-      ipcMain.removeHandler('agents:delete')
-      ipcMain.removeHandler('agents:restore-defaults')
-      ipcMain.removeHandler('skills:import')
-      ipcMain.removeHandler('toolToggles:get')
-      ipcMain.removeHandler('toolToggles:setSkill')
-      ipcMain.removeHandler('toolToggles:setToolGroup')
-      ipcMain.removeHandler('tools:listGroups')
-      ipcMain.removeHandler('memory:list')
-      ipcMain.removeHandler('system:openPrivacySettings')
-      ipcMain.removeHandler('system:getMacPermissions')
-      ipcMain.removeHandler('system:readImageFile')
-      ipcMain.removeHandler('system:readDocumentFile')
-      ipcMain.removeHandler('system:openPath')
-      ipcMain.removeHandler('system:openUserDataDir')
-      ipcMain.removeHandler('system:pickPath')
-      ipcMain.removeHandler('system:listDir')
-      ipcMain.removeHandler('system:getAccent')
       unsubscribeAccent()
-      ipcMain.removeHandler('swarm:createSession')
-      ipcMain.removeHandler('swarm:forkSession')
-      ipcMain.removeHandler('swarm:analyzeThread')
-      ipcMain.removeHandler('swarm:listSessions')
-      ipcMain.removeHandler('swarm:getSessionEntries')
-      ipcMain.removeHandler('swarm:getUsageStats')
-      ipcMain.removeHandler('swarm:deleteSession')
-      ipcMain.removeHandler('swarm:renameSession')
-      ipcMain.removeHandler('swarm:setSessionPinned')
-      ipcMain.removeHandler('swarm:updateSessionSettings')
-      ipcMain.removeHandler('swarm:reorderSessions')
-      ipcMain.removeHandler('swarm:submitPrompt')
-      ipcMain.removeHandler('swarm:cancelRun')
-      ipcMain.removeHandler('swarm:decidePermission')
-      ipcMain.removeHandler('swarm:listCronJobsForSession')
-      ipcMain.removeHandler('swarm:listAllCronJobs')
-      ipcMain.removeHandler('swarm:listAllCronRuns')
-      ipcMain.removeHandler('swarm:cancelCronJob')
-      ipcMain.removeHandler('swarm:exportSessionMarkdown')
-      ipcMain.removeHandler('swarm:listArtifacts')
+      ipc.dispose()
     },
   }
 }
