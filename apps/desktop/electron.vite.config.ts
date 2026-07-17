@@ -1,4 +1,4 @@
-import { builtinModules, createRequire } from 'node:module'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
@@ -36,11 +36,10 @@ const ESM_ONLY_BUNDLE_INLINE = new Set(['@earendil-works/pi-agent-core', '@earen
 // externalized (externalizing would make node try to require .ts at runtime).
 const SWARM_PACKAGES = /^@swarm\//
 
+// electron, /^electron\//, and node builtins (+ `node:` prefixed) are
+// externalized by electron-vite's main preset already, so only runtime deps
+// need to be listed here.
 const mainExternal: Array<string | RegExp> = [
-  'electron',
-  /^electron\//,
-  ...builtinModules,
-  ...builtinModules.map((m) => `node:${m}`),
   ...runtimeDeps.filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d) && !SWARM_PACKAGES.test(d)),
   // also externalize anything under a runtime dep's subpath (skip ESM-only inline set)
   ...runtimeDeps
