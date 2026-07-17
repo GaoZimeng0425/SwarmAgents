@@ -6,11 +6,9 @@
 // service->main rpc.
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
-import type { MainMethod } from '@swarm/protocol'
+import type { CallMainFn } from '@swarm/protocol'
 
 import type { ToolSpec } from '../tools/registry'
-
-type CallMainFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
 const ok = (text: string, details: Record<string, unknown> = {}): Result => ({

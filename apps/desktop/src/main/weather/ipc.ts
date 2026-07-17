@@ -3,7 +3,7 @@
 // (the dashboard card subscribes so it updates without polling). Config changes
 // are read on demand (the hook re-queries), so no push channel is needed there.
 import { createLogger } from '@shared/logger'
-import type { MainMethod, WeatherConfig } from '@swarm/protocol'
+import type { MainMethod, MainMethodSignatures, WeatherConfig } from '@swarm/protocol'
 import { BrowserWindow, ipcMain } from 'electron'
 
 import type { Service } from './service'
@@ -54,7 +54,10 @@ function resolveForecast(
     })
 }
 
-export type RpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
+type WeatherMethod = Extract<MainMethod, `weather.${string}`>
+export type RpcHandlers = {
+  [M in WeatherMethod]: (...args: MainMethodSignatures[M]['args']) => Promise<unknown>
+}
 
 export function wireWeatherIpc(args: { service: Service }): {
   dispose: () => void

@@ -1,7 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { createLogger } from '@shared/logger'
-import type { MainMethod, WeatherForecast } from '@swarm/protocol'
+import type { CallMainFn, WeatherForecast } from '@swarm/protocol'
 
 import type { ToolRunContext, ToolSpec } from './registry'
 
@@ -13,8 +13,6 @@ const TIMEOUT_MS = 15_000
 // curl/wget-style agents — so a curl UA is required to get the text forecast.
 // wttr.in is only used as a fallback when QWeather is not configured.
 const USER_AGENT = 'curl/8.4.0 (SwarmAgents weather tool)'
-
-type CallMainFn = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
 type Result = { content: [{ type: 'text'; text: string }]; details: Record<string, unknown> }
 const ok = (text: string, details: Record<string, unknown> = {}): Result => ({

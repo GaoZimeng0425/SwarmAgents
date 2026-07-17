@@ -4,7 +4,7 @@
 // exposes the main-rpc query handlers the service→main bridge dispatches to.
 // Mirrors budgets/ipc.ts; broadcasts gmail:stateChanged to all windows.
 import { createLogger } from '@shared/logger'
-import type { GmailClientCreds, MainMethod } from '@swarm/protocol'
+import type { GmailClientCreds, MainMethod, MainMethodSignatures } from '@swarm/protocol'
 import { BrowserWindow, ipcMain } from 'electron'
 
 import type { Service } from './service'
@@ -13,7 +13,10 @@ const log = createLogger({ process: 'main' }).child({ component: 'gmail-ipc' })
 
 const STATE_CHANGED = 'gmail:stateChanged'
 
-export type RpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
+type GmailMethod = Extract<MainMethod, `gmail.${string}`>
+export type RpcHandlers = {
+  [M in GmailMethod]: (...args: MainMethodSignatures[M]['args']) => Promise<unknown>
+}
 
 export function wireGmailIpc(args: { service: Service }): {
   dispose: () => void

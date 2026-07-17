@@ -4,7 +4,7 @@
 // cache, REST client, OAuth auth, daemon, service, and IPC. Runs after
 // app.whenReady(). registerRpcHandlers is called from main wiring once the
 // ServiceClient exists.
-import type { MainMethod } from '@swarm/protocol'
+import type { MainMethod, MainMethodSignatures } from '@swarm/protocol'
 
 import { paths } from '../constants'
 import { createGmailApi } from './api'
@@ -15,11 +15,14 @@ import { wireGmailIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
 
-// Structural: only the registerRpcHandlers surface initGmail needs. The full
-// ServiceClient type gains this method in a later task; importing it here
-// would create a forward-dependency that fails typecheck until that lands.
+// Structural: only the registerRpcHandlers surface initGmail needs (avoids a
+// forward-dependency on the full ServiceClient type). Signature mirrors
+// ServiceClient['registerHandler'], table-derived from MainMethodSignatures.
 type RpcHandlerClient = {
-  registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
+  registerHandler<M extends MainMethod>(
+    method: M,
+    fn: (...args: MainMethodSignatures[M]['args']) => unknown | Promise<unknown>
+  ): void
 }
 
 export type GmailHandle = {
@@ -50,7 +53,10 @@ export async function initGmail(): Promise<GmailHandle> {
     service,
     registerRpcHandlers(client) {
       ;(Object.keys(wired.rpcHandlers) as Array<keyof typeof wired.rpcHandlers>).forEach((method) => {
-        client.registerHandler(method, wired.rpcHandlers[method]!)
+        // Correlated-union call: TS cannot prove wired.rpcHandlers[method] accepts
+        // registerHandler's per-method arg tuple for the same M — the single
+        // documented cast at the choke point (mirrors service/ipc/dispatcher.ts).
+        client.registerHandler(method, wired.rpcHandlers[method] as (...args: unknown[]) => Promise<unknown>)
       })
     },
     dispose() {

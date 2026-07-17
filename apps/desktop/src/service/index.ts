@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { createLogger } from '@shared/logger'
 import {
   type BudgetConfig,
+  type CallMainFn,
   createRpcPeer,
   defaultBudgetConfig,
   type ProviderInjection,
@@ -176,6 +177,11 @@ const rpcPeer = createRpcPeer({
 })
 rpcPeer.connect()
 
+// Service→main RPC for methods only the main process serves (gmail/calendar
+// caches, QWeather config, bilibili analysis persistence). Shared by the
+// builtin tools and the gmail/bilibili analyzers below.
+const callMain: CallMainFn = (method, args) => rpcPeer.call(method, args)
+
 registerBuiltinTools(toolRegistry, {
   memoryStore,
   skillStore,
@@ -183,7 +189,7 @@ registerBuiltinTools(toolRegistry, {
   claudeCode,
   getWebSearchConfig: () => webSearchConfig,
   isSkillEnabled: (name) => toolToggles.isSkillEnabled(name),
-  callMain: (method, args) => rpcPeer.call(method, args),
+  callMain,
 })
 scheduler.start()
 
@@ -199,7 +205,7 @@ const dispatch = createDispatcher({
     agentStore,
     toolRegistry,
     acquireSlot: service.acquireSlot,
-    callMain: (method, args) => rpcPeer.call(method, args),
+    callMain,
   }),
   collectArticle: createCollectArticle({ store: articleStore }),
   analyzeArticle: createAnalyzeArticle({
@@ -214,7 +220,7 @@ const dispatch = createDispatcher({
     agentStore,
     toolRegistry,
     acquireSlot: service.acquireSlot,
-    callMain: (method, args) => rpcPeer.call(method, args),
+    callMain,
   }),
   // The store's list/get/delete are sync; the dispatcher contract returns
   // Promises for these (renderer awaits), so wrap them.

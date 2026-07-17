@@ -4,7 +4,7 @@
 // the main-rpc query/CRUD handlers the service->main bridge dispatches to.
 // Mirrors gmail/ipc.ts; broadcasts calendar:stateChanged to all windows.
 import { createLogger } from '@shared/logger'
-import type { CalendarClientCreds, MainMethod } from '@swarm/protocol'
+import type { CalendarClientCreds, MainMethod, MainMethodSignatures } from '@swarm/protocol'
 import { BrowserWindow, ipcMain } from 'electron'
 
 import type { LocalEventInput } from './cache'
@@ -14,7 +14,10 @@ const log = createLogger({ process: 'main' }).child({ component: 'calendar-ipc' 
 
 const STATE_CHANGED = 'calendar:stateChanged'
 
-export type RpcHandlers = Partial<Record<MainMethod, (...args: unknown[]) => Promise<unknown>>>
+type CalendarMethod = Extract<MainMethod, `calendar.${string}`>
+export type RpcHandlers = {
+  [M in CalendarMethod]: (...args: MainMethodSignatures[M]['args']) => Promise<unknown>
+}
 
 export function wireCalendarIpc(args: { service: Service }): {
   dispose: () => void

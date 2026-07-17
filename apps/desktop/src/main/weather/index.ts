@@ -1,14 +1,19 @@
 // Entry point for the QWeather subsystem. Wires the on-disk store, the
 // in-memory service, and the Electron IPC layer. Runs after app.whenReady().
-import type { MainMethod } from '@swarm/protocol'
+import type { MainMethod, MainMethodSignatures } from '@swarm/protocol'
 
 import { paths } from '../constants'
 import { wireWeatherIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
 
+// Structural: mirrors ServiceClient['registerHandler'], table-derived from
+// MainMethodSignatures (see gmail/index.ts).
 type RpcHandlerClient = {
-  registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
+  registerHandler<M extends MainMethod>(
+    method: M,
+    fn: (...args: MainMethodSignatures[M]['args']) => unknown | Promise<unknown>
+  ): void
 }
 
 export type WeatherHandle = {

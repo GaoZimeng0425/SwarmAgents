@@ -208,7 +208,12 @@ export type MainMethodSignatures = {
   'calendar.create_local': { args: [CalendarLocalInput]; result: unknown }
   'calendar.update_local': { args: [string, Partial<CalendarLocalInput>]; result: unknown }
   'calendar.delete_local': { args: [string]; result: unknown }
-  'weather.get_forecast': { args: [number, number]; result: unknown }
+  // Args can be null: the service→main caller has no GPS coords and
+  // deliberately sends [null, null] so main falls back to saved location > IP
+  // (see main/weather/ipc.ts's rpcHandlers, which already branches on
+  // typeof lng === 'number'). [number, number] was a table-authoring gap, not
+  // the real wire contract.
+  'weather.get_forecast': { args: [number | null, number | null]; result: unknown }
 }
 
 export type MainMethod = keyof MainMethodSignatures

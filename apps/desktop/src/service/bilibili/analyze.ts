@@ -8,7 +8,7 @@ import type {
   AnalyzeBilibiliResult,
   BiliAnalysisSource,
   BiliSummary,
-  MainMethod,
+  CallMainFn,
 } from '@swarm/protocol'
 
 import type { AgentStore } from '../agents/store'
@@ -16,8 +16,6 @@ import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../an
 import type { Broadcaster } from '../ipc/broadcaster'
 import type { OneShotRunner } from '../session-agent/one-shot'
 import type { ToolRegistry } from '../tools/registry'
-
-type CallMain = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
 const BILIBILI_CONFIG: AnalysisConfig<BiliSummary> = {
   agentId: 'bilibili-analyst',
@@ -36,7 +34,7 @@ export type AnalyzeBilibiliDeps = {
   /** Global concurrency pool shared with the session runs. */
   acquireSlot: (signal: AbortSignal) => Promise<() => void>
   /** Cross-process RPC to Main (for persisting the analysis result). */
-  callMain: CallMain
+  callMain: CallMainFn
   /** Injectable so tests can drive the adapter without a real provider/agent. */
   runOneShot?: OneShotRunner
 }

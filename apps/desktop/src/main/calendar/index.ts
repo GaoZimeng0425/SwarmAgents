@@ -3,7 +3,7 @@
 // Entry point for the Calendar subsystem. Mirrors gmail/index.ts. Runs after
 // app.whenReady(); registerRpcHandlers is called from main wiring once the
 // ServiceClient exists.
-import type { MainMethod } from '@swarm/protocol'
+import type { MainMethod, MainMethodSignatures } from '@swarm/protocol'
 
 import { paths } from '../constants'
 import { createApi } from './api'
@@ -14,8 +14,13 @@ import { wireCalendarIpc } from './ipc'
 import { createService, type Service } from './service'
 import { createStore } from './store'
 
+// Structural: mirrors ServiceClient['registerHandler'], table-derived from
+// MainMethodSignatures (see gmail/index.ts).
 type RpcHandlerClient = {
-  registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
+  registerHandler<M extends MainMethod>(
+    method: M,
+    fn: (...args: MainMethodSignatures[M]['args']) => unknown | Promise<unknown>
+  ): void
 }
 
 export type CalendarHandle = {
@@ -45,7 +50,10 @@ export async function initCalendar(): Promise<CalendarHandle> {
     service,
     registerRpcHandlers(client) {
       ;(Object.keys(wired.rpcHandlers) as Array<keyof typeof wired.rpcHandlers>).forEach((method) => {
-        client.registerHandler(method, wired.rpcHandlers[method]!)
+        // Correlated-union call: TS cannot prove wired.rpcHandlers[method] accepts
+        // registerHandler's per-method arg tuple for the same M — the single
+        // documented cast at the choke point (mirrors service/ipc/dispatcher.ts).
+        client.registerHandler(method, wired.rpcHandlers[method] as (...args: unknown[]) => Promise<unknown>)
       })
     },
     dispose() {

@@ -1,4 +1,4 @@
-import type { WebSearchInjection } from '@swarm/protocol'
+import type { CallMainFn, WebSearchInjection } from '@swarm/protocol'
 
 import { calendarSpecs } from '../calendar/tools'
 import type { ClaudeCodeManager } from '../claude-code/manager'
@@ -65,7 +65,7 @@ export function registerBuiltinTools(
     // Service→main RPC for methods only the main process serves (the gmail/
     // calendar caches, QWeather config). Gates the gmail and calendar tools
     // and the weather tool's QWeather path.
-    callMain?: (method: import('@swarm/protocol').MainMethod, args: unknown[]) => Promise<unknown>
+    callMain?: CallMainFn
   }
 ): void {
   for (const spec of peekabooSpecs()) registry.register(spec)

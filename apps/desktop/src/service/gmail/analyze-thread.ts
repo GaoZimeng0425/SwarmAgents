@@ -10,7 +10,7 @@
 import type {
   AnalyzeThreadRequest,
   AnalyzeThreadResult,
-  MainMethod,
+  CallMainFn,
   ThreadAnalysisPayload,
   Todo,
 } from '@swarm/protocol'
@@ -20,8 +20,6 @@ import { type AnalysisConfig, type AnalysisDeps, createAnalysisRun } from '../an
 import type { Broadcaster } from '../ipc/broadcaster'
 import type { OneShotRunner } from '../session-agent/one-shot'
 import type { ToolRegistry } from '../tools/registry'
-
-type CallMain = (method: MainMethod, args: unknown[]) => Promise<unknown>
 
 // The card captures todos + a suggested reply. When the agent emits no card,
 // tolerate with empty defaults (the summary is still useful on its own).
@@ -55,7 +53,7 @@ export type AnalyzeThreadDeps = {
   /** Global concurrency pool shared with the session runs. */
   acquireSlot: (signal: AbortSignal) => Promise<() => void>
   /** Cross-process RPC to Main (for persisting the thread analysis result). */
-  callMain: CallMain
+  callMain: CallMainFn
   /** Injectable so tests can drive the adapter without a real provider/agent. */
   runOneShot?: OneShotRunner
 }
