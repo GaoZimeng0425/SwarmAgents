@@ -22,4 +22,19 @@ describe('RendererIpcSignatures', () => {
     expectTypeOf<RendererIpcEvents['swarm:event']>().toEqualTypeOf<UIEvent>()
     expectTypeOf<RendererIpcEvents['system:accentChange']>().toEqualTypeOf<{ hex: string }>()
   })
+
+  it('plan-2 domain entries model the wire, not the bridge facade', () => {
+    // bilibili:save takes the full video + summary (fav deletion needs the fav* ids)
+    expectTypeOf<RendererIpcSignatures['bilibili:save']['args']>().toEqualTypeOf<
+      [import('./types/bilibili').BiliVideo, import('./types/bilibili').BiliSummary]
+    >()
+    // providers mutations resolve ProvidersSetResult on the wire
+    expectTypeOf<RendererIpcSignatures['providers:setKey']['result']>().toEqualTypeOf<
+      import('./types/ui').ProvidersSetResult
+    >()
+    // budgets:set resolves the SetResult union
+    expectTypeOf<RendererIpcSignatures['budgets:set']['result']>().toEqualTypeOf<
+      import('./types/ui').BudgetsSetResult
+    >()
+  })
 })

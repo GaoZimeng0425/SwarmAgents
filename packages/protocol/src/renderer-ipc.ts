@@ -6,24 +6,45 @@
 // handle) uses it.
 import type { ServiceMethod, ServiceMethodSignatures } from './service-methods'
 import type { AnalyzeArticleResult } from './types/article'
-import type { BiliTranscribeProgress } from './types/bilibili'
+import type {
+  BiliAnalysis,
+  BiliDeleteResult,
+  BiliListResult,
+  BiliLoginStatus,
+  BiliProcessResult,
+  BiliSaveResult,
+  BiliSummary,
+  BiliTranscribeProgress,
+  BiliTranscribeResult,
+  BiliVideo,
+  ObsidianConfig,
+  TranscriptionConfig,
+} from './types/bilibili'
 import type { BudgetConfig } from './types/budgets'
 import type { CalendarConfigView } from './types/calendar'
 import type { GmailConfigView } from './types/gmail'
-import type { McpServerConfig, McpServerStatus } from './types/mcp'
-import type { ProvidersStateView } from './types/provider'
+import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './types/mcp'
+import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './types/provider'
 import type { SkillMutationResult } from './types/skill'
 import type { ResearchRepoResult, TrendingPeriod, TrendingRepo } from './types/trending'
 import type {
+  AddCustomProviderInput,
   AnalyzeThreadInput,
   AnalyzeThreadResult,
   ArtifactEntry,
+  BudgetsSetResult,
   MacPermissions,
   PermissionDecision,
+  ProvidersAddResult,
+  ProvidersFetchModelInfoResult,
+  ProvidersSetResult,
+  ProvidersTestResult,
   UIEvent,
+  WebSearchKeyId,
+  WebSearchSetResult,
 } from './types/ui'
 import type { WeatherForecast } from './types/weather'
-import type { WebSearchConfigView } from './types/web-search'
+import type { WebSearchConfigView, WebSearchProviderId } from './types/web-search'
 import type { WorkbenchData } from './types/workbench'
 
 // A channel that forwards verbatim to the service: same args, same result.
@@ -99,6 +120,66 @@ export type RendererIpcSignatures = {
   'swarm:quickPanel:setHotkey': { args: [string]; result: { ok: boolean } }
   // ---- system/deep-link.ts ----
   'swarm:consumePendingDeepLink': { args: []; result: { sessionId: string } | null }
+  // ---- bilibili/ipc.ts (24 channels) ----
+  'bilibili:status': { args: []; result: BiliLoginStatus }
+  'bilibili:login': { args: []; result: BiliLoginStatus }
+  'bilibili:logout': { args: []; result: void }
+  'bilibili:list': { args: []; result: BiliListResult }
+  'bilibili:process': { args: [string]; result: BiliProcessResult }
+  'bilibili:open': { args: [string]; result: void }
+  'bilibili:getObsidianConfig': { args: []; result: ObsidianConfig | null }
+  'bilibili:setObsidianConfig': { args: [ObsidianConfig]; result: void }
+  'bilibili:pickVault': { args: []; result: string | null }
+  // save takes the full video + summary (fav deletion needs the fav* ids carried on BiliVideo)
+  'bilibili:save': { args: [BiliVideo, BiliSummary]; result: BiliSaveResult }
+  'bilibili:getTranscribeConfig': { args: []; result: TranscriptionConfig | null }
+  'bilibili:setTranscribeConfig': { args: [TranscriptionConfig]; result: void }
+  'bilibili:pickModelDir': { args: []; result: string | null }
+  'bilibili:transcribe': { args: [string]; result: BiliTranscribeResult }
+  'bilibili:analyzedBvids': { args: []; result: string[] }
+  'bilibili:getAnalysis': { args: [string]; result: BiliAnalysis | null }
+  'bilibili:deleteWatchLater': { args: [string]; result: BiliDeleteResult }
+  'bilibili:deleteFav': { args: [BiliVideo]; result: BiliDeleteResult }
+  'bilibili:archiveList': { args: []; result: BiliVideo[] }
+  'bilibili:archivePut': { args: [BiliVideo]; result: void }
+  'bilibili:archiveRemove': { args: [string]; result: void }
+  'bilibili:pinsList': { args: []; result: BiliVideo[] }
+  'bilibili:pinsPut': { args: [BiliVideo]; result: void }
+  'bilibili:pinsRemove': { args: [string]; result: void }
+  // ---- providers/ipc.ts (17 channels) ----
+  'providers:get': { args: []; result: ProvidersStateView }
+  'providers:setKey': { args: [string, string]; result: ProvidersSetResult }
+  'providers:clearKey': { args: [string]; result: ProvidersSetResult }
+  'providers:setActive': { args: [string | null]; result: ProvidersSetResult }
+  'providers:setModel': { args: [string, string]; result: ProvidersSetResult }
+  'providers:addCustomModel': { args: [string, string]; result: ProvidersSetResult }
+  'providers:removeCustomModel': { args: [string, string]; result: ProvidersSetResult }
+  'providers:setApiStyle': { args: [string, ApiStyle]; result: ProvidersSetResult }
+  'providers:setThinkingLevel': { args: [string, ModelThinkingLevel]; result: ProvidersSetResult }
+  'providers:setFallbackProviderIds': { args: [string, string[]]; result: ProvidersSetResult }
+  'providers:setModelContextWindow': { args: [string, string, number | null]; result: ProvidersSetResult }
+  'providers:fetchModelInfo': { args: [string]; result: ProvidersFetchModelInfoResult }
+  'providers:setBaseUrl': { args: [string, string | null]; result: ProvidersSetResult }
+  'providers:addCustomProvider': { args: [AddCustomProviderInput]; result: ProvidersAddResult }
+  'providers:removeCustomProvider': { args: [string]; result: ProvidersSetResult }
+  'providers:renameCustomProvider': { args: [string, string]; result: ProvidersSetResult }
+  'providers:test': { args: [string]; result: ProvidersTestResult }
+  // ---- mcp-servers/ipc.ts (6 channels; getStatus migrated in Plan 1 via swarm-ipc) ----
+  'mcp:list': { args: []; result: McpServerConfig[] }
+  'mcp:add': { args: [Omit<McpServerConfig, 'id'>]; result: McpMutationResult & { id?: string } }
+  'mcp:update': { args: [string, Partial<Omit<McpServerConfig, 'id'>>]; result: McpMutationResult }
+  'mcp:remove': { args: [string]; result: McpMutationResult }
+  'mcp:setEnabled': { args: [string, boolean]; result: McpMutationResult }
+  'mcp:setToolOverride': { args: [string, string, McpToolOverride | null]; result: McpMutationResult }
+  // ---- web-search/ipc.ts (5 channels) ----
+  'webSearch:get': { args: []; result: WebSearchConfigView }
+  'webSearch:setProvider': { args: [WebSearchProviderId]; result: WebSearchSetResult }
+  'webSearch:setKey': { args: [WebSearchKeyId, string]; result: WebSearchSetResult }
+  'webSearch:clearKey': { args: [WebSearchKeyId]; result: WebSearchSetResult }
+  'webSearch:setSearxngUrl': { args: [string | null]; result: WebSearchSetResult }
+  // ---- budgets/ipc.ts (2 channels) ----
+  'budgets:get': { args: []; result: BudgetConfig }
+  'budgets:set': { args: [BudgetConfig]; result: BudgetsSetResult }
 }
 export type RendererIpcChannel = keyof RendererIpcSignatures
 
