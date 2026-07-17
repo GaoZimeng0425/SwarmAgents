@@ -13,8 +13,14 @@ import { ThemeProvider } from 'next-themes'
 import { createRoot } from 'react-dom/client'
 
 import { useAccent } from '@/hooks/use-accent'
+import { prewarmFontFallbacks } from '@/lib/prewarm-fonts'
 import { queryClient } from '@/lib/query-client'
 import { routeTree } from '../routeTree.gen'
+
+// SKILL native-feel A.9: warm Core Text's fallback-font cache (emoji, CJK)
+// before first user-visible paint, so the first emoji/CJK glyph in an AI
+// response doesn't cost a one-frame stutter. No-op after the first run.
+prewarmFontFallbacks()
 
 const router = createRouter({
   routeTree,
