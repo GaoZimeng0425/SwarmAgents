@@ -110,9 +110,7 @@ export type RendererIpcEvents = {
   'mcp:status': McpServerStatus[]
   'system:accentChange': { hex: string }
   'swarm:navigate': { sessionId?: string; route?: string }
-  // Preload's onNavigateToSettings unwraps the wire payload ({ route }) and
-  // calls its cb with the route string directly (preload/index.ts:428-434).
-  'swarm:navigate-settings': string
+  'swarm:navigate-settings': { route: string }
   'bilibili:transcribe:progress': BiliTranscribeProgress
   'gmail:stateChanged': GmailConfigView
   'calendar:stateChanged': CalendarConfigView
