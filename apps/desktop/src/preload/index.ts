@@ -4,20 +4,12 @@ import type {
   AgentBridge,
   AgentDefinition,
   ApiStyle,
-  BiliAnalysis,
   BilibiliBridge,
-  BiliDeleteResult,
-  BiliListResult,
-  BiliLoginStatus,
-  BiliProcessResult,
-  BiliSaveResult,
   BiliSummary,
   BiliTranscribeProgress,
-  BiliTranscribeResult,
   BiliVideo,
   BudgetConfig,
   BudgetsBridge,
-  BudgetsSetResult,
   CalendarBridge,
   CalendarClientCreds,
   CalendarConfigView,
@@ -32,19 +24,12 @@ import type {
   GmailThread,
   GmailThreadAnalysis,
   McpBridge,
-  McpMutationResult,
-  McpServerConfig,
   McpToolOverride,
   MemoryBridge,
   ModelThinkingLevel,
   ObsidianConfig,
   PermissionDecision,
-  ProvidersAddResult,
   ProvidersBridge,
-  ProvidersFetchModelInfoResult,
-  ProvidersSetResult,
-  ProvidersStateView,
-  ProvidersTestResult,
   RendererIpcChannel,
   RendererIpcEventChannel,
   RendererIpcEvents,
@@ -60,10 +45,8 @@ import type {
   WeatherForecastResult,
   WeatherSetResult,
   WebSearchBridge,
-  WebSearchConfigView,
   WebSearchKeyId,
   WebSearchProviderId,
-  WebSearchSetResult,
   WorkbenchBridge,
   WorkbenchData,
   WorkbenchMutationResult,
@@ -89,60 +72,46 @@ const subscribe = <C extends RendererIpcEventChannel>(
 }
 
 const providers: ProvidersBridge = {
-  get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
-  setKey: (id: string, key: string) => ipcRenderer.invoke('providers:setKey', id, key) as Promise<ProvidersSetResult>,
-  clearKey: (id: string) => ipcRenderer.invoke('providers:clearKey', id) as Promise<ProvidersSetResult>,
-  setActive: (id: string | null) => ipcRenderer.invoke('providers:setActive', id) as Promise<ProvidersSetResult>,
-  setModel: (id: string, model: string) =>
-    ipcRenderer.invoke('providers:setModel', id, model) as Promise<ProvidersSetResult>,
-  setBaseUrl: (id: string, baseUrl: string | null) =>
-    ipcRenderer.invoke('providers:setBaseUrl', id, baseUrl) as Promise<ProvidersSetResult>,
-  addCustomModel: (id: string, model: string) =>
-    ipcRenderer.invoke('providers:addCustomModel', id, model) as Promise<ProvidersSetResult>,
-  removeCustomModel: (id: string, model: string) =>
-    ipcRenderer.invoke('providers:removeCustomModel', id, model) as Promise<ProvidersSetResult>,
-  setApiStyle: (id: string, style: ApiStyle) =>
-    ipcRenderer.invoke('providers:setApiStyle', id, style) as Promise<ProvidersSetResult>,
-  setThinkingLevel: (id: string, level: ModelThinkingLevel) =>
-    ipcRenderer.invoke('providers:setThinkingLevel', id, level) as Promise<ProvidersSetResult>,
-  setFallbackProviderIds: (id: string, ids: string[]) =>
-    ipcRenderer.invoke('providers:setFallbackProviderIds', id, ids) as Promise<ProvidersSetResult>,
+  get: () => invoke('providers:get'),
+  setKey: (id: string, key: string) => invoke('providers:setKey', id, key),
+  clearKey: (id: string) => invoke('providers:clearKey', id),
+  setActive: (id: string | null) => invoke('providers:setActive', id),
+  setModel: (id: string, model: string) => invoke('providers:setModel', id, model),
+  setBaseUrl: (id: string, baseUrl: string | null) => invoke('providers:setBaseUrl', id, baseUrl),
+  addCustomModel: (id: string, model: string) => invoke('providers:addCustomModel', id, model),
+  removeCustomModel: (id: string, model: string) => invoke('providers:removeCustomModel', id, model),
+  setApiStyle: (id: string, style: ApiStyle) => invoke('providers:setApiStyle', id, style),
+  setThinkingLevel: (id: string, level: ModelThinkingLevel) => invoke('providers:setThinkingLevel', id, level),
+  setFallbackProviderIds: (id: string, ids: string[]) => invoke('providers:setFallbackProviderIds', id, ids),
   setModelContextWindow: (id: string, model: string, contextWindow: number | null) =>
-    ipcRenderer.invoke('providers:setModelContextWindow', id, model, contextWindow) as Promise<ProvidersSetResult>,
-  fetchModelInfo: (id: string) =>
-    ipcRenderer.invoke('providers:fetchModelInfo', id) as Promise<ProvidersFetchModelInfoResult>,
-  addCustomProvider: (input: AddCustomProviderInput) =>
-    ipcRenderer.invoke('providers:addCustomProvider', input) as Promise<ProvidersAddResult>,
-  removeCustomProvider: (id: string) =>
-    ipcRenderer.invoke('providers:removeCustomProvider', id) as Promise<ProvidersSetResult>,
-  renameCustomProvider: (id: string, name: string) =>
-    ipcRenderer.invoke('providers:renameCustomProvider', id, name) as Promise<ProvidersSetResult>,
-  test: (id: string) => ipcRenderer.invoke('providers:test', id) as Promise<ProvidersTestResult>,
+    invoke('providers:setModelContextWindow', id, model, contextWindow),
+  fetchModelInfo: (id: string) => invoke('providers:fetchModelInfo', id),
+  addCustomProvider: (input: AddCustomProviderInput) => invoke('providers:addCustomProvider', input),
+  removeCustomProvider: (id: string) => invoke('providers:removeCustomProvider', id),
+  renameCustomProvider: (id: string, name: string) => invoke('providers:renameCustomProvider', id, name),
+  test: (id: string) => invoke('providers:test', id),
   onStateChanged: (cb) => subscribe('providers:stateChanged', cb),
 }
 
 const mcp: McpBridge = {
-  list: () => ipcRenderer.invoke('mcp:list') as Promise<McpServerConfig[]>,
-  add: (input) => ipcRenderer.invoke('mcp:add', input) as Promise<McpMutationResult & { id?: string }>,
-  update: (id, patch) => ipcRenderer.invoke('mcp:update', id, patch) as Promise<McpMutationResult>,
-  remove: (id) => ipcRenderer.invoke('mcp:remove', id) as Promise<McpMutationResult>,
-  setEnabled: (id, enabled) => ipcRenderer.invoke('mcp:setEnabled', id, enabled) as Promise<McpMutationResult>,
+  list: () => invoke('mcp:list'),
+  add: (input) => invoke('mcp:add', input),
+  update: (id, patch) => invoke('mcp:update', id, patch),
+  remove: (id) => invoke('mcp:remove', id),
+  setEnabled: (id, enabled) => invoke('mcp:setEnabled', id, enabled),
   setToolOverride: (id: string, toolName: string, override: McpToolOverride | null) =>
-    ipcRenderer.invoke('mcp:setToolOverride', id, toolName, override) as Promise<McpMutationResult>,
+    invoke('mcp:setToolOverride', id, toolName, override),
   getStatus: () => invoke('mcp:getStatus'),
   onConfigChanged: (cb) => subscribe('mcp:configChanged', cb),
   onStatus: (cb) => subscribe('mcp:status', cb),
 }
 
 const webSearch: WebSearchBridge = {
-  get: () => ipcRenderer.invoke('webSearch:get') as Promise<WebSearchConfigView>,
-  setProvider: (p: WebSearchProviderId) =>
-    ipcRenderer.invoke('webSearch:setProvider', p) as Promise<WebSearchSetResult>,
-  setKey: (id: WebSearchKeyId, key: string) =>
-    ipcRenderer.invoke('webSearch:setKey', id, key) as Promise<WebSearchSetResult>,
-  clearKey: (id: WebSearchKeyId) => ipcRenderer.invoke('webSearch:clearKey', id) as Promise<WebSearchSetResult>,
-  setSearxngUrl: (url: string | null) =>
-    ipcRenderer.invoke('webSearch:setSearxngUrl', url) as Promise<WebSearchSetResult>,
+  get: () => invoke('webSearch:get'),
+  setProvider: (p: WebSearchProviderId) => invoke('webSearch:setProvider', p),
+  setKey: (id: WebSearchKeyId, key: string) => invoke('webSearch:setKey', id, key),
+  clearKey: (id: WebSearchKeyId) => invoke('webSearch:clearKey', id),
+  setSearxngUrl: (url: string | null) => invoke('webSearch:setSearxngUrl', url),
   onStateChanged: (cb) => subscribe('webSearch:stateChanged', cb),
 }
 
@@ -155,8 +124,8 @@ const weather: WeatherBridge = {
 }
 
 const budgets: BudgetsBridge = {
-  get: () => ipcRenderer.invoke('budgets:get') as Promise<BudgetConfig>,
-  set: (config: BudgetConfig) => ipcRenderer.invoke('budgets:set', config) as Promise<BudgetsSetResult>,
+  get: () => invoke('budgets:get'),
+  set: (config: BudgetConfig) => invoke('budgets:set', config),
   onStateChanged: (cb) => subscribe('budgets:stateChanged', cb),
 }
 
@@ -202,34 +171,31 @@ const agents: AgentBridge = {
 }
 
 const bilibili: BilibiliBridge = {
-  status: () => ipcRenderer.invoke('bilibili:status') as Promise<BiliLoginStatus>,
-  login: () => ipcRenderer.invoke('bilibili:login') as Promise<BiliLoginStatus>,
-  logout: () => ipcRenderer.invoke('bilibili:logout') as Promise<void>,
-  list: () => ipcRenderer.invoke('bilibili:list') as Promise<BiliListResult>,
-  process: (bvid: string) => ipcRenderer.invoke('bilibili:process', bvid) as Promise<BiliProcessResult>,
-  open: (bvid: string) => ipcRenderer.invoke('bilibili:open', bvid) as Promise<void>,
-  getObsidianConfig: () => ipcRenderer.invoke('bilibili:getObsidianConfig') as Promise<ObsidianConfig | null>,
-  setObsidianConfig: (cfg: ObsidianConfig) => ipcRenderer.invoke('bilibili:setObsidianConfig', cfg) as Promise<void>,
-  pickVault: () => ipcRenderer.invoke('bilibili:pickVault') as Promise<string | null>,
-  save: (video: BiliVideo, summary: BiliSummary) =>
-    ipcRenderer.invoke('bilibili:save', video, summary) as Promise<BiliSaveResult>,
-  getTranscribeConfig: () => ipcRenderer.invoke('bilibili:getTranscribeConfig') as Promise<TranscriptionConfig | null>,
-  setTranscribeConfig: (cfg: TranscriptionConfig) =>
-    ipcRenderer.invoke('bilibili:setTranscribeConfig', cfg) as Promise<void>,
-  pickModelDir: () => ipcRenderer.invoke('bilibili:pickModelDir') as Promise<string | null>,
-  transcribe: (bvid: string) => ipcRenderer.invoke('bilibili:transcribe', bvid) as Promise<BiliTranscribeResult>,
+  status: () => invoke('bilibili:status'),
+  login: () => invoke('bilibili:login'),
+  logout: () => invoke('bilibili:logout'),
+  list: () => invoke('bilibili:list'),
+  process: (bvid: string) => invoke('bilibili:process', bvid),
+  open: (bvid: string) => invoke('bilibili:open', bvid),
+  getObsidianConfig: () => invoke('bilibili:getObsidianConfig'),
+  setObsidianConfig: (cfg: ObsidianConfig) => invoke('bilibili:setObsidianConfig', cfg),
+  pickVault: () => invoke('bilibili:pickVault'),
+  save: (video: BiliVideo, summary: BiliSummary) => invoke('bilibili:save', video, summary),
+  getTranscribeConfig: () => invoke('bilibili:getTranscribeConfig'),
+  setTranscribeConfig: (cfg: TranscriptionConfig) => invoke('bilibili:setTranscribeConfig', cfg),
+  pickModelDir: () => invoke('bilibili:pickModelDir'),
+  transcribe: (bvid: string) => invoke('bilibili:transcribe', bvid),
   onTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void) => subscribe('bilibili:transcribe:progress', cb),
-  analyzedBvids: () => ipcRenderer.invoke('bilibili:analyzedBvids') as Promise<string[]>,
-  getAnalysis: (bvid: string) => ipcRenderer.invoke('bilibili:getAnalysis', bvid) as Promise<BiliAnalysis | null>,
-  deleteWatchLater: (bvid: string) =>
-    ipcRenderer.invoke('bilibili:deleteWatchLater', bvid) as Promise<BiliDeleteResult>,
-  deleteFav: (video: BiliVideo) => ipcRenderer.invoke('bilibili:deleteFav', video) as Promise<BiliDeleteResult>,
-  archiveList: () => ipcRenderer.invoke('bilibili:archiveList') as Promise<BiliVideo[]>,
-  archivePut: (video: BiliVideo) => ipcRenderer.invoke('bilibili:archivePut', video) as Promise<void>,
-  archiveRemove: (bvid: string) => ipcRenderer.invoke('bilibili:archiveRemove', bvid) as Promise<void>,
-  pinsList: () => ipcRenderer.invoke('bilibili:pinsList') as Promise<BiliVideo[]>,
-  pinsPut: (video: BiliVideo) => ipcRenderer.invoke('bilibili:pinsPut', video) as Promise<void>,
-  pinsRemove: (bvid: string) => ipcRenderer.invoke('bilibili:pinsRemove', bvid) as Promise<void>,
+  analyzedBvids: () => invoke('bilibili:analyzedBvids'),
+  getAnalysis: (bvid: string) => invoke('bilibili:getAnalysis', bvid),
+  deleteWatchLater: (bvid: string) => invoke('bilibili:deleteWatchLater', bvid),
+  deleteFav: (video: BiliVideo) => invoke('bilibili:deleteFav', video),
+  archiveList: () => invoke('bilibili:archiveList'),
+  archivePut: (video: BiliVideo) => invoke('bilibili:archivePut', video),
+  archiveRemove: (bvid: string) => invoke('bilibili:archiveRemove', bvid),
+  pinsList: () => invoke('bilibili:pinsList'),
+  pinsPut: (video: BiliVideo) => invoke('bilibili:pinsPut', video),
+  pinsRemove: (bvid: string) => invoke('bilibili:pinsRemove', bvid),
 }
 
 const gmail: GmailBridge = {
