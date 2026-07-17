@@ -6,16 +6,14 @@
 // a test handler. Broadcasts state changes to all renderer windows.
 import { createLogger } from '@shared/logger'
 import { type ApiStyle, type ModelMeta, ModelThinkingLevel } from '@swarm/protocol'
-import { BrowserWindow, ipcMain } from 'electron'
 
 import { paths } from '../constants'
+import { createIpcRegistrar, sendToAllWindows } from '../ipc/wire'
 import { fetchCatalog, lookupModel } from './openrouter'
 import type { AddCustomInput, Service } from './service'
 import { testConnection } from './test-connection'
 
 const log = createLogger({ process: 'main' }).child({ component: 'providers-ipc' })
-
-const STATE_CHANGED_CHANNEL = 'providers:stateChanged'
 
 // Any provider id (builtin 'anthropic'/'openai' or a custom uuid). The service
 // rejects unknown ids; here we only guard the wire type.
@@ -27,15 +25,10 @@ const badId = { ok: false as const, code: 'invalid' as const, message: 'invalid 
 
 export function wireProvidersIpc(args: { service: Service }): { dispose: () => void } {
   const { service } = args
-
-  const broadcast = (channel: string, payload?: unknown): void => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(channel, payload)
-    }
-  }
+  const ipc = createIpcRegistrar()
 
   const unsubscribe = service.onStateChanged((view) => {
-    broadcast(STATE_CHANGED_CHANNEL, view)
+    sendToAllWindows('providers:stateChanged', view)
   })
 
   const catalogPath = paths.openrouterCatalog()
@@ -75,27 +68,27 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     }
   }
 
-  ipcMain.handle('providers:get', () => service.getView())
+  ipc.handle('providers:get', () => service.getView())
 
-  ipcMain.handle('providers:setKey', (_e: Electron.IpcMainInvokeEvent, p: unknown, key: unknown) => {
+  ipc.handle('providers:setKey', (_e: Electron.IpcMainInvokeEvent, p: unknown, key: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (typeof key !== 'string') return { ok: false, code: 'invalid', message: 'key must be a string' }
     return service.setKey(id, key)
   })
 
-  ipcMain.handle('providers:clearKey', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+  ipc.handle('providers:clearKey', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
     const id = asId(p)
     return id ? service.clearKey(id) : badId
   })
 
-  ipcMain.handle('providers:setActive', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+  ipc.handle('providers:setActive', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
     if (p === null) return service.setActive(null)
     const id = asId(p)
     return id ? service.setActive(id) : badId
   })
 
-  ipcMain.handle('providers:setModel', async (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+  ipc.handle('providers:setModel', async (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
@@ -105,7 +98,7 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return r
   })
 
-  ipcMain.handle('providers:addCustomModel', async (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+  ipc.handle('providers:addCustomModel', async (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
@@ -114,14 +107,14 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return r
   })
 
-  ipcMain.handle('providers:removeCustomModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
+  ipc.handle('providers:removeCustomModel', (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (typeof model !== 'string') return { ok: false, code: 'invalid', message: 'model must be a string' }
     return service.removeCustomModel(id, model)
   })
 
-  ipcMain.handle('providers:setApiStyle', (_e: Electron.IpcMainInvokeEvent, p: unknown, style: unknown) => {
+  ipc.handle('providers:setApiStyle', (_e: Electron.IpcMainInvokeEvent, p: unknown, style: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (style !== 'anthropic' && style !== 'openai')
@@ -129,7 +122,7 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return service.setApiStyle(id, style)
   })
 
-  ipcMain.handle('providers:setThinkingLevel', (_e: Electron.IpcMainInvokeEvent, p: unknown, level: unknown) => {
+  ipc.handle('providers:setThinkingLevel', (_e: Electron.IpcMainInvokeEvent, p: unknown, level: unknown) => {
     const id = asId(p)
     if (!id) return badId
     const lvl = ModelThinkingLevel.safeParse(level)
@@ -137,7 +130,7 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return service.setThinkingLevel(id, lvl.data)
   })
 
-  ipcMain.handle('providers:setFallbackProviderIds', (_e: Electron.IpcMainInvokeEvent, p: unknown, ids: unknown) => {
+  ipc.handle('providers:setFallbackProviderIds', (_e: Electron.IpcMainInvokeEvent, p: unknown, ids: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (!Array.isArray(ids) || !ids.every((x) => typeof x === 'string'))
@@ -145,7 +138,7 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return service.setFallbackProviderIds(id, ids as string[])
   })
 
-  ipcMain.handle(
+  ipc.handle(
     'providers:setModelContextWindow',
     (_e: Electron.IpcMainInvokeEvent, p: unknown, model: unknown, contextWindow: unknown) => {
       const id = asId(p)
@@ -157,7 +150,7 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     }
   )
 
-  ipcMain.handle('providers:fetchModelInfo', async (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+  ipc.handle('providers:fetchModelInfo', async (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
     const id = asId(p)
     if (!id) return { ok: false as const, code: 'invalid' as const, message: 'invalid provider id' }
     const provider = service.getState().providers.find((x) => x.id === id)
@@ -194,7 +187,7 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return { ok: true as const, matched, total, unmatched }
   })
 
-  ipcMain.handle('providers:setBaseUrl', (_e: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
+  ipc.handle('providers:setBaseUrl', (_e: Electron.IpcMainInvokeEvent, p: unknown, baseUrl: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (baseUrl !== null && typeof baseUrl !== 'string')
@@ -202,7 +195,7 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return service.setBaseUrl(id, baseUrl)
   })
 
-  ipcMain.handle('providers:addCustomProvider', async (_e: Electron.IpcMainInvokeEvent, input: unknown) => {
+  ipc.handle('providers:addCustomProvider', async (_e: Electron.IpcMainInvokeEvent, input: unknown) => {
     if (!input || typeof input !== 'object') return { ok: false, code: 'invalid', message: 'input must be an object' }
     const i = input as Partial<AddCustomInput>
     if (typeof i.name !== 'string' || typeof i.apiKey !== 'string')
@@ -223,19 +216,19 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
     return r
   })
 
-  ipcMain.handle('providers:removeCustomProvider', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+  ipc.handle('providers:removeCustomProvider', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
     const id = asId(p)
     return id ? service.removeCustomProvider(id) : badId
   })
 
-  ipcMain.handle('providers:renameCustomProvider', (_e: Electron.IpcMainInvokeEvent, p: unknown, name: unknown) => {
+  ipc.handle('providers:renameCustomProvider', (_e: Electron.IpcMainInvokeEvent, p: unknown, name: unknown) => {
     const id = asId(p)
     if (!id) return badId
     if (typeof name !== 'string') return { ok: false, code: 'invalid', message: 'name must be a string' }
     return service.renameCustomProvider(id, name)
   })
 
-  ipcMain.handle('providers:test', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
+  ipc.handle('providers:test', (_e: Electron.IpcMainInvokeEvent, p: unknown) => {
     const id = asId(p)
     if (!id) return { ok: false, code: 'unknown', message: 'invalid provider id' }
     const provider = service.getState().providers.find((x) => x.id === id)
@@ -252,29 +245,10 @@ export function wireProvidersIpc(args: { service: Service }): { dispose: () => v
 
   log.info({ msg: 'providers IPC wired' })
 
-  const channels = [
-    'providers:get',
-    'providers:setKey',
-    'providers:clearKey',
-    'providers:setActive',
-    'providers:setModel',
-    'providers:addCustomModel',
-    'providers:removeCustomModel',
-    'providers:setApiStyle',
-    'providers:setThinkingLevel',
-    'providers:setModelContextWindow',
-    'providers:fetchModelInfo',
-    'providers:setBaseUrl',
-    'providers:addCustomProvider',
-    'providers:removeCustomProvider',
-    'providers:renameCustomProvider',
-    'providers:test',
-  ]
-
   return {
     dispose(): void {
       unsubscribe()
-      for (const c of channels) ipcMain.removeHandler(c)
+      ipc.dispose()
     },
   }
 }
