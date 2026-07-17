@@ -174,7 +174,7 @@ those domains' preload members, and migrates those domains' main-side files —
 together, in one reviewable unit. (An earlier draft switched the preload wholesale
 in Plan 1; per-domain switching supersedes it because it removes the one big-bang
 step this spec's own risk section flagged.) The **events table is the exception**:
-all 14 event channels land in Plan 1 — it is small, and it lets the preload's
+all 15 event channels land in Plan 1 — it is small, and it lets the preload's
 subscription helpers switch to the typed `subscribe` in one pass; event *senders*
 still migrate per domain with their files.
 
