@@ -10,6 +10,7 @@ function mockService(): SessionService {
     resolvePermission: vi.fn(),
     cancelRun: vi.fn(),
     listSessions: vi.fn().mockReturnValue([{ id: 'ses-1' }]),
+    getSessionEntries: vi.fn().mockReturnValue([]),
   } as unknown as SessionService
 }
 
@@ -162,5 +163,51 @@ describe('dispatcher', () => {
     const result = dispatch('importSkill', ['/tmp/my-skill', true])
     expect(deps.importSkill).toHaveBeenCalledWith('/tmp/my-skill', true)
     expect(result).toEqual({ ok: true, skills: [] })
+  })
+})
+
+describe('args validation', () => {
+  it('rejects wrong arity with the method name in the error', () => {
+    const service = mockService()
+    const cfg = { service, registerProvider: vi.fn(), ...mcpDeps() }
+    const dispatch = createDispatcher(cfg)
+    expect(() => dispatch('renameSession', ['only-one'])).toThrow(/invalid args for renameSession/)
+  })
+
+  it('rejects wrong primitive types', () => {
+    const service = mockService()
+    const cfg = { service, registerProvider: vi.fn(), ...mcpDeps() }
+    const dispatch = createDispatcher(cfg)
+    expect(() => dispatch('renameSession', [1, 2])).toThrow(/invalid args for renameSession/)
+  })
+
+  it('rejects malformed complex objects', () => {
+    const service = mockService()
+    const cfg = { service, registerProvider: vi.fn(), ...mcpDeps() }
+    const dispatch = createDispatcher(cfg)
+    expect(() => dispatch('saveAgent', [{ id: 'Bad Id!' }])).toThrow(/invalid args for saveAgent/)
+  })
+
+  it('accepts omitted trailing optionals', () => {
+    const service = mockService()
+    const cfg = { service, registerProvider: vi.fn(), ...mcpDeps() }
+    const dispatch = createDispatcher(cfg)
+    dispatch('getSessionEntries', ['s1'])
+    expect(service.getSessionEntries).toHaveBeenCalledWith('s1', undefined)
+  })
+
+  it('normalizes WS-JSON null to undefined for optional slots', () => {
+    const service = mockService()
+    const cfg = { service, registerProvider: vi.fn(), ...mcpDeps() }
+    const dispatch = createDispatcher(cfg)
+    dispatch('getSessionEntries', ['s1', null])
+    expect(service.getSessionEntries).toHaveBeenCalledWith('s1', undefined)
+  })
+
+  it('still throws on unknown methods', () => {
+    const service = mockService()
+    const cfg = { service, registerProvider: vi.fn(), ...mcpDeps() }
+    const dispatch = createDispatcher(cfg)
+    expect(() => dispatch('nope' as never, [])).toThrow(/unknown method/)
   })
 })

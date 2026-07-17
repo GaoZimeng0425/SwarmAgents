@@ -11,15 +11,16 @@ import type {
   McpServerConfig,
   McpServerStatus,
   MemoryView,
-  PermissionDecision,
   ProviderInjection,
   ServiceMethod,
+  ServiceMethodSignatures,
   Skill,
   SkillMutationResult,
   ToolGroupInfo,
   ToolToggles,
   WebSearchInjection,
 } from '@swarm/protocol'
+import { serviceMethodArgSchemas } from '@swarm/protocol'
 
 import type { SessionService } from '../session/session-service'
 
@@ -67,188 +68,117 @@ type DispatcherConfig = {
 
 export type Dispatcher = (method: ServiceMethod, args: unknown[]) => unknown
 
+// One handler per table method; each body is compile-checked against the
+// single-source signature (args AND result). Replaces the switch whose arms
+// cast `args as [...]` blindly.
+type ServiceHandlers = {
+  [M in ServiceMethod]: (
+    ...args: ServiceMethodSignatures[M]['args']
+  ) => ServiceMethodSignatures[M]['result'] | Promise<ServiceMethodSignatures[M]['result']>
+}
+
 export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
   const { service, registerProvider } = cfg
+  const handlers: ServiceHandlers = {
+    createSession: (provider) => {
+      registerProvider(provider)
+      return service.createSession(provider)
+    },
+    forkSession: (sourceSessionId, upToRowId) => service.forkSession(sourceSessionId, upToRowId),
+    // Routes to SessionService.submitPrompt (entries-driven) and returns { runId }.
+    submitPrompt: (sessionId, prompt, attachments, options) =>
+      service.submitPrompt(sessionId, prompt, attachments, undefined, options),
+    analyzeThread: (req) => cfg.analyzeThread(req),
+    collectArticle: (input) => cfg.collectArticle(input),
+    analyzeArticle: (req) => cfg.analyzeArticle(req),
+    analyzeBilibili: (req) => cfg.analyzeBilibili(req),
+    listArticles: () => cfg.listArticles(),
+    getArticleAnalysis: (articleId) => cfg.getArticleAnalysis(articleId),
+    deleteArticle: (articleId) => cfg.deleteArticle(articleId),
+    researchRepo: (req) => cfg.researchRepo(req),
+    getRepoResearch: (repoName) => cfg.getRepoResearch(repoName),
+    researchedRepoNames: () => cfg.researchedRepoNames(),
+    listSessions: () => service.listSessions(),
+    getSessionEntries: (sessionId, afterRowId) => service.getSessionEntries(sessionId, afterRowId),
+    exportSessionMarkdown: (sessionId) => service.exportSessionMarkdown(sessionId),
+    deleteSession: (sessionId) => {
+      service.deleteSession(sessionId)
+      return { ok: true } as const
+    },
+    renameSession: (sessionId, title) => {
+      service.renameSession(sessionId, title)
+      return { ok: true } as const
+    },
+    setSessionPinned: (sessionId, pinned) => {
+      service.setSessionPinned(sessionId, pinned)
+      return { ok: true } as const
+    },
+    updateSessionSettings: (sessionId, settings) => {
+      service.updateSessionSettings(sessionId, settings)
+      return { ok: true } as const
+    },
+    reorderSessions: (orderedIds) => {
+      service.reorderSessions(orderedIds)
+      return { ok: true } as const
+    },
+    decidePermission: (sessionId, actionId, decision) => {
+      service.resolvePermission(sessionId, actionId, decision)
+      return { ok: true } as const
+    },
+    cancelRun: (sessionId) => {
+      service.cancelRun(sessionId)
+      return { ok: true } as const
+    },
+    setMcpServers: (configs) => cfg.setMcpServers(configs).then(() => ({ ok: true }) as const),
+    getMcpStatus: () => cfg.getMcpStatus(),
+    setWebSearchConfig: (config) => {
+      cfg.setWebSearchConfig(config)
+      return { ok: true } as const
+    },
+    setBudgetConfig: (config) => {
+      cfg.setBudgetConfig(config)
+      return { ok: true } as const
+    },
+    listSkills: () => cfg.listSkills(),
+    listAgents: () => cfg.listAgents(),
+    saveAgent: (def) => cfg.saveAgent(def),
+    deleteAgent: (id) => cfg.deleteAgent(id),
+    restoreDefaultAgents: () => cfg.restoreDefaultAgents(),
+    saveSkill: (skill) => cfg.saveSkill(skill),
+    deleteSkill: (name) => cfg.deleteSkill(name),
+    importSkill: (sourceDir, overwrite) => cfg.importSkill(sourceDir, overwrite),
+    getToolToggles: () => cfg.getToolToggles(),
+    setSkillEnabled: (name, enabled) => cfg.setSkillEnabled(name, enabled),
+    setToolGroupEnabled: (group, enabled) => cfg.setToolGroupEnabled(group, enabled),
+    listToolGroups: () => cfg.listToolGroups(),
+    listMemory: (namespace) => cfg.listMemory(namespace),
+    getUsageStats: (rangeDays) => service.getUsageStats(rangeDays),
+    listCronJobsForSession: (sessionId) => cfg.listCronJobsForSession(sessionId),
+    listAllCronJobs: () => cfg.listAllCronJobs(),
+    listAllCronRuns: () => cfg.listAllCronRuns(),
+    cancelCronJob: (id) => {
+      cfg.cancelCronJob(id)
+      return { ok: true } as const
+    },
+  }
+
   return (method, args) => {
-    switch (method) {
-      case 'createSession': {
-        const [provider] = args as [ProviderInjection]
-        registerProvider(provider)
-        return service.createSession(provider)
-      }
-      case 'forkSession': {
-        const [sourceSessionId, upToRowId] = args as [string, number]
-        return service.forkSession(sourceSessionId, upToRowId)
-      }
-      case 'submitPrompt': {
-        // Routes to SessionService.submitPrompt (entries-driven) and returns { runId }.
-        const [sessionId, prompt, attachments, options] = args as [
-          string,
-          string,
-          import('@swarm/protocol').Attachment[] | undefined,
-          import('@swarm/protocol').SubmitOptions | undefined,
-        ]
-        return service.submitPrompt(sessionId, prompt, attachments, undefined, options)
-      }
-      case 'analyzeThread': {
-        const [req] = args as [import('@swarm/protocol').AnalyzeThreadRequest]
-        return cfg.analyzeThread(req)
-      }
-      case 'collectArticle': {
-        const [input] = args as [import('@swarm/protocol').ArticleSource]
-        return cfg.collectArticle(input)
-      }
-      case 'analyzeArticle': {
-        const [req] = args as [import('@swarm/protocol').AnalyzeArticleRequest]
-        return cfg.analyzeArticle(req)
-      }
-      case 'analyzeBilibili': {
-        const [req] = args as [import('@swarm/protocol').AnalyzeBilibiliRequest]
-        return cfg.analyzeBilibili(req)
-      }
-      case 'listArticles': {
-        return cfg.listArticles()
-      }
-      case 'getArticleAnalysis': {
-        const [articleId] = args as [string]
-        return cfg.getArticleAnalysis(articleId)
-      }
-      case 'deleteArticle': {
-        const [articleId] = args as [string]
-        return cfg.deleteArticle(articleId)
-      }
-      case 'researchRepo': {
-        const [req] = args as [import('@swarm/protocol').ResearchRepoRequest]
-        return cfg.researchRepo(req)
-      }
-      case 'getRepoResearch': {
-        const [repoName] = args as [string]
-        return cfg.getRepoResearch(repoName)
-      }
-      case 'researchedRepoNames':
-        return cfg.researchedRepoNames()
-      case 'listSessions':
-        return service.listSessions()
-      case 'getSessionEntries': {
-        const [sessionId, afterRowId] = args as [string, number | undefined]
-        return service.getSessionEntries(sessionId, afterRowId)
-      }
-      case 'exportSessionMarkdown': {
-        const [sessionId] = args as [string]
-        return service.exportSessionMarkdown(sessionId)
-      }
-      case 'deleteSession': {
-        const [sessionId] = args as [string]
-        service.deleteSession(sessionId)
-        return { ok: true }
-      }
-      case 'renameSession': {
-        const [sessionId, title] = args as [string, string]
-        service.renameSession(sessionId, title)
-        return { ok: true }
-      }
-      case 'setSessionPinned': {
-        const [sessionId, pinned] = args as [string, boolean]
-        service.setSessionPinned(sessionId, pinned)
-        return { ok: true }
-      }
-      case 'updateSessionSettings': {
-        const [sessionId, settings] = args as [string, import('@swarm/protocol').SessionSettings]
-        service.updateSessionSettings(sessionId, settings)
-        return { ok: true }
-      }
-      case 'reorderSessions': {
-        const [orderedIds] = args as [string[]]
-        service.reorderSessions(orderedIds)
-        return { ok: true }
-      }
-      case 'decidePermission': {
-        const [sessionId, actionId, decision] = args as [string, string, PermissionDecision]
-        service.resolvePermission(sessionId, actionId, decision)
-        return { ok: true }
-      }
-      case 'cancelRun': {
-        const [sessionId] = args as [string]
-        service.cancelRun(sessionId)
-        return { ok: true }
-      }
-      case 'setMcpServers': {
-        const [configs] = args as [McpServerConfig[]]
-        return cfg.setMcpServers(configs).then(() => ({ ok: true }))
-      }
-      case 'getMcpStatus':
-        return cfg.getMcpStatus()
-      case 'setWebSearchConfig': {
-        const [config] = args as [WebSearchInjection]
-        cfg.setWebSearchConfig(config)
-        return { ok: true }
-      }
-      case 'setBudgetConfig': {
-        const [config] = args as [BudgetConfig]
-        cfg.setBudgetConfig(config)
-        return { ok: true }
-      }
-      case 'listSkills':
-        return cfg.listSkills()
-      case 'listAgents':
-        return cfg.listAgents()
-      case 'saveSkill': {
-        const [skill] = args as [Skill]
-        return cfg.saveSkill(skill)
-      }
-      case 'deleteSkill': {
-        const [name] = args as [string]
-        return cfg.deleteSkill(name)
-      }
-      case 'saveAgent': {
-        const [def] = args as [AgentDefinition]
-        return cfg.saveAgent(def)
-      }
-      case 'deleteAgent': {
-        const [id] = args as [string]
-        return cfg.deleteAgent(id)
-      }
-      case 'restoreDefaultAgents':
-        return cfg.restoreDefaultAgents()
-      case 'importSkill': {
-        const [sourceDir, overwrite] = args as [string, boolean | undefined]
-        return cfg.importSkill(sourceDir, overwrite)
-      }
-      case 'getToolToggles':
-        return cfg.getToolToggles()
-      case 'setSkillEnabled': {
-        const [name, enabled] = args as [string, boolean]
-        return cfg.setSkillEnabled(name, enabled)
-      }
-      case 'setToolGroupEnabled': {
-        const [group, enabled] = args as [string, boolean]
-        return cfg.setToolGroupEnabled(group, enabled)
-      }
-      case 'listToolGroups':
-        return cfg.listToolGroups()
-      case 'listMemory': {
-        const [namespace] = args as [string | undefined]
-        return cfg.listMemory(namespace)
-      }
-      case 'getUsageStats': {
-        const [rangeDays] = args as [number]
-        return service.getUsageStats(rangeDays)
-      }
-      case 'listCronJobsForSession': {
-        const [sessionId] = args as [string]
-        return cfg.listCronJobsForSession(sessionId)
-      }
-      case 'listAllCronJobs':
-        return cfg.listAllCronJobs()
-      case 'listAllCronRuns':
-        return cfg.listAllCronRuns()
-      case 'cancelCronJob': {
-        const [id] = args as [string]
-        cfg.cancelCronJob(id)
-        return { ok: true }
-      }
-      default:
-        throw new Error(`unknown method: ${String(method)}`)
+    const schema = serviceMethodArgSchemas[method]
+    if (!schema) throw new Error(`unknown method: ${String(method)}`)
+    // WS clients JSON.stringify their frames, turning omitted trailing
+    // optionals (undefined) into null. No table method takes null as a
+    // meaningful top-level arg, so normalize before validation; nested nulls
+    // inside objects are governed by each schema.
+    const normalized = args.map((a) => (a === null ? undefined : a))
+    const parsed = schema.safeParse(normalized)
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      throw new Error(
+        `invalid args for ${method}: ${issue ? `${issue.path.join('.') || '(root)'} ${issue.message}` : 'invalid'}`
+      )
     }
+    // Correlated-union call: TS cannot prove handlers[method] accepts
+    // parsed.data for the same M — the single documented cast at the choke point.
+    return (handlers[method] as (...a: unknown[]) => unknown)(...parsed.data)
   }
 }
