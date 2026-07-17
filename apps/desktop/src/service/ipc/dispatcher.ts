@@ -163,8 +163,8 @@ export function createDispatcher(cfg: DispatcherConfig): Dispatcher {
   }
 
   return (method, args) => {
+    if (!Object.hasOwn(serviceMethodArgSchemas, method)) throw new Error(`unknown method: ${String(method)}`)
     const schema = serviceMethodArgSchemas[method]
-    if (!schema) throw new Error(`unknown method: ${String(method)}`)
     // WS clients JSON.stringify their frames, turning omitted trailing
     // optionals (undefined) into null. No table method takes null as a
     // meaningful top-level arg, so normalize before validation; nested nulls

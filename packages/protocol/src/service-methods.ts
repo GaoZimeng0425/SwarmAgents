@@ -213,7 +213,7 @@ export type MainMethodSignatures = {
   // (see main/weather/ipc.ts's rpcHandlers, which already branches on
   // typeof lng === 'number'). [number, number] was a table-authoring gap, not
   // the real wire contract.
-  'weather.get_forecast': { args: [number | null, number | null]; result: unknown }
+  'weather.get_forecast': { args: [lng: number | null, lat: number | null]; result: unknown }
 }
 
 export type MainMethod = keyof MainMethodSignatures

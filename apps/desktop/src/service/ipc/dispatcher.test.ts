@@ -210,4 +210,11 @@ describe('args validation', () => {
     const dispatch = createDispatcher(cfg)
     expect(() => dispatch('nope' as never, [])).toThrow(/unknown method/)
   })
+
+  it('rejects prototype-chain method names as unknown', () => {
+    const service = mockService()
+    const cfg = { service, registerProvider: vi.fn(), ...mcpDeps() }
+    const dispatch = createDispatcher(cfg)
+    expect(() => dispatch('constructor' as never, [])).toThrow(/unknown method/)
+  })
 })

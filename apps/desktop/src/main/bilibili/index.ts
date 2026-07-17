@@ -1,7 +1,13 @@
 // src/main/bilibili/index.ts
 //
 // Entry point for the Bilibili subsystem. Wires the on-disk store, auth, and IPC.
-import type { AnalyzeBilibiliRequest, AnalyzeBilibiliResult, MainMethod, ProviderInjection } from '@swarm/protocol'
+import type {
+  AnalyzeBilibiliRequest,
+  AnalyzeBilibiliResult,
+  MainMethod,
+  MainMethodSignatures,
+  ProviderInjection,
+} from '@swarm/protocol'
 
 import { paths } from '../constants'
 import { type AnalysisStore, createAnalysisStore } from './analysis-store'
@@ -11,9 +17,13 @@ import { wireBilibiliIpc } from './ipc'
 import { createPinStore } from './pin-store'
 import { createStore } from './store'
 
-// Structural: only the registerRpcHandlers surface initBilibili needs.
+// Structural: mirrors ServiceClient['registerHandler'], table-derived from
+// MainMethodSignatures (see gmail/index.ts).
 type RpcHandlerClient = {
-  registerHandler(method: MainMethod, fn: (...args: unknown[]) => Promise<unknown>): void
+  registerHandler<M extends MainMethod>(
+    method: M,
+    fn: (...args: MainMethodSignatures[M]['args']) => unknown | Promise<unknown>
+  ): void
 }
 
 export type BilibiliHandle = {
