@@ -3,11 +3,7 @@ import type {
   AddCustomProviderInput,
   AgentBridge,
   AgentDefinition,
-  AgentListItem,
-  AgentMutationResult,
-  AnalyzeArticleResult,
   ApiStyle,
-  ArticleSummary,
   BiliAnalysis,
   BilibiliBridge,
   BiliDeleteResult,
@@ -28,7 +24,6 @@ import type {
   CalendarEvent,
   CalendarLocalInput,
   CalendarSetResult,
-  CollectedArticleWithAnalysis,
   GmailBridge,
   GmailClientCreds,
   GmailConfigView,
@@ -36,11 +31,9 @@ import type {
   GmailSetResult,
   GmailThread,
   GmailThreadAnalysis,
-  MacPermissions,
   McpBridge,
   McpMutationResult,
   McpServerConfig,
-  McpServerStatus,
   McpToolOverride,
   MemoryBridge,
   ModelThinkingLevel,
@@ -52,20 +45,18 @@ import type {
   ProvidersSetResult,
   ProvidersStateView,
   ProvidersTestResult,
+  RendererIpcChannel,
+  RendererIpcEventChannel,
+  RendererIpcEvents,
+  RendererIpcSignatures,
   Skill,
   SkillBridge,
-  SkillMutationResult,
-  SubmitPromptResult,
   SwarmBridge,
   ThreadAnalysisPayload,
-  ToolGroupInfo,
-  ToolToggles,
   ToolTogglesBridge,
   TranscriptionConfig,
-  UIEvent,
   WeatherBridge,
   WeatherConfigView,
-  WeatherForecast,
   WeatherForecastResult,
   WeatherSetResult,
   WebSearchBridge,
@@ -79,17 +70,23 @@ import type {
 } from '@swarm/protocol'
 import { contextBridge, ipcRenderer } from 'electron'
 
-const IPC_EVENT_CHANNEL = 'swarm:event'
-const NAVIGATE_CHANNEL = 'swarm:navigate'
-const SETTINGS_NAV_CHANNEL = 'swarm:navigate-settings'
-const ACCENT_CHANGE_CHANNEL = 'system:accentChange'
-const PROVIDERS_STATE_CHANNEL = 'providers:stateChanged'
-const MCP_CONFIG_CHANGED_CHANNEL = 'mcp:configChanged'
-const MCP_STATUS_CHANNEL = 'mcp:status'
-const WEB_SEARCH_STATE_CHANNEL = 'webSearch:stateChanged'
-const WEATHER_FORECAST_CHANNEL = 'weather:forecastChanged'
-const BUDGETS_STATE_CHANNEL = 'budgets:stateChanged'
-const WORKBENCH_STATE_CHANNEL = 'workbench:stateChanged'
+// Typed gateways to the renderer-IPC tables. Every bridge member for a
+// migrated domain routes through these; unmigrated domains keep raw
+// ipcRenderer calls until their plan (see spec §4).
+const invoke = <C extends RendererIpcChannel>(
+  channel: C,
+  ...args: RendererIpcSignatures[C]['args']
+): Promise<RendererIpcSignatures[C]['result']> =>
+  ipcRenderer.invoke(channel, ...args) as Promise<RendererIpcSignatures[C]['result']>
+
+const subscribe = <C extends RendererIpcEventChannel>(
+  channel: C,
+  cb: (payload: RendererIpcEvents[C]) => void
+): (() => void) => {
+  const listener = (_e: Electron.IpcRendererEvent, payload: RendererIpcEvents[C]): void => cb(payload)
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
+}
 
 const providers: ProvidersBridge = {
   get: () => ipcRenderer.invoke('providers:get') as Promise<ProvidersStateView>,
@@ -121,13 +118,7 @@ const providers: ProvidersBridge = {
   renameCustomProvider: (id: string, name: string) =>
     ipcRenderer.invoke('providers:renameCustomProvider', id, name) as Promise<ProvidersSetResult>,
   test: (id: string) => ipcRenderer.invoke('providers:test', id) as Promise<ProvidersTestResult>,
-  onStateChanged: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: ProvidersStateView): void => cb(payload)
-    ipcRenderer.on(PROVIDERS_STATE_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(PROVIDERS_STATE_CHANNEL, listener)
-    }
-  },
+  onStateChanged: (cb) => subscribe('providers:stateChanged', cb),
 }
 
 const mcp: McpBridge = {
@@ -138,21 +129,9 @@ const mcp: McpBridge = {
   setEnabled: (id, enabled) => ipcRenderer.invoke('mcp:setEnabled', id, enabled) as Promise<McpMutationResult>,
   setToolOverride: (id: string, toolName: string, override: McpToolOverride | null) =>
     ipcRenderer.invoke('mcp:setToolOverride', id, toolName, override) as Promise<McpMutationResult>,
-  getStatus: () => ipcRenderer.invoke('mcp:getStatus') as Promise<McpServerStatus[]>,
-  onConfigChanged: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: McpServerConfig[]): void => cb(payload)
-    ipcRenderer.on(MCP_CONFIG_CHANGED_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(MCP_CONFIG_CHANGED_CHANNEL, listener)
-    }
-  },
-  onStatus: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: McpServerStatus[]): void => cb(payload)
-    ipcRenderer.on(MCP_STATUS_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(MCP_STATUS_CHANNEL, listener)
-    }
-  },
+  getStatus: () => invoke('mcp:getStatus'),
+  onConfigChanged: (cb) => subscribe('mcp:configChanged', cb),
+  onStatus: (cb) => subscribe('mcp:status', cb),
 }
 
 const webSearch: WebSearchBridge = {
@@ -164,39 +143,21 @@ const webSearch: WebSearchBridge = {
   clearKey: (id: WebSearchKeyId) => ipcRenderer.invoke('webSearch:clearKey', id) as Promise<WebSearchSetResult>,
   setSearxngUrl: (url: string | null) =>
     ipcRenderer.invoke('webSearch:setSearxngUrl', url) as Promise<WebSearchSetResult>,
-  onStateChanged: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: WebSearchConfigView): void => cb(payload)
-    ipcRenderer.on(WEB_SEARCH_STATE_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(WEB_SEARCH_STATE_CHANNEL, listener)
-    }
-  },
+  onStateChanged: (cb) => subscribe('webSearch:stateChanged', cb),
 }
 
 const weather: WeatherBridge = {
   getConfig: () => ipcRenderer.invoke('weather:getConfig') as Promise<WeatherConfigView>,
   setConfig: (c) => ipcRenderer.invoke('weather:setConfig', c) as Promise<WeatherSetResult>,
   getForecast: (lng, lat) => ipcRenderer.invoke('weather:getForecast', lng, lat) as Promise<WeatherForecastResult>,
-  onForecast: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: WeatherForecast): void => cb(payload)
-    ipcRenderer.on(WEATHER_FORECAST_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(WEATHER_FORECAST_CHANNEL, listener)
-    }
-  },
+  onForecast: (cb) => subscribe('weather:forecastChanged', cb),
   onConfigChanged: () => () => {},
 }
 
 const budgets: BudgetsBridge = {
   get: () => ipcRenderer.invoke('budgets:get') as Promise<BudgetConfig>,
   set: (config: BudgetConfig) => ipcRenderer.invoke('budgets:set', config) as Promise<BudgetsSetResult>,
-  onStateChanged: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: BudgetConfig): void => cb(payload)
-    ipcRenderer.on(BUDGETS_STATE_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(BUDGETS_STATE_CHANNEL, listener)
-    }
-  },
+  onStateChanged: (cb) => subscribe('budgets:stateChanged', cb),
 }
 
 const workbench: WorkbenchBridge = {
@@ -212,42 +173,32 @@ const workbench: WorkbenchBridge = {
   deleteColumn: (id) => ipcRenderer.invoke('workbench:deleteColumn', id) as Promise<WorkbenchMutationResult>,
   reorderColumns: (orderedIds) =>
     ipcRenderer.invoke('workbench:reorderColumns', orderedIds) as Promise<WorkbenchMutationResult>,
-  onStateChanged: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: WorkbenchData): void => cb(payload)
-    ipcRenderer.on(WORKBENCH_STATE_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(WORKBENCH_STATE_CHANNEL, listener)
-    }
-  },
+  onStateChanged: (cb) => subscribe('workbench:stateChanged', cb),
 }
 
 const skills: SkillBridge = {
-  list: () => ipcRenderer.invoke('skills:list') as Promise<Skill[]>,
-  save: (skill: Skill) => ipcRenderer.invoke('skills:save', skill) as Promise<SkillMutationResult>,
-  remove: (name: string) => ipcRenderer.invoke('skills:delete', name) as Promise<SkillMutationResult>,
-  importFolder: (arg?: { sourceDir?: string; overwrite?: boolean }) =>
-    ipcRenderer.invoke('skills:import', arg) as Promise<SkillMutationResult & { sourceDir?: string }>,
+  list: () => invoke('skills:list'),
+  save: (skill: Skill) => invoke('skills:save', skill),
+  remove: (name: string) => invoke('skills:delete', name),
+  importFolder: (arg?: { sourceDir?: string; overwrite?: boolean }) => invoke('skills:import', arg),
 }
 
 const toolToggles: ToolTogglesBridge = {
-  get: () => ipcRenderer.invoke('toolToggles:get') as Promise<ToolToggles>,
-  listGroups: () => ipcRenderer.invoke('tools:listGroups') as Promise<ToolGroupInfo[]>,
-  setSkillEnabled: (name: string, enabled: boolean) =>
-    ipcRenderer.invoke('toolToggles:setSkill', name, enabled) as Promise<ToolToggles>,
-  setToolGroupEnabled: (group: string, enabled: boolean) =>
-    ipcRenderer.invoke('toolToggles:setToolGroup', group, enabled) as Promise<ToolToggles>,
+  get: () => invoke('toolToggles:get'),
+  listGroups: () => invoke('tools:listGroups'),
+  setSkillEnabled: (name: string, enabled: boolean) => invoke('toolToggles:setSkill', name, enabled),
+  setToolGroupEnabled: (group: string, enabled: boolean) => invoke('toolToggles:setToolGroup', group, enabled),
 }
 
 const memory: MemoryBridge = {
-  list: (namespace?: string) =>
-    ipcRenderer.invoke('memory:list', namespace) as Promise<import('@swarm/protocol').MemoryView[]>,
+  list: (namespace?: string) => invoke('memory:list', namespace),
 }
 
 const agents: AgentBridge = {
-  list: () => ipcRenderer.invoke('agents:list') as Promise<AgentListItem[]>,
-  save: (def: AgentDefinition) => ipcRenderer.invoke('agents:save', def) as Promise<AgentMutationResult>,
-  remove: (id: string) => ipcRenderer.invoke('agents:delete', id) as Promise<AgentMutationResult>,
-  restoreDefaults: () => ipcRenderer.invoke('agents:restore-defaults') as Promise<AgentMutationResult>,
+  list: () => invoke('agents:list'),
+  save: (def: AgentDefinition) => invoke('agents:save', def),
+  remove: (id: string) => invoke('agents:delete', id),
+  restoreDefaults: () => invoke('agents:restore-defaults'),
 }
 
 const bilibili: BilibiliBridge = {
@@ -267,13 +218,7 @@ const bilibili: BilibiliBridge = {
     ipcRenderer.invoke('bilibili:setTranscribeConfig', cfg) as Promise<void>,
   pickModelDir: () => ipcRenderer.invoke('bilibili:pickModelDir') as Promise<string | null>,
   transcribe: (bvid: string) => ipcRenderer.invoke('bilibili:transcribe', bvid) as Promise<BiliTranscribeResult>,
-  onTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void) => {
-    const listener = (_e: unknown, p: BiliTranscribeProgress): void => cb(p)
-    ipcRenderer.on('bilibili:transcribe:progress', listener)
-    return () => {
-      ipcRenderer.removeListener('bilibili:transcribe:progress', listener)
-    }
-  },
+  onTranscribeProgress: (cb: (p: BiliTranscribeProgress) => void) => subscribe('bilibili:transcribe:progress', cb),
   analyzedBvids: () => ipcRenderer.invoke('bilibili:analyzedBvids') as Promise<string[]>,
   getAnalysis: (bvid: string) => ipcRenderer.invoke('bilibili:getAnalysis', bvid) as Promise<BiliAnalysis | null>,
   deleteWatchLater: (bvid: string) =>
@@ -311,13 +256,7 @@ const gmail: GmailBridge = {
   markThreadRead: (threadId: string) => ipcRenderer.invoke('gmail:markThreadRead', threadId) as Promise<void>,
   listInboxPage: (page: number) =>
     ipcRenderer.invoke('gmail:listInboxPage', page) as Promise<{ threads: GmailThread[]; total: number }>,
-  onStateChanged: (cb: (view: GmailConfigView) => void) => {
-    const listener = (_e: unknown, view: GmailConfigView): void => cb(view)
-    ipcRenderer.on('gmail:stateChanged', listener)
-    return () => {
-      ipcRenderer.removeListener('gmail:stateChanged', listener)
-    }
-  },
+  onStateChanged: (cb: (view: GmailConfigView) => void) => subscribe('gmail:stateChanged', cb),
 }
 
 const calendar: CalendarBridge = {
@@ -335,131 +274,81 @@ const calendar: CalendarBridge = {
   updateLocal: (id: string, patch: Partial<CalendarLocalInput>) =>
     ipcRenderer.invoke('calendar:updateLocal', id, patch) as Promise<CalendarEvent | null>,
   deleteLocal: (id: string) => ipcRenderer.invoke('calendar:deleteLocal', id) as Promise<boolean>,
-  onStateChanged: (cb: (view: CalendarConfigView) => void) => {
-    const listener = (_e: unknown, view: CalendarConfigView): void => cb(view)
-    ipcRenderer.on('calendar:stateChanged', listener)
-    return () => {
-      ipcRenderer.removeListener('calendar:stateChanged', listener)
-    }
-  },
+  onStateChanged: (cb: (view: CalendarConfigView) => void) => subscribe('calendar:stateChanged', cb),
 }
 
 const swarm: SwarmBridge = {
   submitPrompt: (sessionId, prompt, attachments, options) =>
-    ipcRenderer.invoke('swarm:submitPrompt', sessionId, prompt, attachments, options) as Promise<SubmitPromptResult>,
-  analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) =>
-    ipcRenderer.invoke('swarm:analyzeThread', input) as Promise<import('@swarm/protocol').AnalyzeThreadResult>,
-  cancelRun: (sessionId) => ipcRenderer.invoke('swarm:cancelRun', sessionId) as Promise<void>,
+    invoke('swarm:submitPrompt', sessionId, prompt, attachments, options),
+  analyzeThread: (input: import('@swarm/protocol').AnalyzeThreadInput) => invoke('swarm:analyzeThread', input),
+  cancelRun: (sessionId) => invoke('swarm:cancelRun', sessionId),
   decidePermission: (sessionId, actionId, decision: PermissionDecision) =>
-    ipcRenderer.invoke('swarm:decidePermission', sessionId, actionId, decision) as Promise<void>,
-  forkSession: (sourceSessionId: string, upToRowId: number) =>
-    ipcRenderer.invoke('swarm:forkSession', sourceSessionId, upToRowId) as Promise<{ sessionId: string }>,
+    invoke('swarm:decidePermission', sessionId, actionId, decision),
+  forkSession: (sourceSessionId: string, upToRowId: number) => invoke('swarm:forkSession', sourceSessionId, upToRowId),
   sessions: {
-    list: () => ipcRenderer.invoke('swarm:listSessions') as Promise<import('@swarm/protocol').SessionSummary[]>,
-    create: () => ipcRenderer.invoke('swarm:createSession') as Promise<{ sessionId: string }>,
+    list: () => invoke('swarm:listSessions'),
+    create: () => invoke('swarm:createSession'),
     getSessionEntries: (sessionId: string, afterRowId?: number) =>
-      ipcRenderer.invoke('swarm:getSessionEntries', sessionId, afterRowId) as Promise<
-        import('@swarm/protocol').EntryRow[]
-      >,
-    delete: (sessionId: string) => ipcRenderer.invoke('swarm:deleteSession', sessionId) as Promise<void>,
-    rename: (sessionId: string, title: string) =>
-      ipcRenderer.invoke('swarm:renameSession', sessionId, title) as Promise<void>,
-    setPinned: (sessionId: string, pinned: boolean) =>
-      ipcRenderer.invoke('swarm:setSessionPinned', sessionId, pinned) as Promise<void>,
-    updateSettings: (sessionId: string, settings: import('@swarm/protocol').SessionSettings) =>
-      ipcRenderer.invoke('swarm:updateSessionSettings', sessionId, settings) as Promise<void>,
-    reorder: (orderedIds: string[]) => ipcRenderer.invoke('swarm:reorderSessions', orderedIds) as Promise<void>,
+      invoke('swarm:getSessionEntries', sessionId, afterRowId),
+    delete: async (sessionId: string) => {
+      await invoke('swarm:deleteSession', sessionId)
+    },
+    rename: async (sessionId: string, title: string) => {
+      await invoke('swarm:renameSession', sessionId, title)
+    },
+    setPinned: async (sessionId: string, pinned: boolean) => {
+      await invoke('swarm:setSessionPinned', sessionId, pinned)
+    },
+    updateSettings: async (sessionId: string, settings: import('@swarm/protocol').SessionSettings) => {
+      await invoke('swarm:updateSessionSettings', sessionId, settings)
+    },
+    reorder: async (orderedIds: string[]) => {
+      await invoke('swarm:reorderSessions', orderedIds)
+    },
   },
   usage: {
-    get: (rangeDays: number) =>
-      ipcRenderer.invoke('swarm:getUsageStats', rangeDays) as Promise<import('@swarm/protocol').UsageStats>,
+    get: (rangeDays: number) => invoke('swarm:getUsageStats', rangeDays),
   },
   trending: {
     get: (period: import('@swarm/protocol').TrendingPeriod, language: string) =>
-      ipcRenderer.invoke('trending:get', period, language) as Promise<import('@swarm/protocol').TrendingRepo[]>,
+      invoke('trending:get', period, language),
     research: (repo: import('@swarm/protocol').TrendingRepo, period: import('@swarm/protocol').TrendingPeriod) =>
-      ipcRenderer.invoke('trending:research', repo, period) as Promise<import('@swarm/protocol').ResearchRepoResult>,
-    getResearch: (repoName: string) =>
-      ipcRenderer.invoke('trending:getResearch', repoName) as Promise<{
-        research: import('@swarm/protocol').RepoResearch | null
-        researchedAt: string | null
-      }>,
-    researchedNames: () => ipcRenderer.invoke('trending:researchedNames') as Promise<string[]>,
+      invoke('trending:research', repo, period),
+    getResearch: (repoName: string) => invoke('trending:getResearch', repoName),
+    researchedNames: () => invoke('trending:researchedNames'),
   },
   cron: {
-    listForSession: (sessionId: string) =>
-      ipcRenderer.invoke('swarm:listCronJobsForSession', sessionId) as Promise<
-        import('@swarm/protocol').CronJobSummary[]
-      >,
-    listAll: () => ipcRenderer.invoke('swarm:listAllCronJobs') as Promise<import('@swarm/protocol').ScheduledTask[]>,
-    listAllRuns: () => ipcRenderer.invoke('swarm:listAllCronRuns') as Promise<import('@swarm/protocol').CronRun[]>,
-    cancel: (id: string) => ipcRenderer.invoke('swarm:cancelCronJob', id) as Promise<void>,
+    listForSession: (sessionId: string) => invoke('swarm:listCronJobsForSession', sessionId),
+    listAll: () => invoke('swarm:listAllCronJobs'),
+    listAllRuns: () => invoke('swarm:listAllCronRuns'),
+    cancel: async (id: string) => {
+      await invoke('swarm:cancelCronJob', id)
+    },
   },
   article: {
-    list: () => ipcRenderer.invoke('swarm:article:list') as Promise<CollectedArticleWithAnalysis[]>,
-    analyze: (articleId: string) =>
-      ipcRenderer.invoke('swarm:article:analyze', articleId) as Promise<AnalyzeArticleResult>,
-    getAnalysis: (articleId: string) =>
-      ipcRenderer.invoke('swarm:article:getAnalysis', articleId) as Promise<{
-        summary: ArticleSummary | null
-        analyzedAt: string | null
-      }>,
-    delete: (articleId: string) => ipcRenderer.invoke('swarm:article:delete', articleId) as Promise<void>,
+    list: () => invoke('swarm:article:list'),
+    analyze: (articleId: string) => invoke('swarm:article:analyze', articleId),
+    getAnalysis: (articleId: string) => invoke('swarm:article:getAnalysis', articleId),
+    delete: (articleId: string) => invoke('swarm:article:delete', articleId),
   },
-  exportSessionMarkdown: (sessionId: string) =>
-    ipcRenderer.invoke('swarm:exportSessionMarkdown', sessionId) as Promise<{ path: string }>,
-  listArtifacts: (opts?: { query?: string; limit?: number }) =>
-    ipcRenderer.invoke('swarm:listArtifacts', opts) as Promise<import('@swarm/protocol').ArtifactEntry[]>,
-  subscribeEvents: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: UIEvent): void => cb(payload)
-    ipcRenderer.on(IPC_EVENT_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(IPC_EVENT_CHANNEL, listener)
-    }
-  },
-  onNavigateToSession: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: { sessionId?: string; route?: string }): void =>
-      cb(payload)
-    ipcRenderer.on(NAVIGATE_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(NAVIGATE_CHANNEL, listener)
-    }
-  },
-  onNavigateToSettings: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: { route: string }): void => cb(payload.route)
-    ipcRenderer.on(SETTINGS_NAV_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(SETTINGS_NAV_CHANNEL, listener)
-    }
-  },
-  consumePendingDeepLink: () =>
-    ipcRenderer.invoke('swarm:consumePendingDeepLink') as Promise<{ sessionId: string } | null>,
-  getAccent: () => ipcRenderer.invoke('system:getAccent') as Promise<string | null>,
-  onAccentChange: (cb) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: { hex: string }): void => cb(payload.hex)
-    ipcRenderer.on(ACCENT_CHANGE_CHANNEL, listener)
-    return () => {
-      ipcRenderer.removeListener(ACCENT_CHANGE_CHANNEL, listener)
-    }
-  },
-  getMacPermissions: () => ipcRenderer.invoke('system:getMacPermissions') as Promise<MacPermissions>,
-  openPrivacySettings: (pane) => ipcRenderer.invoke('system:openPrivacySettings', pane) as Promise<void>,
-  getWsHostConfig: () =>
-    ipcRenderer.invoke('system:getWsHostConfig') as Promise<{
-      port: number
-      token: string
-      lanIp: string | null
-    } | null>,
-  readImageFile: (path: string) =>
-    ipcRenderer.invoke('system:readImageFile', path) as Promise<{ mimeType: string; data: string } | null>,
-  readDocumentFile: (path: string) =>
-    ipcRenderer.invoke('system:readDocumentFile', path) as Promise<{ mediaType: string; data: string } | null>,
-  openPath: (path: string) => ipcRenderer.invoke('system:openPath', path) as Promise<void>,
-  openUserDataDir: () => ipcRenderer.invoke('system:openUserDataDir') as Promise<void>,
-  pickDirectory: () => ipcRenderer.invoke('system:pickPath', 'directory') as Promise<string | null>,
-  pickFile: () => ipcRenderer.invoke('system:pickPath', 'file') as Promise<string | null>,
-  listDir: (dir: string, prefix?: string) =>
-    ipcRenderer.invoke('system:listDir', dir, prefix) as Promise<{ name: string; isDir: boolean }[]>,
+  exportSessionMarkdown: (sessionId: string) => invoke('swarm:exportSessionMarkdown', sessionId),
+  listArtifacts: (opts?: { query?: string; limit?: number }) => invoke('swarm:listArtifacts', opts),
+  subscribeEvents: (cb) => subscribe('swarm:event', cb),
+  onNavigateToSession: (cb) => subscribe('swarm:navigate', cb),
+  onNavigateToSettings: (cb) => subscribe('swarm:navigate-settings', (p) => cb(p.route)),
+  consumePendingDeepLink: () => invoke('swarm:consumePendingDeepLink'),
+  getAccent: () => invoke('system:getAccent'),
+  onAccentChange: (cb) => subscribe('system:accentChange', (p) => cb(p.hex)),
+  getMacPermissions: () => invoke('system:getMacPermissions'),
+  openPrivacySettings: (pane) => invoke('system:openPrivacySettings', pane),
+  getWsHostConfig: () => invoke('system:getWsHostConfig'),
+  readImageFile: (path: string) => invoke('system:readImageFile', path),
+  readDocumentFile: (path: string) => invoke('system:readDocumentFile', path),
+  openPath: (path: string) => invoke('system:openPath', path),
+  openUserDataDir: () => invoke('system:openUserDataDir'),
+  pickDirectory: () => invoke('system:pickPath', 'directory'),
+  pickFile: () => invoke('system:pickPath', 'file'),
+  listDir: (dir: string, prefix?: string) => invoke('system:listDir', dir, prefix),
   providers,
   mcp,
   webSearch,
@@ -474,12 +363,10 @@ const swarm: SwarmBridge = {
   calendar,
   workbench,
   quickPanel: {
-    hide: () => ipcRenderer.invoke('swarm:quickPanel:hide'),
-    focusMain: (payload: { navigate?: string; settings?: string }) =>
-      ipcRenderer.invoke('swarm:quickPanel:focusMain', payload),
-    getHotkey: () => ipcRenderer.invoke('swarm:quickPanel:getHotkey') as Promise<string>,
-    setHotkey: (accelerator: string) =>
-      ipcRenderer.invoke('swarm:quickPanel:setHotkey', accelerator) as Promise<{ ok: boolean }>,
+    hide: () => invoke('swarm:quickPanel:hide'),
+    focusMain: (payload: { navigate?: string; settings?: string }) => invoke('swarm:quickPanel:focusMain', payload),
+    getHotkey: () => invoke('swarm:quickPanel:getHotkey'),
+    setHotkey: (accelerator: string) => invoke('swarm:quickPanel:setHotkey', accelerator),
   },
 }
 
