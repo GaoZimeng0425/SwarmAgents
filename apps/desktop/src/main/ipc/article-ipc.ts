@@ -1,8 +1,8 @@
 import { createLogger } from '@shared/logger'
 import type { AnalyzeArticleResult, ServiceClient } from '@swarm/protocol'
-import { ipcMain } from 'electron'
 
 import type { Service as ProvidersService } from '../providers'
+import { createIpcRegistrar } from './wire'
 
 const log = createLogger({ process: 'main' }).child({ component: 'article-ipc' })
 
@@ -10,11 +10,12 @@ export function wireArticleIpc(args: { serviceClient: ServiceClient; providers: 
   dispose: () => void
 } {
   const { serviceClient, providers } = args
+  const ipc = createIpcRegistrar()
 
   // analyze host-injects the active provider before forwarding to the service,
   // mirroring swarm-ipc.ts's analyzeEmail block. collectArticle is intentionally
   // NOT registered here — it is WS-only (extension→service).
-  const analyzeArticle = async (_e: unknown, articleId: string): Promise<AnalyzeArticleResult> => {
+  const analyzeArticle = async (_e: Electron.IpcMainInvokeEvent, articleId: string): Promise<AnalyzeArticleResult> => {
     const injection = providers.getInjection()
     if (!injection) {
       log.warn({ msg: 'analyze article without provider', articleId })
@@ -24,17 +25,14 @@ export function wireArticleIpc(args: { serviceClient: ServiceClient; providers: 
     return serviceClient.analyzeArticle({ articleId, provider: injection })
   }
 
-  ipcMain.handle('swarm:article:list', () => serviceClient.listArticles())
-  ipcMain.handle('swarm:article:analyze', analyzeArticle)
-  ipcMain.handle('swarm:article:getAnalysis', (_e, id: string) => serviceClient.getArticleAnalysis(id))
-  ipcMain.handle('swarm:article:delete', (_e, id: string) => serviceClient.deleteArticle(id))
+  ipc.handle('swarm:article:list', () => serviceClient.listArticles())
+  ipc.handle('swarm:article:analyze', analyzeArticle)
+  ipc.handle('swarm:article:getAnalysis', (_e, id: string) => serviceClient.getArticleAnalysis(id))
+  ipc.handle('swarm:article:delete', (_e, id: string) => serviceClient.deleteArticle(id))
 
   return {
     dispose: () => {
-      ipcMain.removeHandler('swarm:article:list')
-      ipcMain.removeHandler('swarm:article:analyze')
-      ipcMain.removeHandler('swarm:article:getAnalysis')
-      ipcMain.removeHandler('swarm:article:delete')
+      ipc.dispose()
     },
   }
 }

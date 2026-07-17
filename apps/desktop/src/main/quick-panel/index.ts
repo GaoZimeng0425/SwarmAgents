@@ -21,12 +21,13 @@ export function initQuickPanel(): { dispose: () => void } {
   // Register the hotkey → toggle the panel.
   void shortcut.init(() => toggleQuickPanel())
 
-  wireQuickPanelIpc({ shortcut })
+  const ipc = wireQuickPanelIpc({ shortcut })
 
   log.info({ msg: 'quick panel initialized' })
 
   return {
     dispose: () => {
+      ipc.dispose()
       shortcut.dispose()
       log.info({ msg: 'quick panel disposed' })
     },

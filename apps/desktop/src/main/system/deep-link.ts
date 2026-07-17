@@ -8,12 +8,17 @@
 // buffered and pulled by the renderer on mount via consumePendingDeepLink;
 // links that arrive while the app is running are pushed over NAVIGATE_CHANNEL.
 import { createLogger } from '@shared/logger'
-import { ipcMain } from 'electron'
 
+import { createIpcRegistrar } from '../ipc/wire'
 import { getMainWindow } from '../windows/main-window'
 import { openSettings } from '../windows/open-settings'
 
 const log = createLogger({ process: 'main' }).child({ component: 'deep-link' })
+
+// Module-level registrar: registerDeepLinkIpc() is called once at startup and
+// no caller currently consumes a dispose() (main/index.ts calls it fire-and-forget,
+// see below) — lifetime is left as-is, matching the pre-existing behaviour.
+const ipc = createIpcRegistrar()
 
 const NAVIGATE_CHANNEL = 'swarm:navigate'
 
@@ -66,7 +71,7 @@ export function handleDeepLink(url: string): void {
 
 // One-shot pull for cold-start chat links. Call once at startup.
 export function registerDeepLinkIpc(): void {
-  ipcMain.handle('swarm:consumePendingDeepLink', () => {
+  ipc.handle('swarm:consumePendingDeepLink', () => {
     const sessionId = pendingSessionId
     pendingSessionId = null
     return sessionId ? { sessionId } : null

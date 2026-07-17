@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
-import { createServiceClient, type ServiceTransport } from '@swarm/protocol'
+import { createServiceClient, type McpServerStatus, type ServiceTransport } from '@swarm/protocol'
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron'
 
 import { initBilibili } from './bilibili'
@@ -15,6 +15,7 @@ import { startWsHost } from './host'
 import { wireArticleIpc } from './ipc/article-ipc'
 import { toRendererEvent } from './ipc/forward-event'
 import { wireSwarmIpc } from './ipc/swarm-ipc'
+import { createIpcRegistrar, sendToAllWindows } from './ipc/wire'
 import { initMcpServers } from './mcp-servers'
 import { initProviders } from './providers'
 import { initQuickPanel } from './quick-panel'
@@ -145,10 +146,13 @@ app.whenReady().then(async () => {
       onEvent: (event, data) => {
         // MCP status rides a dedicated channel — it isn't a task UIEvent and
         // must not reach applyEvent (which would create a phantom task stub).
-        const channel = event.startsWith('mcp.') ? 'mcp:status' : 'swarm:event'
-        const payload = channel === 'mcp:status' ? data : toRendererEvent(event, data)
-        for (const w of BrowserWindow.getAllWindows()) {
-          if (!w.isDestroyed()) w.webContents.send(channel, payload)
+        if (event.startsWith('mcp.')) {
+          // The service sends unvalidated event data over the wire; the
+          // renderer-ipc table types the 'mcp:status' contract. One documented
+          // cast at this boundary.
+          sendToAllWindows('mcp:status', data as McpServerStatus[])
+        } else {
+          sendToAllWindows('swarm:event', toRendererEvent(event, data))
         }
       },
     })
@@ -182,8 +186,9 @@ app.whenReady().then(async () => {
     wireTrendingResearchIpc({ serviceClient, providers: providers.service })
     // Surface the WS host config (port + token + LAN IP) to the renderer so
     // Settings → 远程连接 can display the token and a QR for the phone. wsHost
-    // is assigned at line 150 once the server is up; null before that.
-    ipcMain.handle('system:getWsHostConfig', () =>
+    // is assigned above once the server is up; null before that.
+    const systemIpc = createIpcRegistrar()
+    systemIpc.handle('system:getWsHostConfig', () =>
       wsHost ? { port: wsHost.port, token: wsHost.token, lanIp: wsHost.lanIp } : null
     )
     log.info({ msg: 'core services up' })

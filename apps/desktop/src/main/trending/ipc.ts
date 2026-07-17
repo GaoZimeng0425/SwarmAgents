@@ -7,8 +7,8 @@
 import { createLogger } from '@shared/logger'
 import type { ResearchRepoResult, ServiceClient } from '@swarm/protocol'
 import { TRENDING_PERIODS, type TrendingPeriod, type TrendingRepo } from '@swarm/protocol'
-import { ipcMain } from 'electron'
 
+import { createIpcRegistrar } from '../ipc/wire'
 import type { Service as ProvidersService } from '../providers'
 import { fetchTrending } from './service'
 
@@ -19,7 +19,12 @@ function asPeriod(v: unknown): TrendingPeriod {
 }
 
 export function wireTrendingIpc(): { dispose: () => void } {
-  ipcMain.handle('trending:get', (_e: Electron.IpcMainInvokeEvent, period: unknown, language: unknown) => {
+  const ipc = createIpcRegistrar()
+
+  ipc.handle('trending:get', (_e: Electron.IpcMainInvokeEvent, period: TrendingPeriod, language: string) => {
+    // The table types these as TrendingPeriod/string, but the renderer bridge
+    // is the only enforcement point — a compromised renderer could still send
+    // anything over the wire, so the coercion guard stays.
     const p = asPeriod(period)
     const lang = typeof language === 'string' && language.length > 0 ? language : 'All'
     if (p !== period || lang !== language) {
@@ -38,7 +43,7 @@ export function wireTrendingIpc(): { dispose: () => void } {
 
   return {
     dispose(): void {
-      ipcMain.removeHandler('trending:get')
+      ipc.dispose()
     },
   }
 }
@@ -50,8 +55,13 @@ export function wireTrendingResearchIpc(args: { serviceClient: ServiceClient; pr
   dispose: () => void
 } {
   const { serviceClient, providers } = args
+  const ipc = createIpcRegistrar()
 
-  const research = async (_e: unknown, repo: TrendingRepo, period: unknown): Promise<ResearchRepoResult> => {
+  const research = async (
+    _e: Electron.IpcMainInvokeEvent,
+    repo: TrendingRepo,
+    period: TrendingPeriod
+  ): Promise<ResearchRepoResult> => {
     const injection = providers.getInjection()
     if (!injection) {
       log.warn({ msg: 'research repo without provider', repoName: repo.repoName })
@@ -62,15 +72,13 @@ export function wireTrendingResearchIpc(args: { serviceClient: ServiceClient; pr
     return serviceClient.researchRepo({ repo, period: p, provider: injection })
   }
 
-  ipcMain.handle('trending:research', research)
-  ipcMain.handle('trending:getResearch', (_e, repoName: string) => serviceClient.getRepoResearch(repoName))
-  ipcMain.handle('trending:researchedNames', () => serviceClient.researchedRepoNames())
+  ipc.handle('trending:research', research)
+  ipc.handle('trending:getResearch', (_e, repoName: string) => serviceClient.getRepoResearch(repoName))
+  ipc.handle('trending:researchedNames', () => serviceClient.researchedRepoNames())
 
   return {
     dispose(): void {
-      ipcMain.removeHandler('trending:research')
-      ipcMain.removeHandler('trending:getResearch')
-      ipcMain.removeHandler('trending:researchedNames')
+      ipc.dispose()
     },
   }
 }

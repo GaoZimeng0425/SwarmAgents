@@ -3,8 +3,8 @@
 // navigation payload over swarm:navigate (extended with a `route` field).
 
 import { createLogger } from '@shared/logger'
-import { ipcMain } from 'electron'
 
+import { createIpcRegistrar } from '../ipc/wire'
 import { getMainWindow } from '../windows/main-window'
 import { openSettings } from '../windows/open-settings'
 import { hideQuickPanel } from './quick-panel-window'
@@ -17,14 +17,15 @@ type FocusMainPayload = {
   settings?: string
 }
 
-export function wireQuickPanelIpc(opts: { shortcut: ShortcutManager }): void {
+export function wireQuickPanelIpc(opts: { shortcut: ShortcutManager }): { dispose: () => void } {
   const { shortcut } = opts
+  const ipc = createIpcRegistrar()
 
-  ipcMain.handle('swarm:quickPanel:hide', () => {
+  ipc.handle('swarm:quickPanel:hide', () => {
     hideQuickPanel()
   })
 
-  ipcMain.handle('swarm:quickPanel:focusMain', (_e, payload: FocusMainPayload) => {
+  ipc.handle('swarm:quickPanel:focusMain', (_e, payload: FocusMainPayload) => {
     hideQuickPanel()
     const win = getMainWindow()
     if (!win) {
@@ -48,11 +49,11 @@ export function wireQuickPanelIpc(opts: { shortcut: ShortcutManager }): void {
     }
   })
 
-  ipcMain.handle('swarm:quickPanel:getHotkey', () => {
+  ipc.handle('swarm:quickPanel:getHotkey', () => {
     return shortcut.getCurrent() ?? ''
   })
 
-  ipcMain.handle('swarm:quickPanel:setHotkey', async (_e, accelerator: string) => {
+  ipc.handle('swarm:quickPanel:setHotkey', async (_e, accelerator: string) => {
     const ok = await shortcut.reregister(accelerator)
     if (!ok) {
       log.warn({ msg: 'setHotkey rejected by OS', accelerator })
@@ -61,4 +62,10 @@ export function wireQuickPanelIpc(opts: { shortcut: ShortcutManager }): void {
   })
 
   log.info({ msg: 'quick panel IPC wired' })
+
+  return {
+    dispose: () => {
+      ipc.dispose()
+    },
+  }
 }
