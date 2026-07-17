@@ -36,10 +36,14 @@ const ESM_ONLY_BUNDLE_INLINE = new Set(['@earendil-works/pi-agent-core', '@earen
 // externalized (externalizing would make node try to require .ts at runtime).
 const SWARM_PACKAGES = /^@swarm\//
 
-// electron, /^electron\//, and node builtins (+ `node:` prefixed) are
-// externalized by electron-vite's main preset already, so only runtime deps
-// need to be listed here.
+// electron is in devDependencies, so externalizeDepsPlugin (which only
+// reads dependencies) skips it — without an explicit entry its npm launcher
+// gets bundled and runs getElectronPath() at load with the wrong __dirname
+// (out/main/ instead of node_modules/electron/), crashing with
+// "Electron failed to install correctly".
 const mainExternal: Array<string | RegExp> = [
+  'electron',
+  /^electron\//,
   ...runtimeDeps.filter((d) => !ESM_ONLY_BUNDLE_INLINE.has(d) && !SWARM_PACKAGES.test(d)),
   // also externalize anything under a runtime dep's subpath (skip ESM-only inline set)
   ...runtimeDeps
