@@ -95,13 +95,13 @@ function ToolImage({ path, showName = true }: { path: string; showName?: boolean
   return (
     <div className="space-y-2">
       {src && (
-        <button className="block cursor-pointer" onClick={() => void window.swarm.openPath(path)} type="button">
+        <button className="block" onClick={() => void window.swarm.openPath(path)} type="button">
           <img alt={name} className="max-h-96 rounded-lg border border-border/40" src={src} />
         </button>
       )}
       {showName && (
         <button
-          className="flex cursor-pointer items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
+          className="flex items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
           onClick={() => void window.swarm.openPath(path)}
           type="button"
         >
@@ -374,7 +374,7 @@ function createSegmentRenderer(opts: {
     const label = seg.label
     return (
       <details className={cn('group', TRANSCRIPT_CARD)} key={seg.key}>
-        <summary className="flex cursor-pointer select-none items-center gap-2 font-mono text-[11px] text-muted-foreground/80 hover:text-muted-foreground">
+        <summary className="flex select-none items-center gap-2 font-mono text-[11px] text-muted-foreground/80 hover:text-muted-foreground">
           <ChevronRight className="size-3.5 transition-transform duration-200 group-open:rotate-90" />
           <span className="font-semibold uppercase tracking-wider">{label}</span>
         </summary>

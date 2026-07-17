@@ -45,7 +45,7 @@ export function RunningCard({ run }: Props): React.JSX.Element {
         // background, matching the composer/weather elevation. Hover brightens the
         // border (accent/secondary/muted are the same value in dark, so a bg hover
         // would be a no-op).
-        'flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border bg-secondary p-4 text-left transition-colors',
+        'flex w-full flex-col gap-2.5 rounded-2xl border bg-secondary p-4 text-left transition-colors',
         awaiting
           ? 'border-amber-400 shadow-[0_0_0_3px_rgba(226,176,107,0.14)] dark:border-amber-500/60'
           : 'border-border hover:border-foreground/20'

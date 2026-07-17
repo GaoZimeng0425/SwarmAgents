@@ -37,7 +37,7 @@ function ArticleCard({
   const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostnameOf(article.url))}&sz=64`
   return (
     <div
-      className={`group relative flex cursor-pointer flex-col gap-1 rounded-md border p-2 transition-colors hover:bg-sidebar-accent ${
+      className={`group relative flex flex-col gap-1 rounded-md border p-2 transition-colors hover:bg-sidebar-accent ${
         selected ? 'border-ring ring-2 ring-ring/50' : 'border-sidebar-border'
       }`}
       onClick={() => onClick(article)}
@@ -195,7 +195,7 @@ export function ArticleView(): React.JSX.Element {
         ) : selected && collapsed ? (
           <button
             aria-label="展开 AI 解析"
-            className="flex w-10 shrink-0 cursor-pointer flex-col items-center gap-3 border-border/60 border-l bg-background pt-4 text-muted-foreground hover:text-foreground"
+            className="flex w-10 shrink-0 flex-col items-center gap-3 border-border/60 border-l bg-background pt-4 text-muted-foreground hover:text-foreground"
             onClick={() => setCollapsed(false)}
             type="button"
           >

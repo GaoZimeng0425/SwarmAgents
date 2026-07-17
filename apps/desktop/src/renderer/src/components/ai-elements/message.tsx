@@ -289,7 +289,7 @@ const messageComponents: Components = {
       const path = href.slice(FILE_LINK_SCHEME.length)
       return (
         <button
-          className="cursor-pointer font-mono text-primary underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          className="font-mono text-primary underline decoration-dotted underline-offset-2 hover:decoration-solid"
           onClick={() => void window.swarm.openPath(path)}
           title={path}
           type="button"

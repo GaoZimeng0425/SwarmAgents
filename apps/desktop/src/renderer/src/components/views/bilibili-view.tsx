@@ -124,7 +124,7 @@ function VideoCard({
     // it without nesting interactive elements. Click anywhere selects the video.
     <div
       className={cn(
-        'group relative flex cursor-pointer flex-col gap-2 rounded-xl border p-2 text-left transition-all',
+        'group relative flex flex-col gap-2 rounded-xl border p-2 text-left transition-all',
         selected
           ? 'border-blue-500 bg-secondary ring-2 ring-blue-500/25'
           : 'border-border bg-secondary hover:border-foreground/20'
@@ -203,7 +203,7 @@ function PinnedCard({
   const [busy, setBusy] = useState(false)
 
   return (
-    <div className="group relative flex w-44 shrink-0 cursor-pointer flex-col gap-1 rounded-md border border-amber-500/30 bg-amber-500/5 p-1.5 hover:bg-amber-500/10">
+    <div className="group relative flex w-44 shrink-0 flex-col gap-1 rounded-md border border-amber-500/30 bg-amber-500/5 p-1.5 hover:bg-amber-500/10">
       <div className="relative w-full" onClick={() => onSelect(video)}>
         {video.cover ? (
           <img
