@@ -13,16 +13,10 @@ import type {
   CalendarBridge,
   CalendarClientCreds,
   CalendarConfigView,
-  CalendarEvent,
   CalendarLocalInput,
-  CalendarSetResult,
   GmailBridge,
   GmailClientCreds,
   GmailConfigView,
-  GmailMessage,
-  GmailSetResult,
-  GmailThread,
-  GmailThreadAnalysis,
   McpBridge,
   McpToolOverride,
   MemoryBridge,
@@ -41,15 +35,10 @@ import type {
   ToolTogglesBridge,
   TranscriptionConfig,
   WeatherBridge,
-  WeatherConfigView,
-  WeatherForecastResult,
-  WeatherSetResult,
   WebSearchBridge,
   WebSearchKeyId,
   WebSearchProviderId,
   WorkbenchBridge,
-  WorkbenchData,
-  WorkbenchMutationResult,
 } from '@swarm/protocol'
 import { contextBridge, ipcRenderer } from 'electron'
 
@@ -116,9 +105,9 @@ const webSearch: WebSearchBridge = {
 }
 
 const weather: WeatherBridge = {
-  getConfig: () => ipcRenderer.invoke('weather:getConfig') as Promise<WeatherConfigView>,
-  setConfig: (c) => ipcRenderer.invoke('weather:setConfig', c) as Promise<WeatherSetResult>,
-  getForecast: (lng, lat) => ipcRenderer.invoke('weather:getForecast', lng, lat) as Promise<WeatherForecastResult>,
+  getConfig: () => invoke('weather:getConfig'),
+  setConfig: (c) => invoke('weather:setConfig', c),
+  getForecast: (lng, lat) => invoke('weather:getForecast', lng, lat),
   onForecast: (cb) => subscribe('weather:forecastChanged', cb),
   onConfigChanged: () => () => {},
 }
@@ -130,18 +119,17 @@ const budgets: BudgetsBridge = {
 }
 
 const workbench: WorkbenchBridge = {
-  getAll: () => ipcRenderer.invoke('workbench:getAll') as Promise<WorkbenchData>,
-  createTask: (input) => ipcRenderer.invoke('workbench:createTask', input) as Promise<WorkbenchMutationResult>,
-  updateTask: (id, patch) => ipcRenderer.invoke('workbench:updateTask', id, patch) as Promise<WorkbenchMutationResult>,
-  completeTask: (id) => ipcRenderer.invoke('workbench:completeTask', id) as Promise<WorkbenchMutationResult>,
-  reopenTask: (id) => ipcRenderer.invoke('workbench:reopenTask', id) as Promise<WorkbenchMutationResult>,
-  deleteTask: (id) => ipcRenderer.invoke('workbench:deleteTask', id) as Promise<WorkbenchMutationResult>,
-  moveTask: (input) => ipcRenderer.invoke('workbench:moveTask', input) as Promise<WorkbenchMutationResult>,
-  addColumn: (input) => ipcRenderer.invoke('workbench:addColumn', input) as Promise<WorkbenchMutationResult>,
-  renameColumn: (input) => ipcRenderer.invoke('workbench:renameColumn', input) as Promise<WorkbenchMutationResult>,
-  deleteColumn: (id) => ipcRenderer.invoke('workbench:deleteColumn', id) as Promise<WorkbenchMutationResult>,
-  reorderColumns: (orderedIds) =>
-    ipcRenderer.invoke('workbench:reorderColumns', orderedIds) as Promise<WorkbenchMutationResult>,
+  getAll: () => invoke('workbench:getAll'),
+  createTask: (input) => invoke('workbench:createTask', input),
+  updateTask: (id, patch) => invoke('workbench:updateTask', id, patch),
+  completeTask: (id) => invoke('workbench:completeTask', id),
+  reopenTask: (id) => invoke('workbench:reopenTask', id),
+  deleteTask: (id) => invoke('workbench:deleteTask', id),
+  moveTask: (input) => invoke('workbench:moveTask', input),
+  addColumn: (input) => invoke('workbench:addColumn', input),
+  renameColumn: (input) => invoke('workbench:renameColumn', input),
+  deleteColumn: (id) => invoke('workbench:deleteColumn', id),
+  reorderColumns: (orderedIds) => invoke('workbench:reorderColumns', orderedIds),
   onStateChanged: (cb) => subscribe('workbench:stateChanged', cb),
 }
 
@@ -199,47 +187,35 @@ const bilibili: BilibiliBridge = {
 }
 
 const gmail: GmailBridge = {
-  getStatus: () => ipcRenderer.invoke('gmail:getStatus') as Promise<GmailConfigView>,
-  setClientCreds: (creds: GmailClientCreds) =>
-    ipcRenderer.invoke('gmail:setClientCreds', creds) as Promise<GmailSetResult>,
-  clearClientCreds: () => ipcRenderer.invoke('gmail:clearClientCreds') as Promise<unknown>,
-  linkAccount: () => ipcRenderer.invoke('gmail:linkAccount') as Promise<GmailSetResult>,
-  unlinkAccount: () => ipcRenderer.invoke('gmail:unlinkAccount') as Promise<unknown>,
-  syncNow: () => ipcRenderer.invoke('gmail:syncNow') as Promise<void>,
-  listRecent: (input: { limit: number; label?: string }) =>
-    ipcRenderer.invoke('gmail:listRecent', input) as Promise<GmailThread[]>,
-  getThread: (id: string) =>
-    ipcRenderer.invoke('gmail:getThread', id) as Promise<{
-      thread: GmailThread
-      messages: GmailMessage[]
-    } | null>,
-  search: (query: string, limit: number) => ipcRenderer.invoke('gmail:search', query, limit) as Promise<GmailThread[]>,
-  getThreadAnalysis: (threadId: string) =>
-    ipcRenderer.invoke('gmail:getThreadAnalysis', threadId) as Promise<GmailThreadAnalysis | null>,
+  getStatus: () => invoke('gmail:getStatus'),
+  setClientCreds: (creds: GmailClientCreds) => invoke('gmail:setClientCreds', creds),
+  clearClientCreds: () => invoke('gmail:clearClientCreds'),
+  linkAccount: () => invoke('gmail:linkAccount'),
+  unlinkAccount: () => invoke('gmail:unlinkAccount'),
+  syncNow: () => invoke('gmail:syncNow'),
+  listRecent: (input: { limit: number; label?: string }) => invoke('gmail:listRecent', input),
+  getThread: (id: string) => invoke('gmail:getThread', id),
+  search: (query: string, limit: number) => invoke('gmail:search', query, limit),
+  getThreadAnalysis: (threadId: string) => invoke('gmail:getThreadAnalysis', threadId),
   saveThreadAnalysis: (threadId: string, analysis: ThreadAnalysisPayload) =>
-    ipcRenderer.invoke('gmail:saveThreadAnalysis', threadId, analysis) as Promise<void>,
-  analyzedThreadIds: () => ipcRenderer.invoke('gmail:analyzedThreadIds') as Promise<string[]>,
-  markThreadRead: (threadId: string) => ipcRenderer.invoke('gmail:markThreadRead', threadId) as Promise<void>,
-  listInboxPage: (page: number) =>
-    ipcRenderer.invoke('gmail:listInboxPage', page) as Promise<{ threads: GmailThread[]; total: number }>,
+    invoke('gmail:saveThreadAnalysis', threadId, analysis),
+  analyzedThreadIds: () => invoke('gmail:analyzedThreadIds'),
+  markThreadRead: (threadId: string) => invoke('gmail:markThreadRead', threadId),
+  listInboxPage: (page: number) => invoke('gmail:listInboxPage', page),
   onStateChanged: (cb: (view: GmailConfigView) => void) => subscribe('gmail:stateChanged', cb),
 }
 
 const calendar: CalendarBridge = {
-  getStatus: () => ipcRenderer.invoke('calendar:getStatus') as Promise<CalendarConfigView>,
-  setClientCreds: (creds: CalendarClientCreds) =>
-    ipcRenderer.invoke('calendar:setClientCreds', creds) as Promise<CalendarSetResult>,
-  clearClientCreds: () => ipcRenderer.invoke('calendar:clearClientCreds') as Promise<unknown>,
-  linkAccount: () => ipcRenderer.invoke('calendar:linkAccount') as Promise<CalendarSetResult>,
-  unlinkAccount: () => ipcRenderer.invoke('calendar:unlinkAccount') as Promise<unknown>,
-  syncNow: () => ipcRenderer.invoke('calendar:syncNow') as Promise<void>,
-  listInRange: (fromMs: number, toMs: number) =>
-    ipcRenderer.invoke('calendar:listInRange', fromMs, toMs) as Promise<CalendarEvent[]>,
-  createLocal: (input: CalendarLocalInput) =>
-    ipcRenderer.invoke('calendar:createLocal', input) as Promise<CalendarEvent>,
-  updateLocal: (id: string, patch: Partial<CalendarLocalInput>) =>
-    ipcRenderer.invoke('calendar:updateLocal', id, patch) as Promise<CalendarEvent | null>,
-  deleteLocal: (id: string) => ipcRenderer.invoke('calendar:deleteLocal', id) as Promise<boolean>,
+  getStatus: () => invoke('calendar:getStatus'),
+  setClientCreds: (creds: CalendarClientCreds) => invoke('calendar:setClientCreds', creds),
+  clearClientCreds: () => invoke('calendar:clearClientCreds'),
+  linkAccount: () => invoke('calendar:linkAccount'),
+  unlinkAccount: () => invoke('calendar:unlinkAccount'),
+  syncNow: () => invoke('calendar:syncNow'),
+  listInRange: (fromMs: number, toMs: number) => invoke('calendar:listInRange', fromMs, toMs),
+  createLocal: (input: CalendarLocalInput) => invoke('calendar:createLocal', input),
+  updateLocal: (id: string, patch: Partial<CalendarLocalInput>) => invoke('calendar:updateLocal', id, patch),
+  deleteLocal: (id: string) => invoke('calendar:deleteLocal', id),
   onStateChanged: (cb: (view: CalendarConfigView) => void) => subscribe('calendar:stateChanged', cb),
 }
 
