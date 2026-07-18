@@ -21,8 +21,8 @@ import type {
   TranscriptionConfig,
 } from './types/bilibili'
 import type { BudgetConfig } from './types/budgets'
-import type { CalendarConfigView } from './types/calendar'
-import type { GmailConfigView } from './types/gmail'
+import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './types/calendar'
+import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } from './types/gmail'
 import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './types/mcp'
 import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './types/provider'
 import type { SkillMutationResult } from './types/skill'
@@ -33,19 +33,34 @@ import type {
   AnalyzeThreadResult,
   ArtifactEntry,
   BudgetsSetResult,
+  CalendarLocalInput,
+  CalendarSetResult,
+  GmailSetResult,
+  GmailThreadAnalysis,
   MacPermissions,
   PermissionDecision,
   ProvidersAddResult,
   ProvidersFetchModelInfoResult,
   ProvidersSetResult,
   ProvidersTestResult,
+  ThreadAnalysisPayload,
   UIEvent,
+  WeatherForecastResult,
+  WeatherSetResult,
   WebSearchKeyId,
   WebSearchSetResult,
 } from './types/ui'
-import type { WeatherForecast } from './types/weather'
+import type { WeatherConfig, WeatherConfigView, WeatherForecast } from './types/weather'
 import type { WebSearchConfigView, WebSearchProviderId } from './types/web-search'
-import type { WorkbenchData } from './types/workbench'
+import type {
+  AddColumnInput,
+  CreateTaskInput,
+  MoveTaskInput,
+  RenameColumnInput,
+  UpdateTaskInput,
+  WorkbenchData,
+  WorkbenchMutationResult,
+} from './types/workbench'
 
 // A channel that forwards verbatim to the service: same args, same result.
 // Service signature changes propagate here without touching this file.
@@ -180,6 +195,53 @@ export type RendererIpcSignatures = {
   // ---- budgets/ipc.ts (2 channels) ----
   'budgets:get': { args: []; result: BudgetConfig }
   'budgets:set': { args: [BudgetConfig]; result: BudgetsSetResult }
+  // ---- gmail/ipc.ts (14 channels) ----
+  'gmail:getStatus': { args: []; result: GmailConfigView }
+  'gmail:setClientCreds': { args: [GmailClientCreds]; result: GmailSetResult }
+  'gmail:clearClientCreds': { args: []; result: GmailSetResult }
+  'gmail:linkAccount': { args: []; result: GmailSetResult }
+  'gmail:unlinkAccount': { args: []; result: GmailSetResult }
+  // Verified void end-to-end: service.syncNow() has no return statement (resolves
+  // undefined); no await-wrap needed in the Task 2 preload switch.
+  'gmail:syncNow': { args: []; result: void }
+  'gmail:listRecent': { args: [{ limit: number; label?: string }]; result: GmailThread[] }
+  'gmail:getThread': { args: [string]; result: { thread: GmailThread; messages: GmailMessage[] } | null }
+  'gmail:search': { args: [string, number]; result: GmailThread[] }
+  'gmail:getThreadAnalysis': { args: [string]; result: GmailThreadAnalysis | null }
+  'gmail:saveThreadAnalysis': { args: [string, ThreadAnalysisPayload]; result: void }
+  'gmail:analyzedThreadIds': { args: []; result: string[] }
+  'gmail:markThreadRead': { args: [string]; result: void }
+  'gmail:listInboxPage': { args: [number]; result: { threads: GmailThread[]; total: number } }
+  // ---- calendar/ipc.ts (10 channels) ----
+  'calendar:getStatus': { args: []; result: CalendarConfigView }
+  'calendar:setClientCreds': { args: [CalendarClientCreds]; result: CalendarSetResult }
+  'calendar:clearClientCreds': { args: []; result: CalendarSetResult }
+  'calendar:linkAccount': { args: []; result: CalendarSetResult }
+  'calendar:unlinkAccount': { args: []; result: CalendarSetResult }
+  // Verified void end-to-end: service.syncNow() has no return statement (resolves
+  // undefined); no await-wrap needed in the Task 2 preload switch.
+  'calendar:syncNow': { args: []; result: void }
+  'calendar:listInRange': { args: [number, number]; result: CalendarEvent[] }
+  'calendar:createLocal': { args: [CalendarLocalInput]; result: CalendarEvent }
+  'calendar:updateLocal': { args: [string, Partial<CalendarLocalInput>]; result: CalendarEvent | null }
+  'calendar:deleteLocal': { args: [string]; result: boolean }
+  // ---- weather/ipc.ts (3 channels) ----
+  'weather:getConfig': { args: []; result: WeatherConfigView }
+  'weather:setConfig': { args: [WeatherConfig]; result: WeatherSetResult }
+  'weather:getForecast': { args: [number | null, number | null]; result: WeatherForecastResult }
+  // ---- workbench/ipc.ts (11 channels; zod-validated handlers — the invalid
+  // branch returns { ok: false, message }, assignable to WorkbenchMutationResult) ----
+  'workbench:getAll': { args: []; result: WorkbenchData }
+  'workbench:createTask': { args: [CreateTaskInput]; result: WorkbenchMutationResult }
+  'workbench:updateTask': { args: [string, UpdateTaskInput]; result: WorkbenchMutationResult }
+  'workbench:completeTask': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:reopenTask': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:deleteTask': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:moveTask': { args: [MoveTaskInput]; result: WorkbenchMutationResult }
+  'workbench:addColumn': { args: [AddColumnInput]; result: WorkbenchMutationResult }
+  'workbench:renameColumn': { args: [RenameColumnInput]; result: WorkbenchMutationResult }
+  'workbench:deleteColumn': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:reorderColumns': { args: [string[]]; result: WorkbenchMutationResult }
 }
 export type RendererIpcChannel = keyof RendererIpcSignatures
 

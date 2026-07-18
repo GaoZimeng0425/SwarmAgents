@@ -37,4 +37,15 @@ describe('RendererIpcSignatures', () => {
       import('./types/ui').BudgetsSetResult
     >()
   })
+
+  it('plan-3 domain entries model the wire', () => {
+    expectTypeOf<RendererIpcSignatures['gmail:search']['args']>().toEqualTypeOf<[string, number]>()
+    expectTypeOf<RendererIpcSignatures['calendar:updateLocal']['args']>().toEqualTypeOf<
+      [string, Partial<import('./types/ui').CalendarLocalInput>]
+    >()
+    expectTypeOf<RendererIpcSignatures['weather:getForecast']['args']>().toEqualTypeOf<[number | null, number | null]>()
+    expectTypeOf<RendererIpcSignatures['workbench:createTask']['result']>().toEqualTypeOf<
+      import('./types/workbench').WorkbenchMutationResult
+    >()
+  })
 })
