@@ -5,14 +5,12 @@
 // Mirrors gmail/ipc.ts; broadcasts calendar:stateChanged to all windows.
 import { createLogger } from '@shared/logger'
 import type { CalendarClientCreds, MainMethod, MainMethodSignatures } from '@swarm/protocol'
-import { BrowserWindow, ipcMain } from 'electron'
 
+import { createIpcRegistrar, sendToAllWindows } from '../ipc/wire'
 import type { LocalEventInput } from './cache'
 import type { Service } from './service'
 
 const log = createLogger({ process: 'main' }).child({ component: 'calendar-ipc' })
-
-const STATE_CHANGED = 'calendar:stateChanged'
 
 type CalendarMethod = Extract<MainMethod, `calendar.${string}`>
 export type RpcHandlers = {
@@ -24,27 +22,26 @@ export function wireCalendarIpc(args: { service: Service }): {
   rpcHandlers: RpcHandlers
 } {
   const { service } = args
+  const ipc = createIpcRegistrar()
 
   const unsubscribe = service.onStateChanged((view) => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(STATE_CHANGED, view)
-    }
+    sendToAllWindows('calendar:stateChanged', view)
   })
 
-  ipcMain.handle('calendar:getStatus', () => service.getView())
-  ipcMain.handle('calendar:setClientCreds', (_e, creds: CalendarClientCreds) => service.setClientCreds(creds))
-  ipcMain.handle('calendar:clearClientCreds', () => service.clearClientCreds())
-  ipcMain.handle('calendar:linkAccount', () => service.linkAccount())
-  ipcMain.handle('calendar:unlinkAccount', () => service.unlinkAccount())
-  ipcMain.handle('calendar:syncNow', () => service.syncNow())
-  ipcMain.handle('calendar:listInRange', (_e, fromMs: number, toMs: number) =>
+  ipc.handle('calendar:getStatus', () => service.getView())
+  ipc.handle('calendar:setClientCreds', (_e, creds: CalendarClientCreds) => service.setClientCreds(creds))
+  ipc.handle('calendar:clearClientCreds', () => service.clearClientCreds())
+  ipc.handle('calendar:linkAccount', () => service.linkAccount())
+  ipc.handle('calendar:unlinkAccount', () => service.unlinkAccount())
+  ipc.handle('calendar:syncNow', () => service.syncNow())
+  ipc.handle('calendar:listInRange', (_e, fromMs: number, toMs: number) =>
     service.listInRange(Number(fromMs), Number(toMs))
   )
-  ipcMain.handle('calendar:createLocal', (_e, input: LocalEventInput) => service.createLocal(input))
-  ipcMain.handle('calendar:updateLocal', (_e, id: string, patch: Partial<LocalEventInput>) =>
+  ipc.handle('calendar:createLocal', (_e, input: LocalEventInput) => service.createLocal(input))
+  ipc.handle('calendar:updateLocal', (_e, id: string, patch: Partial<LocalEventInput>) =>
     service.updateLocal(String(id), patch)
   )
-  ipcMain.handle('calendar:deleteLocal', (_e, id: string) => service.deleteLocal(String(id)))
+  ipc.handle('calendar:deleteLocal', (_e, id: string) => service.deleteLocal(String(id)))
 
   const DAY_MS = 24 * 60 * 60 * 1000
   const rpcHandlers: RpcHandlers = {
@@ -62,22 +59,10 @@ export function wireCalendarIpc(args: { service: Service }): {
 
   log.info({ msg: 'calendar IPC wired' })
 
-  const channels = [
-    'calendar:getStatus',
-    'calendar:setClientCreds',
-    'calendar:clearClientCreds',
-    'calendar:linkAccount',
-    'calendar:unlinkAccount',
-    'calendar:syncNow',
-    'calendar:listInRange',
-    'calendar:createLocal',
-    'calendar:updateLocal',
-    'calendar:deleteLocal',
-  ]
   return {
     dispose() {
       unsubscribe()
-      for (const ch of channels) ipcMain.removeHandler(ch)
+      ipc.dispose()
     },
     rpcHandlers,
   }
