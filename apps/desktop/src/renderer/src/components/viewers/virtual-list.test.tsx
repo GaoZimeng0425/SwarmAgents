@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { StickToBottomList, useStickToBottom, useStickToBottomList } from './stick-to-bottom-list'
+import { useStickToBottom, useVirtualList, VirtualList } from './virtual-list'
 
 afterEach(() => {
   cleanup()
@@ -110,76 +110,34 @@ describe('useStickToBottom', () => {
 
 // A consumer that reads the context, like a "scroll to latest" button would.
 function ContextProbe() {
-  const { isAtBottom } = useStickToBottomList()
+  const { isAtBottom } = useVirtualList()
   return <div data-at-bottom={isAtBottom ? '1' : '0'} data-testid="probe" />
 }
 
-// useStickToBottomList must throw when called outside the provider.
+// useVirtualList must throw when called outside the provider.
 function ThrowingConsumer() {
-  useStickToBottomList()
+  useVirtualList()
   return null
 }
 
-describe('StickToBottomList', () => {
-  it('renders the ScrollArea, its items, and exposes context to children', () => {
+describe('VirtualList', () => {
+  it('renders its native scroller, items, and exposes context to children', () => {
     render(
-      <StickToBottomList
-        className="h-[600px]"
-        getKey={(s) => s}
-        items={['one', 'two']}
-        renderItem={(s) => <div>{s}</div>}
-      >
+      <VirtualList className="h-[600px]" getKey={(s) => s} items={['one', 'two']} renderItem={(s) => <div>{s}</div>}>
         <ContextProbe />
-      </StickToBottomList>
+      </VirtualList>
     )
-    expect(document.querySelector('[data-slot="scroll-area"]')).not.toBeNull()
+    // Native scroller (no base-ui ScrollArea) — assert by its data attribute.
+    expect(document.querySelector('[data-virtual-scroller]')).not.toBeNull()
     expect(screen.getByText('one')).toBeInTheDocument()
     // Initial state is stuck at the bottom.
     expect(screen.getByTestId('probe').getAttribute('data-at-bottom')).toBe('1')
   })
 
-  it('throws when useStickToBottomList is called outside the provider', () => {
+  it('throws when useVirtualList is called outside the provider', () => {
     // Suppress the expected console.error from React for the thrown render.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    expect(() => render(<ThrowingConsumer />)).toThrow(/useStickToBottomList/)
+    expect(() => render(<ThrowingConsumer />)).toThrow(/useVirtualList/)
     spy.mockRestore()
-  })
-})
-
-function ScrollToKeyProbe({ targetKey }: { targetKey: string }) {
-  const { scrollToKey } = useStickToBottomList()
-  useEffect(() => {
-    scrollToKey(targetKey)
-  }, [targetKey, scrollToKey])
-  return null
-}
-
-describe('StickToBottomList.scrollToKey', () => {
-  it('exposes scrollToKey and calling it for a known key does not throw', () => {
-    expect(() =>
-      render(
-        <StickToBottomList
-          getKey={(it: { id: string }) => it.id}
-          items={[{ id: 'a' }, { id: 'b' }, { id: 'c' }]}
-          renderItem={(it: { id: string }) => <div>{it.id}</div>}
-        >
-          <ScrollToKeyProbe targetKey="b" />
-        </StickToBottomList>
-      )
-    ).not.toThrow()
-  })
-
-  it('scrollToKey for an unknown key is a no-op (does not throw)', () => {
-    expect(() =>
-      render(
-        <StickToBottomList
-          getKey={(it: { id: string }) => it.id}
-          items={[{ id: 'a' }]}
-          renderItem={(it: { id: string }) => <div>{it.id}</div>}
-        >
-          <ScrollToKeyProbe targetKey="missing" />
-        </StickToBottomList>
-      )
-    ).not.toThrow()
   })
 })
