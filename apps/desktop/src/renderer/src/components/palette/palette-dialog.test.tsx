@@ -138,10 +138,12 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
 }))
 
-// react-hotkeys registers the global ⌘K listener in SessionSearchDialog; the
-// jsdom env can't service it, so a no-op keeps the mount clean.
+// SessionSearchDialog now wires its ⌘K toggle through useCommandBindings →
+// useHotkeys. The jsdom env can't service the global listener cleanly, so we
+// no-op the registration hooks to keep the mount focused on palette behavior.
 vi.mock('@tanstack/react-hotkeys', () => ({
   useHotkey: () => {},
+  useHotkeys: () => {},
 }))
 
 import { SessionSearchDialog } from '../session-search-dialog'

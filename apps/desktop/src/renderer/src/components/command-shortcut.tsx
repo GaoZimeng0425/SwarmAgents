@@ -28,8 +28,8 @@ export function CommandShortcut({ commandId, hideWhenUnbound = true }: CommandSh
 
   return (
     <KbdGroup>
-      {tokens.map((tok, i) => (
-        <Kbd key={`${tok}-${i}`}>{tok}</Kbd>
+      {tokens.map((tok) => (
+        <Kbd key={tok}>{tok}</Kbd>
       ))}
     </KbdGroup>
   )

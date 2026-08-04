@@ -1,12 +1,24 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCommandBindingsStore } from '@/stores/command-bindings'
 import { useCommandScope } from '@/stores/command-scope'
 import { useCommandBindings } from './use-command-bindings'
+
+// jsdom's userAgent is "Mozilla/5.0 (darwin) …", which does NOT contain "mac",
+// so TanStack's detectPlatform() mis-detects it as linux and resolves `Mod` to
+// Control instead of Meta. In the real Electron renderer on macOS the UA
+// contains "Macintosh", so Mod resolves to ⌘ (metaKey). Force a macOS UA here
+// so `Mod+K` is matched by `metaKey:true`, matching production behavior.
+beforeAll(() => {
+  Object.defineProperty(window.navigator, 'userAgent', {
+    configurable: true,
+    value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+  })
+})
 
 // A host component that wires a handler for one command, so we can assert the
 // real TanStack listener fires on a document-level keydown.
@@ -34,7 +46,7 @@ describe('useCommandBindings', () => {
   it('fires the handler when its hotkey is pressed', () => {
     const onCommand = vi.fn()
     render(<Harness onCommand={onCommand} />)
-    // search.toggle binds to Mod+K; on jsdom, metaKey:true models the Mod chord.
+    // search.toggle binds to Mod+K; on macOS Mod is ⌘, so metaKey:true fires it.
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
     expect(onCommand).toHaveBeenCalledTimes(1)
   })
@@ -43,12 +55,18 @@ describe('useCommandBindings', () => {
     const onCommand = vi.fn()
     render(<Harness onCommand={onCommand} />)
     // Push a non-global scope; search.toggle is scoped to 'global', so it must
-    // be suppressed while a dialog is open.
-    useCommandScope.getState().pushScope('dialog')
+    // be suppressed while a dialog is open. Wrap the external store mutation in
+    // act() so React flushes the re-render that syncs `enabled: false` onto the
+    // TanStack handle before the keydown fires.
+    act(() => {
+      useCommandScope.getState().pushScope('dialog')
+    })
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
     expect(onCommand).not.toHaveBeenCalled()
     // Popping restores global scope and the command fires again.
-    useCommandScope.getState().popScope('dialog')
+    act(() => {
+      useCommandScope.getState().popScope('dialog')
+    })
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
     expect(onCommand).toHaveBeenCalledTimes(1)
   })
