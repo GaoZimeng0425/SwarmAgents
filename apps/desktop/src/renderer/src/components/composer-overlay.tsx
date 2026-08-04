@@ -1,10 +1,10 @@
 import type { PermissionDecision, PlanTodo } from '@swarm/protocol'
 import { Button } from '@swarm/ui'
-import { useHotkey } from '@tanstack/react-hotkeys'
 import { XIcon, ZapIcon } from 'lucide-react'
 
 import { PermissionCard } from '@/components/permission-card'
 import { PlanStatusBar } from '@/components/plan-status-bar'
+import { useCommandBindings } from '@/hooks/use-command-bindings'
 import type { PermissionPrompt } from '@/stores/permission'
 
 type QueuedItem = { id: string; sessionId: string; prompt: string }
@@ -39,14 +39,15 @@ export function ComposerOverlay({
 }: Props): React.JSX.Element | null {
   const top = prompts[0]
 
-  // One Escape hotkey for the whole stack: skip the top-most prompt. Kept
-  // registered but disabled when nothing is pinned (still visible in devtools).
-  // Don't prevent/stop the event so any nested Escape handlers still react, as
-  // the previous window listener did.
-  useHotkey('Escape', () => top && onDecide(top.actionId, 'skip'), {
-    enabled: Boolean(top),
-    preventDefault: false,
-    stopPropagation: false,
+  // One Escape command for the whole stack: skip the top-most prompt. The
+  // binding lives in lib/commands/bindings.ts (`permission.skipTop`) with
+  // preventDefault:false / stopPropagation:false so nested Escape handlers
+  // still react, as the previous window listener did. When nothing is pinned
+  // (`top` is undefined) the handler is a no-op rather than unregistering.
+  useCommandBindings({
+    'permission.skipTop': () => {
+      if (top) onDecide(top.actionId, 'skip')
+    },
   })
 
   // Nothing to pin unless there's a prompt, a queued turn, or a live plan with
