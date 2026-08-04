@@ -79,6 +79,14 @@ export function useAnalysisEventBridge(enabled = true): void {
           result: { summary: e.summary, todos: e.todos, suggest: e.suggest },
           streamText: e.summary,
         })
+        // Persist the completed analysis so it survives reload/restart. The other
+        // flows (article/bilibili/trending) persist server-side via their own
+        // complete handlers; gmail thread analysis is cached locally via this call.
+        void window.swarm.gmail.saveThreadAnalysis(e.threadId, {
+          summary: e.summary,
+          todos: e.todos,
+          suggest: e.suggest,
+        })
         void qc.invalidateQueries({ queryKey: ['gmail', 'threadAnalysis', e.threadId] })
         void qc.invalidateQueries({ queryKey: ['gmail', 'analyzedThreadIds'] })
       } else if (e.kind === 'gmail.threadAnalysisError') {
