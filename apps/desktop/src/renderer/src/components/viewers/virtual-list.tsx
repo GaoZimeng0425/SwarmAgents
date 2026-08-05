@@ -47,19 +47,55 @@ export function useStickToBottom(
   // animation passes through non-bottom positions whose scroll events would
   // otherwise clear `stuckRef` mid-flight and drop a growing tail.
   const smoothScrollingRef = useRef(false)
+  // True while the primary mouse button is held down. Used by isSelecting() to
+  // recognise text selection (drag-select expands the selection and may nudge
+  // scrollTop upward) and ignore the resulting scroll events, so stick-to-bottom
+  // isn't dropped just because the user selected text in the thread.
+  const mouseDownRef = useRef(false)
+
+  useEffect(() => {
+    const set = (v: boolean) => () => {
+      mouseDownRef.current = v
+    }
+    document.addEventListener('mousedown', set(true))
+    document.addEventListener('mouseup', set(false))
+    // A click always ends a drag-select (mouseup may be missed if it happens
+    // off-window); clear so a leftover flag can't suppress later real scrolls.
+    document.addEventListener('click', set(false))
+    return () => {
+      document.removeEventListener('mousedown', set(true))
+      document.removeEventListener('mouseup', set(false))
+      document.removeEventListener('click', set(false))
+    }
+  }, [])
+
+  // True when the user is currently drag-selecting text inside the scroller.
+  // Selection extension can move scrollTop; those scrolls are side-effects of
+  // selection, not a user intent to leave the bottom — so onScroll skips its
+  // judgement while this returns true, keeping the prior stuck state intact.
+  const isSelecting = useCallback(() => {
+    if (!mouseDownRef.current) return false
+    const el = viewportRef.current
+    if (!el) return false
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return false
+    const range = selection.getRangeAt(0)
+    return range.commonAncestorContainer.contains(el) || el.contains(range.commonAncestorContainer)
+  }, [viewportRef])
 
   useEffect(() => {
     const el = viewportRef.current
     if (!el) return
     const onScroll = () => {
       if (smoothScrollingRef.current) return
+      if (isSelecting()) return
       const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= tolerance
       stuckRef.current = atBottom
       setIsAtBottom(atBottom)
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
-  }, [viewportRef, tolerance])
+  }, [viewportRef, tolerance, isSelecting])
 
   // Re-pin to the bottom whenever the content height changes (new message,
   // streaming tail growth, async image remeasure) — but only if still stuck.

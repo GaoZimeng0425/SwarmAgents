@@ -106,6 +106,40 @@ describe('useStickToBottom', () => {
     rerender(<Harness totalSize={900} />) // content grew while stuck
     expect(state.scrollTop).toBe(1000) // pinned to scrollHeight (=1000)
   })
+
+  it('keeps stick state while the user drag-selects text inside the scroller', () => {
+    // Drag-selecting text extends the selection and can nudge scrollTop upward;
+    // those scroll events are a side-effect of selection, not a user intent to
+    // leave the bottom — so isSelecting() must keep the prior stuck state intact.
+    const { container } = render(<Harness totalSize={100} />)
+    const vp = container.querySelector('[data-testid="vp"]') as HTMLDivElement
+    const state = mockScroll(vp, 1000, 200)
+
+    // Start stuck at the bottom.
+    fireEvent.click(container.querySelector('[data-testid="to-bottom"]')!)
+    expect(vp.getAttribute('data-at-bottom')).toBe('1')
+
+    // Simulate a drag-select: mouse down, build a selection inside the viewport.
+    fireEvent.mouseDown(document)
+    const sel = window.getSelection()!
+    const range = document.createRange()
+    range.selectNodeContents(vp)
+    sel.removeAllRanges()
+    sel.addRange(range)
+
+    // The selection expansion moves scrollTop up; without isSelecting() this
+    // would drop stick-to-bottom. The hook must ignore this scroll.
+    state.scrollTop = 0
+    fireEvent.scroll(vp)
+    expect(vp.getAttribute('data-at-bottom')).toBe('1') // still stuck
+
+    // Once the mouse is released, subsequent real scrolls are judged again.
+    sel.removeAllRanges()
+    fireEvent.mouseUp(document)
+    state.scrollTop = 0
+    fireEvent.scroll(vp)
+    expect(vp.getAttribute('data-at-bottom')).toBe('0') // unstuck as expected
+  })
 })
 
 // A consumer that reads the context, like a "scroll to latest" button would.
