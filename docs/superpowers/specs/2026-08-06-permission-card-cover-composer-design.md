@@ -187,10 +187,17 @@ Notes:
   `max-h-[50vh]` and self-scrolls. The cover is `flex flex-col`, so multiple
   cards distribute; if they exceed the box height, the inner cards scroll within
   their own `ScrollArea`. No new overflow handling needed.
-- **`PlanStatusBar` + permission at once:** plan bar floats above as today;
-  permission cover overlays only the input. The two regions do not overlap.
+- **`PlanStatusBar` + permission at once:** the cover zone is anchored to
+  `composerRef` (the wrapper holding both the overlay and `PromptInput`), so
+  while a permission prompt is pending the cover spans the whole composer box
+  including the in-flow plan bar above the input — i.e. the plan bar is dimmed
+  behind the backdrop while approval is outstanding. This is accepted UX
+  (approval is the priority; the run is paused on it; the plan bar reappears
+  once the prompt is resolved), NOT a bug. The two regions do not render
+  side-by-side; the cover takes precedence.
 - **Permission dismissed, plan still running:** cover disappears (prompts empty),
-  plan bar remains floating, input re-enables. Standard transition.
+  plan bar is visible again (it was dimmed behind the cover while the prompt was
+  pending), input re-enables. Standard transition.
 - **Escape pressed:** `permission.skipTop` skips the top prompt; if more prompts
   remain the cover stays, otherwise it clears. Unchanged behavior, new visual.
 
@@ -217,8 +224,9 @@ branches to unit-test):
    cannot submit. **(core)**
 4. Two permission prompts → both in cover, stack + scroll; resolve top → next
    shows; resolve last → input live. **(stacking)**
-5. Plan running + permission → plan bar floats above, cover overlays only
-   input. **(regions coexist)**
+5. Plan running + permission → cover spans the whole composer box (plan bar is
+   dimmed behind the backdrop while the prompt is pending). Resolving the prompt
+   re-reveals the plan bar. **(precedence, not coexistence)**
 6. Escape with permission pending → skips top prompt per existing
    `permission.skipTop` binding. **(keyboard path intact)**
 7. Hero variant (home/session index) → no overlay, no `relative` side effects,

@@ -321,7 +321,7 @@ Verify:
 - [ ] **Step 6: Plan + permission simultaneously**
 
 Have a plan running AND a permission prompt pending.
-Verify: plan progress bar floats above the composer (NOT covered). Permission card overlays only the input. The two regions do not visually collide.
+Verify: cover spans the whole composer box (the plan bar is dimmed behind the backdrop while the prompt is pending). Resolving the prompt re-reveals the plan bar. This is accepted UX — approval is the priority and the run is paused on it; the plan bar reappears on resolve. (See spec edge case "PlanStatusBar + permission at once".)
 
 - [ ] **Step 7: Escape skips top prompt**
 
