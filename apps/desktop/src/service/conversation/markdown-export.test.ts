@@ -15,7 +15,10 @@ const custom = (customType: string, data: unknown): EntryRow =>
 
 describe('buildMarkdown', () => {
   it('renders an assistant message as a bold Agent line', () => {
-    const out = buildMarkdown([msg({ role: 'user', content: 'g' }), msg({ role: 'assistant', content: 'Hello there.' })])
+    const out = buildMarkdown([
+      msg({ role: 'user', content: 'g' }),
+      msg({ role: 'assistant', content: 'Hello there.' }),
+    ])
     expect(out).toContain('**Agent:**')
     expect(out).toContain('Hello there.')
   })

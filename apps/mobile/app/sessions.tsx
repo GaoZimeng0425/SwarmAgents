@@ -41,7 +41,7 @@ export default function SessionsScreen(): React.JSX.Element {
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: '#e0e0e0', fontSize: 15, fontWeight: '500' }} numberOfLines={1}>
+          <Text numberOfLines={1} style={{ color: '#e0e0e0', fontSize: 15, fontWeight: '500' }}>
             {item.title ?? '未命名会话'}
           </Text>
           <Text style={{ color: '#888', fontSize: 12 }}>
@@ -88,21 +88,21 @@ export default function SessionsScreen(): React.JSX.Element {
         {/* Loading */}
         {loading && sessions.length === 0 ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="large" color="#888" />
+            <ActivityIndicator color="#888" size="large" />
             <Text style={{ color: '#888', fontSize: 14, marginTop: 8 }}>加载会话…</Text>
           </View>
         ) : sessions.length === 0 ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#666', fontSize: 14 }}>
-              {status === 'error' ? '连接断开,请重连' : '暂无会话'}
-            </Text>
+            <Text style={{ color: '#666', fontSize: 14 }}>{status === 'error' ? '连接断开,请重连' : '暂无会话'}</Text>
           </View>
         ) : (
           <FlatList
             data={sessions}
             ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#2a2a2a' }} />}
             keyExtractor={(item) => item.id}
-            refreshControl={<RefreshControl onRefresh={() => void fetchSessions()} refreshing={loading} tintColor="#888" />}
+            refreshControl={
+              <RefreshControl onRefresh={() => void fetchSessions()} refreshing={loading} tintColor="#888" />
+            }
             renderItem={renderItem}
           />
         )}

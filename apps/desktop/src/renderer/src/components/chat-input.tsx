@@ -602,6 +602,7 @@ export function ChatInput({
                                       commitThinkingIndex(current + 1)
                                     }
                                   }}
+                                  onPointerCancel={() => setDragging(false)}
                                   onPointerDown={(e) => {
                                     e.stopPropagation()
                                     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -616,7 +617,6 @@ export function ChatInput({
                                     ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
                                     setDragging(false)
                                   }}
-                                  onPointerCancel={() => setDragging(false)}
                                   ref={stepTrackRef}
                                   role="slider"
                                   tabIndex={0}

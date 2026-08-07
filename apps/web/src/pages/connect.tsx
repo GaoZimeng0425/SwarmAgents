@@ -24,7 +24,7 @@ export function ConnectPage(): React.JSX.Element {
       return
     }
     const ok = await connect(cfg)
-    if (ok) navigate('/sessions')
+    if (ok) await navigate('/sessions')
   }
 
   return (

@@ -3,13 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [
-        "apps/desktop/out/**",
-        "apps/desktop/dist/**",
-        "apps/extension/.output/**",
-        "dist/**",
-        "out/**"
-      ]
+      "outputs": ["apps/desktop/out/**", "apps/desktop/dist/**", "apps/extension/.output/**", "dist/**", "out/**"]
     },
     "test": {},
     "typecheck": {},

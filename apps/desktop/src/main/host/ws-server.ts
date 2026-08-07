@@ -1,4 +1,4 @@
-import { WebSocket, WebSocketServer } from 'ws'
+import { type WebSocket, WebSocketServer } from 'ws'
 
 export type WsServerLog = { info: (m: unknown) => void; warn: (m: unknown) => void; error: (m: unknown) => void }
 

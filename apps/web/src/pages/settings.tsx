@@ -17,7 +17,7 @@ export function SettingsPage(): React.JSX.Element {
 
   const handleReconnect = async (): Promise<void> => {
     const ok = await reconnect()
-    if (!ok) navigate('/connect')
+    if (!ok) await navigate('/connect')
   }
 
   return (

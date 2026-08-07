@@ -140,9 +140,7 @@ export default function PairScreen(): React.JSX.Element {
             />
           </Input>
 
-          {(localError || error) && (
-            <Text className="text-error-500 text-sm">{localError ?? error}</Text>
-          )}
+          {(localError || error) && <Text className="text-error-500 text-sm">{localError ?? error}</Text>}
 
           <Button
             isDisabled={!manualInput.trim() || status === 'connecting'}
