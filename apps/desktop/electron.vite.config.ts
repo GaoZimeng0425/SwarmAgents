@@ -111,6 +111,15 @@ export default defineConfig(({ command }) => ({
         },
       },
     },
+    css: {
+      transformer: 'lightningcss',
+      lightningcss: {
+        // Packed semver (major<<16). Electron 44.2.0 runs Chromium
+        // 152.0.7977.76 — target the exact engine that renders the app, so
+        // lightningcss never downlevels or prefixes what it already supports.
+        targets: { chrome: 152 << 16 },
+      },
+    },
     plugins: [
       tanstackRouter({
         target: 'react',

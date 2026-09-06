@@ -26,6 +26,7 @@
     "@types/turndown": "^5.0.6",
     "@wxt-dev/module-react": "latest",
     "jsdom": "^29.1.1",
+    "lightningcss": "catalog:",
     "tailwindcss": "catalog:",
     "tw-animate-css": "catalog:",
     "typescript": "catalog:",
