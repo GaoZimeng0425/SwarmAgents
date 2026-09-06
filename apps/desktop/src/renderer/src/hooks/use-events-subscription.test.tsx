@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 
 import type { UIEvent } from '@swarm/protocol'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'

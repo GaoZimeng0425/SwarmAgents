@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 
 import '@testing-library/jest-dom/vitest'
 import { useEffect, useRef } from 'react'
@@ -12,7 +12,7 @@ afterEach(() => {
 })
 
 // Mount the hook against a real div so the ref + scroll listener attach. We mock
-// scrollHeight/clientHeight/scrollTop on the instance (jsdom does no layout, so
+// scrollHeight/clientHeight/scrollTop on the instance (the test DOM does no layout, so
 // these are 0 and scrollTop assignment is a no-op without our override).
 function Harness({ totalSize, tolerance }: { totalSize: number; tolerance?: number }) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -26,8 +26,8 @@ function Harness({ totalSize, tolerance }: { totalSize: number; tolerance?: numb
 }
 
 // Install scroll-dimension mocks on a mounted element. Returns a handle to read/
-// drive scrollTop (the setter records into `state.scrollTop`). jsdom in this env
-// has no Element.scrollTo, so install one that applies the `top` offset — the
+// drive scrollTop (the setter records into `state.scrollTop`). The test DOM in
+// this env has no Element.scrollTo, so install one that applies the `top` offset — the
 // hook calls el.scrollTo({ top, behavior }) from scrollToBottom().
 function mockScroll(el: HTMLElement, scrollHeight: number, clientHeight: number) {
   const state = { scrollTop: 0 }

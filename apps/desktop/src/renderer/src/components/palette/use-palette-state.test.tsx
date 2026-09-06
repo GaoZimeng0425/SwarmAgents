@@ -1,5 +1,5 @@
 // apps/desktop/src/renderer/src/components/palette/use-palette-state.test.tsx
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 //
 // Focused unit tests for the usePaletteState controller hook. The brief said
 // "no separate test, covered by Task 9", but the keyboard handler has enough

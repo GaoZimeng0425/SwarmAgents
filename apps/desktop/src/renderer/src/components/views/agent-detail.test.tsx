@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 
 import '@testing-library/jest-dom/vitest'
 import type { AgentDefinition } from '@swarm/protocol'

@@ -1,5 +1,5 @@
 // apps/desktop/src/renderer/src/components/palette/palette-dialog.test.tsx
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 //
 // Integration smoke test for the ⌘K palette. Renders the full
 // <SessionSearchDialog/> (which mounts <PaletteDialog/>) with all data hooks,
@@ -139,7 +139,7 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 // react-hotkeys registers the global ⌘K listener in SessionSearchDialog; the
-// jsdom env can't service it, so a no-op keeps the mount clean.
+// happy-dom env can't service it, so a no-op keeps the mount clean.
 vi.mock('@tanstack/react-hotkeys', () => ({
   useHotkey: () => {},
 }))

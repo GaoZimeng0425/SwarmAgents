@@ -10,7 +10,6 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,tsx}', '../../packages/*/src/**/*.test.ts'],
     environment: 'node',
-    environmentMatchGlobs: [['src/renderer/**', 'jsdom']],
     setupFiles: ['./src/renderer/test-setup.ts'],
     testTimeout: 10_000,
     pool: 'forks',

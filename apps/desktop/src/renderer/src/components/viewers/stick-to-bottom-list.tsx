@@ -26,7 +26,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 
 // `useStickToBottom` is exported for direct unit testing of its state machine.
-// It reads/writes the scroll element's geometry directly; in jsdom those are 0,
+// It reads/writes the scroll element's geometry directly; in the test DOM those are 0,
 // so tests mock scrollHeight/clientHeight/scrollTop on the element instance.
 export function useStickToBottom(
   viewportRef: React.RefObject<HTMLDivElement | null>,
@@ -161,8 +161,8 @@ export function StickToBottomList<T>({
   const scrollToKey = useCallback(
     (key: string, align: 'start' | 'center' | 'end' = 'center') => {
       // All rows are mounted (no virtualization), so the element is always
-      // present for a known key. Optional-chain the method: jsdom has no
-      // scrollIntoView, and the test only asserts "does not throw".
+      // present for a known key. Optional-chain the method: the test DOM may
+      // lack scrollIntoView, and the test only asserts "does not throw".
       itemEls.get(String(key))?.scrollIntoView?.({ block: align, behavior: 'smooth' })
     },
     [itemEls]

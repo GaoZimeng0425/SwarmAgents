@@ -2,7 +2,7 @@ import { Readability } from '@mozilla/readability'
 import { ArticleSource } from '@swarm/protocol'
 import TurndownService from 'turndown'
 
-// Pure extractor: takes a Document + Location (both injectable for tests via jsdom)
+// Pure extractor: takes a Document + Location (both injectable for tests via happy-dom)
 // and returns a cleaned ArticleSource, or null if the page is not an article.
 // Readability is lenient and will happily "extract" near-empty pages (e.g. a
 // lone "<p>hi</p>"), yielding an empty title. We validate the candidate against

@@ -1,5 +1,5 @@
 // apps/desktop/src/renderer/src/hooks/use-palette-data.test.tsx
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'

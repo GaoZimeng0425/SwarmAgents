@@ -8,6 +8,7 @@ import {
   type ThinkingLevel,
 } from '@earendil-works/pi-agent-core'
 import type { Api, ImageContent, Model } from '@earendil-works/pi-ai'
+import { streamSimple } from '@earendil-works/pi-ai/compat'
 import { createLogger } from '@shared/logger'
 import type { Attachment } from '@swarm/protocol'
 
@@ -92,7 +93,9 @@ export const runOneShot: OneShotRunner = async (spec, ports) => {
       messages: [],
     },
     convertToLlm,
-    ...(spec.streamFn ? { streamFn: spec.streamFn } : {}),
+    // pi 0.85 requires an explicit StreamFn; streamSimple is pi-ai's
+    // provider-dispatching default. Tests inject a fake via spec.streamFn.
+    streamFn: spec.streamFn ?? streamSimple,
     getApiKey: () => spec.apiKey,
     // Backstop for reasoning-only loops (mirrors SessionAgent / the old engine).
     prepareNextTurn: () => {

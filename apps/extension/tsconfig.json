@@ -2,6 +2,9 @@
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
     "jsx": "react-jsx",
+    // wxt >= 0.21 turns this on in its generated tsconfig; the code here was
+    // written against the previous default. Re-opt-in is a separate migration.
+    "noUncheckedIndexedAccess": false,
     "paths": {
       "@swarm/protocol": ["../../packages/protocol/src"],
       "@swarm/protocol/*": ["../../packages/protocol/src/*"],

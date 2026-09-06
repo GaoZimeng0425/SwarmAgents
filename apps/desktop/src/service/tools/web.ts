@@ -3,7 +3,7 @@ import { Type } from '@earendil-works/pi-ai'
 import { Readability } from '@mozilla/readability'
 import { createLogger } from '@shared/logger'
 import type { WebSearchInjection } from '@swarm/protocol'
-import { JSDOM } from 'jsdom'
+import { Window } from 'happy-dom'
 import TurndownService from 'turndown'
 
 import type { ToolRisk, ToolRunContext, ToolSpec } from './registry'
@@ -49,11 +49,14 @@ function fetchRisk(args: unknown): ToolRisk {
 // links. Falls back to the full body when Readability can't isolate content
 // (e.g. very short pages).
 export function htmlToMarkdown(html: string, url: string): string {
-  const dom = new JSDOM(html, { url })
+  const window = new Window({ url })
+  window.document.write(html)
   let title = ''
-  let contentHtml = dom.window.document.body?.innerHTML ?? html
+  let contentHtml = window.document.body?.innerHTML ?? html
   try {
-    const article = new Readability(dom.window.document).parse()
+    // happy-dom's Document is structurally close to but not identical with the
+    // DOM lib type Readability expects; it satisfies Readability at runtime.
+    const article = new Readability(window.document as unknown as Document).parse()
     if (article?.content) {
       contentHtml = article.content
       title = article.title ?? ''
@@ -251,7 +254,9 @@ const ddgProvider: SearchProvider = {
       headers: { 'user-agent': USER_AGENT },
     })
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-    const doc = new JSDOM(await res.text()).window.document
+    const window = new Window()
+    window.document.write(await res.text())
+    const doc = window.document
     const out: SearchResult[] = []
     for (const el of Array.from(doc.querySelectorAll('.result'))) {
       const a = el.querySelector('a.result__a')
