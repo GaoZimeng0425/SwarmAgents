@@ -64,22 +64,22 @@ app.whenReady().then(async () => {
   ensureSwarmDirs()
 
   const providers = await initProviders()
-  log.info({ msg: 'providers initialised' })
+  log.info({ msg: 'providers initialized' })
 
   const mcpServers = await initMcpServers()
-  log.info({ msg: 'mcp servers initialised' })
+  log.info({ msg: 'mcp servers initialized' })
 
   const webSearch = await initWebSearch()
-  log.info({ msg: 'web search config initialised' })
+  log.info({ msg: 'web search config initialized' })
 
   const budgets = await initBudgets()
-  log.info({ msg: 'budget config initialised' })
+  log.info({ msg: 'budget config initialized' })
 
   const workbench = await initWorkbench()
-  log.info({ msg: 'workbench initialised' })
+  log.info({ msg: 'workbench initialized' })
 
   const trending = initTrending()
-  log.info({ msg: 'trending IPC initialised' })
+  log.info({ msg: 'trending IPC initialized' })
 
   const bilibili = initBilibili({
     getInjection: () => providers.service.getInjection(),
@@ -87,16 +87,16 @@ app.whenReady().then(async () => {
     // ready (below), but a user never triggers analysis before that.
     analyzeBilibili: (req) => serviceClient.analyzeBilibili(req),
   })
-  log.info({ msg: 'bilibili IPC initialised' })
+  log.info({ msg: 'bilibili IPC initialized' })
 
   const gmail = await initGmail()
-  log.info({ msg: 'gmail sidecar initialised' })
+  log.info({ msg: 'gmail sidecar initialized' })
 
   const calendar = await initCalendar()
-  log.info({ msg: 'calendar sidecar initialised' })
+  log.info({ msg: 'calendar sidecar initialized' })
 
   const weather = await initWeather()
-  log.info({ msg: 'weather initialised' })
+  log.info({ msg: 'weather initialized' })
 
   app.on('before-quit', () => {
     providers.dispose()
