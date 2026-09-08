@@ -4,6 +4,7 @@ import type React from 'react'
 import { StrictMode } from 'react'
 import { TooltipProvider } from '@swarm/ui'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { HotkeysProvider } from '@tanstack/react-hotkeys'
 import { hotkeysDevtoolsPlugin } from '@tanstack/react-hotkeys-devtools'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
@@ -61,8 +62,10 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
         <TooltipProvider>
-          <AccentBridge />
-          <DevtoolsPanel />
+          <HotkeysProvider defaultOptions={{ hotkey: { preventDefault: true } }}>
+            <AccentBridge />
+            <DevtoolsPanel />
+          </HotkeysProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

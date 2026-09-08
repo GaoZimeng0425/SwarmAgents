@@ -391,7 +391,7 @@ function createSegmentRenderer(opts: {
 }
 
 // Shared renderer + attachment-preview sheet. Used by both TaskTimeline
-// (read-only results card) and the StickToBottomList-based chat thread.
+// (read-only results card) and the VirtualList-based chat thread.
 export function useTimelineRenderer(opts: {
   busy: boolean
   onSend?: (text: string) => void

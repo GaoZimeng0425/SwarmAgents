@@ -443,8 +443,8 @@ export function ChatInput({
               // distinct from the page-colored bg-card in dark mode), one hairline
               // border, and a real drop shadow so it floats — full-width, no session
               // padding or max-w-3xl. Matches the Hi-fi design's elevated input box.
-              '[&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-secondary [&_[data-slot=input-group]]:shadow-black/20 [&_[data-slot=input-group]]:shadow-lg'
-            : 'mx-auto max-w-3xl [&_[data-slot=input-group]]:rounded-xl'
+              'relative [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-secondary [&_[data-slot=input-group]]:shadow-black/20 [&_[data-slot=input-group]]:shadow-lg'
+            : 'relative mx-auto max-w-3xl [&_[data-slot=input-group]]:rounded-xl'
         }
         ref={composerRef}
       >
@@ -602,6 +602,7 @@ export function ChatInput({
                                       commitThinkingIndex(current + 1)
                                     }
                                   }}
+                                  onPointerCancel={() => setDragging(false)}
                                   onPointerDown={(e) => {
                                     e.stopPropagation()
                                     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -616,7 +617,6 @@ export function ChatInput({
                                     ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
                                     setDragging(false)
                                   }}
-                                  onPointerCancel={() => setDragging(false)}
                                   ref={stepTrackRef}
                                   role="slider"
                                   tabIndex={0}

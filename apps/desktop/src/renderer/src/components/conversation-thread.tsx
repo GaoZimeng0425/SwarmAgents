@@ -5,7 +5,7 @@ import { ArrowDown, MessagesSquare } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { buildThreadItems, type TimelineItem, useTimelineRenderer } from '@/components/task-transcript'
-import { StickToBottomList, useStickToBottomList } from '@/components/viewers/stick-to-bottom-list'
+import { useVirtualList, VirtualList } from '@/components/viewers/virtual-list'
 
 type Props = {
   /** Flattened render segments for the active session (buildSegments output). */
@@ -18,7 +18,7 @@ type Props = {
 
 // Self-drawn "scroll to latest" — replaces the library's ConversationScrollButton.
 function ScrollToLatest() {
-  const { isAtBottom, scrollToBottom } = useStickToBottomList()
+  const { isAtBottom, scrollToBottom } = useVirtualList()
   if (isAtBottom) return null
   return (
     <Button
@@ -69,7 +69,7 @@ export function ConversationThread({ segments, busy, onSend }: Props): React.JSX
   }
 
   return (
-    <StickToBottomList
+    <VirtualList
       className="min-h-0 flex-1"
       getKey={(it: TimelineItem) => it.key}
       items={items}
@@ -81,6 +81,6 @@ export function ConversationThread({ segments, busy, onSend }: Props): React.JSX
     >
       <ScrollToLatest />
       {sheet}
-    </StickToBottomList>
+    </VirtualList>
   )
 }

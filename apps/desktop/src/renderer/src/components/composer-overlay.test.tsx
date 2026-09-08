@@ -92,4 +92,30 @@ describe('ComposerOverlay', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /打断|interrupt/i })[1])
     expect(onInterrupt).toHaveBeenCalledWith('q2')
   })
+
+  it('renders pending permission cards inside a positioned cover layer', () => {
+    const { container } = render(
+      <ComposerOverlay onDecide={() => {}} prompts={[prompt('a')]} running={false} todos={[]} />
+    )
+    // The cover layer is the absolute-positioned wrapper that overlays the
+    // composer box. Its presence + positioning is what makes the card COVER
+    // the input rather than float above it.
+    const cover = container.querySelector('.cover-zone')
+    expect(cover).not.toBeNull()
+    expect(cover).toHaveClass('absolute', 'inset-0')
+    expect(cover).toHaveTextContent('Action requires confirmation')
+  })
+
+  it('keeps the plan progress bar in a floating zone, not the cover zone', () => {
+    const todos: PlanTodo[] = [
+      { content: 'first step', status: 'in_progress' },
+      { content: 'second step', status: 'pending' },
+    ]
+    const { container } = render(<ComposerOverlay onDecide={() => {}} prompts={[]} running todos={todos} />)
+    const cover = container.querySelector('.cover-zone')
+    expect(cover).toBeNull()
+    const floating = container.querySelector('.floating-zone')
+    expect(floating).not.toBeNull()
+    expect(floating).toHaveTextContent('第 1/2 步')
+  })
 })

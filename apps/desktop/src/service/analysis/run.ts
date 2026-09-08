@@ -135,7 +135,11 @@ export function createAnalysisRun<TSummary>(
       )
       log.info({ msg: 'analysis complete', agentId, id: req.id, status: r.status, durationMs: Date.now() - t0 })
       if (r.status === 'failed') {
-        deps.broadcaster.broadcast(events.error, { [idKey]: req.id, error: r.summary || 'analysis failed', ts: Date.now() })
+        deps.broadcaster.broadcast(events.error, {
+          [idKey]: req.id,
+          error: r.summary || 'analysis failed',
+          ts: Date.now(),
+        })
         return
       }
       if (r.status === 'cancelled') return

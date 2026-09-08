@@ -24,7 +24,12 @@ function fakeRunOneShot(opts: { text: string; card?: unknown }): OneShotRunner {
     emit({ type: 'message_start', message: { role: 'assistant' } })
     emit({ type: 'message_end', message: { role: 'assistant', content: opts.text } })
     if (opts.card !== undefined) {
-      emit({ type: 'tool_execution_start', toolCallId: 'c1', toolName: 'render_ui', args: { type: 'analysis', props: opts.card } })
+      emit({
+        type: 'tool_execution_start',
+        toolCallId: 'c1',
+        toolName: 'render_ui',
+        args: { type: 'analysis', props: opts.card },
+      })
     }
     return { status: 'completed', summary: opts.text }
   }
@@ -37,7 +42,9 @@ function run(opts: { text: string; card?: unknown }): Promise<Array<[string, unk
     agentStore: {
       get: () => ({ id: 'gmail-thread-analyst', name: 'x', description: '', systemPrompt: 's', maxIterations: 3 }),
     } as unknown as AnalyzeThreadDeps['agentStore'],
-    toolRegistry: { resolve: () => ({ tools: [], riskOf: () => 'low' }) } as unknown as AnalyzeThreadDeps['toolRegistry'],
+    toolRegistry: {
+      resolve: () => ({ tools: [], riskOf: () => 'low' }),
+    } as unknown as AnalyzeThreadDeps['toolRegistry'],
     acquireSlot: async () => () => undefined,
     callMain: async () => undefined,
     runOneShot: fakeRunOneShot(opts),

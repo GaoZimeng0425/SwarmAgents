@@ -128,7 +128,7 @@ export function TasksView({ focusTaskId: _focusTaskId }: { focusTaskId?: string 
           contextTokens={contextTokens}
           contextWindow={contextWindow}
           cwd={cwd}
-          disabled={!ready}
+          disabled={!ready || sessionPrompts.length > 0}
           executionMode={executionMode}
           onAgentTypeChange={setAgentType}
           onCwdChange={setCwd}
