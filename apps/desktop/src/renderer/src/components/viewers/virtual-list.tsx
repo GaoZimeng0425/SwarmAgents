@@ -25,6 +25,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 
@@ -84,13 +85,76 @@ type PendingSettle = {
   deadline: number
 }
 
+// Turn anchoring: when a freshly sent user message appears, the viewport jumps
+// to it (start-aligned with the previous reply peeking above) and stays pinned
+// there while the response streams in below it.
+const ANCHOR_PEEK = 64
+
+// Keys that read as "the user took over" when pressed inside the scroller.
+const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home', 'PageDown', 'PageUp', ' '])
+
+/** Anchor keys that appeared since the previous items render. The very first
+ * run (session open / whole-list hydrate) yields none, so opening a session
+ * lands at the bottom instead of jumping to an anchor. Exported for tests. */
+export function pickNewAnchors(prev: ReadonlySet<string>, next: readonly string[], hasRendered: boolean): string[] {
+  if (!hasRendered) return []
+  return next.filter((key) => !prev.has(key))
+}
+
+// Visibility tracking (Phase B): which items intersect the viewport, and which
+// scroll-anchor item owns the top of it. Backed by an IntersectionObserver over
+// the mounted rows only — visible rows are always mounted under virtualization.
+export type VirtualListVisibility = {
+  visibleKeys: readonly string[]
+  currentAnchorKey: string | null
+}
+
+const EMPTY_VISIBILITY: VirtualListVisibility = { visibleKeys: [], currentAnchorKey: null }
+
+type VisibilityStore = {
+  subscribe: (listener: () => void) => () => void
+  getSnapshot: () => VirtualListVisibility
+  hasListeners: () => boolean
+  setSnapshot: (next: VirtualListVisibility) => void
+}
+
+function sameVisibility(a: VirtualListVisibility, b: VirtualListVisibility): boolean {
+  if (a.currentAnchorKey !== b.currentAnchorKey || a.visibleKeys.length !== b.visibleKeys.length) {
+    return false
+  }
+  return a.visibleKeys.every((key, i) => key === b.visibleKeys[i])
+}
+
+function createVisibilityStore(): VisibilityStore {
+  let snapshot = EMPTY_VISIBILITY
+  const listeners = new Set<() => void>()
+  return {
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    getSnapshot: () => snapshot,
+    hasListeners: () => listeners.size > 0,
+    setSnapshot(next) {
+      if (sameVisibility(snapshot, next)) return
+      snapshot = next
+      listeners.forEach((listener) => {
+        listener()
+      })
+    },
+  }
+}
+
 // `useStickToBottom` is exported for direct unit testing of its state machine.
 // It reads/writes the scroll element's geometry directly; in jsdom those are 0,
 // so tests mock scrollHeight/clientHeight/scrollTop on the element instance.
 export function useStickToBottom(
   viewportRef: RefObject<HTMLDivElement | null>,
   totalSize: number,
-  tolerance = 4
+  tolerance = 4,
+  options?: { pinSuspenderRef?: RefObject<boolean> }
 ): { isAtBottom: boolean; scrollToBottom: (behavior?: ScrollBehavior) => void } {
   const [isAtBottom, setIsAtBottom] = useState(true)
   // True "should we pin" flag. Stays true until the user scrolls away from the
@@ -154,11 +218,14 @@ export function useStickToBottom(
   // Re-pin to the bottom whenever the content height changes (new message,
   // streaming tail growth, async image remeasure) — but only if still stuck.
   // useLayoutEffect so the assignment lands before paint (no flicker).
+  // Turn-anchor mode suspends this pin: it keeps the anchored turn's start
+  // aligned instead, so a bottom pin here would fight it every frame.
   useLayoutEffect(() => {
+    if (options?.pinSuspenderRef?.current) return
     const el = viewportRef.current
     if (!el || !stuckRef.current) return
     el.scrollTop = el.scrollHeight
-  }, [viewportRef, totalSize])
+  }, [viewportRef, totalSize, options])
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
@@ -191,6 +258,10 @@ type VirtualListContextValue = {
    * the key is unknown. Lands with `align`, optionally keeping `peek` px of
    * earlier content visible above it. */
   scrollToItem: (key: string, opts?: ScrollToItemOptions) => boolean
+  visibility: {
+    subscribe: (listener: () => void) => () => void
+    getSnapshot: () => VirtualListVisibility
+  }
 }
 
 const VirtualListContext = createContext<VirtualListContextValue | null>(null)
@@ -202,11 +273,23 @@ export function useVirtualList(): VirtualListContextValue {
   return ctx
 }
 
+/** Subscribe to which items are on screen and which anchor item owns the top of
+ * the viewport. Updates are rAF-coalesced; the observer only runs while at
+ * least one subscriber is mounted. */
+export function useVirtualListVisibility(): VirtualListVisibility {
+  const { visibility } = useVirtualList()
+  return useSyncExternalStore(visibility.subscribe, visibility.getSnapshot, visibility.getSnapshot)
+}
+
 type VirtualListProps<T> = {
   items: readonly T[]
   /** Stable identity per item — the React key. */
   getKey: (item: T, index: number) => string | number
   renderItem: (item: T, index: number) => React.ReactNode
+  /** Marks turn-start items. When a single new anchor appears outside session
+   * open, the viewport jumps to it (start-aligned, peek above) and stays
+   * pinned while it streams — wheel/touch/scrolling away releases the pin. */
+  getScrollAnchor?: (item: T) => boolean
   /** Class for the wrapper — it owns the scroll height (e.g. "min-h-0 flex-1"). */
   className?: string
   /** Show top/bottom edge fades on the scroller. */
@@ -225,6 +308,7 @@ export function VirtualList<T>({
   items,
   getKey,
   renderItem,
+  getScrollAnchor,
   className,
   edgeFade = false,
   bottomTolerance,
@@ -248,6 +332,124 @@ export function VirtualList<T>({
   // onChange can schedule it without re-subscribing.
   const pendingSettleRef = useRef<PendingSettle | null>(null)
   const settleFrameRef = useRef<number | null>(null)
+
+  // Turn anchoring. `anchorRef` is the pinned turn (null = plain
+  // stick-to-bottom). `programmaticScrollRef` is a consume-once flag telling
+  // the exit listener that the next scroll event is our own pin/jump.
+  // `pinSuspenderRef` (mirrored each render) suspends the stick hook's bottom
+  // pin while an anchor owns the viewport.
+  const anchorRef = useRef<{ key: string; peek: number } | null>(null)
+  const programmaticScrollRef = useRef(false)
+  const pinSuspenderRef = useRef(false)
+  const prevAnchorKeysRef = useRef<Set<string>>(new Set())
+  const hasRenderedRef = useRef(false)
+  pinSuspenderRef.current = anchorRef.current !== null
+  const stickOptions = useMemo(() => ({ pinSuspenderRef }), [])
+
+  // Anchor keys in render order — drives turn-anchor detection and the
+  // visibility snapshot's currentAnchorKey. Ref mirrors let the rAF-coalesced
+  // visibility pass and effects read the latest lists without re-subscribing.
+  const anchorKeys = useMemo(() => {
+    if (!getScrollAnchor) return []
+    const keys: string[] = []
+    items.forEach((it, i) => {
+      if (getScrollAnchor(it)) keys.push(String(getKey(it, i)))
+    })
+    return keys
+  }, [items, getKey, getScrollAnchor])
+  const anchorKeysRef = useRef(anchorKeys)
+  anchorKeysRef.current = anchorKeys
+  const itemKeys = useMemo(() => items.map((it, i) => String(getKey(it, i))), [items, getKey])
+  const itemKeysRef = useRef(itemKeys)
+  itemKeysRef.current = itemKeys
+
+  // Visibility runtime. The IntersectionObserver exists only while at least
+  // one useVirtualListVisibility() subscriber is mounted; snapshots commit on
+  // a rAF so bursts of IO/scroll events collapse into one re-render.
+  const visibilityRuntimeRef = useRef<{
+    store: VisibilityStore
+    elements: Map<string, Element>
+    visible: Set<string>
+    observer: IntersectionObserver | null
+    frame: number | null
+  } | null>(null)
+  const getVisibilityRuntime = useCallback(() => {
+    let runtime = visibilityRuntimeRef.current
+    if (!runtime) {
+      runtime = {
+        store: createVisibilityStore(),
+        elements: new Map(),
+        visible: new Set(),
+        observer: null,
+        frame: null,
+      }
+      visibilityRuntimeRef.current = runtime
+    }
+    return runtime
+  }, [])
+  const syncVisibility = useCallback(() => {
+    const runtime = visibilityRuntimeRef.current
+    if (!runtime?.store.hasListeners() || runtime.frame !== null) return
+    runtime.frame = requestAnimationFrame(() => {
+      runtime.frame = null
+      const el = scrollRef.current
+      if (!el) return
+      const anchorLine = el.getBoundingClientRect().top + ANCHOR_PEEK
+      let currentAnchorKey: string | null = null
+      for (const key of anchorKeysRef.current) {
+        const element = runtime.elements.get(key)
+        if (element && element.getBoundingClientRect().top <= anchorLine) {
+          currentAnchorKey = key
+        }
+      }
+      const visibleKeys = itemKeysRef.current.filter((key) => runtime.visible.has(key))
+      runtime.store.setSnapshot({ currentAnchorKey, visibleKeys })
+    })
+  }, [])
+  const startVisibilityObserver = useCallback(() => {
+    const runtime = getVisibilityRuntime()
+    if (typeof IntersectionObserver === 'undefined' || runtime.observer) return
+    const el = scrollRef.current
+    if (!el) return
+    runtime.observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const key = (entry.target as HTMLElement).dataset.messageId
+          if (!key) continue
+          if (entry.isIntersecting) runtime.visible.add(key)
+          else runtime.visible.delete(key)
+        }
+        syncVisibility()
+      },
+      { root: el, threshold: [0, 0.01, 0.5, 1] }
+    )
+    for (const element of runtime.elements.values()) {
+      runtime.observer.observe(element)
+    }
+    syncVisibility()
+  }, [getVisibilityRuntime, syncVisibility])
+  const visibilitySubscribe = useCallback(
+    (listener: () => void) => {
+      const runtime = getVisibilityRuntime()
+      const unsubscribe = runtime.store.subscribe(listener)
+      if (runtime.store.hasListeners()) startVisibilityObserver()
+      return () => {
+        unsubscribe()
+        if (!runtime.store.hasListeners()) {
+          runtime.observer?.disconnect()
+          runtime.observer = null
+          if (runtime.frame !== null) cancelAnimationFrame(runtime.frame)
+          runtime.frame = null
+          runtime.visible.clear()
+        }
+      }
+    },
+    [getVisibilityRuntime, startVisibilityObserver]
+  )
+  const visibilityGetSnapshot = useCallback(
+    () => visibilityRuntimeRef.current?.store.getSnapshot() ?? EMPTY_VISIBILITY,
+    []
+  )
 
   // getTotalSize() is the re-pin trigger under virtualization: it changes
   // whenever an item is added or a measured row grows (streaming tail, lazy
@@ -275,6 +477,7 @@ export function VirtualList<T>({
         return
       }
       pending.tries += 1
+      programmaticScrollRef.current = true
       instance.scrollToOffset(target, { behavior: 'auto' })
     })
   }, [])
@@ -293,18 +496,64 @@ export function VirtualList<T>({
   })
   const virtualItems = virtualizer.getVirtualItems()
 
-  // Physical scroll input outranks an in-flight jump correction.
+  // Stable per-key row refs: keep the virtualizer's measureElement wiring AND
+  // register the element for visibility tracking, without detaching the ref
+  // (and re-measuring) on every render.
+  const rowRefsRef = useRef(new Map<string, (node: HTMLDivElement | null) => void>())
+  const getRowRef = useCallback(
+    (key: string) => {
+      let ref = rowRefsRef.current.get(key)
+      if (!ref) {
+        ref = (node: HTMLDivElement | null) => {
+          virtualizer.measureElement(node)
+          const runtime = visibilityRuntimeRef.current
+          if (!runtime) return
+          if (node) {
+            runtime.elements.set(key, node)
+            runtime.observer?.observe(node)
+            syncVisibility()
+          } else {
+            runtime.elements.delete(key)
+            runtime.visible.delete(key)
+          }
+        }
+        rowRefsRef.current.set(key, ref)
+      }
+      return ref
+    },
+    [virtualizer, syncVisibility]
+  )
+
+  // Physical scroll input outranks an in-flight jump correction and releases
+  // the turn-anchor pin.
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
     const cancel = () => {
       pendingSettleRef.current = null
+      anchorRef.current = null
+    }
+    const onScroll = () => {
+      // Consume-once: our own jumps and anchor pins arm this flag; an unarmed
+      // scroll event is the user taking over, which releases the anchor.
+      if (programmaticScrollRef.current) {
+        programmaticScrollRef.current = false
+        return
+      }
+      anchorRef.current = null
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (NAVIGATION_KEYS.has(event.key)) cancel()
     }
     el.addEventListener('wheel', cancel, { passive: true })
     el.addEventListener('touchmove', cancel, { passive: true })
+    el.addEventListener('scroll', onScroll, { passive: true })
+    el.addEventListener('keydown', onKeyDown)
     return () => {
       el.removeEventListener('wheel', cancel)
       el.removeEventListener('touchmove', cancel)
+      el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('keydown', onKeyDown)
       if (settleFrameRef.current !== null) cancelAnimationFrame(settleFrameRef.current)
     }
   }, [])
@@ -318,6 +567,7 @@ export function VirtualList<T>({
       const target = computeItemOffset(virtualizer, index, align, peek)
       if (target === undefined) return false
       const behavior = opts?.behavior ?? 'auto'
+      programmaticScrollRef.current = true
       virtualizer.scrollToOffset(target, { behavior })
       if (behavior !== 'smooth') {
         // Smooth jumps animate; correcting mid-flight would fight the animation.
@@ -335,18 +585,62 @@ export function VirtualList<T>({
     [keyToIndex, virtualizer, scheduleSettle]
   )
 
-  const { isAtBottom, scrollToBottom: stickScrollToBottom } = useStickToBottom(scrollRef, totalSize, bottomTolerance)
+  // Turn-anchor detection: a single fresh anchor (a just-sent user message)
+  // claims the viewport; batch arrivals (session open / whole-list hydrate)
+  // fall back to the default stick-to-bottom landing.
+  useEffect(() => {
+    const fresh = pickNewAnchors(prevAnchorKeysRef.current, anchorKeys, hasRenderedRef.current)
+    prevAnchorKeysRef.current = new Set(anchorKeys)
+    hasRenderedRef.current = true
+    if (fresh.length !== 1) return
+    const key = fresh[0]
+    if (scrollToItem(key, { align: 'start', peek: ANCHOR_PEEK })) {
+      anchorRef.current = { key, peek: ANCHOR_PEEK }
+    }
+  }, [anchorKeys, scrollToItem])
 
-  // A pinned jump to the bottom outranks any in-flight item correction.
+  // While a turn is anchored, keep it start-aligned (peek above) across
+  // measurement changes — before paint, and flagged programmatic so the exit
+  // listener doesn't mistake our own pin for the user taking over.
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current
+    if (!anchor) return
+    const index = keyToIndex.get(anchor.key)
+    const el = scrollRef.current
+    if (index === undefined || !el) return
+    const target = computeItemOffset(virtualizer, index, 'start', anchor.peek)
+    if (target === undefined) return
+    programmaticScrollRef.current = true
+    el.scrollTop = target
+  }, [totalSize, keyToIndex, virtualizer])
+
+  const { isAtBottom, scrollToBottom: stickScrollToBottom } = useStickToBottom(
+    scrollRef,
+    totalSize,
+    bottomTolerance,
+    stickOptions
+  )
+
+  // A pinned jump to the bottom outranks any in-flight item correction and
+  // releases the turn anchor.
   const scrollToBottom = useCallback(
     (behavior?: ScrollBehavior) => {
       pendingSettleRef.current = null
+      anchorRef.current = null
       stickScrollToBottom(behavior)
     },
     [stickScrollToBottom]
   )
 
-  const ctx = useMemo(() => ({ isAtBottom, scrollToBottom, scrollToItem }), [isAtBottom, scrollToBottom, scrollToItem])
+  const ctx = useMemo(
+    () => ({
+      isAtBottom,
+      scrollToBottom,
+      scrollToItem,
+      visibility: { subscribe: visibilitySubscribe, getSnapshot: visibilityGetSnapshot },
+    }),
+    [isAtBottom, scrollToBottom, scrollToItem, visibilitySubscribe, visibilityGetSnapshot]
+  )
 
   return (
     <VirtualListContext.Provider value={ctx}>
@@ -384,7 +678,7 @@ export function VirtualList<T>({
                   data-index={virtualRow.index}
                   data-message-id={key}
                   key={key}
-                  ref={virtualizer.measureElement}
+                  ref={getRowRef(key)}
                   style={{
                     position: 'absolute',
                     top: 0,

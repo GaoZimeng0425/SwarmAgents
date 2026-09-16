@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   computeItemOffset,
+  pickNewAnchors,
   type ScrollToItemOptions,
   useStickToBottom,
   useVirtualList,
@@ -251,5 +252,54 @@ describe('computeItemOffset', () => {
 
   it('returns undefined for out-of-range indexes', () => {
     expect(computeItemOffset(fakeSource('start'), 3, 'start')).toBeUndefined()
+  })
+})
+
+describe('pickNewAnchors', () => {
+  it('yields nothing on the first render (session open lands at the bottom)', () => {
+    expect(pickNewAnchors(new Set(), ['u1', 'u2'], false)).toEqual([])
+  })
+
+  it('returns only keys absent from the previous render', () => {
+    expect(pickNewAnchors(new Set(['u1']), ['u1', 'u2'], true)).toEqual(['u2'])
+  })
+
+  it('returns every fresh key so callers can treat >1 as a batch', () => {
+    expect(pickNewAnchors(new Set(), ['u1', 'u2'], true)).toEqual(['u1', 'u2'])
+  })
+
+  it('yields nothing when nothing is new', () => {
+    expect(pickNewAnchors(new Set(['u1']), ['u1'], true)).toEqual([])
+  })
+})
+
+// Harness exercising the pin suspender: while suspended (turn-anchor mode owns
+// the viewport), the stick pin must stand down instead of fighting the anchor.
+function SuspenderHarness({ totalSize, suspended }: { totalSize: number; suspended: boolean }) {
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const pinSuspenderRef = useRef(suspended)
+  pinSuspenderRef.current = suspended
+  const stick = useStickToBottom(viewportRef, totalSize, 4, { pinSuspenderRef })
+  return (
+    <>
+      <div data-testid="vp2" ref={viewportRef} />
+      <button data-testid="to-bottom2" onClick={() => stick.scrollToBottom('auto')} type="button" />
+    </>
+  )
+}
+
+describe('useStickToBottom pin suspender', () => {
+  it('stands down the bottom pin while suspended, resumes when released', () => {
+    const { container, rerender } = render(<SuspenderHarness suspended={true} totalSize={100} />)
+    const vp = container.querySelector('[data-testid="vp2"]') as HTMLDivElement
+    const state = mockScroll(vp, 1000, 200)
+
+    // Suspended: content "grows" but the pin must not fire.
+    rerender(<SuspenderHarness suspended={true} totalSize={900} />)
+    expect(state.scrollTop).toBe(0)
+
+    // Released: the next totalSize change pins to the bottom again.
+    rerender(<SuspenderHarness suspended={false} totalSize={950} />)
+    expect(state.scrollTop).toBe(1000)
   })
 })

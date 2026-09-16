@@ -16,6 +16,13 @@ type Props = {
   onSend?: (text: string) => void
 }
 
+// Turn-anchoring playtest switch (specs/2026-09-16-message-scroller-semantics-
+// port-design.md §4.3): when a newly sent user message appears, the viewport
+// jumps to it (previous reply peeking above) and stays pinned there while the
+// response streams in below. Flip to true to playtest; false keeps the plain
+// stick-to-bottom behavior.
+const ENABLE_TURN_ANCHORING = false
+
 // Self-drawn "scroll to latest" — replaces the library's ConversationScrollButton.
 function ScrollToLatest() {
   const { isAtBottom, scrollToBottom } = useVirtualList()
@@ -72,6 +79,7 @@ export function ConversationThread({ segments, busy, onSend }: Props): React.JSX
     <VirtualList
       className="min-h-0 flex-1"
       getKey={(it: TimelineItem) => it.key}
+      getScrollAnchor={ENABLE_TURN_ANCHORING ? (it: TimelineItem) => it.anchor === true : undefined}
       items={items}
       renderItem={(it: TimelineItem) => (
         // user-content re-enables text selection (globals.css disables it on chrome).
