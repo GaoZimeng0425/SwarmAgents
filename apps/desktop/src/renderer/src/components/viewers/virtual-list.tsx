@@ -290,6 +290,9 @@ type VirtualListProps<T> = {
    * open, the viewport jumps to it (start-aligned, peek above) and stays
    * pinned while it streams — wheel/touch/scrolling away releases the pin. */
   getScrollAnchor?: (item: T) => boolean
+  /** Predicted row height for never-measured rows, replacing the constant
+   * `estimateSize` guess. Return undefined to fall back to `estimateSize`. */
+  estimateItemSize?: (item: T, index: number) => number | undefined
   /** Class for the wrapper — it owns the scroll height (e.g. "min-h-0 flex-1"). */
   className?: string
   /** Show top/bottom edge fades on the scroller. */
@@ -309,6 +312,7 @@ export function VirtualList<T>({
   getKey,
   renderItem,
   getScrollAnchor,
+  estimateItemSize,
   className,
   edgeFade = false,
   bottomTolerance,
@@ -482,10 +486,17 @@ export function VirtualList<T>({
     })
   }, [])
 
+  // Per-item predictions feed the same slot as the constant guess: TanStack
+  // only consults estimateSize for rows it hasn't measured yet.
+  const estimateSizeAtIndex = useCallback(
+    (index: number) => estimateItemSize?.(items[index], index) ?? estimateSize,
+    [estimateItemSize, items, estimateSize]
+  )
+
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => estimateSize,
+    estimateSize: estimateSizeAtIndex,
     overscan,
     onChange: (instance) => {
       setTotalSize(instance.getTotalSize())
