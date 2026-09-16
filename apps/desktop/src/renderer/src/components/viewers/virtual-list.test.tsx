@@ -5,7 +5,13 @@ import { useRef } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { useStickToBottom, useVirtualList, VirtualList } from './virtual-list'
+import {
+  computeItemOffset,
+  type ScrollToItemOptions,
+  useStickToBottom,
+  useVirtualList,
+  VirtualList,
+} from './virtual-list'
 
 afterEach(() => {
   cleanup()
@@ -154,6 +160,16 @@ function ThrowingConsumer() {
   return null
 }
 
+// Captures scrollToItem so tests can drive imperative jumps from a consumer's
+// perspective. Only the unknown-key path is asserted in jsdom: the happy path
+// needs real row measurements, which jsdom (no layout) cannot produce.
+let capturedScrollToItem: ((key: string, opts?: ScrollToItemOptions) => boolean) | null = null
+function ScrollCapture() {
+  const { scrollToItem } = useVirtualList()
+  capturedScrollToItem = scrollToItem
+  return null
+}
+
 describe('VirtualList', () => {
   it('renders its native scroller, items, and exposes context to children', () => {
     render(
@@ -173,5 +189,67 @@ describe('VirtualList', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<ThrowingConsumer />)).toThrow(/useVirtualList/)
     spy.mockRestore()
+  })
+
+  it('exposes scrollToItem and rejects unknown keys', () => {
+    render(
+      <VirtualList getKey={(s) => s} items={['one', 'two']} renderItem={(s) => <div>{s}</div>}>
+        <ScrollCapture />
+      </VirtualList>
+    )
+    expect(capturedScrollToItem).not.toBeNull()
+    expect(capturedScrollToItem!('nope')).toBe(false)
+  })
+
+  it('annotates scroller, log content, and rows for assistive tech', () => {
+    render(<VirtualList getKey={(s) => s} items={['one']} renderItem={(s) => <div>{s}</div>} />)
+    const scroller = document.querySelector('[data-virtual-scroller]')!
+    expect(scroller.getAttribute('role')).toBe('region')
+    expect(scroller.getAttribute('aria-label')).toBe('Messages')
+    expect(scroller.getAttribute('tabindex')).toBe('0')
+    expect(document.querySelector('[role="log"]')).not.toBeNull()
+    expect(document.querySelector('[data-message-id="one"]')).not.toBeNull()
+  })
+})
+
+describe('computeItemOffset', () => {
+  // Minimal stand-in for virtual-core's getOffsetForIndex: item 0 starts at 500
+  // and is 200 tall; `resolvedAlign` simulates what 'auto'/'nearest' resolves to.
+  function fakeSource(resolvedAlign: 'start' | 'auto') {
+    return {
+      getOffsetForIndex: (index: number, align: 'start' | 'center' | 'end' | 'auto') => {
+        if (index !== 0) return undefined
+        if (align === 'end') return [700, 'end'] as const
+        return [500, resolvedAlign] as const
+      },
+    }
+  }
+
+  it('lands a start-aligned item at its start offset', () => {
+    expect(computeItemOffset(fakeSource('start'), 0, 'start')).toBe(500)
+  })
+
+  it('applies peek to start alignment', () => {
+    expect(computeItemOffset(fakeSource('start'), 0, 'start', 100)).toBe(400)
+  })
+
+  it('clamps start+peek at 0', () => {
+    expect(computeItemOffset(fakeSource('start'), 0, 'start', 800)).toBe(0)
+  })
+
+  it('ignores peek for end alignment', () => {
+    expect(computeItemOffset(fakeSource('start'), 0, 'end', 100)).toBe(700)
+  })
+
+  it('nearest keeps peek when auto resolves to start (item above viewport)', () => {
+    expect(computeItemOffset(fakeSource('start'), 0, 'nearest', 100)).toBe(400)
+  })
+
+  it("nearest drops peek when auto resolves to 'auto' (item already visible)", () => {
+    expect(computeItemOffset(fakeSource('auto'), 0, 'nearest', 100)).toBe(500)
+  })
+
+  it('returns undefined for out-of-range indexes', () => {
+    expect(computeItemOffset(fakeSource('start'), 3, 'start')).toBeUndefined()
   })
 })
