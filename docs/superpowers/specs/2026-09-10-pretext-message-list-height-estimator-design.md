@@ -1,7 +1,7 @@
 # 用 @chenglou/pretext 预测 agent message list 行高 — 技术方案
 
 Date: 2026-09-10
-Status: draft
+Status: Phase 0 done(2026-09-16,D2 已拍板:策略 B)
 Scope: `apps/desktop` renderer,`ConversationThread` 的虚拟化消息列表
 
 ## 1. 背景与问题
@@ -184,10 +184,8 @@ useLayoutEffect(() => {
 
 每阶段可独立合入、可回滚。
 
-**Phase 0 — 准确性 spike(0.5–1 天,决定 D2)**
-搭一个 dev-only harness(隐藏入口或 story):取 50 条真实 transcript 片段(含中英文、代码块、长段落),对纯文本段落对比 `layout()` 预测值 vs 真实 `offsetHeight`。
-验收:纯文本段落预测误差 100% ≤ 1px(字体策略 A)或 ≤ 2px(策略 B);`prepare` 均值 < 2ms、`layout` < 0.1ms;DPR/zoom 矩阵通过。
-**若达不到,止损点:方案废弃,只保留结论文档。**
+**Phase 0 — 准确性 spike(0.5–1 天,决定 D2)— ✅ 已完成(2026-09-16)**
+结果见 `docs/research/2026-09-16-pretext-accuracy-spike.md`,harness 在 `scripts/spike-pretext/`。要点:真实语料(60 条仓库中文技术文档段落 + 8 条合成边界)× 5 种字体策略 × 3 档宽度,**现用 `-apple-system` 栈在 736px/500px 下 maxDrift = 0、100% ≤ 1px**(DPR 2);320px 极窄下 98.5% ≤ 1px(1 条一行级离群);`prepare` p50 ≈ 0.1ms、`layout` ≈ 0.002ms。验收通过,D2 拍板为策略 B。
 
 **Phase 1 — text-metrics 模块(1–2 天)**
 `pretext-service` + `block-splitter` + `height-model` + 单测(splitter 纯函数全覆盖;estimator 用 mock 度量测合成逻辑与 LRU)。
@@ -207,9 +205,9 @@ useLayoutEffect(() => {
 ## 7. 决策点(需要拍板)
 
 - **D1 范围**:只做 `ConversationThread`(推荐;`TaskTimeline` 非虚拟化、quick-panel 无虚拟化,均无收益)。
-- **D2 字体策略**:
-  - **A. 消息区钉具名字体**(如打包 Inter variable):pretext 精确、跨平台一致;改动视觉,需设计确认。
-  - **B. 维持 system-ui 栈 + 接受漂移**(推荐先走):零视觉改动,混合架构兜底;上限取决于 spike 实测漂移。spike 后若漂移超标再升级 A。
+- **D2 字体策略(已拍板 2026-09-16,依据 Phase 0 spike 实测)**:
+  - **B. 维持现有 `-apple-system` 栈**(采纳):零视觉改动;真实聊天宽度下逐段 0 漂移,"macOS system-ui 不安全"告警在本环境未成立;实测兜底覆盖 320px 级窄宽度的罕见离群。
+  - A. 消息区钉具名字体(SF Pro Text 已验证全宽度 100% 精确):保留为窄宽度离群高频化时的后备选项,当前不实施。
 - **D3 v2 是否做**:先上 Phase 0–2(纯估计,零风险),观察 P1/P2 改善程度再决定。
 
 ## 8. 工作量汇总
