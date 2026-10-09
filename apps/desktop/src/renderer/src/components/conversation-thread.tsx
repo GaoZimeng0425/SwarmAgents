@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { Segment } from '@swarm/shared'
 import { Button, Spinner } from '@swarm/ui'
 import { ArrowDown, MessagesSquare } from 'lucide-react'
@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 
 import { buildThreadItems, type TimelineItem, useTimelineRenderer } from '@/components/task-transcript'
 import { useVirtualList, VirtualList } from '@/components/viewers/virtual-list'
+import { getTextMetricsService } from '@/lib/text-metrics'
 
 type Props = {
   /** Flattened render segments for the active session (buildSegments output). */
@@ -15,6 +16,13 @@ type Props = {
   /** Start a new user turn with the given text (used by interactive UI cards). */
   onSend?: (text: string) => void
 }
+
+// Turn-anchoring playtest switch (specs/2026-09-16-message-scroller-semantics-
+// port-design.md §4.3): when a newly sent user message appears, the viewport
+// jumps to it (previous reply peeking above) and stays pinned there while the
+// response streams in below. Flip to true to playtest; false keeps the plain
+// stick-to-bottom behavior.
+const ENABLE_TURN_ANCHORING = false
 
 // Self-drawn "scroll to latest" — replaces the library's ConversationScrollButton.
 function ScrollToLatest() {
@@ -38,6 +46,31 @@ export function ConversationThread({ segments, busy, onSend }: Props): React.JSX
     toast.success('Message copied to clipboard')
   }
   const { renderSegment, sheet } = useTimelineRenderer({ busy, onCopy, onSend })
+
+  // Pretext-backed row-height predictions for never-measured rows (replaces
+  // the constant 120px guess — spec §4.2). The row wrapper adds px-4 + pb-5;
+  // CONTENT_WIDTH is the text width inside it at the common max-w-3xl layout.
+  // Live width buckets land with the streaming fast-path phase.
+  const textMetrics = useMemo(() => getTextMetricsService(), [])
+  const CONTENT_WIDTH = 736
+  const ROW_CHROME_PX = 44 // pb-5 (20) + coarse message-chrome allowance
+  const textByKey = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of segments) {
+      if (s.kind === 'user' || s.kind === 'assistant' || s.kind === 'reasoning') {
+        map.set(s.key, s.text)
+      }
+    }
+    return map
+  }, [segments])
+  const estimateItemSize = useCallback(
+    (it: TimelineItem) => {
+      const text = textByKey.get(it.key)
+      if (!textMetrics || !text) return undefined
+      return textMetrics.estimateMarkdownHeight(text, CONTENT_WIDTH) + ROW_CHROME_PX
+    },
+    [textMetrics, textByKey]
+  )
 
   const items = useMemo(() => {
     const thread = buildThreadItems(segments, renderSegment, { showDayDividers: true })
@@ -71,7 +104,9 @@ export function ConversationThread({ segments, busy, onSend }: Props): React.JSX
   return (
     <VirtualList
       className="min-h-0 flex-1"
+      estimateItemSize={estimateItemSize}
       getKey={(it: TimelineItem) => it.key}
+      getScrollAnchor={ENABLE_TURN_ANCHORING ? (it: TimelineItem) => it.anchor === true : undefined}
       items={items}
       renderItem={(it: TimelineItem) => (
         // user-content re-enables text selection (globals.css disables it on chrome).

@@ -31,7 +31,15 @@ import { dayKey, formatDayLabel, formatMessageTime, safeTs } from '@/lib/timelin
 import { cn } from '@/lib/utils'
 
 // One row in the rendered thread; the virtualized list keys + orders on these.
-export type TimelineItem = { key: string; node: React.ReactNode; order: number; ts: number }
+export type TimelineItem = {
+  key: string
+  node: React.ReactNode
+  order: number
+  ts: number
+  /** True for turn-start rows (user messages) — drives the virtual list's
+   * turn anchoring. Absent on dividers/groups/footer. */
+  anchor?: boolean
+}
 
 type ToolSeg = Extract<Segment, { kind: 'tool' }>
 type EventSeg = Extract<Segment, { kind: 'event' }>
@@ -435,7 +443,13 @@ export function buildThreadItems(
       ) : (
         <ToolGroupBlock key={item.segs[0].key} renderSegment={renderSegment} segs={item.segs} />
       )
-    items.push({ key: seg.key, node, order: order++, ts: seg.ts })
+    items.push({
+      key: seg.key,
+      node,
+      order: order++,
+      ts: seg.ts,
+      anchor: item.kind === 'single' && seg.kind === 'user',
+    })
   }
   return items
 }
