@@ -10,78 +10,65 @@ import {
   UpdateTaskInputSchema,
   type WorkbenchData,
 } from '@swarm/protocol'
-import { BrowserWindow, ipcMain } from 'electron'
 
+import { createIpcRegistrar, sendToAllWindows } from '../ipc/wire'
 import type { Service } from './service'
 
 const log = createLogger({ process: 'main' }).child({ component: 'workbench-ipc' })
 
-const STATE_CHANGED_CHANNEL = 'workbench:stateChanged'
-
 export function wireWorkbenchIpc(args: { service: Service }): { dispose: () => void } {
   const { service } = args
+  const ipc = createIpcRegistrar()
 
   const unsubscribe = service.onStateChanged((data) => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(STATE_CHANGED_CHANNEL, data)
-    }
+    sendToAllWindows('workbench:stateChanged', data)
   })
 
-  const channels: string[] = []
+  ipc.handle('workbench:getAll', () => service.getAll())
 
-  const handle = <T>(
-    channel: string,
-    handler: (e: Electron.IpcMainInvokeEvent, ...args: unknown[]) => Promise<T> | T
-  ): void => {
-    ipcMain.handle(channel, handler)
-    channels.push(channel)
-  }
-
-  handle('workbench:getAll', () => service.getAll())
-
-  handle('workbench:createTask', (_e, input: unknown) => {
+  ipc.handle('workbench:createTask', (_e, input) => {
     const parsed = CreateTaskInputSchema.safeParse(input)
     if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'invalid input' }
     return service.createTask(parsed.data)
   })
 
-  handle('workbench:updateTask', (_e, id: unknown, patch: unknown) => {
+  ipc.handle('workbench:updateTask', (_e, id, patch) => {
     const parsed = UpdateTaskInputSchema.safeParse(patch)
     if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'invalid input' }
-    return service.updateTask(id as string, parsed.data)
+    return service.updateTask(id, parsed.data)
   })
 
-  handle('workbench:completeTask', (_e, id: unknown) => service.completeTask(id as string))
-  handle('workbench:reopenTask', (_e, id: unknown) => service.reopenTask(id as string))
-  handle('workbench:deleteTask', (_e, id: unknown) => service.deleteTask(id as string))
+  ipc.handle('workbench:completeTask', (_e, id) => service.completeTask(id))
+  ipc.handle('workbench:reopenTask', (_e, id) => service.reopenTask(id))
+  ipc.handle('workbench:deleteTask', (_e, id) => service.deleteTask(id))
 
-  handle('workbench:moveTask', (_e, input: unknown) => {
+  ipc.handle('workbench:moveTask', (_e, input) => {
     const parsed = MoveTaskInputSchema.safeParse(input)
     if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'invalid input' }
     return service.moveTask(parsed.data)
   })
 
-  handle('workbench:addColumn', (_e, input: unknown) => {
+  ipc.handle('workbench:addColumn', (_e, input) => {
     const parsed = AddColumnInputSchema.safeParse(input)
     if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'invalid input' }
     return service.addColumn(parsed.data.name)
   })
 
-  handle('workbench:renameColumn', (_e, input: unknown) => {
+  ipc.handle('workbench:renameColumn', (_e, input) => {
     const parsed = RenameColumnInputSchema.safeParse(input)
     if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'invalid input' }
     return service.renameColumn(parsed.data.id, parsed.data.name)
   })
 
-  handle('workbench:deleteColumn', (_e, id: unknown) => service.deleteColumn(id as string))
-  handle('workbench:reorderColumns', (_e, orderedIds: unknown) => service.reorderColumns(orderedIds as string[]))
+  ipc.handle('workbench:deleteColumn', (_e, id) => service.deleteColumn(id))
+  ipc.handle('workbench:reorderColumns', (_e, orderedIds) => service.reorderColumns(orderedIds))
 
-  log.info({ msg: 'workbench IPC wired', channels })
+  log.info({ msg: 'workbench IPC wired', count: 11 })
 
   return {
     dispose(): void {
       unsubscribe()
-      for (const ch of channels) ipcMain.removeHandler(ch)
+      ipc.dispose()
     },
   }
 }

@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 
 import type { AgentWireEvent, EntryRow } from '@swarm/protocol'
 import { applyWireEvent, type SessionView } from '@swarm/shared'

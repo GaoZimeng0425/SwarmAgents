@@ -13,17 +13,6 @@ import {
   useDocxViewerThumbnails,
 } from '@extend-ai/react-docx'
 import {
-  Comment01Icon,
-  Download01Icon,
-  MinusSignCircleIcon,
-  Moon02Icon,
-  MoreHorizontalIcon,
-  PlusSignCircleIcon,
-  SidebarLeftIcon,
-  Upload01Icon,
-} from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
   Button,
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -45,6 +34,7 @@ import {
   TooltipTrigger,
 } from '@swarm/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { CircleMinus, CirclePlus, Download, Ellipsis, MessageSquare, Moon, PanelLeft, Upload } from 'lucide-react'
 
 import {
   DocumentViewerThumbnailSidebar,
@@ -313,7 +303,7 @@ function DocxFileActionsMenu({
       <DropdownMenuTrigger
         render={
           <Button aria-label="Open DOCX actions" size="icon-sm" type="button" variant="ghost">
-            <HugeiconsIcon className="size-4" icon={MoreHorizontalIcon} />
+            <Ellipsis className="size-4" />
           </Button>
         }
       />
@@ -327,7 +317,7 @@ function DocxFileActionsMenu({
               onCheckedChange={(checked) => onIsDarkChange(checked === true)}
             >
               <span className="flex min-w-0 items-center gap-2">
-                <HugeiconsIcon className="size-4" icon={Moon02Icon} />
+                <Moon className="size-4" />
                 Dark mode
               </span>
             </DropdownMenuCheckboxItem>
@@ -341,24 +331,20 @@ function DocxFileActionsMenu({
           onCheckedChange={(checked) => onShowDocumentMarkupChange(checked === true)}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <HugeiconsIcon className="size-4" icon={Comment01Icon} />
+            <MessageSquare className="size-4" />
             Comments/edits
           </span>
         </DropdownMenuCheckboxItem>
         {showFileActions ? <DropdownMenuSeparator /> : null}
         {showDownloadButton ? (
           <DropdownMenuItem disabled={downloadDisabled} onClick={onDownload}>
-            {isPreparingDownload ? (
-              <Spinner className="size-4" />
-            ) : (
-              <HugeiconsIcon className="size-4" icon={Download01Icon} />
-            )}
+            {isPreparingDownload ? <Spinner className="size-4" /> : <Download className="size-4" />}
             Download
           </DropdownMenuItem>
         ) : null}
         {showUploadButton ? (
           <DropdownMenuItem onClick={onUploadClick}>
-            <HugeiconsIcon className="size-4" icon={Upload01Icon} />
+            <Upload className="size-4" />
             Upload
           </DropdownMenuItem>
         ) : null}
@@ -513,7 +499,7 @@ function DocxToolbar({
               type="button"
               variant="ghost"
             >
-              <HugeiconsIcon className="size-4" icon={SidebarLeftIcon} />
+              <PanelLeft className="size-4" />
             </Button>
           </ToolbarTooltip>
           <DocxPageNumberControl
@@ -534,7 +520,7 @@ function DocxToolbar({
                 type="button"
                 variant="ghost"
               >
-                <HugeiconsIcon className="size-4" icon={MinusSignCircleIcon} />
+                <CircleMinus className="size-4" />
               </Button>
             </ToolbarTooltip>
             <Select
@@ -563,7 +549,7 @@ function DocxToolbar({
                 type="button"
                 variant="ghost"
               >
-                <HugeiconsIcon className="size-4" icon={PlusSignCircleIcon} />
+                <CirclePlus className="size-4" />
               </Button>
             </ToolbarTooltip>
           </div>
@@ -1314,7 +1300,7 @@ function DocxViewerContent({
                   type="button"
                   variant="outline"
                 >
-                  <HugeiconsIcon className="size-4" icon={Upload01Icon} />
+                  <Upload className="size-4" />
                   Upload Word document
                 </Button>
               </div>

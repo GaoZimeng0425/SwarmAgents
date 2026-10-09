@@ -19,8 +19,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 // <link rel="stylesheet"> (blocked by style-src 'self') is dropped.
 export function sanitizeEmailHtml(html: string): string {
   // Parse with the HTML fragment parser via a <template> element. This is
-  // available in both the Electron renderer and jsdom (DOMParser isn't exposed
-  // in jsdom). <link>/<style>/<script> survive as fragment children, so we can
+  // available in both the Electron renderer and the test DOM environment.
+  // <link>/<style>/<script> survive as fragment children, so we can
   // find and strip them; the browser re-wraps the fragment into a document on
   // srcdoc. No sanitizer dependency needed.
   const tpl = document.createElement('template')

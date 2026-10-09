@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { base64ToBlob, DocumentCard } from './document'
 
-// pdf-thumbnail-utils pulls in the pdfium wasm + worker engine — too heavy for jsdom.
+// pdf-thumbnail-utils pulls in the pdfium wasm + worker engine — too heavy for happy-dom.
 vi.mock('@/components/pdf-thumbnail-utils', () => ({
   renderPdfThumbnailUrl: vi.fn(() => Promise.resolve('blob:thumb')),
 }))

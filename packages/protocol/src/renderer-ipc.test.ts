@@ -22,4 +22,30 @@ describe('RendererIpcSignatures', () => {
     expectTypeOf<RendererIpcEvents['swarm:event']>().toEqualTypeOf<UIEvent>()
     expectTypeOf<RendererIpcEvents['system:accentChange']>().toEqualTypeOf<{ hex: string }>()
   })
+
+  it('plan-2 domain entries model the wire, not the bridge facade', () => {
+    // bilibili:save takes the full video + summary (fav deletion needs the fav* ids)
+    expectTypeOf<RendererIpcSignatures['bilibili:save']['args']>().toEqualTypeOf<
+      [import('./types/bilibili').BiliVideo, import('./types/bilibili').BiliSummary]
+    >()
+    // providers mutations resolve ProvidersSetResult on the wire
+    expectTypeOf<RendererIpcSignatures['providers:setKey']['result']>().toEqualTypeOf<
+      import('./types/ui').ProvidersSetResult
+    >()
+    // budgets:set resolves the SetResult union
+    expectTypeOf<RendererIpcSignatures['budgets:set']['result']>().toEqualTypeOf<
+      import('./types/ui').BudgetsSetResult
+    >()
+  })
+
+  it('plan-3 domain entries model the wire', () => {
+    expectTypeOf<RendererIpcSignatures['gmail:search']['args']>().toEqualTypeOf<[string, number]>()
+    expectTypeOf<RendererIpcSignatures['calendar:updateLocal']['args']>().toEqualTypeOf<
+      [string, Partial<import('./types/ui').CalendarLocalInput>]
+    >()
+    expectTypeOf<RendererIpcSignatures['weather:getForecast']['args']>().toEqualTypeOf<[number | null, number | null]>()
+    expectTypeOf<RendererIpcSignatures['workbench:createTask']['result']>().toEqualTypeOf<
+      import('./types/workbench').WorkbenchMutationResult
+    >()
+  })
 })

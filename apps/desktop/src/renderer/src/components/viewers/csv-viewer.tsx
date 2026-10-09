@@ -17,17 +17,6 @@ import { range } from 'es-toolkit'
 import '@glideapps/glide-data-grid/dist/index.css'
 
 import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  Download01Icon,
-  MinusSignCircleIcon,
-  MoreHorizontalIcon,
-  PlusSignCircleIcon,
-  Search01Icon,
-  Upload01Icon,
-} from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
   Button,
   Input,
   Popover,
@@ -45,6 +34,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@swarm/ui'
+import { ArrowLeft, ArrowRight, CircleMinus, CirclePlus, Download, Ellipsis, Search, Upload } from 'lucide-react'
 import Papa from 'papaparse'
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -233,17 +223,17 @@ function CsvFileActionsMenu({
       <DropdownMenuTrigger
         render={
           <Button aria-label="Open CSV actions" disabled={isPending} size="icon-sm" type="button" variant="ghost">
-            <HugeiconsIcon className="size-4" icon={MoreHorizontalIcon} />
+            <Ellipsis className="size-4" />
           </Button>
         }
       />
       <DropdownMenuContent align="end" className="w-40">
         <DropdownMenuItem disabled={downloadDisabled} onClick={onDownload}>
-          <HugeiconsIcon className="size-4" icon={Download01Icon} />
+          <Download className="size-4" />
           Download
         </DropdownMenuItem>
         <DropdownMenuItem disabled={isPending} onClick={onUploadClick}>
-          {isPending ? <Spinner className="size-4" /> : <HugeiconsIcon className="size-4" icon={Upload01Icon} />}
+          {isPending ? <Spinner className="size-4" /> : <Upload className="size-4" />}
           Upload
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -410,7 +400,7 @@ function CsvSearchPopover({
         <PopoverTrigger
           render={
             <Button aria-label="Search CSV" disabled={controlsDisabled} size="icon-sm" type="button" variant="ghost">
-              <HugeiconsIcon className="size-4" icon={Search01Icon} />
+              <Search className="size-4" />
             </Button>
           }
         />
@@ -461,7 +451,7 @@ function CsvSearchPopover({
                 type="button"
                 variant="outline"
               >
-                <HugeiconsIcon className="size-4" icon={ArrowLeft01Icon} />
+                <ArrowLeft className="size-4" />
               </Button>
               <Button
                 aria-label="Next result"
@@ -471,7 +461,7 @@ function CsvSearchPopover({
                 type="button"
                 variant="outline"
               >
-                <HugeiconsIcon className="size-4" icon={ArrowRight01Icon} />
+                <ArrowRight className="size-4" />
               </Button>
             </div>
           </div>
@@ -677,7 +667,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
                   size="icon-sm"
                   variant="ghost"
                 >
-                  <HugeiconsIcon className="size-4" icon={MinusSignCircleIcon} />
+                  <CircleMinus className="size-4" />
                 </Button>
               </ToolbarTooltip>
               <Select
@@ -704,7 +694,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
                   size="icon-sm"
                   variant="ghost"
                 >
-                  <HugeiconsIcon className="size-4" icon={PlusSignCircleIcon} />
+                  <CirclePlus className="size-4" />
                 </Button>
               </ToolbarTooltip>
             </div>
@@ -762,7 +752,7 @@ export function CsvViewer({ className, data, search = false }: CsvViewerProps) {
                 type="button"
                 variant="outline"
               >
-                {isPending ? <Spinner className="size-4" /> : <HugeiconsIcon className="size-4" icon={Upload01Icon} />}
+                {isPending ? <Spinner className="size-4" /> : <Upload className="size-4" />}
                 Upload CSV
               </Button>
             </div>

@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest'
 import type React from 'react'
 import type { AgentDefinition } from '@swarm/protocol'
@@ -29,7 +29,7 @@ vi.mock('@/hooks/use-agent-activity', () => ({
 }))
 
 // sonner's toast is imported by FormationsView (error paths only); silence it
-// so a stray call never throws under jsdom.
+// so a stray call never throws in tests.
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
 /** Minimal valid AgentListItem fixture. */

@@ -26,8 +26,9 @@ import type {
   TranscriptionConfig,
 } from '@swarm/protocol'
 import { TranscriptionConfigSchema } from '@swarm/protocol'
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, dialog, shell } from 'electron'
 
+import { createIpcRegistrar, sendToAllWindows } from '../ipc/wire'
 import type { AnalysisStore } from './analysis-store'
 import { deleteFavResource, deleteWatchLater, getFavFolders, getFavResources, getWatchLater } from './api'
 import type { ArchiveStore } from './archive-store'
@@ -43,9 +44,6 @@ import { transcribeWav } from './transcribe'
 import { createTranscribeQueue } from './transcribe-queue'
 
 const log = createLogger({ process: 'main' }).child({ component: 'bilibili-ipc' })
-
-// Broadcast channel for transcription stage updates (main -> all renderers).
-export const TRANSCRIBE_PROGRESS_CHANNEL = 'bilibili:transcribe:progress'
 
 // Opens a video in the default browser. The official desktop app's `bilipc://`
 // deep link was tried first historically, but its client-side handler silently
@@ -114,6 +112,7 @@ export function wireBilibiliIpc(opts: {
 } {
   const { auth, store, analysisStore, archiveStore, pinStore } = opts
   const deps: ListDeps = { getFavFolders, getFavResources, getWatchLater }
+  const ipc = createIpcRegistrar()
 
   // Trigger the service-process bilibili-analyst agent. Returns a sync ack —
   // the structured BiliSummary streams back via bilibili.analysis* events and
@@ -136,9 +135,7 @@ export function wireBilibiliIpc(opts: {
   const workDir = join(app.getPath('temp'), 'swarm-bili-asr')
 
   const broadcast = (p: BiliTranscribeProgress): void => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(TRANSCRIBE_PROGRESS_CHANNEL, p)
-    }
+    sendToAllWindows('bilibili:transcribe:progress', p)
   }
 
   const queue = createTranscribeQueue({
@@ -155,14 +152,14 @@ export function wireBilibiliIpc(opts: {
   })
   queue.onProgress(broadcast)
 
-  ipcMain.handle('bilibili:status', async () => {
+  ipc.handle('bilibili:status', async () => {
     const st = await auth.status()
     log.info({ msg: 'status handler returned', loggedIn: st.loggedIn, mid: st.mid, uname: st.uname })
     return st
   })
-  ipcMain.handle('bilibili:login', () => auth.login())
-  ipcMain.handle('bilibili:logout', () => auth.logout())
-  ipcMain.handle('bilibili:list', async (): Promise<BiliListResult> => {
+  ipc.handle('bilibili:login', () => auth.login())
+  ipc.handle('bilibili:logout', () => auth.logout())
+  ipc.handle('bilibili:list', async (): Promise<BiliListResult> => {
     const started = Date.now()
     const st = await auth.status()
     if (!st.loggedIn || st.mid === null) {
@@ -216,7 +213,7 @@ export function wireBilibiliIpc(opts: {
   // Single-flight map: concurrent requests for the same bvid join the in-flight Promise.
   const inflight = new Map<string, Promise<BiliProcessResult>>()
 
-  ipcMain.handle('bilibili:process', async (_e, bvid: string): Promise<BiliProcessResult> => {
+  ipc.handle('bilibili:process', async (_e, bvid: string): Promise<BiliProcessResult> => {
     const existing = inflight.get(bvid)
     if (existing) {
       log.warn({ msg: 'process already inflight; joining', bvid })
@@ -246,33 +243,33 @@ export function wireBilibiliIpc(opts: {
     }
   })
 
-  ipcMain.handle('bilibili:open', (_e, bvid: string) => openVideo(bvid, (url) => shell.openExternal(url)))
+  ipc.handle('bilibili:open', (_e, bvid: string) => openVideo(bvid, (url) => shell.openExternal(url)))
 
-  ipcMain.handle('bilibili:getObsidianConfig', async (): Promise<ObsidianConfig | null> => {
+  ipc.handle('bilibili:getObsidianConfig', async (): Promise<ObsidianConfig | null> => {
     return (await store.load()).obsidian ?? null
   })
 
-  ipcMain.handle('bilibili:setObsidianConfig', async (_e, cfg: ObsidianConfig): Promise<void> => {
+  ipc.handle('bilibili:setObsidianConfig', async (_e, cfg: ObsidianConfig): Promise<void> => {
     const current = await store.load()
     await store.save({ ...current, obsidian: cfg })
     log.info({ msg: 'obsidian config saved', vaultPath: cfg.vaultPath, subdir: cfg.subdir })
   })
 
-  ipcMain.handle('bilibili:pickVault', async (): Promise<string | null> => {
+  ipc.handle('bilibili:pickVault', async (): Promise<string | null> => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0]
   })
 
-  ipcMain.handle('bilibili:save', async (_e, video: BiliVideo, summary: BiliSummary): Promise<BiliSaveResult> => {
+  ipc.handle('bilibili:save', async (_e, video: BiliVideo, summary: BiliSummary): Promise<BiliSaveResult> => {
     const cfg = (await store.load()).obsidian ?? null
     return writeNote(cfg, video, summary, new Date().toISOString().slice(0, 10))
   })
 
-  ipcMain.handle('bilibili:getTranscribeConfig', async (): Promise<TranscriptionConfig | null> => {
+  ipc.handle('bilibili:getTranscribeConfig', async (): Promise<TranscriptionConfig | null> => {
     return (await store.load()).transcription ?? null
   })
 
-  ipcMain.handle('bilibili:setTranscribeConfig', async (_e, cfg: TranscriptionConfig): Promise<void> => {
+  ipc.handle('bilibili:setTranscribeConfig', async (_e, cfg: TranscriptionConfig): Promise<void> => {
     // Validate the renderer-supplied shape before persisting; ffmpegPath later
     // reaches child_process.spawn, so it must not be trusted blindly.
     const checked = TranscriptionConfigSchema.parse(cfg)
@@ -281,12 +278,12 @@ export function wireBilibiliIpc(opts: {
     log.info({ msg: 'transcribe config saved', ffmpegPath: checked.ffmpegPath, modelDir: checked.modelDir })
   })
 
-  ipcMain.handle('bilibili:pickModelDir', async (): Promise<string | null> => {
+  ipc.handle('bilibili:pickModelDir', async (): Promise<string | null> => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0]
   })
 
-  ipcMain.handle('bilibili:transcribe', async (_e, bvid: string): Promise<BiliTranscribeResult> => {
+  ipc.handle('bilibili:transcribe', async (_e, bvid: string): Promise<BiliTranscribeResult> => {
     try {
       await fs.mkdir(workDir, { recursive: true })
     } catch (err) {
@@ -302,14 +299,14 @@ export function wireBilibiliIpc(opts: {
     return result
   })
 
-  ipcMain.handle('bilibili:analyzedBvids', (): string[] => analysisStore.bvids())
+  ipc.handle('bilibili:analyzedBvids', (): string[] => analysisStore.bvids())
 
-  ipcMain.handle('bilibili:getAnalysis', (_e, bvid: string): BiliAnalysis | null => analysisStore.get(bvid))
+  ipc.handle('bilibili:getAnalysis', (_e, bvid: string): BiliAnalysis | null => analysisStore.get(bvid))
 
   // Remove a video from Bilibili's watch-later list. Returns a result envelope
   // (not a throw) so the renderer can surface failures inline. Archiving the
   // card locally is the renderer's concern — it calls archivePut separately.
-  ipcMain.handle('bilibili:deleteWatchLater', async (_e, bvid: string): Promise<BiliDeleteResult> => {
+  ipc.handle('bilibili:deleteWatchLater', async (_e, bvid: string): Promise<BiliDeleteResult> => {
     const started = Date.now()
     const cfg = await store.load()
     if (!cfg.credentials) {
@@ -328,7 +325,7 @@ export function wireBilibiliIpc(opts: {
 
   // Remove a favorites video from Bilibili. Needs the fav* ids (oid:type scoped
   // to media_id) carried on the BiliVideo — the renderer passes the whole video.
-  ipcMain.handle('bilibili:deleteFav', async (_e, video: BiliVideo): Promise<BiliDeleteResult> => {
+  ipc.handle('bilibili:deleteFav', async (_e, video: BiliVideo): Promise<BiliDeleteResult> => {
     const started = Date.now()
     const cfg = await store.load()
     if (!cfg.credentials) {
@@ -351,23 +348,23 @@ export function wireBilibiliIpc(opts: {
 
   // Local archive: a "soft delete" keeps the video card locally. Pure local
   // state — no credentials, no network.
-  ipcMain.handle('bilibili:archiveList', (): BiliVideo[] => archiveStore.list())
-  ipcMain.handle('bilibili:archivePut', (_e, video: BiliVideo): Promise<void> => {
+  ipc.handle('bilibili:archiveList', (): BiliVideo[] => archiveStore.list())
+  ipc.handle('bilibili:archivePut', (_e, video: BiliVideo): Promise<void> => {
     log.info({ msg: 'archive put', bvid: video.bvid })
     return archiveStore.put(video)
   })
-  ipcMain.handle('bilibili:archiveRemove', (_e, bvid: string): Promise<void> => {
+  ipc.handle('bilibili:archiveRemove', (_e, bvid: string): Promise<void> => {
     log.info({ msg: 'archive remove', bvid })
     return archiveStore.remove(bvid)
   })
 
   // Pins: local "favorites" shown in the page's top bar. Pure local state.
-  ipcMain.handle('bilibili:pinsList', (): BiliVideo[] => pinStore.list())
-  ipcMain.handle('bilibili:pinsPut', (_e, video: BiliVideo): Promise<void> => {
+  ipc.handle('bilibili:pinsList', (): BiliVideo[] => pinStore.list())
+  ipc.handle('bilibili:pinsPut', (_e, video: BiliVideo): Promise<void> => {
     log.info({ msg: 'pin put', bvid: video.bvid })
     return pinStore.put(video)
   })
-  ipcMain.handle('bilibili:pinsRemove', (_e, bvid: string): Promise<void> => {
+  ipc.handle('bilibili:pinsRemove', (_e, bvid: string): Promise<void> => {
     log.info({ msg: 'pin remove', bvid })
     return pinStore.remove(bvid)
   })
@@ -376,34 +373,7 @@ export function wireBilibiliIpc(opts: {
   return {
     dispose(): void {
       queue.dispose()
-      for (const ch of [
-        'bilibili:status',
-        'bilibili:login',
-        'bilibili:logout',
-        'bilibili:list',
-        'bilibili:process',
-        'bilibili:open',
-        'bilibili:getObsidianConfig',
-        'bilibili:setObsidianConfig',
-        'bilibili:pickVault',
-        'bilibili:save',
-        'bilibili:getTranscribeConfig',
-        'bilibili:setTranscribeConfig',
-        'bilibili:pickModelDir',
-        'bilibili:transcribe',
-        'bilibili:analyzedBvids',
-        'bilibili:getAnalysis',
-        'bilibili:deleteWatchLater',
-        'bilibili:deleteFav',
-        'bilibili:archiveList',
-        'bilibili:archivePut',
-        'bilibili:archiveRemove',
-        'bilibili:pinsList',
-        'bilibili:pinsPut',
-        'bilibili:pinsRemove',
-      ]) {
-        ipcMain.removeHandler(ch)
-      }
+      ipc.dispose()
     },
   }
 }

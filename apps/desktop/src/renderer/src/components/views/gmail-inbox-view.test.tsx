@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest'
 import type React from 'react'
 import type { UIEvent } from '@swarm/protocol'
@@ -31,9 +31,12 @@ function msg(overrides: Partial<{ id: string; subject: string; fromAddr: string;
 
 describe('GmailAssistantCard', () => {
   beforeEach(() => {
-    // jsdom lacks a clipboard implementation; stub it for the copy button.
-    Object.assign(navigator, {
-      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    // The test DOM has no usable clipboard; stub it for the copy button.
+    // happy-dom exposes navigator.clipboard as a getter-only property, so
+    // define an own property instead of assigning through Object.assign.
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
     })
   })
   afterEach(() => {

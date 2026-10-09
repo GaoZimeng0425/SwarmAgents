@@ -38,7 +38,11 @@ export const streamdownCodePlugin: CodeHighlighterPlugin = {
   name: 'shiki',
   type: 'code-highlighter',
   getThemes: () => DEFAULT_THEMES,
-  getSupportedLanguages: () => Object.keys(bundledLanguages) as BundledLanguage[],
+  // @streamdown/code's plugin types target its own pinned shiki 3, while the
+  // highlighter here is desktop's shiki 4. The language-name unions overlap in
+  // practice, so bridge the version boundary with a cast.
+  getSupportedLanguages: () =>
+    Object.keys(bundledLanguages) as unknown as ReturnType<CodeHighlighterPlugin['getSupportedLanguages']>,
   supportsLanguage: (language) => language in bundledLanguages,
   highlight: ({ code, language, themes }, callback) => {
     const key = cacheKey(code, language, themeName(themes[0]), themeName(themes[1]))

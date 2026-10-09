@@ -50,19 +50,6 @@ import {
 } from '@embedpdf/plugin-viewport/react'
 import { useZoom, ZoomPluginPackage } from '@embedpdf/plugin-zoom/react'
 import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  Download01Icon,
-  MinusSignCircleIcon,
-  MoreHorizontalIcon,
-  PlusSignCircleIcon,
-  RotateClockwiseIcon,
-  Search01Icon,
-  SidebarLeftIcon,
-  Upload01Icon,
-} from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
   Button,
   Input,
   Popover,
@@ -81,6 +68,18 @@ import {
   TooltipTrigger,
 } from '@swarm/ui'
 import { useDebouncer } from '@tanstack/react-pacer'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleMinus,
+  CirclePlus,
+  Download,
+  Ellipsis,
+  PanelLeft,
+  RotateCw,
+  Search,
+  Upload,
+} from 'lucide-react'
 import { flushSync } from 'react-dom'
 
 import { loadSharedPdfEngine } from '@/components/pdf-thumbnail-utils'
@@ -506,24 +505,20 @@ function PDFViewerFileActionsMenu({
         <DropdownMenuTrigger
           render={
             <Button aria-label="Open PDF actions" size="icon-sm" type="button" variant="ghost">
-              <HugeiconsIcon className="size-4" icon={MoreHorizontalIcon} />
+              <Ellipsis className="size-4" />
             </Button>
           }
         />
         <DropdownMenuContent align="end" className="w-40">
           {showDownload && onDownload ? (
             <DropdownMenuItem disabled={downloadDisabled} onClick={onDownload}>
-              {isPreparingDownload ? (
-                <Spinner className="size-4" />
-              ) : (
-                <HugeiconsIcon className="size-4" icon={Download01Icon} />
-              )}
+              {isPreparingDownload ? <Spinner className="size-4" /> : <Download className="size-4" />}
               Download
             </DropdownMenuItem>
           ) : null}
           {showUpload && onUploadFile ? (
             <DropdownMenuItem onClick={() => inputRef.current?.click()}>
-              <HugeiconsIcon className="size-4" icon={Upload01Icon} />
+              <Upload className="size-4" />
               Upload
             </DropdownMenuItem>
           ) : null}
@@ -779,7 +774,7 @@ function PDFViewerSearchControl({ documentId, controlsDisabled }: { documentId: 
         <PopoverTrigger
           render={
             <Button aria-label="Search text" disabled={controlsDisabled} size="icon-sm" type="button" variant="ghost">
-              <HugeiconsIcon className="size-4" icon={Search01Icon} />
+              <Search className="size-4" />
             </Button>
           }
         />
@@ -825,7 +820,7 @@ function PDFViewerSearchControl({ documentId, controlsDisabled }: { documentId: 
                 type="button"
                 variant="outline"
               >
-                <HugeiconsIcon className="size-4" icon={ArrowLeft01Icon} />
+                <ArrowLeft className="size-4" />
               </Button>
               <Button
                 aria-label="Next result"
@@ -835,7 +830,7 @@ function PDFViewerSearchControl({ documentId, controlsDisabled }: { documentId: 
                 type="button"
                 variant="outline"
               >
-                <HugeiconsIcon className="size-4" icon={ArrowRight01Icon} />
+                <ArrowRight className="size-4" />
               </Button>
             </div>
           </div>
@@ -2025,7 +2020,7 @@ function PDFViewerInner({
                   type="button"
                   variant="ghost"
                 >
-                  <HugeiconsIcon className="size-4" icon={SidebarLeftIcon} />
+                  <PanelLeft className="size-4" />
                 </Button>
               </ToolbarTooltip>
             </TooltipProvider>
@@ -2050,7 +2045,7 @@ function PDFViewerInner({
                         type="button"
                         variant="ghost"
                       >
-                        <HugeiconsIcon className="size-4" icon={RotateClockwiseIcon} />
+                        <RotateCw className="size-4" />
                       </Button>
                     </ToolbarTooltip>
                     <ToolbarTooltip label="Rotate clockwise">
@@ -2062,7 +2057,7 @@ function PDFViewerInner({
                         type="button"
                         variant="ghost"
                       >
-                        <HugeiconsIcon className="size-4 -scale-x-100" icon={RotateClockwiseIcon} />
+                        <RotateCw className="size-4 -scale-x-100" />
                       </Button>
                     </ToolbarTooltip>
                   </div>
@@ -2083,7 +2078,7 @@ function PDFViewerInner({
                     type="button"
                     variant="ghost"
                   >
-                    <HugeiconsIcon className="size-4" icon={MinusSignCircleIcon} />
+                    <CircleMinus className="size-4" />
                   </Button>
                 </ToolbarTooltip>
                 <Select
@@ -2116,7 +2111,7 @@ function PDFViewerInner({
                     type="button"
                     variant="ghost"
                   >
-                    <HugeiconsIcon className="size-4" icon={PlusSignCircleIcon} />
+                    <CirclePlus className="size-4" />
                   </Button>
                 </ToolbarTooltip>
               </div>

@@ -1,11 +1,15 @@
-import { JSDOM } from 'jsdom'
+import { Window } from 'happy-dom'
 import { describe, expect, it } from 'vitest'
 
 import { extractArticleFromDocument } from './extract'
 
 function dom(html: string, url = 'https://example.com/a'): { document: Document; location: Location } {
-  const dom = new JSDOM(html, { url })
-  return { document: dom.window.document, location: dom.window.location }
+  const window = new Window({ url })
+  window.document.write(html)
+  return {
+    document: window.document as unknown as Document,
+    location: window.location as unknown as Location,
+  }
 }
 
 describe('extractArticleFromDocument', () => {

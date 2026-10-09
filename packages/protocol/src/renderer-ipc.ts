@@ -6,25 +6,61 @@
 // handle) uses it.
 import type { ServiceMethod, ServiceMethodSignatures } from './service-methods'
 import type { AnalyzeArticleResult } from './types/article'
-import type { BiliTranscribeProgress } from './types/bilibili'
+import type {
+  BiliAnalysis,
+  BiliDeleteResult,
+  BiliListResult,
+  BiliLoginStatus,
+  BiliProcessResult,
+  BiliSaveResult,
+  BiliSummary,
+  BiliTranscribeProgress,
+  BiliTranscribeResult,
+  BiliVideo,
+  ObsidianConfig,
+  TranscriptionConfig,
+} from './types/bilibili'
 import type { BudgetConfig } from './types/budgets'
-import type { CalendarConfigView } from './types/calendar'
-import type { GmailConfigView } from './types/gmail'
-import type { McpServerConfig, McpServerStatus } from './types/mcp'
-import type { ProvidersStateView } from './types/provider'
+import type { CalendarClientCreds, CalendarConfigView, CalendarEvent } from './types/calendar'
+import type { GmailClientCreds, GmailConfigView, GmailMessage, GmailThread } from './types/gmail'
+import type { McpMutationResult, McpServerConfig, McpServerStatus, McpToolOverride } from './types/mcp'
+import type { ApiStyle, ModelThinkingLevel, ProvidersStateView } from './types/provider'
 import type { SkillMutationResult } from './types/skill'
 import type { ResearchRepoResult, TrendingPeriod, TrendingRepo } from './types/trending'
 import type {
+  AddCustomProviderInput,
   AnalyzeThreadInput,
   AnalyzeThreadResult,
   ArtifactEntry,
+  BudgetsSetResult,
+  CalendarLocalInput,
+  CalendarSetResult,
+  GmailSetResult,
+  GmailThreadAnalysis,
   MacPermissions,
   PermissionDecision,
+  ProvidersAddResult,
+  ProvidersFetchModelInfoResult,
+  ProvidersSetResult,
+  ProvidersTestResult,
+  ThreadAnalysisPayload,
   UIEvent,
+  WeatherForecastResult,
+  WeatherSetResult,
+  WebSearchKeyId,
+  WebSearchSetResult,
 } from './types/ui'
-import type { WeatherForecast } from './types/weather'
-import type { WebSearchConfigView } from './types/web-search'
-import type { WorkbenchData } from './types/workbench'
+import type { WeatherConfig, WeatherConfigView, WeatherForecast } from './types/weather'
+import type { WebSearchConfigView, WebSearchProviderId } from './types/web-search'
+import type {
+  AddColumnInput,
+  CreateTaskInput,
+  MoveTaskInput,
+  RenameColumnInput,
+  UpdateTaskInput,
+  WorkbenchData,
+  WorkbenchMutationResult,
+} from './types/workbench'
 
 // A channel that forwards verbatim to the service: same args, same result.
 // Service signature changes propagate here without touching this file.
@@ -99,6 +135,113 @@ export type RendererIpcSignatures = {
   'swarm:quickPanel:setHotkey': { args: [string]; result: { ok: boolean } }
   // ---- system/deep-link.ts ----
   'swarm:consumePendingDeepLink': { args: []; result: { sessionId: string } | null }
+  // ---- bilibili/ipc.ts (24 channels) ----
+  'bilibili:status': { args: []; result: BiliLoginStatus }
+  'bilibili:login': { args: []; result: BiliLoginStatus }
+  'bilibili:logout': { args: []; result: void }
+  'bilibili:list': { args: []; result: BiliListResult }
+  'bilibili:process': { args: [string]; result: BiliProcessResult }
+  'bilibili:open': { args: [string]; result: void }
+  'bilibili:getObsidianConfig': { args: []; result: ObsidianConfig | null }
+  'bilibili:setObsidianConfig': { args: [ObsidianConfig]; result: void }
+  'bilibili:pickVault': { args: []; result: string | null }
+  // save takes the full video + summary (fav deletion needs the fav* ids carried on BiliVideo)
+  'bilibili:save': { args: [BiliVideo, BiliSummary]; result: BiliSaveResult }
+  'bilibili:getTranscribeConfig': { args: []; result: TranscriptionConfig | null }
+  'bilibili:setTranscribeConfig': { args: [TranscriptionConfig]; result: void }
+  'bilibili:pickModelDir': { args: []; result: string | null }
+  'bilibili:transcribe': { args: [string]; result: BiliTranscribeResult }
+  'bilibili:analyzedBvids': { args: []; result: string[] }
+  'bilibili:getAnalysis': { args: [string]; result: BiliAnalysis | null }
+  'bilibili:deleteWatchLater': { args: [string]; result: BiliDeleteResult }
+  'bilibili:deleteFav': { args: [BiliVideo]; result: BiliDeleteResult }
+  'bilibili:archiveList': { args: []; result: BiliVideo[] }
+  'bilibili:archivePut': { args: [BiliVideo]; result: void }
+  'bilibili:archiveRemove': { args: [string]; result: void }
+  'bilibili:pinsList': { args: []; result: BiliVideo[] }
+  'bilibili:pinsPut': { args: [BiliVideo]; result: void }
+  'bilibili:pinsRemove': { args: [string]; result: void }
+  // ---- providers/ipc.ts (17 channels) ----
+  'providers:get': { args: []; result: ProvidersStateView }
+  'providers:setKey': { args: [string, string]; result: ProvidersSetResult }
+  'providers:clearKey': { args: [string]; result: ProvidersSetResult }
+  'providers:setActive': { args: [string | null]; result: ProvidersSetResult }
+  'providers:setModel': { args: [string, string]; result: ProvidersSetResult }
+  'providers:addCustomModel': { args: [string, string]; result: ProvidersSetResult }
+  'providers:removeCustomModel': { args: [string, string]; result: ProvidersSetResult }
+  'providers:setApiStyle': { args: [string, ApiStyle]; result: ProvidersSetResult }
+  'providers:setThinkingLevel': { args: [string, ModelThinkingLevel]; result: ProvidersSetResult }
+  'providers:setFallbackProviderIds': { args: [string, string[]]; result: ProvidersSetResult }
+  'providers:setModelContextWindow': { args: [string, string, number | null]; result: ProvidersSetResult }
+  'providers:fetchModelInfo': { args: [string]; result: ProvidersFetchModelInfoResult }
+  'providers:setBaseUrl': { args: [string, string | null]; result: ProvidersSetResult }
+  'providers:addCustomProvider': { args: [AddCustomProviderInput]; result: ProvidersAddResult }
+  'providers:removeCustomProvider': { args: [string]; result: ProvidersSetResult }
+  'providers:renameCustomProvider': { args: [string, string]; result: ProvidersSetResult }
+  'providers:test': { args: [string]; result: ProvidersTestResult }
+  // ---- mcp-servers/ipc.ts (6 channels; getStatus migrated in Plan 1 via swarm-ipc) ----
+  'mcp:list': { args: []; result: McpServerConfig[] }
+  'mcp:add': { args: [Omit<McpServerConfig, 'id'>]; result: McpMutationResult & { id?: string } }
+  'mcp:update': { args: [string, Partial<Omit<McpServerConfig, 'id'>>]; result: McpMutationResult }
+  'mcp:remove': { args: [string]; result: McpMutationResult }
+  'mcp:setEnabled': { args: [string, boolean]; result: McpMutationResult }
+  'mcp:setToolOverride': { args: [string, string, McpToolOverride | null]; result: McpMutationResult }
+  // ---- web-search/ipc.ts (5 channels) ----
+  'webSearch:get': { args: []; result: WebSearchConfigView }
+  'webSearch:setProvider': { args: [WebSearchProviderId]; result: WebSearchSetResult }
+  'webSearch:setKey': { args: [WebSearchKeyId, string]; result: WebSearchSetResult }
+  'webSearch:clearKey': { args: [WebSearchKeyId]; result: WebSearchSetResult }
+  'webSearch:setSearxngUrl': { args: [string | null]; result: WebSearchSetResult }
+  // ---- budgets/ipc.ts (2 channels) ----
+  'budgets:get': { args: []; result: BudgetConfig }
+  'budgets:set': { args: [BudgetConfig]; result: BudgetsSetResult }
+  // ---- gmail/ipc.ts (14 channels) ----
+  'gmail:getStatus': { args: []; result: GmailConfigView }
+  'gmail:setClientCreds': { args: [GmailClientCreds]; result: GmailSetResult }
+  'gmail:clearClientCreds': { args: []; result: GmailSetResult }
+  'gmail:linkAccount': { args: []; result: GmailSetResult }
+  'gmail:unlinkAccount': { args: []; result: GmailSetResult }
+  // Verified void end-to-end: service.syncNow() has no return statement (resolves
+  // undefined); no await-wrap needed in the Task 2 preload switch.
+  'gmail:syncNow': { args: []; result: void }
+  'gmail:listRecent': { args: [{ limit: number; label?: string }]; result: GmailThread[] }
+  'gmail:getThread': { args: [string]; result: { thread: GmailThread; messages: GmailMessage[] } | null }
+  'gmail:search': { args: [string, number]; result: GmailThread[] }
+  'gmail:getThreadAnalysis': { args: [string]; result: GmailThreadAnalysis | null }
+  'gmail:saveThreadAnalysis': { args: [string, ThreadAnalysisPayload]; result: void }
+  'gmail:analyzedThreadIds': { args: []; result: string[] }
+  'gmail:markThreadRead': { args: [string]; result: void }
+  'gmail:listInboxPage': { args: [number]; result: { threads: GmailThread[]; total: number } }
+  // ---- calendar/ipc.ts (10 channels) ----
+  'calendar:getStatus': { args: []; result: CalendarConfigView }
+  'calendar:setClientCreds': { args: [CalendarClientCreds]; result: CalendarSetResult }
+  'calendar:clearClientCreds': { args: []; result: CalendarSetResult }
+  'calendar:linkAccount': { args: []; result: CalendarSetResult }
+  'calendar:unlinkAccount': { args: []; result: CalendarSetResult }
+  // Verified void end-to-end: service.syncNow() has no return statement (resolves
+  // undefined); no await-wrap needed in the Task 2 preload switch.
+  'calendar:syncNow': { args: []; result: void }
+  'calendar:listInRange': { args: [number, number]; result: CalendarEvent[] }
+  'calendar:createLocal': { args: [CalendarLocalInput]; result: CalendarEvent }
+  'calendar:updateLocal': { args: [string, Partial<CalendarLocalInput>]; result: CalendarEvent | null }
+  'calendar:deleteLocal': { args: [string]; result: boolean }
+  // ---- weather/ipc.ts (3 channels) ----
+  'weather:getConfig': { args: []; result: WeatherConfigView }
+  'weather:setConfig': { args: [WeatherConfig]; result: WeatherSetResult }
+  'weather:getForecast': { args: [number | null, number | null]; result: WeatherForecastResult }
+  // ---- workbench/ipc.ts (11 channels; zod-validated handlers — the invalid
+  // branch returns { ok: false, message }, assignable to WorkbenchMutationResult) ----
+  'workbench:getAll': { args: []; result: WorkbenchData }
+  'workbench:createTask': { args: [CreateTaskInput]; result: WorkbenchMutationResult }
+  'workbench:updateTask': { args: [string, UpdateTaskInput]; result: WorkbenchMutationResult }
+  'workbench:completeTask': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:reopenTask': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:deleteTask': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:moveTask': { args: [MoveTaskInput]; result: WorkbenchMutationResult }
+  'workbench:addColumn': { args: [AddColumnInput]; result: WorkbenchMutationResult }
+  'workbench:renameColumn': { args: [RenameColumnInput]; result: WorkbenchMutationResult }
+  'workbench:deleteColumn': { args: [string]; result: WorkbenchMutationResult }
+  'workbench:reorderColumns': { args: [string[]]; result: WorkbenchMutationResult }
 }
 export type RendererIpcChannel = keyof RendererIpcSignatures
 

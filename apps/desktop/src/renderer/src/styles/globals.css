@@ -30,9 +30,12 @@
    Everything else (neutrals, charts, borders) is inherited from @swarm/ui. */
 :root {
   --primary: var(--system-accent);
-  --primary-foreground: oklch(0.985 0 0);
+  /* use-accent writes --system-accent-foreground only for bright accents
+     (yellow/orange/green) where near-white labels fail WCAG AA; the fallback
+     below is the default for every mid/dark system accent. */
+  --primary-foreground: var(--system-accent-foreground, oklch(0.985 0 0));
   --sidebar-primary: var(--system-accent);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary-foreground: var(--system-accent-foreground, oklch(0.985 0 0));
   /* Translucent material layered over vibrancy — content reads as more opaque
      than the sidebar, the way native split views do. */
   --window-content: oklch(1 0 0 / 75%);
@@ -44,7 +47,7 @@
   --primary: var(--system-accent, oklch(0.922 0 0));
   --primary-foreground: oklch(0.205 0 0);
   --sidebar-primary: var(--system-accent, oklch(0.488 0.243 264.376));
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary-foreground: var(--system-accent-foreground, oklch(0.985 0 0));
   --window-content: oklch(0.18 0 0 / 65%);
   /* 3b dark elevation: rail #19191b (darkest) < side panels #202022 (mid) < chat
      #262628 (lightest central canvas). Panels keep a hint of translucency so the

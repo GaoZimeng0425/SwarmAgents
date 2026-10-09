@@ -9,6 +9,7 @@ import {
   uuidv7,
 } from '@earendil-works/pi-agent-core'
 import type { Api, ImageContent, Model, Usage } from '@earendil-works/pi-ai'
+import { streamSimple } from '@earendil-works/pi-ai/compat'
 import type {
   AgentWireEvent,
   Attachment,
@@ -255,7 +256,9 @@ export class SessionAgent {
         messages: [],
       },
       convertToLlm,
-      ...(cfg.streamFn ? { streamFn: cfg.streamFn } : {}),
+      // pi 0.85 requires an explicit StreamFn; streamSimple is pi-ai's
+      // provider-dispatching default. Tests inject a fake via cfg.streamFn.
+      streamFn: cfg.streamFn ?? streamSimple,
       getApiKey: () => this.currentApiKey,
       // Reads this.currentHooks fresh on every call (not captured once at
       // Agent-construction time): the Agent instance is cached/reused across

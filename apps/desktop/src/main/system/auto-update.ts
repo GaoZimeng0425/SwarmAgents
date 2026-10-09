@@ -6,11 +6,11 @@
 // download is staged for next launch.
 import { is } from '@electron-toolkit/utils'
 import { createLogger } from '@shared/logger'
-import { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
+import { sendToAllWindows } from '../ipc/wire'
+
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
-const UPDATE_READY_CHANNEL = 'system:updateReady'
 
 export function setupAutoUpdate(): void {
   if (is.dev) return
@@ -20,9 +20,7 @@ export function setupAutoUpdate(): void {
   autoUpdater.autoDownload = true
   autoUpdater.on('update-downloaded', () => {
     log.info({ msg: 'update downloaded, will install on next launch' })
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(UPDATE_READY_CHANNEL)
-    }
+    sendToAllWindows('system:updateReady', undefined)
   })
   autoUpdater.on('error', (err) => {
     log.warn({ msg: 'auto-update error', err: String(err) })

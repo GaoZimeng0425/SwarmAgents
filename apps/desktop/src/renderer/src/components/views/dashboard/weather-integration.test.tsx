@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 // Integration test: does NOT mock @/hooks/use-weather. Proves the shared-cache
 // behaviour — the strip fetches once, and the drawer/detail (mounted later) read
 // the SAME forecast from React Query's cache, not an independent null instance.

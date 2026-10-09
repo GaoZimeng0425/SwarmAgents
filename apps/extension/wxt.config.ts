@@ -32,6 +32,12 @@ export default defineConfig({
   },
   vite: () => ({
     plugins: [tailwindcss()],
+    css: {
+      transformer: 'lightningcss',
+      // Packed semver (major<<16). Chrome-only MV3 target, floor aligned with
+      // the modern baseline Tailwind v4 assumes.
+      lightningcss: { targets: { chrome: 111 << 16 } },
+    },
     resolve: {
       alias: {
         '@swarm/protocol': resolve(__dirname, '../../packages/protocol/src'),

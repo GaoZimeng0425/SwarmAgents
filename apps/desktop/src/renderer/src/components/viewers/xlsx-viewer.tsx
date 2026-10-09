@@ -15,18 +15,6 @@ import {
   XlsxViewerProvider,
 } from '@extend-ai/react-xlsx'
 import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  Download01Icon,
-  MinusSignCircleIcon,
-  Moon02Icon,
-  MoreHorizontalIcon,
-  PlusSignCircleIcon,
-  Search01Icon,
-  Upload01Icon,
-} from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
   Button,
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -56,6 +44,7 @@ import {
   TooltipTrigger,
 } from '@swarm/ui'
 import { useDebouncer } from '@tanstack/react-pacer'
+import { ArrowLeft, ArrowRight, CircleMinus, CirclePlus, Download, Ellipsis, Moon, Search, Upload } from 'lucide-react'
 import { createPortal } from 'react-dom'
 
 // local-adapt: local scroll-area is a base-ui subset lacking orientation/scrollFade/viewport* props the Extend viewers rely on; import Extend's vendored richer ScrollArea instead (shared primitive left untouched)
@@ -431,7 +420,7 @@ function WorkbookFileActionsMenu({
       <DropdownMenuTrigger
         render={
           <Button aria-label="Open workbook actions" size="icon-sm" type="button" variant="ghost">
-            <HugeiconsIcon className="size-4" icon={MoreHorizontalIcon} />
+            <Ellipsis className="size-4" />
           </Button>
         }
       />
@@ -444,7 +433,7 @@ function WorkbookFileActionsMenu({
               onCheckedChange={(checked) => onIsDarkChange?.(checked === true)}
             >
               <span className="flex min-w-0 items-center gap-2">
-                <HugeiconsIcon className="size-4" icon={Moon02Icon} />
+                <Moon className="size-4" />
                 Dark mode
               </span>
             </DropdownMenuCheckboxItem>
@@ -453,13 +442,13 @@ function WorkbookFileActionsMenu({
         ) : null}
         {showDownloadButton && onDownload ? (
           <DropdownMenuItem onClick={onDownload}>
-            <HugeiconsIcon className="size-4" icon={Download01Icon} />
+            <Download className="size-4" />
             Download
           </DropdownMenuItem>
         ) : null}
         {showUploadButton ? (
           <DropdownMenuItem onClick={onUploadClick}>
-            <HugeiconsIcon className="size-4" icon={Upload01Icon} />
+            <Upload className="size-4" />
             Upload
           </DropdownMenuItem>
         ) : null}
@@ -498,7 +487,7 @@ export function WorkbookTableHeaderMenu({
             type="button"
             variant="ghost"
           >
-            {triggerIcon ? triggerIcon : <HugeiconsIcon className="size-3.5" icon={MoreHorizontalIcon} />}
+            {triggerIcon ? triggerIcon : <Ellipsis className="size-3.5" />}
           </Button>
         }
       />
@@ -677,7 +666,7 @@ function WorkbookSearchPopover({
               type="button"
               variant="ghost"
             >
-              <HugeiconsIcon className="size-4" icon={Search01Icon} />
+              <Search className="size-4" />
             </Button>
           }
         />
@@ -728,7 +717,7 @@ function WorkbookSearchPopover({
                 type="button"
                 variant="outline"
               >
-                <HugeiconsIcon className="size-4" icon={ArrowLeft01Icon} />
+                <ArrowLeft className="size-4" />
               </Button>
               <Button
                 aria-label="Next result"
@@ -738,7 +727,7 @@ function WorkbookSearchPopover({
                 type="button"
                 variant="outline"
               >
-                <HugeiconsIcon className="size-4" icon={ArrowRight01Icon} />
+                <ArrowRight className="size-4" />
               </Button>
             </div>
           </div>
@@ -797,7 +786,7 @@ function WorkbookToolbar({
                 type="button"
                 variant="ghost"
               >
-                <HugeiconsIcon className="size-4" icon={MinusSignCircleIcon} />
+                <CircleMinus className="size-4" />
               </Button>
             </ToolbarTooltip>
             <Select modal={false} onValueChange={(value) => setZoomScale(Number(value))} value={currentZoom.toString()}>
@@ -821,7 +810,7 @@ function WorkbookToolbar({
                 type="button"
                 variant="ghost"
               >
-                <HugeiconsIcon className="size-4" icon={PlusSignCircleIcon} />
+                <CirclePlus className="size-4" />
               </Button>
             </ToolbarTooltip>
           </div>
@@ -1410,7 +1399,7 @@ function XlsxViewerContent({
               type="button"
               variant="outline"
             >
-              <HugeiconsIcon className="size-4" icon={Upload01Icon} />
+              <Upload className="size-4" />
               Upload XLSX
             </Button>
           </div>
@@ -1445,7 +1434,7 @@ function XlsxViewerContent({
               type="button"
               variant="outline"
             >
-              <HugeiconsIcon className="size-4" icon={Upload01Icon} />
+              <Upload className="size-4" />
               Upload XLSX
             </Button>
           </div>

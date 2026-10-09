@@ -9,69 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkbenchRouteImport } from './routes/workbench'
-import { Route as UsageRouteImport } from './routes/usage'
-import { Route as TrendingRouteImport } from './routes/trending'
-import { Route as SessionRouteImport } from './routes/session'
-import { Route as ScheduledRouteImport } from './routes/scheduled'
-import { Route as QuickPanelRouteImport } from './routes/quick-panel'
-import { Route as GmailRouteImport } from './routes/gmail'
-import { Route as GlassRouteImport } from './routes/glass'
-import { Route as FormationsRouteImport } from './routes/formations'
-import { Route as BilibiliRouteImport } from './routes/bilibili'
-import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ArticlesRouteImport } from './routes/articles'
+import { Route as BilibiliRouteImport } from './routes/bilibili'
+import { Route as FormationsRouteImport } from './routes/formations'
+import { Route as GlassRouteImport } from './routes/glass'
+import { Route as GmailRouteImport } from './routes/gmail'
+import { Route as QuickPanelRouteImport } from './routes/quick-panel'
+import { Route as ScheduledRouteImport } from './routes/scheduled'
+import { Route as SessionRouteImport } from './routes/session'
+import { Route as TrendingRouteImport } from './routes/trending'
+import { Route as UsageRouteImport } from './routes/usage'
+import { Route as WorkbenchRouteImport } from './routes/workbench'
 import { Route as SessionIndexRouteImport } from './routes/session.index'
 import { Route as SessionSessionIdRouteImport } from './routes/session.$sessionId'
 
-const WorkbenchRoute = WorkbenchRouteImport.update({
-  id: '/workbench',
-  path: '/workbench',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UsageRoute = UsageRouteImport.update({
-  id: '/usage',
-  path: '/usage',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TrendingRoute = TrendingRouteImport.update({
-  id: '/trending',
-  path: '/trending',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SessionRoute = SessionRouteImport.update({
-  id: '/session',
-  path: '/session',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScheduledRoute = ScheduledRouteImport.update({
-  id: '/scheduled',
-  path: '/scheduled',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QuickPanelRoute = QuickPanelRouteImport.update({
-  id: '/quick-panel',
-  path: '/quick-panel',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GmailRoute = GmailRouteImport.update({
-  id: '/gmail',
-  path: '/gmail',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GlassRoute = GlassRouteImport.update({
-  id: '/glass',
-  path: '/glass',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FormationsRoute = FormationsRouteImport.update({
-  id: '/formations',
-  path: '/formations',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BilibiliRoute = BilibiliRouteImport.update({
-  id: '/bilibili',
-  path: '/bilibili',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArticlesRoute = ArticlesRouteImport.update({
@@ -79,9 +34,54 @@ const ArticlesRoute = ArticlesRouteImport.update({
   path: '/articles',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const BilibiliRoute = BilibiliRouteImport.update({
+  id: '/bilibili',
+  path: '/bilibili',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FormationsRoute = FormationsRouteImport.update({
+  id: '/formations',
+  path: '/formations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GlassRoute = GlassRouteImport.update({
+  id: '/glass',
+  path: '/glass',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GmailRoute = GmailRouteImport.update({
+  id: '/gmail',
+  path: '/gmail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuickPanelRoute = QuickPanelRouteImport.update({
+  id: '/quick-panel',
+  path: '/quick-panel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduledRoute = ScheduledRouteImport.update({
+  id: '/scheduled',
+  path: '/scheduled',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionRoute = SessionRouteImport.update({
+  id: '/session',
+  path: '/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrendingRoute = TrendingRouteImport.update({
+  id: '/trending',
+  path: '/trending',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsageRoute = UsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkbenchRoute = WorkbenchRouteImport.update({
+  id: '/workbench',
+  path: '/workbench',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SessionIndexRoute = SessionIndexRouteImport.update({
@@ -210,74 +210,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workbench': {
-      id: '/workbench'
-      path: '/workbench'
-      fullPath: '/workbench'
-      preLoaderRoute: typeof WorkbenchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/usage': {
-      id: '/usage'
-      path: '/usage'
-      fullPath: '/usage'
-      preLoaderRoute: typeof UsageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/trending': {
-      id: '/trending'
-      path: '/trending'
-      fullPath: '/trending'
-      preLoaderRoute: typeof TrendingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/session': {
-      id: '/session'
-      path: '/session'
-      fullPath: '/session'
-      preLoaderRoute: typeof SessionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scheduled': {
-      id: '/scheduled'
-      path: '/scheduled'
-      fullPath: '/scheduled'
-      preLoaderRoute: typeof ScheduledRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/quick-panel': {
-      id: '/quick-panel'
-      path: '/quick-panel'
-      fullPath: '/quick-panel'
-      preLoaderRoute: typeof QuickPanelRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gmail': {
-      id: '/gmail'
-      path: '/gmail'
-      fullPath: '/gmail'
-      preLoaderRoute: typeof GmailRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/glass': {
-      id: '/glass'
-      path: '/glass'
-      fullPath: '/glass'
-      preLoaderRoute: typeof GlassRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/formations': {
-      id: '/formations'
-      path: '/formations'
-      fullPath: '/formations'
-      preLoaderRoute: typeof FormationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bilibili': {
-      id: '/bilibili'
-      path: '/bilibili'
-      fullPath: '/bilibili'
-      preLoaderRoute: typeof BilibiliRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/articles': {
@@ -287,11 +224,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/bilibili': {
+      id: '/bilibili'
+      path: '/bilibili'
+      fullPath: '/bilibili'
+      preLoaderRoute: typeof BilibiliRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/formations': {
+      id: '/formations'
+      path: '/formations'
+      fullPath: '/formations'
+      preLoaderRoute: typeof FormationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/glass': {
+      id: '/glass'
+      path: '/glass'
+      fullPath: '/glass'
+      preLoaderRoute: typeof GlassRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gmail': {
+      id: '/gmail'
+      path: '/gmail'
+      fullPath: '/gmail'
+      preLoaderRoute: typeof GmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quick-panel': {
+      id: '/quick-panel'
+      path: '/quick-panel'
+      fullPath: '/quick-panel'
+      preLoaderRoute: typeof QuickPanelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scheduled': {
+      id: '/scheduled'
+      path: '/scheduled'
+      fullPath: '/scheduled'
+      preLoaderRoute: typeof ScheduledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session': {
+      id: '/session'
+      path: '/session'
+      fullPath: '/session'
+      preLoaderRoute: typeof SessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trending': {
+      id: '/trending'
+      path: '/trending'
+      fullPath: '/trending'
+      preLoaderRoute: typeof TrendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/usage': {
+      id: '/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof UsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workbench': {
+      id: '/workbench'
+      path: '/workbench'
+      fullPath: '/workbench'
+      preLoaderRoute: typeof WorkbenchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/session/': {

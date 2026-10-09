@@ -5,13 +5,11 @@
 // Mirrors budgets/ipc.ts; broadcasts gmail:stateChanged to all windows.
 import { createLogger } from '@shared/logger'
 import type { GmailClientCreds, MainMethod, MainMethodSignatures } from '@swarm/protocol'
-import { BrowserWindow, ipcMain } from 'electron'
 
+import { createIpcRegistrar, sendToAllWindows } from '../ipc/wire'
 import type { Service } from './service'
 
 const log = createLogger({ process: 'main' }).child({ component: 'gmail-ipc' })
-
-const STATE_CHANGED = 'gmail:stateChanged'
 
 type GmailMethod = Extract<MainMethod, `gmail.${string}`>
 export type RpcHandlers = {
@@ -23,35 +21,34 @@ export function wireGmailIpc(args: { service: Service }): {
   rpcHandlers: RpcHandlers
 } {
   const { service } = args
+  const ipc = createIpcRegistrar()
 
   const unsubscribe = service.onStateChanged((view) => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send(STATE_CHANGED, view)
-    }
+    sendToAllWindows('gmail:stateChanged', view)
   })
 
-  ipcMain.handle('gmail:getStatus', () => service.getView())
-  ipcMain.handle('gmail:setClientCreds', (_e, creds: GmailClientCreds) => service.setClientCreds(creds))
-  ipcMain.handle('gmail:clearClientCreds', () => service.clearClientCreds())
-  ipcMain.handle('gmail:linkAccount', () => service.linkAccount())
-  ipcMain.handle('gmail:unlinkAccount', () => service.unlinkAccount())
-  ipcMain.handle('gmail:syncNow', () => service.syncNow())
+  ipc.handle('gmail:getStatus', () => service.getView())
+  ipc.handle('gmail:setClientCreds', (_e, creds: GmailClientCreds) => service.setClientCreds(creds))
+  ipc.handle('gmail:clearClientCreds', () => service.clearClientCreds())
+  ipc.handle('gmail:linkAccount', () => service.linkAccount())
+  ipc.handle('gmail:unlinkAccount', () => service.unlinkAccount())
+  ipc.handle('gmail:syncNow', () => service.syncNow())
   // Renderer-facing read access to the cache (the inbox view). The agent-tool
   // equivalents live in rpcHandlers below; these are the same service calls.
-  ipcMain.handle('gmail:listRecent', (_e, input: { limit?: number; label?: string } | undefined) =>
+  ipc.handle('gmail:listRecent', (_e, input: { limit?: number; label?: string } | undefined) =>
     service.listRecent({ limit: input?.limit ?? 20, label: input?.label })
   )
-  ipcMain.handle('gmail:getThread', (_e, id: string) => service.getThread(String(id)))
-  ipcMain.handle('gmail:search', (_e, q: string, limit: number) => service.search(String(q), Number(limit ?? 20)))
-  ipcMain.handle('gmail:getThreadAnalysis', (_e, threadId: string) => service.getThreadAnalysis(String(threadId)))
-  ipcMain.handle(
+  ipc.handle('gmail:getThread', (_e, id: string) => service.getThread(String(id)))
+  ipc.handle('gmail:search', (_e, q: string, limit: number) => service.search(String(q), Number(limit ?? 20)))
+  ipc.handle('gmail:getThreadAnalysis', (_e, threadId: string) => service.getThreadAnalysis(String(threadId)))
+  ipc.handle(
     'gmail:saveThreadAnalysis',
     (_e, threadId: string, analysis: import('@swarm/protocol').ThreadAnalysisPayload) =>
       service.saveThreadAnalysis(String(threadId), analysis)
   )
-  ipcMain.handle('gmail:analyzedThreadIds', () => service.analyzedThreadIds())
-  ipcMain.handle('gmail:markThreadRead', (_e, threadId: string) => service.markThreadRead(String(threadId)))
-  ipcMain.handle('gmail:listInboxPage', (_e, page: number) => service.listInboxPage(Number(page)))
+  ipc.handle('gmail:analyzedThreadIds', () => service.analyzedThreadIds())
+  ipc.handle('gmail:markThreadRead', (_e, threadId: string) => service.markThreadRead(String(threadId)))
+  ipc.handle('gmail:listInboxPage', (_e, page: number) => service.listInboxPage(Number(page)))
 
   const rpcHandlers: RpcHandlers = {
     'gmail.search': (q, limit) => Promise.resolve(service.search(String(q), Number(limit ?? 20))),
@@ -71,24 +68,7 @@ export function wireGmailIpc(args: { service: Service }): {
   return {
     dispose() {
       unsubscribe()
-      for (const ch of [
-        'gmail:getStatus',
-        'gmail:setClientCreds',
-        'gmail:clearClientCreds',
-        'gmail:linkAccount',
-        'gmail:unlinkAccount',
-        'gmail:syncNow',
-        'gmail:listRecent',
-        'gmail:getThread',
-        'gmail:search',
-        'gmail:getThreadAnalysis',
-        'gmail:saveThreadAnalysis',
-        'gmail:analyzedThreadIds',
-        'gmail:markThreadRead',
-        'gmail:listInboxPage',
-      ]) {
-        ipcMain.removeHandler(ch)
-      }
+      ipc.dispose()
     },
     rpcHandlers,
   }

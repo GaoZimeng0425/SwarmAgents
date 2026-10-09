@@ -1,9 +1,8 @@
 // apps/desktop/src/renderer/src/components/workspace/workspace-panel.test.tsx
 //
-// Per-file environment directive: vitest.config's environmentMatchGlobs maps
-// src/renderer/** to jsdom, but the glob resolution is not applied when a single
-// file is targeted via `vitest run <path>`, so set jsdom explicitly here.
-// @vitest-environment jsdom
+// Per-file environment directive: the vitest default environment is node, and
+// this spec needs a DOM, so it opts into happy-dom explicitly here.
+// @vitest-environment happy-dom
 //
 // Shell smoke test for <WorkspacePanel/>: the four tab labels render, the
 // approval badge reflects the permission queue, the collapse toggle hides the
